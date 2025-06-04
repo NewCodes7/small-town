@@ -1,0 +1,7 @@
+{
+  "name": "small-town-backend",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "postStartCommand": "docker start mysql || docker run -d --name mysql -e MYSQL_ROOT_PASSWORD=@a09060328 -e MYSQL_DATABASE=small_town -e MYSQL_USER=newcodes -e MYSQL_PASSWORD=@a09060328 -p 3306:3306 -v mysql_data:/var/lib/mysql --restart unless-stopped mysql:latest",
+  "forwardPorts": [3306],
+  "mounts": ["source=mysql_data,target=/var/lib/mysql,type=volume"]
+}
