@@ -15,7 +15,6 @@ public class ArticleController {
     
     private final ArticleService articleService;
     
-    // REST API (기존)
     @GetMapping("/api/articles")
     @ResponseBody
     public ResponseEntity<Page<ArticleListResponseDto>> getArticleList(
@@ -27,11 +26,10 @@ public class ArticleController {
         return ResponseEntity.ok(articles);
     }
     
-    // 홈 화면 (Thymeleaf)
-    @GetMapping({"", "/", "/home"})
+    @GetMapping({"", "/"})
     public String home(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "12") int size,
+            @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "latest") String sort,
             Model model) {
         
