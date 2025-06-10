@@ -10,10 +10,10 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 
-@Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
+@Entity(name = "ArticleCorporation")
 @Table(name = "corporation")
 public class Corporation {
     

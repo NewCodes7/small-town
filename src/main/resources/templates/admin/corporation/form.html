@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<section>
+    <div class="container mt-4">
+        <h2>기업 등록</h2>
+        
+        <div th:if="${errorMessage}" class="alert alert-danger" role="alert">
+            <span th:text="${errorMessage}"></span>
+        </div>
+        
+        <form th:action="@{/admin/corporations}" th:object="${corporation}" method="post">
+            <div class="mb-3">
+                <label for="name" class="form-label">기업명 *</label>
+                <input type="text" class="form-control" id="name" th:field="*{name}" required>
+                <div th:if="${#fields.hasErrors('name')}" class="text-danger">
+                    <small th:errors="*{name}"></small>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="homeLink" class="form-label">홈페이지 링크</label>
+                <input type="url" class="form-control" id="homeLink" th:field="*{homeLink}">
+            </div>
+            
+            <div class="mb-3">
+                <label for="blogLink" class="form-label">기술 블로그 링크</label>
+                <input type="url" class="form-control" id="blogLink" th:field="*{blogLink}">
+            </div>
+            
+            <div class="mb-3">
+               <label for="crewLink" class="form-label">채용 페이지 링크</label>
+               <input type="url" class="form-control" id="crewLink" th:field="*{crewLink}">
+           </div>
+           
+           <div class="mb-3">
+               <label for="logoUrl" class="form-label">로고 이미지 URL</label>
+               <input type="url" class="form-control" id="logoUrl" th:field="*{logoUrl}">
+           </div>
+           
+           <div class="mb-3">
+               <label class="form-label">업종 선택</label>
+               <div class="row">
+                   <div class="col-md-4" th:each="industry : ${industries}">
+                       <div class="form-check">
+                           <input type="checkbox" class="form-check-input" 
+                                  th:id="'industry_' + ${industry.id}" 
+                                  th:field="*{industryIds}" 
+                                  th:value="${industry.id}">
+                           <label class="form-check-label" th:for="'industry_' + ${industry.id}" 
+                                  th:text="${industry.name}"></label>
+                       </div>
+                   </div>
+               </div>
+           </div>
+           
+           <div class="mb-3">
+               <button type="submit" class="btn btn-primary">등록</button>
+               <a th:href="@{/admin/corporations}" class="btn btn-secondary">취소</a>
+           </div>
+       </form>
+   </div>
+</section>
+</html>

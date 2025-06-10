@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<section>
+    <div class="container mt-4">
+        <h2>기업 관리</h2>
+        
+        <!-- 성공/에러 메시지 -->
+        <div th:if="${successMessage}" class="alert alert-success" role="alert">
+            <span th:text="${successMessage}"></span>
+        </div>
+        <div th:if="${errorMessage}" class="alert alert-danger" role="alert">
+            <span th:text="${errorMessage}"></span>
+        </div>
+        
+        <!-- 검색 및 등록 버튼 -->
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <form th:action="@{/admin/corporations}" method="get" class="d-flex">
+                    <input type="text" name="search" th:value="${search}" class="form-control me-2" placeholder="기업명 검색">
+                    <button type="submit" class="btn btn-outline-secondary">검색</button>
+                </form>
+            </div>
+            <div class="col-md-6 text-end">
+                <a th:href="@{/admin/corporations/new}" class="btn btn-primary">기업 등록</a>
+            </div>
+        </div>
+        
+        <!-- 기업 목록 테이블 -->
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>기업명</th>
+                        <th>업종</th>
+                        <th>블로그 링크</th>
+                        <th>등록일</th>
+                        <th>관리</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="corp : ${corporations.content}">
+                        <td th:text="${corp.id}"></td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <img th:if="${corp.logoUrl}" th:src="${corp.logoUrl}" alt="logo" class="me-2" style="width: 30px; height: 30px;">
+                                <span th:text="${corp.name}"></span>
+                            </div>
+                        </td>
+                        <td>
+                            <span th:each="industry, iterStat : ${corp.industries}" 
+                                  th:text="${industry + (iterStat.last ? '' : ', ')}"></span>
+                        </td>
+                        <td>
+                            <a th:if="${corp.blogLink}" th:href="${corp.blogLink}" target="_blank" class="btn btn-sm btn-outline-primary">블로그</a>
+                        </td>
+                        <td th:text="${#temporals.format(corp.createdAt, 'yyyy-MM-dd')}"></td>
+                        <td>
+                            <a th:href="@{'/admin/corporations/' + ${corp.id} + '/edit'}" class="btn btn-sm btn-warning">수정</a>
+                            <form th:action="@{'/admin/corporations/' + ${corp.id} + '/delete'}" method="post" style="display: inline;">
+                                <button type="submit" class="btn btn-sm btn-danger" 
+                                        onclick="return confirm('정말 삭제하시겠습니까?')">삭제</button>
+                            </form>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- 페이징 -->
+        <nav th:if="${corporations.totalPages > 1}">
+            <ul class="pagination justify-content-center">
+                <li class="page-item" th:classappend="${corporations.first} ? 'disabled'">
+                    <a class="page-link" th:href="@{/admin/corporations(page=0, search=${search})}">처음</a>
+                </li>
+                <li class="page-item" th:classappend="${!corporations.hasPrevious()} ? 'disabled'">
+                    <a class="page-link" th:href="@{/admin/corporations(page=${corporations.number - 1}, search=${search})}">이전</a>
+                </li>
+                <li class="page-item" th:each="i : ${#numbers.sequence(0, corporations.totalPages - 1)}" 
+                    th:classappend="${i == corporations.number} ? 'active'">
+                    <a class="page-link" th:href="@{/admin/corporations(page=${i}, search=${search})}" th:text="${i + 1}"></a>
+                </li>
+                <li class="page-item" th:classappend="${!corporations.hasNext()} ? 'disabled'">
+                    <a class="page-link" th:href="@{/admin/corporations(page=${corporations.number + 1}, search=${search})}">다음</a>
+                </li>
+                <li class="page-item" th:classappend="${corporations.last} ? 'disabled'">
+                    <a class="page-link" th:href="@{/admin/corporations(page=${corporations.totalPages - 1}, search=${search})}">마지막</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+</section>
+</html>
