@@ -1,7 +1,24 @@
 {
-  "name": "small-town-backend",
-  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
-  "postStartCommand": "docker start mysql || docker run -d --name mysql -e MYSQL_ROOT_PASSWORD=@a09060328 -e MYSQL_DATABASE=small_town -e MYSQL_USER=newcodes -e MYSQL_PASSWORD=@a09060328 -p 3306:3306 -v mysql_data:/var/lib/mysql --restart unless-stopped mysql:latest",
+  "name": "small-town",
+  "dockerComposeFile": "docker-compose.yml", // docker-compose.yml 파일 사용
+  "service": "app", // docker-compose.yml에 정의된 메인 개발 환경 서비스 이름
+  "workspaceFolder": "/workspaces/small-town", // 작업 폴더 경로
+  "features": {
+    "ghcr.io/devcontainers/features/java:1": {
+      "version": "17",
+      "installGradle": true
+    }
+  },
+  "postStartCommand": ["google-chrome --version && chromedriver --version && docker --version && docker ps"],
   "forwardPorts": [3306],
-  "mounts": ["source=mysql_data,target=/var/lib/mysql,type=volume"]
+  // "mounts": [] // docker-compose.yml에서 볼륨을 정의했으므로 여기서는 필요 없음
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-azuretools.vscode-docker",
+        "ms-vscode.vscode-sqltools",
+        "ms-vscode.vscode-sqltools-driver-mysql"
+      ]
+    }
+  }
 }

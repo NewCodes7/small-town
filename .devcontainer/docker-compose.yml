@@ -1,0 +1,39 @@
+services:
+  # 1. 메인 개발 환경 서비스 (예: small-town-backend)
+  app:
+    build:
+      context: .. # 프로젝트 루트를 빌드 컨텍스트로 사용
+      dockerfile: .devcontainer/Dockerfile # Codespaces의 Dockerfile 경로
+    volumes:
+      - ..:/workspaces/small-town # 프로젝트 폴더 마운트
+    ports:
+      - "8080:8080" # 애플리케이션이 사용하는 포트
+    depends_on:
+      mysql:
+        condition: service_healthy # MySQL이 준비될 때까지 기다림
+    command: sleep infinity # 컨테이너가 계속 실행되도록 유지 (필요 시)
+    # environment:
+      # SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/small_town # 애플리케이션에서 MySQL 연결 설정
+      # SPRING_DATASOURCE_USERNAME: newcodes
+      # SPRING_DATASOURCE_PASSWORD: @a09060328
+
+  # 2. MySQL 서비스
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: dev
+      MYSQL_DATABASE: small_town
+      MYSQL_USER: newcodes
+      MYSQL_PASSWORD: dev
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pdev"]
+      timeout: 5s
+      retries: 5
+      start_period: 30s # MySQL이 시작될 때까지 기다리는 시간
+
+volumes:
+  mysql_data:

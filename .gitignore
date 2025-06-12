@@ -1,4 +1,3 @@
-./src/main/resources/application.properties
-./.devcontainer
+src/main/resources/application.properties
 build/
 .gradle
