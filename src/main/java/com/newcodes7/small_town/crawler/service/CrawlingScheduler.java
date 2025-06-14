@@ -2,7 +2,7 @@ package com.newcodes7.small_town.crawler.service;
 
 import com.newcodes7.small_town.crawler.config.CrawlerProperties;
 import com.newcodes7.small_town.crawler.service.CrawlingService;
-import com.newcodes7.small_town.crawler.service.CrawlResult;
+import com.newcodes7.small_town.crawler.dto.CrawlResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

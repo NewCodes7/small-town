@@ -2,7 +2,7 @@ package com.newcodes7.small_town.crawler.controller;
 
 import com.newcodes7.small_town.crawler.service.CrawlingService;
 import com.newcodes7.small_town.crawler.dto.CrawlingStats;
-import com.newcodes7.small_town.crawler.service.CrawlResult;
+import com.newcodes7.small_town.crawler.dto.CrawlResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;

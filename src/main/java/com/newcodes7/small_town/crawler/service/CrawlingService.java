@@ -7,7 +7,7 @@ import com.newcodes7.small_town.crawler.entity.Corporation;
 import com.newcodes7.small_town.crawler.repository.CrawlerArticleRepository;
 import com.newcodes7.small_town.crawler.repository.CrawlerCorporationRepository;
 import com.newcodes7.small_town.crawler.service.BlogCrawler;
-import com.newcodes7.small_town.crawler.service.CrawlResult;
+import com.newcodes7.small_town.crawler.dto.CrawlResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.WebDriver;
