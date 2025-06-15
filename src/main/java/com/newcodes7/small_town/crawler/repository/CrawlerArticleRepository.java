@@ -12,6 +12,9 @@ import java.util.Optional;
 
 @Repository
 public interface CrawlerArticleRepository extends JpaRepository<Article, Long> {
+    List<Article> findByCorporationId(Long corporationId);
+    
+    long countByCorporationId(Long corporationId);
     
     Optional<Article> findByLinkAndDeletedAtIsNull(String link);
     

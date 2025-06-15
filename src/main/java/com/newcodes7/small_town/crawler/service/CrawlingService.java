@@ -33,8 +33,9 @@ public class CrawlingService {
     private final ApplicationContext applicationContext;
     private final CrawlerProperties crawlerProperties;
     
+    // TODO: 스레드 수 최적화 필요 (현재는 5개)
     private final ExecutorService executorService = 
-        Executors.newFixedThreadPool(5); // 동시 크롤링 스레드 수
+        Executors.newFixedThreadPool(5); 
     
     /**
      * 모든 기업 블로그 크롤링
@@ -48,8 +49,8 @@ public class CrawlingService {
         List<Corporation> corporations = crawlerCorporationRepository.findAllWithBlogLink();
         log.info("크롤링 시작 - 대상 기업: {}개", corporations.size());
         
+        // 비동기로 크롤링 요청 
         List<CompletableFuture<CrawlResult>> futures = new ArrayList<>();
-        
         for (Corporation corporation : corporations) {
             CompletableFuture<CrawlResult> future = CompletableFuture.supplyAsync(() -> {
                 return crawlSingleBlog(corporation.getId());
@@ -58,11 +59,11 @@ public class CrawlingService {
             futures.add(future);
         }
         
-        // 모든 크롤링 작업 완료 대기
+        // 모든 크롤링 완료 대기
         List<CrawlResult> results = new ArrayList<>();
         for (CompletableFuture<CrawlResult> future : futures) {
             try {
-                CrawlResult result = future.get(5, TimeUnit.MINUTES); // 최대 5분 대기
+                CrawlResult result = future.get(5, TimeUnit.MINUTES); // 동기 블로킹 *최대 5분 대기 
                 results.add(result);
             } catch (Exception e) {
                 log.error("크롤링 작업 실행 중 오류 발생: {}", e.getMessage());

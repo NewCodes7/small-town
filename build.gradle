@@ -30,6 +30,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'jakarta.validation:jakarta.validation-api:3.0.2'
     implementation 'org.hibernate.validator:hibernate-validator:8.0.1.Final'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
     // Selenium 관련 의존성
     implementation 'org.seleniumhq.selenium:selenium-java:4.15.0'
@@ -42,7 +43,11 @@ dependencies {
     implementation 'com.fasterxml.jackson.core:jackson-databind'
 
     implementation 'org.jsoup:jsoup:1.17.2'
+    
+    // RSS/Atom Feed 파싱
+    implementation 'com.rometools:rome:2.1.0'
 
+    runtimeOnly 'com.h2database:h2'
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
