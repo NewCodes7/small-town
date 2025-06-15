@@ -49,7 +49,7 @@
             <div class="col-lg-4 col-md-6" th:each="article : ${articles.content}">
                 <div class="card article-card h-100 border-0 shadow-sm">
                     <!-- Thumbnail -->
-                    <img th:if="${article.thumbnailImage != null}" 
+                    <img width="300px;" th:if="${article.thumbnailImage != null}" 
                          th:src="${article.thumbnailImage}" 
                          th:alt="${article.title}"
                          class="card-img-top article-thumbnail">
@@ -61,7 +61,7 @@
                     <div class="card-body d-flex flex-column">
                         <!-- Company Info -->
                         <div class="d-flex align-items-center mb-2">
-                            <img th:if="${article.corporation.logoUrl != null}"
+                            <img width="30px;" th:if="${article.corporation.logoUrl != null}"
                                  th:src="${article.corporation.logoUrl}" 
                                  th:alt="${article.corporation.name}"
                                  class="company-logo me-2">
