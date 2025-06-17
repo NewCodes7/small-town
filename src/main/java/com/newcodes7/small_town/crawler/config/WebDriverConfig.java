@@ -31,6 +31,9 @@ public class WebDriverConfig {
             options.addArguments("--headless");
         }
 
+        // 해외 블로그의 경우 한국 시간으로 보기 위해 설정 
+        options.addArguments("--timezone=Asia/Seoul");
+
         // TODO: 권한 문제로 인해 필요하지만, 보안 문제로 개선 필요 
         options.addArguments("--no-sandbox");
         // 도커(Docker)와 같은 컨테이너 환경에서 메모리 부족 문제를 방지하기 위해 사용
