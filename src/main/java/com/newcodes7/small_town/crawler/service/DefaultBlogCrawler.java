@@ -72,6 +72,9 @@ public class DefaultBlogCrawler implements BlogCrawler {
                 "h1, h2, h3, h4, .title, .post-title, .entry-title, " +
                 "[class*='title'], [class*='heading'], a[href]"
             );
+            if (corporation.getBlogLink().contains("kakao.com")) {
+                titleElement = element.selectFirst("h4");
+            }
             
             if (titleElement == null) return null;
             
@@ -103,6 +106,10 @@ public class DefaultBlogCrawler implements BlogCrawler {
                     return null;
                 }
             }
+            // 카카오 블로그일 경우 링크 수정
+            if (corporation.getBlogLink().contains("kakao.com")) {
+                link = link.replace("https://tech.kakao.com/blog", "https://tech.kakao.com");
+            }
             
             // 요약 찾기
             String summary = "";
@@ -133,8 +140,19 @@ public class DefaultBlogCrawler implements BlogCrawler {
             }
 
             // 발행일 찾기 (네이버 d2 기준)
-            Element publishElement = element.selectFirst("dd");
-            DateTimeFormatter customFormatter = DateTimeFormatter.ofPattern("yyyy.MM.dd");
+            // TODO: 더 유지보수하기 쉽게 역할 분리
+            Element publishElement;
+            DateTimeFormatter customFormatter;
+            if (corporation.getBlogLink().contains("d2.naver.com")) {
+                publishElement = element.selectFirst("dd");
+                customFormatter = DateTimeFormatter.ofPattern("yyyy.MM.dd");
+            } else if (corporation.getBlogLink().contains("kakao.com")) {
+                publishElement = element.selectFirst("dd[class*='txt_date']");
+                customFormatter = DateTimeFormatter.ofPattern("yyyy.MM.dd");
+            } else {
+                publishElement = element.selectFirst("time, [datetime], [class*='date'], [class*='time']");
+                customFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+            }
 
             LocalDateTime publishedAt = publishElement != null ? 
                 LocalDate.parse(publishElement.text().trim(), customFormatter).atStartOfDay() : 
@@ -151,6 +169,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
                     
         } catch (Exception e) {
             log.warn("기본 크롤러 아티클 파싱 오류: {}", e.getMessage());
+            e.printStackTrace();
             return null;
         }
     }
