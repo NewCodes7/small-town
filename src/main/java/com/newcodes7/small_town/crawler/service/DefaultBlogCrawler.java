@@ -1,14 +1,21 @@
 package com.newcodes7.small_town.crawler.service;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -61,6 +68,48 @@ public class DefaultBlogCrawler implements BlogCrawler {
         
         return articles;
     }
+
+    /**
+     * HTML 콘텐츠 크롤링 (기존 로직)
+     */
+    private List<Article> crawlHtmlContent(WebDriver driver, Corporation corporation) throws Exception {
+        List<Article> articles = new ArrayList<>();
+        
+        driver.get(corporation.getBlogLink());
+        Thread.sleep(2000);
+        
+        String pageSource = driver.getPageSource();
+        Document doc = Jsoup.parse(pageSource);
+        // 디버그용: doc 파일에 저장
+        Files.write(Paths.get("doc.html"), doc.html().getBytes(StandardCharsets.UTF_8));
+
+        // 다양한 CSS 선택자로 아티클 찾기
+        Elements articleElements = doc.select(
+            "article, .post, .entry, .blog-post, .item, " +
+            "[class*='post'], [class*='article'], [class*='entry'], " +
+            "[id*='post'], [id*='article'], [id*='entry']"
+        );
+
+        if (corporation.getBlogLink().contains("toss.tech")) {
+            articleElements = doc.select("a[class*='css-1qr3mg1'], a[class*='e1sck7qg4']");
+        } else if (corporation.getBlogLink().contains("aws")) {
+            articleElements = doc.select("article[class*='blog-post']");
+        } 
+        
+        for (Element element : articleElements) {
+            try {
+                Article article = parseArticle(element, corporation);
+                if (article != null) {
+                    articles.add(article);
+                }
+            } catch (Exception e) {
+                log.warn("기본 크롤러 개별 아티클 파싱 실패: {}", e.getMessage());
+            }
+        }
+        
+        return articles;
+    }
+
     
     /**
      * HTML 요소에서 Article 파싱 (기존 로직 유지)
@@ -74,6 +123,12 @@ public class DefaultBlogCrawler implements BlogCrawler {
             );
             if (corporation.getBlogLink().contains("kakao.com")) {
                 titleElement = element.selectFirst("h4");
+            }
+            if (corporation.getBlogLink().contains("toss.tech")) {
+                titleElement = element.selectFirst("span[class*='typography--h6']");
+            }
+            if (corporation.getBlogLink().contains("aws")) {
+                titleElement = element.selectFirst("span[property*='name headline']");
             }
             
             if (titleElement == null) return null;
@@ -126,7 +181,21 @@ public class DefaultBlogCrawler implements BlogCrawler {
             
             // 썸네일 이미지 찾기
             String thumbnailImage = "";
-            Element imgElement = element.selectFirst("img");
+            Element imgElement = null;
+
+            if (corporation.getBlogLink().contains("toss.tech")) {
+                // Toss 기술블로그의 경우 두 번째 img 태그 선택
+                Elements imgElements = element.select("img");
+                if (imgElements.size() >= 2) {
+                    imgElement = imgElements.get(1); // 두 번째 img 태그 (인덱스 1)
+                } else if (imgElements.size() == 1) {
+                    imgElement = imgElements.get(0); // 하나만 있다면 첫 번째 사용
+                }
+            } else {
+                // 다른 기업 블로그의 경우 첫 번째 img 태그 선택
+                imgElement = element.selectFirst("img");
+            }
+
             if (imgElement != null) {
                 String imgSrc = imgElement.attr("src");
                 if (!imgSrc.startsWith("http") && imgSrc.startsWith("/")) {
@@ -154,10 +223,24 @@ public class DefaultBlogCrawler implements BlogCrawler {
                 customFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
             }
 
-            LocalDateTime publishedAt = publishElement != null ? 
+            LocalDateTime publishedAt;
+            
+            if (corporation.getBlogLink().contains("toss.tech")) {
+                publishElement = element.selectFirst("span[class*='typography--small']");
+                String rawDateText = publishElement.text();
+                String cleanDateText = extractDateOnly(rawDateText);
+                publishedAt = parseKoreanDate(cleanDateText);
+            } else if (corporation.getBlogLink().contains("aws")) {
+                Element timeElement = element.selectFirst("time");
+                String datetime = timeElement.attr("datetime");
+                ZonedDateTime zonedDateTime = ZonedDateTime.parse(datetime);
+                publishedAt = zonedDateTime.toLocalDateTime();
+            } else {
+                publishedAt = publishElement != null ? 
                 LocalDate.parse(publishElement.text().trim(), customFormatter).atStartOfDay() : 
                 LocalDateTime.now();
-            
+            }
+
             return Article.builder()
                     .corporationId(corporation.getId())
                     .title(title)
@@ -172,6 +255,33 @@ public class DefaultBlogCrawler implements BlogCrawler {
             e.printStackTrace();
             return null;
         }
+    }
+
+    private LocalDateTime parseKoreanDate(String dateText) {
+        Pattern pattern = Pattern.compile("(\\d{4})년(\\d{1,2})월(\\d{1,2})일");
+        Matcher matcher = pattern.matcher(dateText);
+        
+        if (matcher.find()) {
+            int year = Integer.parseInt(matcher.group(1));
+            int month = Integer.parseInt(matcher.group(2));
+            int day = Integer.parseInt(matcher.group(3));
+            
+            LocalDate date = LocalDate.of(year, month, day);
+            return date.atStartOfDay(); // 00:00:00으로 변환
+        }
+        
+        throw new DateTimeParseException("한국어 날짜 형식을 파싱할 수 없습니다", dateText, 0);
+    }
+
+    private String extractDateOnly(String dateText) {
+        // 한국어 날짜 패턴 (yyyy년MM월dd일 또는 yyyy년M월d일)
+        Pattern datePattern = Pattern.compile("(\\d{4}년\\s*\\d{1,2}월\\s*\\d{1,2}일)");
+        Matcher matcher = datePattern.matcher(dateText);
+        
+        if (matcher.find()) {
+            return matcher.group(1).replaceAll("\\s+", ""); 
+        }
+        return dateText;
     }
     
     /**
@@ -330,40 +440,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
                 .publishedAt(publishedAt)
                 .build();
     }
-    
-    /**
-     * HTML 콘텐츠 크롤링 (기존 로직)
-     */
-    private List<Article> crawlHtmlContent(WebDriver driver, Corporation corporation) throws Exception {
-        List<Article> articles = new ArrayList<>();
-        
-        driver.get(corporation.getBlogLink());
-        Thread.sleep(2000);
-        
-        String pageSource = driver.getPageSource();
-        Document doc = Jsoup.parse(pageSource);
-        
-        // 다양한 CSS 선택자로 아티클 찾기
-        Elements articleElements = doc.select(
-            "article, .post, .entry, .blog-post, .item, " +
-            "[class*='post'], [class*='article'], [class*='entry'], " +
-            "[id*='post'], [id*='article'], [id*='entry']"
-        );
-        
-        for (Element element : articleElements) {
-            try {
-                Article article = parseArticle(element, corporation);
-                if (article != null) {
-                    articles.add(article);
-                }
-            } catch (Exception e) {
-                log.warn("기본 크롤러 개별 아티클 파싱 실패: {}", e.getMessage());
-            }
-        }
-        
-        return articles;
-    }
-    
+
     /**
      * Chrome XML 뷰어로 래핑된 경우 실제 XML 추출
      */
