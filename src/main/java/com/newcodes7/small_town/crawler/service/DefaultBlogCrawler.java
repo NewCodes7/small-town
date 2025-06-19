@@ -94,7 +94,9 @@ public class DefaultBlogCrawler implements BlogCrawler {
             articleElements = doc.select("a[class*='css-1qr3mg1'], a[class*='e1sck7qg4']");
         } else if (corporation.getBlogLink().contains("aws")) {
             articleElements = doc.select("article[class*='blog-post']");
-        } 
+        } else if (corporation.getBlogLink().contains("googleblog")) {
+            articleElements = doc.select("div[class*='search-result__wrapper']");
+        }
         
         for (Element element : articleElements) {
             try {
@@ -130,6 +132,9 @@ public class DefaultBlogCrawler implements BlogCrawler {
             if (corporation.getBlogLink().contains("aws")) {
                 titleElement = element.selectFirst("span[property*='name headline']");
             }
+            if (corporation.getBlogLink().contains("googleblog")) {
+                titleElement = element.selectFirst("h3[class*='search-result__title']");
+            }
             
             if (titleElement == null) return null;
             
@@ -153,6 +158,9 @@ public class DefaultBlogCrawler implements BlogCrawler {
             if (!link.startsWith("http")) {
                 if (link.startsWith("/")) {
                     String baseUrl = corporation.getBlogLink();
+                    if (corporation.getBlogLink().contains("googleblog")) {
+                        baseUrl = "https://developers.googleblog.com";
+                    }
                     if (baseUrl.endsWith("/")) {
                         baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
                     }
@@ -161,6 +169,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
                     return null;
                 }
             }
+
             // 카카오 블로그일 경우 링크 수정
             if (corporation.getBlogLink().contains("kakao.com")) {
                 link = link.replace("https://tech.kakao.com/blog", "https://tech.kakao.com");
@@ -235,6 +244,12 @@ public class DefaultBlogCrawler implements BlogCrawler {
                 String datetime = timeElement.attr("datetime");
                 ZonedDateTime zonedDateTime = ZonedDateTime.parse(datetime);
                 publishedAt = zonedDateTime.toLocalDateTime();
+            } else if (corporation.getBlogLink().contains("googleblog")) {
+                // ex. 2025년 6월 18일 / Cloud
+                Element timeElement = element.selectFirst("p[class*='search-result__eyebrow']");
+                String dateText = timeElement.text().trim();
+                String cleanDateText = extractDateOnly(dateText);
+                publishedAt = parseKoreanDate(cleanDateText);
             } else {
                 publishedAt = publishElement != null ? 
                 LocalDate.parse(publishElement.text().trim(), customFormatter).atStartOfDay() : 
