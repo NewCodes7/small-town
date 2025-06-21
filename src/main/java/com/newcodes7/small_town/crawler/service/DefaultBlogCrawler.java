@@ -48,17 +48,6 @@ public class DefaultBlogCrawler implements BlogCrawler {
         List<Article> articles = new ArrayList<>();
         
         try {
-            // 썸네일 이미지까지 다운받으려면 대부분 직접 크롤링해야 함
-            // TODO: RSS는 새 글 알림용으로 향후 사용할 것
-            // RSS/Atom 피드 크롤링 시도 (WebDriver 사용)
-            //articles = tryRssFeedCrawling(driver, corporation);
-            
-            // RSS 피드로 충분한 기사를 수집했다면 반환
-            //if (!articles.isEmpty()) {
-            //    log.info("🎉 RSS 피드 크롤링 성공! - 기업: {}, 수집된 글: {}개 (RSS/Atom 피드 사용)", corporation.getName(), articles.size());
-            //    return articles;
-            //}
-            
             articles = crawlHtmlContent(driver, corporation);
             log.info("기본 크롤러 완료 - 기업: {}, 수집된 글: {}개", corporation.getName(), articles.size());
         } catch (Exception e) {

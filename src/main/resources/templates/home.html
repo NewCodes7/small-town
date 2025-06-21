@@ -6,106 +6,143 @@
 </head>
 <body>
     <div layout:fragment="content">
-        <!-- Header Section -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <h1 class="display-6 fw-bold text-center mb-2">기업 기술 블로그</h1>
-                <p class="text-center text-muted mb-4">최신 기술 트렌드와 개발 인사이트를 한 곳에서 만나보세요</p>
-                
-                <!-- Sort Tabs -->
-                <div class="sort-tabs mb-4">
-                    <ul class="nav nav-tabs justify-content-center">
-                        <li class="nav-item">
-                            <a class="nav-link" 
-                               th:class="${currentSort == 'latest'} ? 'nav-link active' : 'nav-link'"
+        <!-- Hero Section -->
+        <div class="hero-section">
+            <h1 class="hero-title">
+                <i class="fas fa-seedling me-3" style="color: var(--primary-green);"></i>
+                기업 기술 블로그
+            </h1>
+            <p class="hero-subtitle">최신 기술 트렌드와 개발 인사이트를 한 곳에서 만나보세요</p>
+            
+            <!-- Stats Cards -->
+            <div class="row g-4 justify-content-center">
+                <div class="col-md-3 col-6">
+                    <div class="stats-card">
+                        <span class="stats-number" th:text="${totalElements}">0</span>
+                        <div class="stats-label">총 글 수</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="stats-card">
+                        <span class="stats-number" th:text="${totalPages}">1</span>
+                        <div class="stats-label">총 페이지</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Search and Filter Section -->
+        <div class="card mb-5" style="border-radius: 20px; background: var(--white); border: 2px solid var(--border-light);">
+            <div class="card-body p-4">
+                <div class="row align-items-center g-3">
+                    <!-- Search -->
+                    <div class="col-lg-6 col-md-12">
+                        <form method="get" action="">
+                            <div class="input-group">
+                                <span class="input-group-text" style="background: var(--secondary-green); border: 2px solid var(--border-light); color: var(--primary-green-dark);">
+                                    <i class="fas fa-search"></i>
+                                </span>
+                                <input type="text" name="search" class="form-control" placeholder="기술 블로그 글 검색..." style="border-left: none;">
+                                <input type="hidden" name="sort" th:value="${currentSort}">
+                                <input type="hidden" name="company" th:value="${selectedCompany}">
+                                <button type="submit" class="btn btn-secondary">검색</button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Company Filter -->
+                    <div class="col-lg-3 col-md-6">
+                        <select name="company" class="form-select" onchange="filterByCompany(this.value)" style="border: 2px solid var(--border-light); border-radius: 12px;">
+                            <option value="">모든 회사</option>
+                            <option value="kakao">카카오</option>
+                            <option value="naver">네이버</option>
+                            <option value="toss">토스</option>
+                            <option value="aws">AWS</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Sort Options -->
+                    <div class="col-lg-3 col-md-6">
+                        <div class="d-flex gap-2">
+                            <a class="btn flex-fill text-center" 
+                               th:class="${currentSort == 'latest'} ? 'btn-primary' : 'btn-secondary'"
                                th:href="@{/(sort='latest')}">
                                 <i class="fas fa-clock me-1"></i>최신순
                             </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link"
-                               th:class="${currentSort == 'popular'} ? 'nav-link active' : 'nav-link'"
+                            <a class="btn flex-fill text-center"
+                               th:class="${currentSort == 'popular'} ? 'btn-primary' : 'btn-secondary'"
                                th:href="@{/(sort='popular')}">
                                 <i class="fas fa-fire me-1"></i>인기순
                             </a>
-                        </li>
-                    </ul>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Article Count Info -->
-        <div class="row mb-3">
-            <div class="col-12">
-                <p class="text-muted">
-                    총 <span class="fw-bold" th:text="${totalElements}">0</span>개의 글이 있습니다.
-                    (<span th:text="${currentPage + 1}">1</span> / <span th:text="${totalPages}">1</span> 페이지)
-                </p>
-            </div>
-        </div>
 
-        <!-- Articles Grid -->
-        <div class="row g-4">
-            <div class="col-lg-4 col-md-6" th:each="article : ${articles.content}">
-                <div class="card article-card h-100 border-0 shadow-sm">
-                    <!-- Thumbnail -->
-                    <img width="300px;" th:if="${article.thumbnailImage != null}" 
-                         th:src="${article.thumbnailImage}" 
-                         th:alt="${article.title}"
-                         class="card-img-top article-thumbnail">
-                    <div th:unless="${article.thumbnailImage != null}" 
-                         class="article-thumbnail d-flex align-items-center justify-content-center bg-light">
-                        <i class="fas fa-file-alt fa-3x text-muted"></i>
-                    </div>
+        <!-- Articles Stack -->
+        <div class="articles-container">
+            <div class="article-card" th:each="article : ${articles.content}">
+                <!-- Article Content (Left Side) -->
+                <div class="article-content">
+                    <!-- Title -->
+                    <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
+                        <a th:href="${article.link}" 
+                           target="_blank" 
+                           class="text-decoration-none"
+                           style="color: inherit;"
+                           th:text="${article.title}">
+                           Article Title
+                        </a>
+                    </h5>
                     
-                    <div class="card-body d-flex flex-column">
-                        <!-- Company Info -->
-                        <div class="d-flex align-items-center mb-2">
-                            <img width="30px;" th:if="${article.corporation.logoUrl != null}"
+                    <!-- Company Info & Stats -->
+                    <div class="d-flex align-items-center mb-3 flex-wrap">
+                        <div class="d-flex align-items-center me-4">
+                            <img width="20px;" th:if="${article.corporation.logoUrl != null}"
                                  th:src="${article.corporation.logoUrl}" 
                                  th:alt="${article.corporation.name}"
-                                 class="company-logo me-2">
-                            <span class="text-muted small" th:text="${article.corporation.name}">Company</span>
-                            <span class="ms-auto reading-time" th:if="${article.readingTime != null}">
-                                <i class="fas fa-clock"></i> <span th:text="${article.readingTime}">5</span>분
+                                 class="company-logo me-2" style="border-radius: 4px;">
+                            <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;" th:text="${article.corporation.name}">Company</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-3">
+                            <small class="text-muted relative-time" 
+                                   th:attr="data-date=${article.publishedAt}"
+                                   th:title="${article.publishedAt}"
+                                   th:text="${article.publishedAt}">2024-01-01</small>
+                            <span class="text-muted d-flex align-items-center" style="font-size: 0.85rem;">
+                                <i class="fas fa-eye me-1"></i> <span th:text="${article.viewCount}">0</span>
+                            </span>
+                            <span class="text-muted d-flex align-items-center" style="font-size: 0.85rem;">
+                                <i class="fas fa-heart me-1"></i> <span th:text="${article.likeCount}">0</span>
                             </span>
                         </div>
-                        
-                        <!-- Title -->
-                        <h5 class="card-title mb-2">
-                            <a th:href="${article.link}" 
-                               target="_blank" 
-                               class="text-decoration-none text-dark"
-                               th:text="${article.title}">
-                               Article Title
-                            </a>
-                        </h5>
-                        
-                        <!-- Summary -->
-                        <p class="card-text text-muted small mb-3 flex-grow-1" 
-                           th:text="${#strings.abbreviate(article.summary, 100)}">
-                           Article summary...
-                        </p>
-                        
-                        <!-- Tags -->
-                        <div class="mb-3" th:if="${!article.tags.isEmpty()}">
-                            <span class="badge bg-light text-dark tag-badge me-1" 
-                                  th:each="tag : ${article.tags}"
-                                  th:text="${tag.keyword}">Tag</span>
-                        </div>
-                        
-                        <!-- Footer -->
-                        <div class="d-flex justify-content-between align-items-center mt-auto">
-                            <small class="text-muted" th:text="${article.publishedAt}">2024-01-01</small>
-                            <div>
-                                <span class="text-muted me-2">
-                                    <i class="fas fa-eye"></i> <span th:text="${article.viewCount}">0</span>
-                                </span>
-                                <span class="text-muted">
-                                    <i class="fas fa-heart"></i> <span th:text="${article.likeCount}">0</span>
-                                </span>
-                            </div>
-                        </div>
+                    </div>
+                    
+                    <!-- Tags -->
+                    <div class="mt-auto" th:if="${!article.tags.isEmpty()}">
+                        <span class="badge tag-badge me-2" 
+                              th:each="tag : ${article.tags}"
+                              th:text="${tag.keyword}">Tag</span>
+                    </div>
+                </div>
+                
+                <!-- Thumbnail Container (Right Side) -->
+                <div class="article-thumbnail-container">
+                    <img th:if="${article.thumbnailImage != null}" 
+                         th:src="${article.thumbnailImage}" 
+                         th:alt="${article.title}"
+                         class="article-thumbnail">
+                    <div th:unless="${article.thumbnailImage != null}" 
+                         class="article-thumbnail d-flex align-items-center justify-content-center">
+                        <i class="fas fa-newspaper fa-3x" style="color: var(--primary-green); opacity: 0.3;"></i>
+                    </div>
+                    <!-- Reading Time Badge -->
+                    <div class="position-absolute top-0 end-0 m-3" th:if="${article.readingTime != null}">
+                        <span class="badge" style="background: rgba(255,255,255,0.9); color: var(--text-dark); font-weight: 600;">
+                            <i class="fas fa-clock me-1"></i><span th:text="${article.readingTime}">5</span>분
+                        </span>
                     </div>
                 </div>
             </div>
@@ -113,9 +150,14 @@
 
         <!-- Empty State -->
         <div th:if="${articles.content.isEmpty()}" class="text-center py-5">
-            <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
-            <h4 class="text-muted">등록된 글이 없습니다</h4>
-            <p class="text-muted">새로운 기술 블로그 글이 곧 업데이트될 예정입니다.</p>
+            <div class="hero-section">
+                <i class="fas fa-seedling fa-4x mb-4" style="color: var(--primary-green); opacity: 0.5;"></i>
+                <h4 class="mb-3" style="color: var(--text-dark); font-weight: 700;">아직 등록된 글이 없어요</h4>
+                <p class="text-muted mb-4">새로운 기술 블로그 글이 곧 업데이트될 예정입니다.</p>
+                <a th:href="@{/admin/corporations}" class="btn btn-primary">
+                    <i class="fas fa-plus me-2"></i>기업 추가하기
+                </a>
+            </div>
         </div>
 
         <!-- Pagination -->
@@ -125,13 +167,13 @@
                 <li class="page-item" th:class="${!hasPrevious} ? 'page-item disabled' : 'page-item'">
                     <a class="page-link" 
                        th:href="@{/(page=${currentPage - 1}, sort=${currentSort})}">
-                        <i class="fas fa-chevron-left"></i> 이전
+                        <i class="fas fa-chevron-left me-1"></i>이전
                     </a>
                 </li>
                 
-                <!-- Page Numbers -->
+                <!-- Page Numbers (show max 5 pages: 1,2,3,4,5) -->
                 <li class="page-item" 
-                    th:each="pageNum : ${#numbers.sequence(0, totalPages - 1)}"
+                    th:each="pageNum : ${#numbers.sequence(0, T(java.lang.Math).min(totalPages - 1, 4))}"
                     th:class="${pageNum == currentPage} ? 'page-item active' : 'page-item'">
                     <a class="page-link" 
                        th:href="@{/(page=${pageNum}, sort=${currentSort})}"
@@ -142,7 +184,7 @@
                 <li class="page-item" th:class="${!hasNext} ? 'page-item disabled' : 'page-item'">
                     <a class="page-link" 
                        th:href="@{/(page=${currentPage + 1}, sort=${currentSort})}">
-                        다음 <i class="fas fa-chevron-right"></i>
+                        다음<i class="fas fa-chevron-right ms-1"></i>
                     </a>
                 </li>
             </ul>
@@ -153,11 +195,88 @@
         // 카드 클릭 시 외부 링크로 이동
         document.querySelectorAll('.article-card').forEach(card => {
             card.addEventListener('click', function(e) {
-                if (e.target.tagName !== 'A') {
-                    const link = this.querySelector('a[target="_blank"]');
-                    if (link) {
-                        window.open(link.href, '_blank');
+                // 태그나 다른 링크를 클릭한 경우가 아니라면
+                if (e.target.tagName !== 'A' && !e.target.closest('a') && !e.target.closest('.badge')) {
+                    const titleLink = this.querySelector('h4 a');
+                    if (titleLink) {
+                        window.open(titleLink.href, '_blank');
                     }
+                }
+            });
+            
+            // 카드에 커서 스타일 추가
+            card.style.cursor = 'pointer';
+        });
+        
+        // 회사 필터링 기능
+        function filterByCompany(companyValue) {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (companyValue) {
+                urlParams.set('company', companyValue);
+            } else {
+                urlParams.delete('company');
+            }
+            urlParams.set('page', '0'); // 필터 변경 시 첫 페이지로
+            window.location.search = urlParams.toString();
+        }
+        
+        // 상대 시간 계산 함수
+        function getRelativeTime(dateString) {
+            const now = new Date();
+            const date = new Date(dateString);
+            const diffInSeconds = Math.floor((now - date) / 1000);
+            
+            const minute = 60;
+            const hour = minute * 60;
+            const day = hour * 24;
+            const week = day * 7;
+            const month = day * 30;
+            const year = day * 365;
+            
+            if (diffInSeconds < minute) {
+                return '방금 전';
+            } else if (diffInSeconds < hour) {
+                const minutes = Math.floor(diffInSeconds / minute);
+                return `${minutes}분 전`;
+            } else if (diffInSeconds < day) {
+                const hours = Math.floor(diffInSeconds / hour);
+                return `${hours}시간 전`;
+            } else if (diffInSeconds < week) {
+                const days = Math.floor(diffInSeconds / day);
+                return `${days}일 전`;
+            } else if (diffInSeconds < month) {
+                const weeks = Math.floor(diffInSeconds / week);
+                return `${weeks}주일 전`;
+            } else if (diffInSeconds < year) {
+                const months = Math.floor(diffInSeconds / month);
+                return `${months}달 전`;
+            } else {
+                const years = Math.floor(diffInSeconds / year);
+                return `${years}년 전`;
+            }
+        }
+        
+        // 날짜 포맷팅 함수
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('ko-KR', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+        
+        // 페이지 로드 후 상대 시간 적용
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.relative-time').forEach(element => {
+                const dateString = element.getAttribute('data-date');
+                if (dateString) {
+                    // 상대 시간 표시
+                    element.textContent = getRelativeTime(dateString);
+                    // 툴팁에 포맷된 날짜 표시
+                    element.title = formatDate(dateString);
                 }
             });
         });
