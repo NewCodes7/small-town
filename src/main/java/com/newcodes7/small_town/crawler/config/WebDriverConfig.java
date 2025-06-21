@@ -1,8 +1,9 @@
 package com.newcodes7.small_town.crawler.config;
 
-import io.github.bonigarcia.wdm.WebDriverManager;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
@@ -10,7 +11,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Scope;
 
-import java.time.Duration;
+import io.github.bonigarcia.wdm.WebDriverManager;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Configuration
 @RequiredArgsConstructor
@@ -45,13 +48,27 @@ public class WebDriverConfig {
         // 특정 User-Agent를 필요로 하는 웹사이트에 접속할 때 사용
         options.addArguments("--user-agent=" + webDriverProperties.getUserAgent());
 
-        // TODO: 더 자세한 원리 알아보기 
-        // 웹사이트가 자동화된 브라우저(예: 셀레늄)임을 감지하는 것을 방지
+        // Medium bot 감지 우회를 위한 추가 옵션들
         options.addArguments("--disable-blink-features=AutomationControlled");
-        // 자동화 확장 프로그램 사용을 비활성화 (자동화 감지를 피하는 데 도움)
+        options.addArguments("--disable-extensions");
+        options.addArguments("--disable-plugins");
+        options.addArguments("--no-first-run");
+        options.addArguments("--disable-default-apps");
+        options.addArguments("--disable-popup-blocking");
+        options.addArguments("--ignore-certificate-errors");
+        options.addArguments("--ignore-ssl-errors");
+        options.addArguments("--allow-running-insecure-content");
+        
+        // 자동화 감지 방지
         options.setExperimentalOption("useAutomationExtension", false);
-        // 특정 커맨드 라인 스위치를 제외 (여기서는 `enable-automation` 스위치를 제외하여 자동화 감지를 더욱 어렵게 만들기)
         options.setExperimentalOption("excludeSwitches", new String[]{"enable-automation"});
+        
+        // 추가 preferences 설정
+        Map<String, Object> prefs = new HashMap<>();
+        prefs.put("profile.default_content_setting_values.notifications", 2); // 알림 차단
+        prefs.put("profile.default_content_settings.popups", 0); // 팝업 차단
+        prefs.put("profile.managed_default_content_settings.images", 2); // 이미지 차단
+        options.setExperimentalOption("prefs", prefs);
 
         ChromeDriver driver = new ChromeDriver(options);
         // 웹 요소가 나타날 때까지 기다리는 최대 시간을 설정

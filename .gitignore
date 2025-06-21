@@ -2,3 +2,4 @@ src/main/resources/application.properties
 build/
 .gradle
 .vscode
+bin/
