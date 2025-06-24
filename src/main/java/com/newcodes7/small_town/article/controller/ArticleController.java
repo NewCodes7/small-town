@@ -10,6 +10,9 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Slf4j
 @Controller
 @RequiredArgsConstructor
@@ -33,16 +36,27 @@ public class ArticleController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "latest") String sort,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) List<String> regions,
             Model model) {
         
-        Page<ArticleListResponseDto> articles = articleService.getArticleList(page, size, sort);
-        log.info("{}개의 글 조회", articles.getTotalElements());
+        Page<ArticleListResponseDto> articles = articleService.getArticlesWithFilters(
+            keyword != null && !keyword.trim().isEmpty() ? keyword.trim() : null,
+            regions,
+            page,
+            size,
+            sort
+        );
+        
+        log.info("필터 조건: keyword='{}', regions={}, {}개의 글 조회", keyword, regions, articles.getTotalElements());
 
         model.addAttribute("articles", articles);
         model.addAttribute("currentPage", page);
         model.addAttribute("totalPages", articles.getTotalPages());
         model.addAttribute("totalElements", articles.getTotalElements());
         model.addAttribute("currentSort", sort);
+        model.addAttribute("keyword", keyword);
+        model.addAttribute("selectedRegions", regions != null ? regions : new ArrayList<>());
         model.addAttribute("hasNext", articles.hasNext());
         model.addAttribute("hasPrevious", articles.hasPrevious());
         

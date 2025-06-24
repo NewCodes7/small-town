@@ -36,6 +36,9 @@ public class Corporation {
     @Column(name = "logo_url")
     private String logoUrl;
     
+    @Column(name = "is_domestic", nullable = false)
+    private Boolean isDomestic = true;
+    
     @CreatedDate
     @Column(name = "created_at")
     private LocalDateTime createdAt;

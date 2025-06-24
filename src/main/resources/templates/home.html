@@ -42,23 +42,37 @@
                                 <span class="input-group-text" style="background: var(--secondary-green); border: 2px solid var(--border-light); color: var(--primary-green-dark);">
                                     <i class="fas fa-search"></i>
                                 </span>
-                                <input type="text" name="search" class="form-control" placeholder="기술 블로그 글 검색..." style="border-left: none;">
+                                <input type="text" name="keyword" class="form-control" placeholder="글 제목으로 검색..." 
+                                       th:value="${keyword}" style="border-left: none;">
                                 <input type="hidden" name="sort" th:value="${currentSort}">
-                                <input type="hidden" name="company" th:value="${selectedCompany}">
                                 <button type="submit" class="btn btn-secondary">검색</button>
                             </div>
                         </form>
                     </div>
                     
-                    <!-- Company Filter -->
+                    <!-- Region Filter -->
                     <div class="col-lg-3 col-md-6">
-                        <select name="company" class="form-select" onchange="filterByCompany(this.value)" style="border: 2px solid var(--border-light); border-radius: 12px;">
-                            <option value="">모든 회사</option>
-                            <option value="kakao">카카오</option>
-                            <option value="naver">네이버</option>
-                            <option value="toss">토스</option>
-                            <option value="aws">AWS</option>
-                        </select>
+                        <div class="d-flex flex-column">
+                            <label class="form-label mb-2" style="font-size: 0.9rem; font-weight: 600; color: var(--text-dark);">지역</label>
+                            <div class="d-flex gap-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="regions" value="domestic" id="domestic"
+                                           th:checked="${selectedRegions.contains('domestic')}"
+                                           onchange="applyFilters()">
+                                    <label class="form-check-label" for="domestic" style="font-size: 0.9rem;">
+                                        국내
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="regions" value="overseas" id="overseas"
+                                           th:checked="${selectedRegions.contains('overseas')}"
+                                           onchange="applyFilters()">
+                                    <label class="form-check-label" for="overseas" style="font-size: 0.9rem;">
+                                        해외
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
                     <!-- Sort Options -->
@@ -66,12 +80,14 @@
                         <div class="d-flex gap-2">
                             <a class="btn flex-fill text-center" 
                                th:class="${currentSort == 'latest'} ? 'btn-primary' : 'btn-secondary'"
-                               th:href="@{/(sort='latest')}">
+                               th:href="@{/(sort='latest', keyword=${keyword}, regions=${selectedRegions})}"
+                               title="발행일 기준으로 최신 글부터 보여줍니다">
                                 <i class="fas fa-clock me-1"></i>최신순
                             </a>
                             <a class="btn flex-fill text-center"
                                th:class="${currentSort == 'popular'} ? 'btn-primary' : 'btn-secondary'"
-                               th:href="@{/(sort='popular')}">
+                               th:href="@{/(sort='popular', keyword=${keyword}, regions=${selectedRegions})}"
+                               title="조회수(60%), 좋아요(30%), 최신성(10%)을 종합한 인기도순으로 보여줍니다">
                                 <i class="fas fa-fire me-1"></i>인기순
                             </a>
                         </div>
@@ -151,10 +167,24 @@
         <!-- Empty State -->
         <div th:if="${articles.content.isEmpty()}" class="text-center py-5">
             <div class="hero-section">
-                <i class="fas fa-seedling fa-4x mb-4" style="color: var(--primary-green); opacity: 0.5;"></i>
-                <h4 class="mb-3" style="color: var(--text-dark); font-weight: 700;">아직 등록된 글이 없어요</h4>
-                <p class="text-muted mb-4">새로운 기술 블로그 글이 곧 업데이트될 예정입니다.</p>
-                <a th:href="@{/admin/corporations}" class="btn btn-primary">
+                <i class="fas fa-search fa-4x mb-4" style="color: var(--primary-green); opacity: 0.5;" th:if="${keyword != null && !keyword.isEmpty()}"></i>
+                <i class="fas fa-seedling fa-4x mb-4" style="color: var(--primary-green); opacity: 0.5;" th:unless="${keyword != null && !keyword.isEmpty()}"></i>
+                
+                <h4 class="mb-3" style="color: var(--text-dark); font-weight: 700;" th:if="${keyword != null && !keyword.isEmpty()}">
+                    '<span th:text="${keyword}"></span>' 검색 결과가 없어요
+                </h4>
+                <h4 class="mb-3" style="color: var(--text-dark); font-weight: 700;" th:unless="${keyword != null && !keyword.isEmpty()}">
+                    아직 등록된 글이 없어요
+                </h4>
+                
+                <p class="text-muted mb-4" th:if="${keyword != null && !keyword.isEmpty()}">
+                    다른 키워드로 검색하거나 <a th:href="@{/}" class="text-decoration-none">전체 글 목록</a>을 확인해보세요.
+                </p>
+                <p class="text-muted mb-4" th:unless="${keyword != null && !keyword.isEmpty()}">
+                    새로운 기술 블로그 글이 곧 업데이트될 예정입니다.
+                </p>
+                
+                <a th:href="@{/admin/corporations}" class="btn btn-primary" th:unless="${keyword != null && !keyword.isEmpty()}">
                     <i class="fas fa-plus me-2"></i>기업 추가하기
                 </a>
             </div>
@@ -166,7 +196,7 @@
                 <!-- Previous Button -->
                 <li class="page-item" th:class="${!hasPrevious} ? 'page-item disabled' : 'page-item'">
                     <a class="page-link" 
-                       th:href="@{/(page=${currentPage - 1}, sort=${currentSort})}">
+                       th:href="@{/(page=${currentPage - 1}, sort=${currentSort}, keyword=${keyword}, regions=${selectedRegions})}">
                         <i class="fas fa-chevron-left me-1"></i>이전
                     </a>
                 </li>
@@ -176,14 +206,14 @@
                     th:each="pageNum : ${#numbers.sequence(0, T(java.lang.Math).min(totalPages - 1, 4))}"
                     th:class="${pageNum == currentPage} ? 'page-item active' : 'page-item'">
                     <a class="page-link" 
-                       th:href="@{/(page=${pageNum}, sort=${currentSort})}"
+                       th:href="@{/(page=${pageNum}, sort=${currentSort}, keyword=${keyword}, regions=${selectedRegions})}"
                        th:text="${pageNum + 1}">1</a>
                 </li>
                 
                 <!-- Next Button -->
                 <li class="page-item" th:class="${!hasNext} ? 'page-item disabled' : 'page-item'">
                     <a class="page-link" 
-                       th:href="@{/(page=${currentPage + 1}, sort=${currentSort})}">
+                       th:href="@{/(page=${currentPage + 1}, sort=${currentSort}, keyword=${keyword}, regions=${selectedRegions})}">
                         다음<i class="fas fa-chevron-right ms-1"></i>
                     </a>
                 </li>
@@ -208,14 +238,24 @@
             card.style.cursor = 'pointer';
         });
         
-        // 회사 필터링 기능
-        function filterByCompany(companyValue) {
+        // 지역 필터링 기능
+        function applyFilters() {
             const urlParams = new URLSearchParams(window.location.search);
-            if (companyValue) {
-                urlParams.set('company', companyValue);
-            } else {
-                urlParams.delete('company');
-            }
+            
+            // 기존 regions 파라미터 제거
+            urlParams.delete('regions');
+            
+            // 체크된 지역 필터 수집
+            const checkedRegions = [];
+            document.querySelectorAll('input[name="regions"]:checked').forEach(checkbox => {
+                checkedRegions.push(checkbox.value);
+            });
+            
+            // 체크된 지역이 있으면 파라미터에 추가
+            checkedRegions.forEach(region => {
+                urlParams.append('regions', region);
+            });
+            
             urlParams.set('page', '0'); // 필터 변경 시 첫 페이지로
             window.location.search = urlParams.toString();
         }

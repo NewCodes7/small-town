@@ -11,6 +11,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.List;
+
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +32,30 @@ public class ArticleService {
             articles = articleRepository.findAllActiveArticlesWithDetails(pageable);
         }
         
+        return articles.map(ArticleListResponseDto::new);
+    }
+    
+    public Page<ArticleListResponseDto> searchArticles(String keyword, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Article> articles = articleRepository.findArticlesByTitleContaining(keyword, pageable);
+        return articles.map(ArticleListResponseDto::new);
+    }
+    
+    public Page<ArticleListResponseDto> getArticlesWithFilters(String keyword, List<String> regions, int page, int size, String sort) {
+        Pageable pageable = PageRequest.of(page, size);
+        
+        List<Boolean> domesticTypes = null;
+        if (regions != null && !regions.isEmpty()) {
+            domesticTypes = new ArrayList<>();
+            if (regions.contains("domestic")) {
+                domesticTypes.add(true);
+            }
+            if (regions.contains("overseas")) {
+                domesticTypes.add(false);
+            }
+        }
+        
+        Page<Article> articles = articleRepository.findArticlesWithFilters(keyword, domesticTypes, sort, pageable);
         return articles.map(ArticleListResponseDto::new);
     }
 }
