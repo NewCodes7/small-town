@@ -1,8 +1,12 @@
 package com.newcodes7.small_town.article.service;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.article.repository.CorporationRepository;
+import org.springframework.beans.factory.annotation.Qualifier;
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
+import com.newcodes7.small_town.article.dto.CorporationDetailDto;
 import com.newcodes7.small_town.article.entity.Article;
+import com.newcodes7.small_town.article.entity.Corporation;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -16,11 +20,17 @@ import java.util.List;
 
 
 @Service
-@RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class ArticleService {
     
     private final ArticleRepository articleRepository;
+    private final CorporationRepository corporationRepository;
+    
+    public ArticleService(ArticleRepository articleRepository, 
+                         @Qualifier("articleCorporationRepository") CorporationRepository corporationRepository) {
+        this.articleRepository = articleRepository;
+        this.corporationRepository = corporationRepository;
+    }
     
     public Page<ArticleListResponseDto> getArticleList(int page, int size, String sort) {
         Pageable pageable = PageRequest.of(page, size);
@@ -56,6 +66,21 @@ public class ArticleService {
         }
         
         Page<Article> articles = articleRepository.findArticlesWithFilters(keyword, domesticTypes, sort, pageable);
+        return articles.map(ArticleListResponseDto::new);
+    }
+    
+    public CorporationDetailDto getCorporationDetail(Long corporationId) {
+        Corporation corporation = corporationRepository.findActiveById(corporationId)
+            .orElseThrow(() -> new IllegalArgumentException("Corporation not found"));
+        
+        long articleCount = articleRepository.countByCorporationIdAndDeletedAtIsNull(corporationId);
+        
+        return new CorporationDetailDto(corporation, articleCount);
+    }
+    
+    public Page<ArticleListResponseDto> getArticlesByCorporation(Long corporationId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Article> articles = articleRepository.findByCorporationId(corporationId, pageable);
         return articles.map(ArticleListResponseDto::new);
     }
 }

@@ -5,6 +5,7 @@ import com.newcodes7.small_town.article.entity.Article;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -59,4 +60,19 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
                                          @Param("domesticTypes") List<Boolean> domesticTypes,
                                          @Param("sort") String sort,
                                          Pageable pageable);
+    
+    @Modifying
+    @Query("UPDATE Article a SET a.likeCount = :likeCount WHERE a.id = :articleId")
+    void updateLikeCount(@Param("articleId") Long articleId, @Param("likeCount") int likeCount);
+    
+    @Query("SELECT DISTINCT a FROM Article a " +
+           "JOIN FETCH a.corporation c " +
+           "LEFT JOIN FETCH a.articleTags at " +
+           "LEFT JOIN FETCH at.tag " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND c.id = :corporationId " +
+           "ORDER BY a.publishedAt DESC, a.createdAt DESC")
+    Page<Article> findByCorporationId(@Param("corporationId") Long corporationId, Pageable pageable);
+    
+    long countByCorporationIdAndDeletedAtIsNull(Long corporationId);
 }
