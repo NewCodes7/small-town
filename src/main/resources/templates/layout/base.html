@@ -460,36 +460,32 @@
                     </li>
                     
                     <!-- 인증되지 않은 사용자 -->
-                    <div id="unauthenticatedMenu" style="display: none;">
-                        <li class="nav-item">
-                            <a class="nav-link" th:href="@{/auth/login}">
-                                <i class="fas fa-sign-in-alt me-1"></i>로그인
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" th:href="@{/auth/signup}">
-                                <i class="fas fa-user-plus me-1"></i>회원가입
-                            </a>
-                        </li>
-                    </div>
+                    <li class="nav-item" id="unauthenticatedLoginMenu" style="display: none;">
+                        <a class="nav-link" th:href="@{/auth/login}">
+                            <i class="fas fa-sign-in-alt me-1"></i>로그인
+                        </a>
+                    </li>
+                    <li class="nav-item" id="unauthenticatedSignupMenu" style="display: none;">
+                        <a class="nav-link" th:href="@{/auth/signup}">
+                            <i class="fas fa-user-plus me-1"></i>회원가입
+                        </a>
+                    </li>
                     
                     <!-- 인증된 사용자 -->
-                    <div id="authenticatedMenu" style="display: none;">
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                                <i class="fas fa-user me-1"></i><span id="userNickname">사용자</span>
-                            </a>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" th:href="@{/auth/profile}">
-                                    <i class="fas fa-user me-2"></i>마이페이지
-                                </a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="#" onclick="logout()">
-                                    <i class="fas fa-sign-out-alt me-2"></i>로그아웃
-                                </a></li>
-                            </ul>
-                        </li>
-                    </div>
+                    <li class="nav-item dropdown" id="authenticatedMenu" style="display: none;">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user me-1"></i><span id="userNickname">사용자</span>
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" th:href="@{/auth/profile}">
+                                <i class="fas fa-user me-2"></i>마이페이지
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" onclick="logout()">
+                                <i class="fas fa-sign-out-alt me-2"></i>로그아웃
+                            </a></li>
+                        </ul>
+                    </li>
                 </ul>
             </div>
         </div>
@@ -534,7 +530,8 @@
                     credentials: 'include'
                 });
                 
-                const unauthenticatedMenu = document.getElementById('unauthenticatedMenu');
+                const unauthenticatedLoginMenu = document.getElementById('unauthenticatedLoginMenu');
+                const unauthenticatedSignupMenu = document.getElementById('unauthenticatedSignupMenu');
                 const authenticatedMenu = document.getElementById('authenticatedMenu');
                 const userNickname = document.getElementById('userNickname');
                 const adminMenu = document.getElementById('adminMenu');
@@ -543,7 +540,8 @@
                     // 로그인 상태
                     const user = await response.json();
                     userNickname.textContent = user.nickname;
-                    unauthenticatedMenu.style.display = 'none';
+                    unauthenticatedLoginMenu.style.display = 'none';
+                    unauthenticatedSignupMenu.style.display = 'none';
                     authenticatedMenu.style.display = 'block';
                     
                     // ADMIN 역할 확인
@@ -554,14 +552,16 @@
                     }
                 } else {
                     // 비로그인 상태
-                    unauthenticatedMenu.style.display = 'block';
+                    unauthenticatedLoginMenu.style.display = 'block';
+                    unauthenticatedSignupMenu.style.display = 'block';
                     authenticatedMenu.style.display = 'none';
                     adminMenu.style.display = 'none';
                 }
             } catch (error) {
                 console.error('인증 상태 확인 중 오류:', error);
                 // 오류 시 비로그인 상태로 처리
-                document.getElementById('unauthenticatedMenu').style.display = 'block';
+                document.getElementById('unauthenticatedLoginMenu').style.display = 'block';
+                document.getElementById('unauthenticatedSignupMenu').style.display = 'block';
                 document.getElementById('authenticatedMenu').style.display = 'none';
                 document.getElementById('adminMenu').style.display = 'none';
             }

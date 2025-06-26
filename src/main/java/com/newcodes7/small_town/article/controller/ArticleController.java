@@ -72,12 +72,15 @@ public class ArticleController {
         
         log.info("필터 조건: keyword='{}', regions={}, {}개의 글 조회", keyword, regions, articles.getTotalElements());
 
-        // 회사 목록 가져오기 (로고가 있는 회사들만)
-        Page<CorporationResponseDto> corporations = corporationService.getAllCorporations(PageRequest.of(0, 20));
+        // 회사 목록 가져오기 (모든 회사 포함)
+        Page<CorporationResponseDto> corporations = corporationService.getAllCorporations(PageRequest.of(0, 50));
+        
         List<CorporationResponseDto> corporationsWithLogos = corporations.getContent().stream()
             .filter(corp -> corp.getLogoUrl() != null && !corp.getLogoUrl().trim().isEmpty())
-            .limit(10)  // 최대 10개만
+            .limit(20) 
             .toList();
+        
+        log.info("로고가 있는 회사 수: {}", corporationsWithLogos.size());
 
         model.addAttribute("articles", articles);
         model.addAttribute("currentPage", page);
