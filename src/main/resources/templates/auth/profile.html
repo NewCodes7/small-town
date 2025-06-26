@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <title>프로필 - Small Town</title>
+</head>
+
+<div layout:fragment="content">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-lg border-0" style="border-radius: 20px;">
+                <div class="card-body p-5">
+                    <div class="text-center mb-4">
+                        <div class="company-avatar mx-auto mb-3" style="width: 80px; height: 80px;">
+                            <i class="fas fa-user fa-2x" style="color: var(--primary-green);"></i>
+                        </div>
+                        <h2 class="fw-bold text-dark mb-2">내 프로필</h2>
+                        <p class="text-muted">계정 정보를 확인하고 관리하세요</p>
+                    </div>
+                    
+                    <div id="profileMessage" class="alert d-none" role="alert"></div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-sm-3">
+                            <strong class="text-muted">이메일</strong>
+                        </div>
+                        <div class="col-sm-9">
+                            <span sec:authentication="principal.email">user@example.com</span>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-sm-3">
+                            <strong class="text-muted">닉네임</strong>
+                        </div>
+                        <div class="col-sm-9">
+                            <span sec:authentication="principal.nickname">사용자</span>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-sm-3">
+                            <strong class="text-muted">권한</strong>
+                        </div>
+                        <div class="col-sm-9">
+                            <span class="badge" style="background: var(--secondary-green); color: var(--primary-green-dark);" 
+                                  sec:authentication="principal.role.name">USER</span>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-sm-3">
+                            <strong class="text-muted">가입일</strong>
+                        </div>
+                        <div class="col-sm-9">
+                            <span th:text="${#temporals.format(user.createdAt, 'yyyy년 MM월 dd일')}">2025년 01월 01일</span>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-outline-danger" onclick="confirmWithdraw()">
+                            <i class="fas fa-user-times me-2"></i>회원탈퇴
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script layout:fragment="scripts">
+function confirmWithdraw() {
+    if (confirm('정말로 회원탈퇴를 하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+        withdrawUser();
+    }
+}
+
+async function withdrawUser() {
+    const messageDiv = document.getElementById('profileMessage');
+    
+    try {
+        const response = await fetch('/api/auth/withdraw', {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include' // 쿠키 포함
+        });
+        
+        if (response.ok) {
+            messageDiv.textContent = '회원탈퇴가 완료되었습니다.';
+            messageDiv.className = 'alert alert-success';
+            messageDiv.classList.remove('d-none');
+            
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 2000);
+        } else {
+            messageDiv.textContent = '회원탈퇴에 실패했습니다.';
+            messageDiv.className = 'alert alert-danger';
+            messageDiv.classList.remove('d-none');
+        }
+    } catch (error) {
+        messageDiv.textContent = '회원탈퇴 중 오류가 발생했습니다.';
+        messageDiv.className = 'alert alert-danger';
+        messageDiv.classList.remove('d-none');
+    }
+}
+</script>
+</html>

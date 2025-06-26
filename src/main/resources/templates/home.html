@@ -116,11 +116,17 @@
                     <!-- Company Info & Stats -->
                     <div class="d-flex align-items-center mb-3 flex-wrap">
                         <div class="d-flex align-items-center me-4">
-                            <img width="20px;" th:if="${article.corporation.logoUrl != null}"
-                                 th:src="${article.corporation.logoUrl}" 
-                                 th:alt="${article.corporation.name}"
-                                 class="company-logo me-2" style="border-radius: 4px;">
-                            <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;" th:text="${article.corporation.name}">Company</span>
+                            <a th:href="@{/corporations/{id}(id=${article.corporation.id})}" 
+                               class="d-flex align-items-center text-decoration-none company-link"
+                               style="transition: all 0.2s ease;"
+                               onmouseover="this.style.opacity='0.7'"
+                               onmouseout="this.style.opacity='1'">
+                                <img width="20px;" th:if="${article.corporation.logoUrl != null}"
+                                     th:src="${article.corporation.logoUrl}" 
+                                     th:alt="${article.corporation.name}"
+                                     class="company-logo me-2" style="border-radius: 4px;">
+                                <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;" th:text="${article.corporation.name}">Company</span>
+                            </a>
                         </div>
                         <div class="d-flex align-items-center gap-3">
                             <small class="text-muted relative-time" 
@@ -130,9 +136,12 @@
                             <span class="text-muted d-flex align-items-center" style="font-size: 0.85rem;">
                                 <i class="fas fa-eye me-1"></i> <span th:text="${article.viewCount}">0</span>
                             </span>
-                            <span class="text-muted d-flex align-items-center" style="font-size: 0.85rem;">
-                                <i class="fas fa-heart me-1"></i> <span th:text="${article.likeCount}">0</span>
-                            </span>
+                            <button class="btn btn-link p-0 text-muted like-btn" 
+                                    th:attr="data-article-id=${article.id}"
+                                    style="font-size: 0.85rem; border: none; background: none;">
+                                <i class="fas fa-heart me-1 like-icon"></i> 
+                                <span class="like-count" th:text="${article.likeCount}">0</span>
+                            </button>
                         </div>
                     </div>
                     
@@ -225,9 +234,9 @@
         // 카드 클릭 시 외부 링크로 이동
         document.querySelectorAll('.article-card').forEach(card => {
             card.addEventListener('click', function(e) {
-                // 태그나 다른 링크를 클릭한 경우가 아니라면
-                if (e.target.tagName !== 'A' && !e.target.closest('a') && !e.target.closest('.badge')) {
-                    const titleLink = this.querySelector('h4 a');
+                // 태그나 다른 링크, 좋아요 버튼, 회사 링크를 클릭한 경우가 아니라면
+                if (e.target.tagName !== 'A' && !e.target.closest('a') && !e.target.closest('.badge') && !e.target.closest('.like-btn') && !e.target.closest('.company-link')) {
+                    const titleLink = this.querySelector('h5 a');
                     if (titleLink) {
                         window.open(titleLink.href, '_blank');
                     }
@@ -237,6 +246,87 @@
             // 카드에 커서 스타일 추가
             card.style.cursor = 'pointer';
         });
+        
+        // 로그인 팝업 표시 함수
+        function showLoginPopup() {
+            if (confirm('좋아요를 누르려면 로그인이 필요합니다. 로그인 페이지로 이동하시겠습니까?')) {
+                window.location.href = '/auth/login';
+            }
+        }
+        
+        // 좋아요 버튼 클릭 이벤트
+        document.querySelectorAll('.like-btn').forEach(btn => {
+            btn.addEventListener('click', async function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const articleId = this.getAttribute('data-article-id');
+                const likeIcon = this.querySelector('.like-icon');
+                const likeCount = this.querySelector('.like-count');
+                
+                try {
+                    const response = await fetch(`/api/articles/${articleId}/like`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                    });
+                    
+                    if (response.status === 401) {
+                        // 인증되지 않은 사용자
+                        showLoginPopup();
+                        return;
+                    }
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        // 좋아요 수 업데이트
+                        likeCount.textContent = data.likeCount;
+                        
+                        // 좋아요 상태에 따른 스타일 변경
+                        if (data.isLiked) {
+                            likeIcon.style.color = '#e91e63';
+                            this.style.color = '#e91e63';
+                        } else {
+                            likeIcon.style.color = '';
+                            this.style.color = '';
+                        }
+                    }
+                } catch (error) {
+                    console.error('좋아요 처리 중 오류 발생:', error);
+                }
+            });
+        });
+        
+        // 페이지 로드 시 좋아요 상태 확인
+        async function loadLikeStatuses() {
+            const likeButtons = document.querySelectorAll('.like-btn');
+            
+            for (const btn of likeButtons) {
+                const articleId = btn.getAttribute('data-article-id');
+                
+                try {
+                    const response = await fetch(`/api/articles/${articleId}/like-status`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        const likeIcon = btn.querySelector('.like-icon');
+                        
+                        // 인증된 사용자의 좋아요 상태만 반영
+                        if (data.authenticated && data.hasLiked) {
+                            likeIcon.style.color = '#e91e63';
+                            btn.style.color = '#e91e63';
+                        }
+                        
+                        // 좋아요 수는 항상 업데이트
+                        const likeCount = btn.querySelector('.like-count');
+                        likeCount.textContent = data.likeCount;
+                    }
+                } catch (error) {
+                    console.error('좋아요 상태 로드 중 오류 발생:', error);
+                }
+            }
+        }
         
         // 지역 필터링 기능
         function applyFilters() {
@@ -308,7 +398,7 @@
             });
         }
         
-        // 페이지 로드 후 상대 시간 적용
+        // 페이지 로드 후 상대 시간 적용 및 좋아요 상태 로드
         document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('.relative-time').forEach(element => {
                 const dateString = element.getAttribute('data-date');
@@ -319,6 +409,9 @@
                     element.title = formatDate(dateString);
                 }
             });
+            
+            // 좋아요 상태 로드
+            loadLikeStatuses();
         });
     </script>
 </body>

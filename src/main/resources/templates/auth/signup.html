@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>회원가입 - Small Town</title>
+</head>
+
+<div layout:fragment="content">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card shadow-lg border-0" style="border-radius: 20px;">
+                <div class="card-body p-5">
+                    <div class="text-center mb-4">
+                        <h2 class="fw-bold text-dark mb-2">회원가입</h2>
+                        <p class="text-muted">Small Town 커뮤니티에 참여하세요</p>
+                    </div>
+                    
+                    <div id="signupMessage" class="alert d-none" role="alert"></div>
+                    
+                    <form id="signupForm">
+                        <div class="mb-3">
+                            <label for="email" class="form-label fw-semibold">이메일</label>
+                            <input type="email" class="form-control form-control-lg" id="email" name="email" 
+                                   placeholder="이메일을 입력하세요" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="nickname" class="form-label fw-semibold">닉네임</label>
+                            <input type="text" class="form-control form-control-lg" id="nickname" name="nickname" 
+                                   placeholder="닉네임을 입력하세요" minlength="2" maxlength="50" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="password" class="form-label fw-semibold">비밀번호</label>
+                            <input type="password" class="form-control form-control-lg" id="password" name="password" 
+                                   placeholder="비밀번호를 입력하세요" minlength="8" maxlength="20" required>
+                            <div class="form-text">8자 이상 20자 이하로 입력해주세요.</div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="confirmPassword" class="form-label fw-semibold">비밀번호 확인</label>
+                            <input type="password" class="form-control form-control-lg" id="confirmPassword" name="confirmPassword" 
+                                   placeholder="비밀번호를 다시 입력하세요" required>
+                        </div>
+                        
+                        <div class="d-grid mb-3">
+                            <button type="submit" class="btn btn-primary btn-lg fw-semibold">
+                                <i class="fas fa-user-plus me-2"></i>회원가입
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <div class="text-center mb-3">
+                        <hr class="my-3">
+                        <p class="text-muted mb-3">또는 소셜 계정으로 가입</p>
+                        
+                        <div class="d-grid gap-2">
+                            <a th:href="@{/oauth2/authorization/google}" class="btn btn-outline-danger btn-lg">
+                                <i class="fab fa-google me-2"></i>Google로 가입
+                            </a>
+                            <a th:href="@{/oauth2/authorization/github}" class="btn btn-outline-dark btn-lg">
+                                <i class="fab fa-github me-2"></i>GitHub로 가입
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center">
+                        <p class="text-muted mb-0">이미 계정이 있으신가요? 
+                            <a th:href="@{/auth/login}" class="text-decoration-none fw-semibold" 
+                               style="color: var(--primary-green);">로그인</a>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script layout:fragment="scripts">
+document.getElementById('signupForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const email = document.getElementById('email').value;
+    const nickname = document.getElementById('nickname').value;
+    const password = document.getElementById('password').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    const messageDiv = document.getElementById('signupMessage');
+    
+    // 비밀번호 확인
+    if (password !== confirmPassword) {
+        messageDiv.textContent = '비밀번호가 일치하지 않습니다.';
+        messageDiv.className = 'alert alert-danger';
+        messageDiv.classList.remove('d-none');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/auth/signup', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include', // 쿠키 포함
+            body: JSON.stringify({ 
+                email, 
+                nickname, 
+                password, 
+                confirmPassword 
+            })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            // 쿠키는 서버에서 자동으로 설정되므로 localStorage 사용하지 않음
+            
+            messageDiv.textContent = '회원가입이 완료되었습니다. 환영합니다!';
+            messageDiv.className = 'alert alert-success';
+            messageDiv.classList.remove('d-none');
+            
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 1500);
+        } else {
+            const errorData = await response.text();
+            messageDiv.textContent = '회원가입에 실패했습니다. 다시 시도해주세요.';
+            messageDiv.className = 'alert alert-danger';
+            messageDiv.classList.remove('d-none');
+        }
+    } catch (error) {
+        messageDiv.textContent = '회원가입 중 오류가 발생했습니다.';
+        messageDiv.className = 'alert alert-danger';
+        messageDiv.classList.remove('d-none');
+    }
+});
+</script>
+</html>
