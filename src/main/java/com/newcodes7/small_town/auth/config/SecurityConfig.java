@@ -31,6 +31,7 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
     private final OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
+    private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
     
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -61,6 +62,13 @@ public class SecurityConfig {
                 .requestMatchers("/", "/home", "/articles/**").permitAll()
                 .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
                 
+                // 좋아요 관련 API - 좋아요 토글은 인증 필요, 상태 조회는 모든 사용자 허용
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/articles/*/like").authenticated()
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/articles/*/like-status").permitAll()
+                // 조회수 증가 및 상태 조회는 모든 사용자 허용
+                .requestMatchers("/api/articles/*/view").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/articles/*/view-status").permitAll()
+                
                 // 기업 정보 조회는 모든 사용자 허용
                 .requestMatchers("/corporations/**").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/corporations/**").permitAll()
@@ -85,6 +93,9 @@ public class SecurityConfig {
                 )
                 .successHandler(oAuth2AuthenticationSuccessHandler)
                 .failureHandler(oAuth2AuthenticationFailureHandler)
+            )
+            .exceptionHandling(exceptions -> exceptions
+                .authenticationEntryPoint(customAuthenticationEntryPoint)
             )
             .authenticationProvider(authenticationProvider())
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

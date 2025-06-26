@@ -213,6 +213,13 @@
             card.style.cursor = 'pointer';
         });
         
+        // 로그인 팝업 표시 함수
+        function showLoginPopup() {
+            if (confirm('좋아요를 누르려면 로그인이 필요합니다. 로그인 페이지로 이동하시겠습니까?')) {
+                window.location.href = '/auth/login';
+            }
+        }
+        
         // 좋아요 버튼 클릭 이벤트
         document.querySelectorAll('.like-btn').forEach(btn => {
             btn.addEventListener('click', async function(e) {
@@ -229,7 +236,15 @@
                         headers: {
                             'Content-Type': 'application/json',
                         },
+                        credentials: 'same-origin',
+                        redirect: 'manual'
                     });
+                    
+                    if (response.status === 401 || response.status === 0) {
+                        // 인증되지 않은 사용자 (401) 또는 수동 리다이렉트로 인한 opaque response (0)
+                        showLoginPopup();
+                        return;
+                    }
                     
                     if (response.ok) {
                         const data = await response.json();
@@ -260,7 +275,9 @@
                 const articleId = btn.getAttribute('data-article-id');
                 
                 try {
-                    const response = await fetch(`/api/articles/${articleId}/like-status`);
+                    const response = await fetch(`/api/articles/${articleId}/like-status`, {
+                        credentials: 'same-origin'
+                    });
                     if (response.ok) {
                         const data = await response.json();
                         const likeIcon = btn.querySelector('.like-icon');

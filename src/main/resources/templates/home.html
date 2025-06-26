@@ -3,6 +3,73 @@
       layout:decorate="~{layout/base}">
 <head>
     <title>홈</title>
+    <style>
+        .floating-logos-container {
+            position: relative;
+            height: 300px;
+            overflow: hidden;
+            margin: 3rem 0;
+        }
+        
+        .floating-logo {
+            position: absolute;
+            animation: float 8s ease-in-out infinite;
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+        }
+        
+        .floating-logo:hover {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+        
+        .floating-logo:nth-child(1) { left: 10%; top: 20%; animation-duration: 8s; }
+        .floating-logo:nth-child(2) { left: 80%; top: 10%; animation-duration: 10s; }
+        .floating-logo:nth-child(3) { left: 60%; top: 60%; animation-duration: 9s; }
+        .floating-logo:nth-child(4) { left: 20%; top: 70%; animation-duration: 11s; }
+        .floating-logo:nth-child(5) { left: 75%; top: 80%; animation-duration: 7s; }
+        .floating-logo:nth-child(6) { left: 40%; top: 15%; animation-duration: 12s; }
+        .floating-logo:nth-child(7) { left: 90%; top: 50%; animation-duration: 8.5s; }
+        .floating-logo:nth-child(8) { left: 15%; top: 45%; animation-duration: 10.5s; }
+        .floating-logo:nth-child(9) { left: 55%; top: 85%; animation-duration: 9.5s; }
+        .floating-logo:nth-child(10) { left: 85%; top: 25%; animation-duration: 11.5s; }
+        
+        .logo-image {
+            width: 60px;
+            height: 60px;
+            object-fit: contain;
+            border-radius: 50%;
+            background: white;
+            padding: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0px) translateX(0px) rotate(0deg);
+            }
+            25% {
+                transform: translateY(-20px) translateX(10px) rotate(2deg);
+            }
+            50% {
+                transform: translateY(-10px) translateX(-15px) rotate(-1deg);
+            }
+            75% {
+                transform: translateY(-25px) translateX(5px) rotate(1deg);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .floating-logos-container {
+                height: 200px;
+            }
+            .logo-image {
+                width: 45px;
+                height: 45px;
+            }
+        }
+    </style>
 </head>
 <body>
     <div layout:fragment="content">
@@ -16,17 +83,23 @@
             
             <!-- Stats Cards -->
             <div class="row g-4 justify-content-center">
-                <div class="col-md-3 col-6">
+                <div class="col-md-6 col-12">
                     <div class="stats-card">
                         <span class="stats-number" th:text="${totalElements}">0</span>
                         <div class="stats-label">총 글 수</div>
                     </div>
                 </div>
-                <div class="col-md-3 col-6">
-                    <div class="stats-card">
-                        <span class="stats-number" th:text="${totalPages}">1</span>
-                        <div class="stats-label">총 페이지</div>
-                    </div>
+            </div>
+            
+            <!-- Floating Company Logos -->
+            <div class="floating-logos-container">
+                <div class="floating-logo" th:each="corporation, iterStat : ${corporations}" 
+                     th:style="'animation-delay: ' + ${iterStat.index * 0.5} + 's;'">
+                    <img th:if="${corporation.logoUrl != null}" 
+                         th:src="${corporation.logoUrl}" 
+                         th:alt="${corporation.name}"
+                         th:title="${corporation.name}"
+                         class="logo-image">
                 </div>
             </div>
         </div>
@@ -270,10 +343,12 @@
                         headers: {
                             'Content-Type': 'application/json',
                         },
+                        credentials: 'same-origin',
+                        redirect: 'manual'
                     });
                     
-                    if (response.status === 401) {
-                        // 인증되지 않은 사용자
+                    if (response.status === 401 || response.status === 0) {
+                        // 인증되지 않은 사용자 (401) 또는 수동 리다이렉트로 인한 opaque response (0)
                         showLoginPopup();
                         return;
                     }
@@ -307,7 +382,9 @@
                 const articleId = btn.getAttribute('data-article-id');
                 
                 try {
-                    const response = await fetch(`/api/articles/${articleId}/like-status`);
+                    const response = await fetch(`/api/articles/${articleId}/like-status`, {
+                        credentials: 'same-origin'
+                    });
                     if (response.ok) {
                         const data = await response.json();
                         const likeIcon = btn.querySelector('.like-icon');
