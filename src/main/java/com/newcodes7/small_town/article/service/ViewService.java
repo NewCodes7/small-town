@@ -6,6 +6,10 @@ import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.ViewLogRepository;
 import com.newcodes7.small_town.auth.entity.User;
 import com.newcodes7.small_town.auth.repository.UserRepository;
+import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
+import com.newcodes7.small_town.article.exception.UserNotFoundException;
+import com.newcodes7.small_town.article.exception.ViewCooldownException;
+import com.newcodes7.small_town.article.exception.InvalidParameterException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,11 +34,18 @@ public class ViewService {
      * 인증된 사용자의 조회수 증가
      */
     public boolean incrementViewCount(Long articleId, String userEmail, String ipAddress) {
+        if (articleId == null || articleId <= 0) {
+            throw new InvalidParameterException("articleId", articleId);
+        }
+        if (userEmail == null || userEmail.trim().isEmpty()) {
+            throw new InvalidParameterException("userEmail", userEmail);
+        }
+        
         User user = userRepository.findByEmailAndDeletedAtIsNull(userEmail)
-            .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+            .orElseThrow(() -> new UserNotFoundException(userEmail));
         
         Article article = articleRepository.findById(articleId)
-            .orElseThrow(() -> new IllegalArgumentException("게시글을 찾을 수 없습니다."));
+            .orElseThrow(() -> new ArticleNotFoundException(articleId));
         
         // 30분 이내 조회 기록 확인
         LocalDateTime cutoffTime = LocalDateTime.now().minusMinutes(VIEW_COOLDOWN_MINUTES);
@@ -63,8 +74,15 @@ public class ViewService {
      * 익명 사용자의 조회수 증가 (IP 기반)
      */
     public boolean incrementViewCountByIp(Long articleId, String ipAddress) {
+        if (articleId == null || articleId <= 0) {
+            throw new InvalidParameterException("articleId", articleId);
+        }
+        if (ipAddress == null || ipAddress.trim().isEmpty()) {
+            throw new InvalidParameterException("ipAddress", ipAddress);
+        }
+        
         Article article = articleRepository.findById(articleId)
-            .orElseThrow(() -> new IllegalArgumentException("게시글을 찾을 수 없습니다."));
+            .orElseThrow(() -> new ArticleNotFoundException(articleId));
         
         // 30분 이내 조회 기록 확인
         LocalDateTime cutoffTime = LocalDateTime.now().minusMinutes(VIEW_COOLDOWN_MINUTES);

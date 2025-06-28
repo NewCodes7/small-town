@@ -208,21 +208,17 @@ public class ArticleController {
                                   @RequestParam(defaultValue = "0") int page,
                                   @RequestParam(defaultValue = "10") int size,
                                   Model model) {
-        try {
-            CorporationDetailDto corporation = articleService.getCorporationDetail(corporationId);
-            Page<ArticleListResponseDto> articles = articleService.getArticlesByCorporation(corporationId, page, size);
-            
-            model.addAttribute("corporation", corporation);
-            model.addAttribute("articles", articles);
-            model.addAttribute("currentPage", page);
-            model.addAttribute("totalPages", articles.getTotalPages());
-            model.addAttribute("totalElements", articles.getTotalElements());
-            model.addAttribute("hasNext", articles.hasNext());
-            model.addAttribute("hasPrevious", articles.hasPrevious());
-            
-            return "corporation-detail";
-        } catch (IllegalArgumentException e) {
-            return "redirect:/";
-        }
+        CorporationDetailDto corporation = articleService.getCorporationDetail(corporationId);
+        Page<ArticleListResponseDto> articles = articleService.getArticlesByCorporation(corporationId, page, size);
+        
+        model.addAttribute("corporation", corporation);
+        model.addAttribute("articles", articles);
+        model.addAttribute("currentPage", page);
+        model.addAttribute("totalPages", articles.getTotalPages());
+        model.addAttribute("totalElements", articles.getTotalElements());
+        model.addAttribute("hasNext", articles.hasNext());
+        model.addAttribute("hasPrevious", articles.hasPrevious());
+        
+        return "corporation-detail";
     }
 }

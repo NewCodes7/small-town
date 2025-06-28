@@ -6,6 +6,9 @@ import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.LikeLogRepository;
 import com.newcodes7.small_town.auth.entity.User;
 import com.newcodes7.small_town.auth.repository.UserRepository;
+import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
+import com.newcodes7.small_town.article.exception.UserNotFoundException;
+import com.newcodes7.small_town.article.exception.InvalidParameterException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,11 +25,18 @@ public class UserLikeService {
     private final UserRepository userRepository;
     
     public boolean toggleLike(Long articleId, String userEmail) {
+        if (articleId == null || articleId <= 0) {
+            throw new InvalidParameterException("articleId", articleId);
+        }
+        if (userEmail == null || userEmail.trim().isEmpty()) {
+            throw new InvalidParameterException("userEmail", userEmail);
+        }
+        
         User user = userRepository.findByEmailAndDeletedAtIsNull(userEmail)
-            .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+            .orElseThrow(() -> new UserNotFoundException(userEmail));
         
         Article article = articleRepository.findById(articleId)
-            .orElseThrow(() -> new IllegalArgumentException("게시글을 찾을 수 없습니다."));
+            .orElseThrow(() -> new ArticleNotFoundException(articleId));
         
         Optional<LikeLog> existingLike = likeLogRepository.findByUserIdAndArticleIdAndDeletedAtIsNull(
             user.getId(), articleId

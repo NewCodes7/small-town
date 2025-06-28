@@ -7,6 +7,8 @@ import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.dto.CorporationDetailDto;
 import com.newcodes7.small_town.article.entity.Article;
 import com.newcodes7.small_town.article.entity.Corporation;
+import com.newcodes7.small_town.article.exception.CorporationNotFoundException;
+import com.newcodes7.small_town.article.exception.InvalidParameterException;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -33,6 +35,13 @@ public class ArticleService {
     }
     
     public Page<ArticleListResponseDto> getArticleList(int page, int size, String sort) {
+        if (page < 0) {
+            throw new InvalidParameterException("page", page, "페이지 번호는 0 이상이어야 합니다");
+        }
+        if (size <= 0 || size > 100) {
+            throw new InvalidParameterException("size", size, "사이즈는 1-100 사이여야 합니다");
+        }
+        
         Pageable pageable = PageRequest.of(page, size);
         Page<Article> articles;
         
@@ -70,8 +79,12 @@ public class ArticleService {
     }
     
     public CorporationDetailDto getCorporationDetail(Long corporationId) {
+        if (corporationId == null || corporationId <= 0) {
+            throw new InvalidParameterException("corporationId", corporationId);
+        }
+        
         Corporation corporation = corporationRepository.findActiveById(corporationId)
-            .orElseThrow(() -> new IllegalArgumentException("Corporation not found"));
+            .orElseThrow(() -> new CorporationNotFoundException(corporationId));
         
         long articleCount = articleRepository.countByCorporationIdAndDeletedAtIsNull(corporationId);
         
