@@ -2,6 +2,8 @@ package com.newcodes7.small_town.auth.controller;
 
 import com.newcodes7.small_town.auth.dto.*;
 import com.newcodes7.small_town.auth.entity.User;
+import com.newcodes7.small_town.auth.exception.AuthException;
+import com.newcodes7.small_town.auth.exception.InvalidTokenException;
 import com.newcodes7.small_town.auth.service.AuthService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
@@ -36,8 +38,8 @@ public class AuthController {
             setTokenCookies(response, jwtResponse.getAccessToken(), jwtResponse.getRefreshToken());
             
             return ResponseEntity.ok(jwtResponse);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().build();
+        } catch (AuthException e) {
+            throw e;
         }
     }
     
@@ -51,18 +53,19 @@ public class AuthController {
             setTokenCookies(response, jwtResponse.getAccessToken(), jwtResponse.getRefreshToken());
             
             return ResponseEntity.ok(jwtResponse);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().build();
+        } catch (AuthException e) {
+            throw e;
         }
     }
     
     @PostMapping("/refresh")
     public ResponseEntity<JwtResponseDto> refreshToken(@CookieValue(name = "refreshToken", required = false) String refreshToken,
                                                        HttpServletResponse response) {
+        if (refreshToken == null) {
+            throw new InvalidTokenException("리프레시", "토큰이 제공되지 않음");
+        }
+        
         try {
-            if (refreshToken == null) {
-                return ResponseEntity.badRequest().build();
-            }
             
             TokenRefreshRequestDto request = new TokenRefreshRequestDto();
             request.setRefreshToken(refreshToken);
@@ -73,8 +76,8 @@ public class AuthController {
             setTokenCookies(response, jwtResponse.getAccessToken(), jwtResponse.getRefreshToken());
             
             return ResponseEntity.ok(jwtResponse);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().build();
+        } catch (AuthException e) {
+            throw e;
         }
     }
     
@@ -103,14 +106,9 @@ public class AuthController {
     @DeleteMapping("/withdraw")
     public ResponseEntity<String> withdraw(@AuthenticationPrincipal UserDetails userDetails,
                                            HttpServletResponse response) {
-        try {
-            authService.withdraw(userDetails.getUsername());
-            // 회원탈퇴 시 쿠키 삭제
-            clearTokenCookies(response);
-            return ResponseEntity.ok("회원탈퇴가 완료되었습니다.");
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body("회원탈퇴에 실패했습니다.");
-        }
+        authService.withdraw(userDetails.getUsername());
+        clearTokenCookies(response);
+        return ResponseEntity.ok("회원탈퇴가 완료되었습니다.");
     }
     
     private void setTokenCookies(HttpServletResponse response, String accessToken, String refreshToken) {

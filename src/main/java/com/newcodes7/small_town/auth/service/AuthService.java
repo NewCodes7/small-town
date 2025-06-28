@@ -4,6 +4,7 @@ import com.newcodes7.small_town.auth.dto.*;
 import com.newcodes7.small_town.auth.entity.Provider;
 import com.newcodes7.small_town.auth.entity.Role;
 import com.newcodes7.small_town.auth.entity.User;
+import com.newcodes7.small_town.auth.exception.*;
 import com.newcodes7.small_town.auth.jwt.JwtTokenProvider;
 import com.newcodes7.small_town.auth.repository.ProviderRepository;
 import com.newcodes7.small_town.auth.repository.RoleRepository;
@@ -30,18 +31,18 @@ public class AuthService {
     
     public JwtResponseDto signup(SignupRequestDto signupRequest) {
         if (!signupRequest.getPassword().equals(signupRequest.getConfirmPassword())) {
-            throw new RuntimeException("비밀번호가 일치하지 않습니다.");
+            throw new PasswordMismatchException();
         }
         
         if (userRepository.existsByEmailAndDeletedAtIsNull(signupRequest.getEmail())) {
-            throw new RuntimeException("이미 존재하는 이메일입니다.");
+            throw new DuplicateEmailException(signupRequest.getEmail());
         }
         
         Role userRole = roleRepository.findByName("USER")
-                .orElseThrow(() -> new RuntimeException("USER 역할을 찾을 수 없습니다."));
+                .orElseThrow(() -> new RoleNotFoundException("USER"));
         
         Provider localProvider = providerRepository.findByName("LOCAL")
-                .orElseThrow(() -> new RuntimeException("LOCAL 제공자를 찾을 수 없습니다."));
+                .orElseThrow(() -> new ProviderNotFoundException("LOCAL"));
         
         User user = User.builder()
                 .email(signupRequest.getEmail())
@@ -71,7 +72,7 @@ public class AuthService {
             
             User user = (User) authentication.getPrincipal();
             user.updateLastLoginAt();
-            userRepository.save(user); // 변경사항 저장
+            userRepository.save(user);
             
             String accessToken = tokenProvider.generateAccessToken(authentication);
             String refreshToken = tokenProvider.generateRefreshToken(authentication);
@@ -79,9 +80,7 @@ public class AuthService {
             return new JwtResponseDto(accessToken, refreshToken, user.getEmail(), 
                                      user.getNickname(), user.getRole().getName());
         } catch (Exception e) {
-            System.err.println("Login error: " + e.getMessage());
-            e.printStackTrace();
-            throw new RuntimeException("로그인에 실패했습니다: " + e.getMessage());
+            throw new AuthenticationFailedException(loginRequest.getEmail(), e);
         }
     }
     
@@ -89,12 +88,12 @@ public class AuthService {
         String refreshToken = request.getRefreshToken();
         
         if (!tokenProvider.validateToken(refreshToken) || !tokenProvider.isRefreshToken(refreshToken)) {
-            throw new RuntimeException("유효하지 않은 리프레시 토큰입니다.");
+            throw new InvalidTokenException("리프레시");
         }
         
         String email = tokenProvider.getEmailFromToken(refreshToken);
         User user = userRepository.findByEmailAndDeletedAtIsNull(email)
-                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+                .orElseThrow(() -> new UserNotFoundException(email));
         
         String newAccessToken = tokenProvider.generateAccessToken(email);
         String newRefreshToken = tokenProvider.generateRefreshToken(email);
@@ -105,7 +104,7 @@ public class AuthService {
     
     public void withdraw(String email) {
         User user = userRepository.findByEmailAndDeletedAtIsNull(email)
-                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+                .orElseThrow(() -> new UserNotFoundException(email));
         
         user.withdraw();
     }
