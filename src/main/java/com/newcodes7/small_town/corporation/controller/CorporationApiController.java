@@ -3,6 +3,7 @@ package com.newcodes7.small_town.corporation.controller;
 import com.newcodes7.small_town.corporation.dto.CorporationCreateDto;
 import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
 import com.newcodes7.small_town.corporation.dto.CorporationUpdateDto;
+import com.newcodes7.small_town.corporation.exception.CorporationException;
 import com.newcodes7.small_town.corporation.service.CorporationService;
 
 import lombok.RequiredArgsConstructor;
@@ -46,49 +47,30 @@ public class CorporationApiController {
     // 기업 상세 조회
     @GetMapping("/{id}")
     public ResponseEntity<CorporationResponseDto> getCorporation(@PathVariable Long id) {
-        try {
-            CorporationResponseDto corporation = corporationService.getCorporationById(id);
-            return ResponseEntity.ok(corporation);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
-        }
+        CorporationResponseDto corporation = corporationService.getCorporationById(id);
+        return ResponseEntity.ok(corporation);
     }
     
     // 기업 등록
     @PostMapping
-    public ResponseEntity<?> createCorporation(@Valid @RequestBody CorporationCreateDto dto) {
-        try {
-            CorporationResponseDto corporation = corporationService.createCorporation(dto);
-            return ResponseEntity.status(HttpStatus.CREATED).body(corporation);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", e.getMessage()));
-        }
+    public ResponseEntity<CorporationResponseDto> createCorporation(@Valid @RequestBody CorporationCreateDto dto) {
+        CorporationResponseDto corporation = corporationService.createCorporation(dto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(corporation);
     }
     
     // 기업 수정
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateCorporation(
+    public ResponseEntity<CorporationResponseDto> updateCorporation(
             @PathVariable Long id,
             @Valid @RequestBody CorporationUpdateDto dto) {
-        try {
-            CorporationResponseDto corporation = corporationService.updateCorporation(id, dto);
-            return ResponseEntity.ok(corporation);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", e.getMessage()));
-        }
+        CorporationResponseDto corporation = corporationService.updateCorporation(id, dto);
+        return ResponseEntity.ok(corporation);
     }
     
     // 기업 삭제
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteCorporation(@PathVariable Long id) {
-        try {
-            corporationService.deleteCorporation(id);
-            return ResponseEntity.ok(Map.of("message", "기업이 성공적으로 삭제되었습니다."));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", e.getMessage()));
-        }
+    public ResponseEntity<Map<String, String>> deleteCorporation(@PathVariable Long id) {
+        corporationService.deleteCorporation(id);
+        return ResponseEntity.ok(Map.of("message", "기업이 성공적으로 삭제되었습니다."));
     }
 }

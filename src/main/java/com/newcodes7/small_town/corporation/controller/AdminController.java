@@ -18,6 +18,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import com.newcodes7.small_town.corporation.dto.CorporationCreateDto;
 import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
 import com.newcodes7.small_town.corporation.dto.CorporationUpdateDto;
+import com.newcodes7.small_town.corporation.exception.CorporationException;
 import com.newcodes7.small_town.corporation.repository.IndustryRepository;
 import com.newcodes7.small_town.corporation.service.CorporationService;
 
@@ -79,7 +80,7 @@ public class AdminController {
             corporationService.createCorporation(dto);
             redirectAttributes.addFlashAttribute("successMessage", "기업이 성공적으로 등록되었습니다.");
             return "redirect:/admin/corporations";
-        } catch (IllegalArgumentException e) {
+        } catch (CorporationException e) {
             model.addAttribute("errorMessage", e.getMessage());
             model.addAttribute("industries", industryRepository.findAll());
             return "admin/corporation/form";
@@ -102,7 +103,7 @@ public class AdminController {
             model.addAttribute("corporationId", id);
             model.addAttribute("industries", industryRepository.findAll());
             return "admin/corporation/edit";
-        } catch (IllegalArgumentException e) {
+        } catch (CorporationException e) {
             return "redirect:/admin/corporations";
         }
     }
@@ -126,7 +127,7 @@ public class AdminController {
             corporationService.updateCorporation(id, dto);
             redirectAttributes.addFlashAttribute("successMessage", "기업 정보가 성공적으로 수정되었습니다.");
             return "redirect:/admin/corporations";
-        } catch (IllegalArgumentException e) {
+        } catch (CorporationException e) {
             model.addAttribute("errorMessage", e.getMessage());
             model.addAttribute("corporationId", id);
             model.addAttribute("industries", industryRepository.findAll());
@@ -140,7 +141,7 @@ public class AdminController {
         try {
             corporationService.deleteCorporation(id);
             redirectAttributes.addFlashAttribute("successMessage", "기업이 성공적으로 삭제되었습니다.");
-        } catch (IllegalArgumentException e) {
+        } catch (CorporationException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
         }
         return "redirect:/admin/corporations";

@@ -6,6 +6,7 @@ import com.newcodes7.small_town.corporation.dto.CorporationUpdateDto;
 import com.newcodes7.small_town.corporation.entity.Corporation;
 import com.newcodes7.small_town.corporation.entity.CorporationIndustry;
 import com.newcodes7.small_town.corporation.entity.Industry;
+import com.newcodes7.small_town.corporation.exception.*;
 import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.corporation.repository.IndustryRepository;
 
@@ -31,21 +32,33 @@ public class CorporationService {
     }
     
     public Page<CorporationResponseDto> searchCorporations(String name, Pageable pageable) {
+        if (name == null || name.trim().isEmpty()) {
+            throw new InvalidParameterException("name", name, "검색어는 비어있을 수 없습니다");
+        }
         return corporationRepository.findByNameContainingAndDeletedAtIsNull(name, pageable)
                 .map(CorporationResponseDto::from);
     }
     
     public CorporationResponseDto getCorporationById(Long id) {
+        if (id == null || id <= 0) {
+            throw new InvalidParameterException("id", id);
+        }
         Corporation corporation = corporationRepository.findActiveById(id)
-                .orElseThrow(() -> new IllegalArgumentException("기업을 찾을 수 없습니다."));
+                .orElseThrow(() -> new CorporationNotFoundException(id));
         return CorporationResponseDto.from(corporation);
     }
     
     @Transactional
     public CorporationResponseDto createCorporation(CorporationCreateDto dto) {
-        // 중복 검사
+        if (dto == null) {
+            throw new InvalidParameterException("dto", null);
+        }
+        if (dto.getName() == null || dto.getName().trim().isEmpty()) {
+            throw new InvalidParameterException("name", dto.getName(), "기업명은 필수입니다");
+        }
+        
         if (corporationRepository.existsByNameAndDeletedAtIsNull(dto.getName())) {
-            throw new IllegalArgumentException("이미 존재하는 기업명입니다.");
+            throw new DuplicateCorporationNameException(dto.getName());
         }
         
         Corporation corporation = Corporation.builder()
@@ -61,6 +74,9 @@ public class CorporationService {
         // 업종 관계 설정
         if (dto.getIndustryIds() != null && !dto.getIndustryIds().isEmpty()) {
             List<Industry> industries = industryRepository.findAllById(dto.getIndustryIds());
+            if (industries.size() != dto.getIndustryIds().size()) {
+                throw new IndustryNotFoundException(dto.getIndustryIds());
+            }
             for (Industry industry : industries) {
                 CorporationIndustry corporationIndustry = CorporationIndustry.builder()
                         .corporation(savedCorporation)
@@ -75,13 +91,23 @@ public class CorporationService {
     
     @Transactional
     public CorporationResponseDto updateCorporation(Long id, CorporationUpdateDto dto) {
+        if (id == null || id <= 0) {
+            throw new InvalidParameterException("id", id);
+        }
+        if (dto == null) {
+            throw new InvalidParameterException("dto", null);
+        }
+        if (dto.getName() == null || dto.getName().trim().isEmpty()) {
+            throw new InvalidParameterException("name", dto.getName(), "기업명은 필수입니다");
+        }
+        
         Corporation corporation = corporationRepository.findActiveById(id)
-                .orElseThrow(() -> new IllegalArgumentException("기업을 찾을 수 없습니다."));
+                .orElseThrow(() -> new CorporationNotFoundException(id));
         
         // 다른 기업이 같은 이름을 사용하는지 확인
         if (!corporation.getName().equals(dto.getName()) && 
             corporationRepository.existsByNameAndDeletedAtIsNull(dto.getName())) {
-            throw new IllegalArgumentException("이미 존재하는 기업명입니다.");
+            throw new DuplicateCorporationNameException(dto.getName());
         }
         
         corporation.setName(dto.getName());
@@ -96,6 +122,9 @@ public class CorporationService {
         // 새로운 업종 관계 설정
         if (dto.getIndustryIds() != null && !dto.getIndustryIds().isEmpty()) {
             List<Industry> industries = industryRepository.findAllById(dto.getIndustryIds());
+            if (industries.size() != dto.getIndustryIds().size()) {
+                throw new IndustryNotFoundException(dto.getIndustryIds());
+            }
             for (Industry industry : industries) {
                 CorporationIndustry corporationIndustry = CorporationIndustry.builder()
                         .corporation(corporation)
@@ -110,8 +139,11 @@ public class CorporationService {
     
     @Transactional
     public void deleteCorporation(Long id) {
+        if (id == null || id <= 0) {
+            throw new InvalidParameterException("id", id);
+        }
         Corporation corporation = corporationRepository.findActiveById(id)
-                .orElseThrow(() -> new IllegalArgumentException("기업을 찾을 수 없습니다."));
+                .orElseThrow(() -> new CorporationNotFoundException(id));
         corporation.softDelete();
     }
 }
