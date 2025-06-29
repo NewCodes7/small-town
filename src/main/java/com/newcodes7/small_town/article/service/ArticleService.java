@@ -96,4 +96,8 @@ public class ArticleService {
         Page<Article> articles = articleRepository.findByCorporationId(corporationId, pageable);
         return articles.map(ArticleListResponseDto::new);
     }
+    
+    public long getTotalArticleCount() {
+        return articleRepository.countByDeletedAtIsNull();
+    }
 }

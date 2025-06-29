@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>소개</title>
+    <style>
+        .intro-hero {
+            background: linear-gradient(135deg, var(--secondary-green) 0%, #F0F8F0 100%);
+            border-radius: 24px;
+            padding: 64px 32px;
+            margin-bottom: 48px;
+            text-align: center;
+            border: 1px solid rgba(40, 199, 111, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .intro-hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(3, 199, 90, 0.05) 0%, transparent 70%);
+            animation: rotate 20s linear infinite;
+        }
+        
+        @keyframes rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .intro-content {
+            position: relative;
+            z-index: 2;
+        }
+        
+        .intro-title {
+            font-size: 3rem;
+            font-weight: 800;
+            color: var(--text-dark);
+            margin-bottom: 24px;
+            letter-spacing: -1px;
+        }
+        
+        .intro-subtitle {
+            font-size: 1.5rem;
+            color: var(--text-light);
+            font-weight: 500;
+            margin-bottom: 32px;
+            line-height: 1.6;
+        }
+        
+        .feature-card {
+            background: var(--white);
+            border-radius: 20px;
+            padding: 32px;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.3s ease;
+            border: 2px solid var(--border-light);
+            height: 100%;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--primary-green);
+        }
+        
+        .feature-icon {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, var(--primary-green) 0%, var(--primary-green-light) 100%);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 24px;
+            color: white;
+            font-size: 1.5rem;
+        }
+        
+        .feature-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 16px;
+        }
+        
+        .feature-description {
+            color: var(--text-light);
+            line-height: 1.6;
+            font-size: 1rem;
+        }
+        
+        .feedback-section {
+            background: var(--white);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: var(--shadow-sm);
+            border: 2px solid var(--border-light);
+            margin-top: 48px;
+        }
+        
+        .feedback-form {
+            display: none;
+            margin-top: 24px;
+            padding: 24px;
+            background: var(--background-light);
+            border-radius: 16px;
+            border: 1px solid var(--border-light);
+        }
+        
+        .feedback-form.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .btn-feedback {
+            background: linear-gradient(135deg, var(--primary-green) 0%, var(--primary-green-light) 100%);
+            border: none;
+            border-radius: 12px;
+            padding: 16px 32px;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow-sm);
+            color: white;
+        }
+        
+        .btn-feedback:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            background: linear-gradient(135deg, var(--primary-green-dark) 0%, var(--primary-green) 100%);
+            color: white;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 24px;
+            margin: 48px 0;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 24px;
+            background: var(--white);
+            border-radius: 16px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-light);
+        }
+        
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--primary-green);
+            display: block;
+            margin-bottom: 8px;
+        }
+        
+        .stat-label {
+            color: var(--text-light);
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+        
+        @media (max-width: 768px) {
+            .intro-title {
+                font-size: 2rem;
+            }
+            
+            .intro-subtitle {
+                font-size: 1.2rem;
+            }
+            
+            .intro-hero {
+                padding: 48px 24px;
+            }
+            
+            .feature-card {
+                padding: 24px;
+            }
+            
+            .feedback-section {
+                padding: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div layout:fragment="content">
+        <!-- Hero Section -->
+        <div class="intro-hero">
+            <div class="intro-content">
+                <h1 class="intro-title">
+                    <i class="fas fa-seedling me-3" style="color: var(--primary-green);"></i>
+                    Small Town
+                </h1>
+                <p class="intro-subtitle">
+                    국내 및 해외 기술블로그를 빠르게 알려주는<br>
+                    개발자를 위한 큐레이션 플랫폼
+                </p>
+                <div class="d-flex justify-content-center gap-3 flex-wrap">
+                    <a href="/" class="btn btn-primary">
+                        <i class="fas fa-home me-2"></i>최신 글 보기
+                    </a>
+                    <button class="btn btn-feedback" onclick="toggleFeedbackForm()">
+                        <i class="fas fa-comment me-2"></i>피드백 보내기
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Section -->
+        <div class="stats-grid">
+            <div class="stat-item">
+                <span class="stat-number" th:text="${totalCorporations ?: '50+'}">50+</span>
+                <div class="stat-label">구독 중인 기업</div>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number" th:text="${totalArticles ?: '1000+'}">1000+</span>
+                <div class="stat-label">큐레이션된 글</div>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number">매일</span>
+                <div class="stat-label">자동 업데이트</div>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number">무료</span>
+                <div class="stat-label">서비스 이용</div>
+            </div>
+        </div>
+
+        <!-- Features Section -->
+        <div class="row g-4 mb-5">
+            <div class="col-lg-4 col-md-6">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-globe-asia"></i>
+                    </div>
+                    <h3 class="feature-title">국내외 기업 블로그</h3>
+                    <p class="feature-description">
+                        네이버, 카카오, 우아한형제들부터 Google, Meta, Netflix까지
+                        국내외 주요 기업들의 기술 블로그를 한 곳에서 모아보세요.
+                    </p>
+                </div>
+            </div>
+            <div class="col-lg-4 col-md-6">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <h3 class="feature-title">자동 크롤링</h3>
+                    <p class="feature-description">
+                        매일 자동으로 새로운 글을 수집하고 업데이트하여
+                        최신 기술 트렌드를 놓치지 않고 확인할 수 있습니다.
+                    </p>
+                </div>
+            </div>
+            <div class="col-lg-4 col-md-6">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-filter"></i>
+                    </div>
+                    <h3 class="feature-title">스마트 필터링</h3>
+                    <p class="feature-description">
+                        최신순, 인기순 정렬과 국내/해외 지역별 필터링으로
+                        원하는 콘텐츠를 쉽고 빠르게 찾아보세요.
+                    </p>
+                </div>
+            </div>
+            <div class="col-lg-4 col-md-6">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-heart"></i>
+                    </div>
+                    <h3 class="feature-title">좋아요 & 북마크</h3>
+                    <p class="feature-description">
+                        마음에 드는 글에 좋아요를 누르고 나중에 읽을 글들을
+                        북마크하여 개인 맞춤형 큐레이션을 만들어보세요.
+                    </p>
+                </div>
+            </div>
+            <div class="col-lg-4 col-md-6">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-mobile-alt"></i>
+                    </div>
+                    <h3 class="feature-title">모바일 최적화</h3>
+                    <p class="feature-description">
+                        언제 어디서나 편리하게 이용할 수 있도록
+                        모바일과 데스크톱 환경에 최적화된 인터페이스를 제공합니다.
+                    </p>
+                </div>
+            </div>
+            <div class="col-lg-4 col-md-6">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-rss"></i>
+                    </div>
+                    <h3 class="feature-title">RSS 피드</h3>
+                    <p class="feature-description">
+                        RSS 피드를 통해 좋아하는 RSS 리더에서도
+                        Small Town의 큐레이션된 콘텐츠를 확인할 수 있습니다.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feedback Section -->
+        <div class="feedback-section">
+            <div class="text-center">
+                <h2 class="mb-3" style="color: var(--text-dark); font-weight: 700;">
+                    <i class="fas fa-comments me-2" style="color: var(--primary-green);"></i>
+                    피드백을 들려주세요
+                </h2>
+                <p class="text-muted mb-4">
+                    Small Town을 더 좋은 서비스로 만들기 위해 여러분의 소중한 의견을 기다립니다.
+                </p>
+                <button class="btn btn-feedback" onclick="toggleFeedbackForm()" id="feedbackToggleBtn">
+                    <i class="fas fa-comment me-2"></i>피드백 작성하기
+                </button>
+            </div>
+
+            <!-- Feedback Form -->
+            <div class="feedback-form" id="feedbackForm">
+                <form id="feedbackSubmitForm">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="feedbackName" class="form-label fw-bold">이름 (선택)</label>
+                            <input type="text" class="form-control" id="feedbackName" name="name" placeholder="이름을 입력해주세요">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="feedbackEmail" class="form-label fw-bold">이메일 (선택)</label>
+                            <input type="email" class="form-control" id="feedbackEmail" name="email" placeholder="답변을 받을 이메일">
+                        </div>
+                        <div class="col-12">
+                            <label for="feedbackType" class="form-label fw-bold">피드백 유형</label>
+                            <select class="form-select" id="feedbackType" name="type" required>
+                                <option value="">선택해주세요</option>
+                                <option value="기능개선">기능 개선 제안</option>
+                                <option value="버그리포트">버그 리포트</option>
+                                <option value="새기능">새로운 기능 요청</option>
+                                <option value="UI/UX">UI/UX 개선</option>
+                                <option value="기타">기타</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label for="feedbackMessage" class="form-label fw-bold">피드백 내용</label>
+                            <textarea class="form-control" id="feedbackMessage" name="message" rows="5" 
+                                    placeholder="자세한 피드백을 남겨주세요. 예: 어떤 기능이 불편한지, 어떤 개선이 필요한지 등..." required></textarea>
+                        </div>
+                        <div class="col-12">
+                            <div class="d-flex gap-2 justify-content-end">
+                                <button type="button" class="btn btn-secondary" onclick="toggleFeedbackForm()">
+                                    <i class="fas fa-times me-2"></i>취소
+                                </button>
+                                <button type="submit" class="btn btn-feedback">
+                                    <i class="fas fa-paper-plane me-2"></i>피드백 보내기
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Success Message -->
+        <div class="alert alert-success d-none" id="feedbackSuccess" style="border-radius: 12px; margin-top: 24px;">
+            <i class="fas fa-check-circle me-2"></i>
+            피드백이 성공적으로 전송되었습니다. 소중한 의견 감사합니다!
+        </div>
+
+        <!-- Error Message -->
+        <div class="alert alert-danger d-none" id="feedbackError" style="border-radius: 12px; margin-top: 24px;">
+            <i class="fas fa-exclamation-circle me-2"></i>
+            피드백 전송 중 오류가 발생했습니다. 다시 시도해주세요.
+        </div>
+    </div>
+
+    <script layout:fragment="scripts">
+        function toggleFeedbackForm() {
+            const form = document.getElementById('feedbackForm');
+            const btn = document.getElementById('feedbackToggleBtn');
+            
+            if (form.classList.contains('show')) {
+                form.classList.remove('show');
+                btn.innerHTML = '<i class="fas fa-comment me-2"></i>피드백 작성하기';
+            } else {
+                form.classList.add('show');
+                btn.innerHTML = '<i class="fas fa-times me-2"></i>닫기';
+                // 폼이 열릴 때 스크롤
+                setTimeout(() => {
+                    form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 300);
+            }
+        }
+
+        document.getElementById('feedbackSubmitForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const message = formData.get('message').trim();
+            const type = formData.get('type');
+            
+            // 클라이언트 사이드 검증
+            if (!type) {
+                alert('피드백 유형을 선택해주세요.');
+                document.getElementById('feedbackType').focus();
+                return;
+            }
+            
+            if (!message) {
+                alert('피드백 내용을 입력해주세요.');
+                document.getElementById('feedbackMessage').focus();
+                return;
+            }
+            
+            if (message.length < 10) {
+                alert('피드백 내용은 10자 이상 입력해주세요.');
+                document.getElementById('feedbackMessage').focus();
+                return;
+            }
+            
+            const data = {
+                name: formData.get('name') || '익명',
+                email: formData.get('email') || '',
+                type: type,
+                message: message
+            };
+            
+            const successAlert = document.getElementById('feedbackSuccess');
+            const errorAlert = document.getElementById('feedbackError');
+            
+            // 기존 알림 숨기기
+            successAlert.classList.add('d-none');
+            errorAlert.classList.add('d-none');
+            
+            try {
+                const response = await fetch('/api/feedback', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    successAlert.classList.remove('d-none');
+                    this.reset();
+                    toggleFeedbackForm();
+                    
+                    // 성공 알림으로 스크롤
+                    setTimeout(() => {
+                        successAlert.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 100);
+                    
+                    // 5초 후 알림 숨기기
+                    setTimeout(() => {
+                        successAlert.classList.add('d-none');
+                    }, 5000);
+                } else {
+                    // 서버에서 온 구체적인 오류 메시지 표시
+                    alert(result.message || '피드백 전송 중 오류가 발생했습니다.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('네트워크 오류가 발생했습니다. 인터넷 연결을 확인하고 다시 시도해주세요.');
+            }
+        });
+    </script>
+</body>
+</html>
