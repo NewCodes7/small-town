@@ -15,12 +15,16 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.dto.CorporationDetailDto;
+import com.newcodes7.small_town.article.dto.FeedbackCreateDto;
+import com.newcodes7.small_town.article.dto.FeedbackResponseDto;
 import com.newcodes7.small_town.article.service.ArticleService;
+import com.newcodes7.small_town.article.service.FeedbackService;
 import com.newcodes7.small_town.article.service.LikeService;
 import com.newcodes7.small_town.article.service.UserLikeService;
 import com.newcodes7.small_town.article.service.ViewService;
@@ -41,6 +45,7 @@ public class ArticleController {
     private final UserLikeService userLikeService;
     private final ViewService viewService;
     private final CorporationService corporationService;
+    private final FeedbackService feedbackService;
     
     @GetMapping("/api/articles")
     @ResponseBody
@@ -220,5 +225,98 @@ public class ArticleController {
         model.addAttribute("hasPrevious", articles.hasPrevious());
         
         return "corporation-detail";
+    }
+    
+    @GetMapping("/about")
+    public String about(Model model) {
+        // Add statistics for the about page
+        long totalArticles = articleService.getTotalArticleCount();
+        long totalCorporations = corporationService.getTotalCorporationCount();
+        
+        model.addAttribute("totalArticles", totalArticles);
+        model.addAttribute("totalCorporations", totalCorporations);
+        
+        return "about";
+    }
+    
+    @PostMapping("/api/feedback")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> submitFeedback(
+            @RequestBody FeedbackCreateDto feedbackDto,
+            HttpServletRequest request) {
+        
+        try {
+            // IP 주소와 User-Agent 추출
+            String ipAddress = getClientIpAddress(request);
+            String userAgent = request.getHeader("User-Agent");
+            
+            // 피드백 저장
+            FeedbackResponseDto savedFeedback = feedbackService.createFeedback(feedbackDto, ipAddress, userAgent);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "피드백이 성공적으로 접수되었습니다.");
+            response.put("feedbackId", savedFeedback.getId());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (RuntimeException e) {
+            log.error("피드백 접수 중 오류 발생: {}", e.getMessage(), e);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "error");
+            response.put("message", e.getMessage());
+            
+            return ResponseEntity.badRequest().body(response);
+        } catch (Exception e) {
+            log.error("피드백 접수 중 예상치 못한 오류 발생", e);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "error");
+            response.put("message", "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+            
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+    
+    @GetMapping("/corporations")
+    public String corporations(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size,
+            @RequestParam(required = false) String search,
+            Model model) {
+        
+        Page<CorporationResponseDto> corporations;
+        
+        if (search != null && !search.trim().isEmpty()) {
+            corporations = corporationService.searchCorporations(search.trim(), PageRequest.of(page, size));
+        } else {
+            corporations = corporationService.getAllCorporations(PageRequest.of(page, size));
+        }
+        
+        // Statistics
+        long totalCorporations = corporationService.getTotalCorporationCount();
+        long totalArticles = articleService.getTotalArticleCount();
+        
+        // For now, assume all corporations are domestic since the corporation module doesn't have isDomestic field
+        // In a real implementation, you would add this field to the corporation entity and update the statistics accordingly
+        long domesticCount = totalCorporations;
+        long overseasCount = 0;
+        
+        model.addAttribute("corporations", corporations);
+        model.addAttribute("currentPage", page);
+        model.addAttribute("totalPages", corporations.getTotalPages());
+        model.addAttribute("totalElements", corporations.getTotalElements());
+        model.addAttribute("hasNext", corporations.hasNext());
+        model.addAttribute("hasPrevious", corporations.hasPrevious());
+        model.addAttribute("currentSearch", search);
+        
+        // Statistics
+        model.addAttribute("totalCorporations", totalCorporations);
+        model.addAttribute("domesticCount", domesticCount);
+        model.addAttribute("overseasCount", overseasCount);
+        model.addAttribute("totalArticles", totalArticles);
+        
+        return "corporations";
     }
 }

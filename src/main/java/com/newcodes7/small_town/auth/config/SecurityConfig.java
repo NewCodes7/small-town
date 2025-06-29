@@ -59,7 +59,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(authz -> authz
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/auth/**").permitAll()
-                .requestMatchers("/", "/home", "/articles/**").permitAll()
+                .requestMatchers("/", "/home", "/articles/**", "/about", "/corporations", "/corporations/**").permitAll()
                 .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
                 
                 // 좋아요 관련 API - 좋아요 토글은 인증 필요, 상태 조회는 모든 사용자 허용
@@ -68,6 +68,9 @@ public class SecurityConfig {
                 // 조회수 증가 및 상태 조회는 모든 사용자 허용
                 .requestMatchers("/api/articles/*/view").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/articles/*/view-status").permitAll()
+                
+                // 피드백 제출은 모든 사용자 허용
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/feedback").permitAll()
                 
                 // 기업 정보 조회는 모든 사용자 허용
                 .requestMatchers("/corporations/**").permitAll()
