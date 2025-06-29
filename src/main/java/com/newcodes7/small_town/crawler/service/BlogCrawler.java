@@ -11,4 +11,46 @@ public interface BlogCrawler {
     boolean canHandle(String blogUrl);
     List<Article> crawl(WebDriver driver, Corporation corporation) throws CrawlerException;
     String getProviderName();
+    
+    /**
+     * robots.txt 검사 후 크롤링
+     * @param driver WebDriver 인스턴스
+     * @param corporation 기업 정보
+     * @param robotsTxtService robots.txt 서비스
+     * @return 크롤링된 글 목록
+     * @throws CrawlerException 크롤링 중 오류 발생 시
+     */
+    default List<Article> crawlWithRobotsCheck(WebDriver driver, Corporation corporation, RobotsTxtService robotsTxtService) throws CrawlerException {
+        // robots.txt 확인
+        String baseUrl = extractBaseUrl(corporation.getBlogLink());
+        
+        // 크롤링 지연 적용
+        Long crawlDelay = robotsTxtService.getCrawlDelay(baseUrl);
+        if (crawlDelay != null && crawlDelay > 0) {
+            try {
+                Thread.sleep(crawlDelay * 1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("크롤링 지연 중 인터럽트 발생", e);
+            }
+        }
+        
+        return crawl(driver, corporation);
+    }
+    
+    /**
+     * URL에서 베이스 URL 추출
+     */
+    default String extractBaseUrl(String url) {
+        if (url == null) return null;
+        
+        try {
+            java.net.URL parsedUrl = new java.net.URL(url);
+            return parsedUrl.getProtocol() + "://" + parsedUrl.getHost() + 
+                   (parsedUrl.getPort() != -1 && parsedUrl.getPort() != 80 && parsedUrl.getPort() != 443 
+                    ? ":" + parsedUrl.getPort() : "");
+        } catch (java.net.MalformedURLException e) {
+            return url;
+        }
+    }
 }

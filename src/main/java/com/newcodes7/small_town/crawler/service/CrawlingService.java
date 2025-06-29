@@ -33,6 +33,7 @@ public class CrawlingService {
     private final CrawlerArticleRepository crawlerArticleRepository;
     private final ApplicationContext applicationContext;
     private final CrawlerProperties crawlerProperties;
+    private final RobotsTxtService robotsTxtService;
     
     // TODO: 스레드 수 최적화 필요 (현재는 5개)
     private final ExecutorService executorService = 
@@ -98,8 +99,20 @@ public class CrawlingService {
             BlogCrawler crawler = selectCrawler(corporation.getBlogLink());
             log.info("크롤링 시작 - 기업: {}, 크롤러: {}", corporation.getName(), crawler.getProviderName());
             
-            // 크롤링 실행
-            List<Article> crawledArticles = crawler.crawl(driver, corporation);
+            // robots.txt 확인 및 크롤링 실행
+            String baseUrl = crawler.extractBaseUrl(corporation.getBlogLink());
+            log.info("robots.txt 확인 - 기업: {}, 블로그URL: {}, 베이스URL: {}", corporation.getName(), corporation.getBlogLink(), baseUrl);
+            
+            boolean isAllowed = robotsTxtService.isPathAllowed(baseUrl, "/");
+            log.info("robots.txt 확인 결과 - 기업: {}, 허용 여부: {}", corporation.getName(), isAllowed);
+            
+            if (!isAllowed) {
+                log.warn("robots.txt에 의해 크롤링이 금지됨 - 기업: {}, 블로그URL: {}, 베이스URL: {}", corporation.getName(), corporation.getBlogLink(), baseUrl);
+                return CrawlResult.failure(corporation, "robots.txt에 의해 크롤링 금지됨");
+            }
+            
+            log.info("robots.txt 확인 완료 - 크롤링 허용됨");
+            List<Article> crawledArticles = crawler.crawlWithRobotsCheck(driver, corporation, robotsTxtService);
             
             // 중복 제거 및 저장
             int newArticlesCount = 0;
