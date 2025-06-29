@@ -8,6 +8,7 @@ import com.newcodes7.small_town.crawler.repository.CrawlerArticleRepository;
 import com.newcodes7.small_town.crawler.repository.CrawlerCorporationRepository;
 import com.newcodes7.small_town.crawler.service.BlogCrawler;
 import com.newcodes7.small_town.crawler.dto.CrawlResult;
+import com.newcodes7.small_town.crawler.exception.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.WebDriver;
@@ -66,7 +67,8 @@ public class CrawlingService {
                 CrawlResult result = future.get(5, TimeUnit.MINUTES); // 동기 블로킹 *최대 5분 대기 
                 results.add(result);
             } catch (Exception e) {
-                log.error("크롤링 작업 실행 중 오류 발생: {}", e.getMessage());
+                log.error("크롤링 작업 실행 중 오류 발생: {}", e.getMessage(), e);
+                results.add(CrawlResult.failure(null, "크롤링 작업 실행 실패: " + e.getMessage()));
             }
         }
         
@@ -81,11 +83,11 @@ public class CrawlingService {
     public CrawlResult crawlSingleBlog(Long corporationId) {
         Corporation corporation = crawlerCorporationRepository.findByIdAndNotDeleted(corporationId);
         if (corporation == null) {
-            return CrawlResult.failure(null, "기업을 찾을 수 없습니다: " + corporationId);
+            throw new CorporationCrawlingException(corporationId);
         }
         
         if (corporation.getBlogLink() == null || corporation.getBlogLink().trim().isEmpty()) {
-            return CrawlResult.failure(corporation, "블로그 링크가 없습니다.");
+            throw new CorporationCrawlingException(corporationId, "empty or null blog URL");
         }
         
         WebDriver driver = null;
@@ -108,6 +110,8 @@ public class CrawlingService {
                     Article savedArticle = crawlerArticleRepository.save(article);
                     savedArticles.add(savedArticle);
                     newArticlesCount++;
+                } else {
+                    log.debug("중복 게시글 스킵: {}", article.getLink());
                 }
             }
             
@@ -116,15 +120,19 @@ public class CrawlingService {
             
             return CrawlResult.success(corporation, savedArticles, newArticlesCount);
             
-        } catch (Exception e) {
+        } catch (CrawlerException e) {
             log.error("크롤링 실패 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
-            return CrawlResult.failure(corporation, e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("예상치 못한 크롤링 오류 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
+            throw new CrawlerException("CRAWLER_UNEXPECTED_ERROR", "Unexpected error during crawling for corporation: " + corporation.getName(), e) {};
         } finally {
             if (driver != null) {
                 try {
                     driver.quit();
                 } catch (Exception e) {
                     log.warn("WebDriver 종료 중 오류: {}", e.getMessage());
+                    throw new WebDriverException("WebDriver cleanup failed", e);
                 }
             }
         }
@@ -150,7 +158,7 @@ public class CrawlingService {
         return crawlers.stream()
                 .filter(crawler -> crawler.getProviderName().equals("Default"))
                 .findFirst()
-                .orElseThrow(() -> new RuntimeException("기본 크롤러를 찾을 수 없습니다."));
+                .orElseThrow(() -> new CrawlerNotFoundException(blogUrl));
     }
     
     /**

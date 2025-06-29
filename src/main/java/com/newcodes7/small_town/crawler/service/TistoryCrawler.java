@@ -2,6 +2,7 @@ package com.newcodes7.small_town.crawler.service;
 
 import com.newcodes7.small_town.crawler.entity.Article;
 import com.newcodes7.small_town.crawler.entity.Corporation;
+import com.newcodes7.small_town.crawler.exception.*;
 import com.newcodes7.small_town.crawler.service.BlogCrawler;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
@@ -26,7 +27,7 @@ public class TistoryCrawler implements BlogCrawler {
     }
     
     @Override
-    public List<Article> crawl(WebDriver driver, Corporation corporation) throws Exception {
+    public List<Article> crawl(WebDriver driver, Corporation corporation) throws CrawlerException {
         List<Article> articles = new ArrayList<>();
         
         try {
@@ -51,9 +52,12 @@ public class TistoryCrawler implements BlogCrawler {
             
             log.info("티스토리 크롤링 완료 - 기업: {}, 수집된 글: {}개", corporation.getName(), articles.size());
             
-        } catch (Exception e) {
+        } catch (CrawlerException e) {
             log.error("티스토리 크롤링 실패 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage());
             throw e;
+        } catch (Exception e) {
+            log.error("티스토리 크롤링 예상치 못한 오류 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
+            throw new CrawlerException("CRAWLER_UNEXPECTED_ERROR", "Unexpected error in TistoryCrawler for corporation: " + corporation.getName(), e) {};
         }
         
         return articles;

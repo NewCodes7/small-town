@@ -27,6 +27,7 @@ import org.springframework.stereotype.Component;
 
 import com.newcodes7.small_town.crawler.entity.Article;
 import com.newcodes7.small_town.crawler.entity.Corporation;
+import com.newcodes7.small_town.crawler.exception.*;
 import com.rometools.rome.feed.synd.SyndEntry;
 import com.rometools.rome.feed.synd.SyndFeed;
 import com.rometools.rome.io.SyndFeedInput;
@@ -44,15 +45,18 @@ public class DefaultBlogCrawler implements BlogCrawler {
     }
     
     @Override
-    public List<Article> crawl(WebDriver driver, Corporation corporation) throws Exception {
+    public List<Article> crawl(WebDriver driver, Corporation corporation) throws CrawlerException {
         List<Article> articles = new ArrayList<>();
         
         try {
             articles = crawlHtmlContent(driver, corporation);
             log.info("기본 크롤러 완료 - 기업: {}, 수집된 글: {}개", corporation.getName(), articles.size());
-        } catch (Exception e) {
+        } catch (CrawlerException e) {
             log.error("기본 크롤러 실패 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage());
             throw e;
+        } catch (Exception e) {
+            log.error("기본 크롤러 예상치 못한 오류 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
+            throw new CrawlerException("CRAWLER_UNEXPECTED_ERROR", "Unexpected error in DefaultBlogCrawler for corporation: " + corporation.getName(), e) {};
         }
         
         return articles;
@@ -61,41 +65,48 @@ public class DefaultBlogCrawler implements BlogCrawler {
     /**
      * HTML 콘텐츠 크롤링 (기존 로직)
      */
-    private List<Article> crawlHtmlContent(WebDriver driver, Corporation corporation) throws Exception {
+    private List<Article> crawlHtmlContent(WebDriver driver, Corporation corporation) throws CrawlerException {
         List<Article> articles = new ArrayList<>();
         
-        driver.get(corporation.getBlogLink());
-        Thread.sleep(2000);
-        
-        String pageSource = driver.getPageSource();
-        Document doc = Jsoup.parse(pageSource);
-        // 디버그용: doc 파일에 저장
-        Files.write(Paths.get("doc.html"), doc.html().getBytes(StandardCharsets.UTF_8));
+        try {
+            driver.get(corporation.getBlogLink());
+            Thread.sleep(2000);
+            
+            String pageSource = driver.getPageSource();
+            Document doc = Jsoup.parse(pageSource);
+            // 디버그용: doc 파일에 저장
+            Files.write(Paths.get("doc.html"), doc.html().getBytes(StandardCharsets.UTF_8));
 
-        // 다양한 CSS 선택자로 아티클 찾기
-        Elements articleElements = doc.select(
-            "article, .post, .entry, .blog-post, .item, " +
-            "[class*='post'], [class*='article'], [class*='entry'], " +
-            "[id*='post'], [id*='article'], [id*='entry']"
-        );
+            // 다양한 CSS 선택자로 아티클 찾기
+            Elements articleElements = doc.select(
+                "article, .post, .entry, .blog-post, .item, " +
+                "[class*='post'], [class*='article'], [class*='entry'], " +
+                "[id*='post'], [id*='article'], [id*='entry']"
+            );
 
-        if (corporation.getBlogLink().contains("toss.tech")) {
-            articleElements = doc.select("a[class*='css-1qr3mg1'], a[class*='e1sck7qg4']");
-        } else if (corporation.getBlogLink().contains("aws")) {
-            articleElements = doc.select("article[class*='blog-post']");
-        } else if (corporation.getBlogLink().contains("googleblog")) {
-            articleElements = doc.select("div[class*='search-result__wrapper']");
-        }
-        
-        for (Element element : articleElements) {
-            try {
-                Article article = parseArticle(element, corporation);
-                if (article != null) {
-                    articles.add(article);
-                }
-            } catch (Exception e) {
-                log.warn("기본 크롤러 개별 아티클 파싱 실패: {}", e.getMessage());
+            if (corporation.getBlogLink().contains("toss.tech")) {
+                articleElements = doc.select("a[class*='css-1qr3mg1'], a[class*='e1sck7qg4']");
+            } else if (corporation.getBlogLink().contains("aws")) {
+                articleElements = doc.select("article[class*='blog-post']");
+            } else if (corporation.getBlogLink().contains("googleblog")) {
+                articleElements = doc.select("div[class*='search-result__wrapper']");
             }
+            
+            for (Element element : articleElements) {
+                try {
+                    Article article = parseArticle(element, corporation);
+                    if (article != null) {
+                        articles.add(article);
+                    }
+                } catch (Exception e) {
+                    log.warn("기본 크롤러 개별 아티클 파싱 실패: {}", e.getMessage());
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw CrawlerTimeoutException.pageLoadTimeout(corporation.getBlogLink(), 2);
+        } catch (IOException e) {
+            throw new NetworkAccessException(corporation.getBlogLink(), e);
         }
         
         return articles;

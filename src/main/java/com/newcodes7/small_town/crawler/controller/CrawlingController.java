@@ -51,11 +51,7 @@ public class CrawlingController {
             
         } catch (Exception e) {
             log.error("전체 크롤링 API 오류", e);
-            return ResponseEntity.internalServerError()
-                    .body(Map.of(
-                        "success", false,
-                        "message", "크롤링 중 오류가 발생했습니다: " + e.getMessage()
-                    ));
+            throw e;
         }
     }
     
@@ -88,12 +84,7 @@ public class CrawlingController {
             
         } catch (Exception e) {
             log.error("개별 크롤링 API 오류 - corporationId: {}", corporationId, e);
-            return ResponseEntity.internalServerError()
-                    .body(Map.of(
-                        "success", false,
-                        "message", "크롤링 중 오류가 발생했습니다: " + e.getMessage(),
-                        "corporationId", corporationId
-                    ));
+            throw e;
         }
     }
     
@@ -107,7 +98,7 @@ public class CrawlingController {
             return ResponseEntity.ok(stats);
         } catch (Exception e) {
             log.error("크롤링 통계 조회 오류", e);
-            return ResponseEntity.internalServerError().build();
+            throw e;
         }
     }
 }

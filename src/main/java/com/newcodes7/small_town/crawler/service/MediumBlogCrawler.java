@@ -1,5 +1,6 @@
 package com.newcodes7.small_town.crawler.service;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Component;
 
 import com.newcodes7.small_town.crawler.entity.Article;
 import com.newcodes7.small_town.crawler.entity.Corporation;
+import com.newcodes7.small_town.crawler.exception.*;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -34,7 +36,7 @@ public class MediumBlogCrawler implements BlogCrawler {
     }
     
     @Override
-    public List<Article> crawl(WebDriver driver, Corporation corporation) throws Exception {
+    public List<Article> crawl(WebDriver driver, Corporation corporation) throws CrawlerException {
         List<Article> articles = new ArrayList<>();
         
         try {
@@ -67,47 +69,57 @@ public class MediumBlogCrawler implements BlogCrawler {
             }
 
             log.info("Medium HTML 크롤링 완료 - 기업: {}, 수집된 글: {}개", corporation.getName(), articles.size());
-        } catch (Exception e) {
+        } catch (CrawlerException e) {
             log.error("Medium 크롤러 실패 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage());
             throw e;
+        } catch (Exception e) {
+            log.error("Medium 크롤러 예상치 못한 오류 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
+            throw new CrawlerException("CRAWLER_UNEXPECTED_ERROR", "Unexpected error in MediumBlogCrawler for corporation: " + corporation.getName(), e) {};
         }
         
         return articles;
     }
     
-    private List<Article> crawlHtmlWithInfiniteScroll(WebDriver driver, Corporation corporation, String link) throws Exception {
+    private List<Article> crawlHtmlWithInfiniteScroll(WebDriver driver, Corporation corporation, String link) throws CrawlerException {
         List<Article> articles = new ArrayList<>();
         
-        driver.get(link);
-        
-        // Bot 감지 체크
-        if (checkForBotDetection(driver)) {
-            log.warn("Bot 감지 페이지 발견, 우회 시도 중...");
-            handleBotDetection(driver);
-        }
-        
-        // 인간처럼 페이지 행동 시뮬레이션
-        simulateHumanBehavior(driver);
-
-        String pageSource = driver.getPageSource();
-        Document doc = Jsoup.parse(pageSource);
-
-        // 디버깅용
-        Files.write(Paths.get("doc.html"), doc.html().getBytes(StandardCharsets.UTF_8));
-
-        Elements articleElements = doc.select("div.postArticle[data-post-id]");
-
-        log.info("{} 발견된 Medium 아티클 요소 수: {}", link, articleElements.size());
-        
-        for (Element element : articleElements) {
-            try {
-                Article article = parseArticleFromElement(element, corporation, driver);
-                if (article != null) {
-                    articles.add(article);
-                }
-            } catch (Exception e) {
-                log.warn("Medium 아티클 파싱 실패: {}", e.getMessage());
+        try {
+            driver.get(link);
+            
+            // Bot 감지 체크
+            if (checkForBotDetection(driver)) {
+                log.warn("Bot 감지 페이지 발견, 우회 시도 중...");
+                handleBotDetection(driver);
             }
+            
+            // 인간처럼 페이지 행동 시뮬레이션
+            simulateHumanBehavior(driver);
+
+            String pageSource = driver.getPageSource();
+            Document doc = Jsoup.parse(pageSource);
+
+            // 디버깅용
+            Files.write(Paths.get("doc.html"), doc.html().getBytes(StandardCharsets.UTF_8));
+
+            Elements articleElements = doc.select("div.postArticle[data-post-id]");
+
+            log.info("{} 발견된 Medium 아티클 요소 수: {}", link, articleElements.size());
+            
+            for (Element element : articleElements) {
+                try {
+                    Article article = parseArticleFromElement(element, corporation, driver);
+                    if (article != null) {
+                        articles.add(article);
+                    }
+                } catch (Exception e) {
+                    log.warn("Medium 아티클 파싱 실패: {}", e.getMessage());
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw CrawlerTimeoutException.pageLoadTimeout(link, 10);
+        } catch (IOException e) {
+            throw new NetworkAccessException(link, e);
         }
         
         return articles;
