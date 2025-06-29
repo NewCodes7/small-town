@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layout/base}">
+
+<div layout:fragment="content">
+    <div class="container d-flex justify-content-center align-items-center" style="min-height: 60vh;">
+        <div class="text-center">
+            <div class="error-icon mb-4">
+                <i class="fas fa-exclamation-triangle" style="font-size: 6rem; color: #dc3545; opacity: 0.3;"></i>
+            </div>
+            
+            <h1 class="display-4 fw-bold text-dark mb-3">500</h1>
+            <h2 class="h4 mb-4" style="color: var(--text-light);">서버 내부 오류</h2>
+            
+            <div class="mb-4">
+                <p class="text-muted">죄송합니다. 서버에서 문제가 발생했습니다.</p>
+                <p class="text-muted">잠시 후 다시 시도해주세요.</p>
+            </div>
+            
+            <div class="d-flex flex-column flex-sm-row gap-3 justify-content-center">
+                <a th:href="@{/}" class="btn btn-primary">
+                    <i class="fas fa-home me-2"></i>홈으로 돌아가기
+                </a>
+                <button onclick="location.reload()" class="btn btn-secondary">
+                    <i class="fas fa-refresh me-2"></i>페이지 새로고침
+                </button>
+            </div>
+            
+            <div class="mt-5">
+                <small class="text-muted">
+                    문제가 계속되면 관리자에게 문의해주세요.
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+</html>
