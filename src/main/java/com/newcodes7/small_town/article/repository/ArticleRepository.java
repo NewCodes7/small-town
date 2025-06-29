@@ -79,4 +79,6 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     Page<Article> findByCorporationId(@Param("corporationId") Long corporationId, Pageable pageable);
     
     long countByCorporationIdAndDeletedAtIsNull(Long corporationId);
+    
+    long countByDeletedAtIsNull();
 }

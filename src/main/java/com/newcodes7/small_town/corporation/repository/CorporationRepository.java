@@ -29,4 +29,6 @@ public interface CorporationRepository extends JpaRepository<Corporation, Long> 
     Page<Corporation> findByNameContainingAndDeletedAtIsNull(@Param("name") String name, Pageable pageable);
     
     boolean existsByNameAndDeletedAtIsNull(String name);
+    
+    long countByDeletedAtIsNull();
 }

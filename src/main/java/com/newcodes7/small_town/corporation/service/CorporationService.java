@@ -146,4 +146,8 @@ public class CorporationService {
                 .orElseThrow(() -> new CorporationNotFoundException(id));
         corporation.softDelete();
     }
+    
+    public long getTotalCorporationCount() {
+        return corporationRepository.countByDeletedAtIsNull();
+    }
 }

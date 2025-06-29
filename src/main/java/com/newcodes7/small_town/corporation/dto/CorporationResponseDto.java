@@ -15,9 +15,15 @@ public class CorporationResponseDto {
     private String blogLink;
     private String crewLink;
     private String logoUrl;
+    private Boolean isDomestic;
+    private Long articleCount;
     private List<String> industries;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    
+    public String getRegionText() {
+        return Boolean.TRUE.equals(isDomestic) ? "국내" : "해외";
+    }
     
     public static CorporationResponseDto from(Corporation corporation) {
         CorporationResponseDto dto = new CorporationResponseDto();
@@ -27,6 +33,9 @@ public class CorporationResponseDto {
         dto.setBlogLink(corporation.getBlogLink());
         dto.setCrewLink(corporation.getCrewLink());
         dto.setLogoUrl(corporation.getLogoUrl());
+        // Default to domestic if not specified (corporation module doesn't have isDomestic field)
+        dto.setIsDomestic(true);
+        dto.setArticleCount(0L); // Default article count
         dto.setCreatedAt(corporation.getCreatedAt());
         dto.setUpdatedAt(corporation.getUpdatedAt());
         dto.setIndustries(
