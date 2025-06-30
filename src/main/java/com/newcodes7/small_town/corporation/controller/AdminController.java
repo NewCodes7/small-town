@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import com.newcodes7.small_town.corporation.dto.CorporationCreateDto;
@@ -67,6 +68,7 @@ public class AdminController {
     @PostMapping("/corporations")
     public String createCorporation(
             @Valid @ModelAttribute("corporation") CorporationCreateDto dto,
+            @RequestParam(value = "logoFile", required = false) MultipartFile logoFile,
             BindingResult bindingResult,
             Model model,
             RedirectAttributes redirectAttributes) {
@@ -77,10 +79,14 @@ public class AdminController {
         }
         
         try {
-            corporationService.createCorporation(dto);
+            if (logoFile != null && !logoFile.isEmpty()) {
+                corporationService.createCorporationWithLogo(dto, logoFile);
+            } else {
+                corporationService.createCorporation(dto);
+            }
             redirectAttributes.addFlashAttribute("successMessage", "기업이 성공적으로 등록되었습니다.");
             return "redirect:/admin/corporations";
-        } catch (CorporationException e) {
+        } catch (Exception e) {
             model.addAttribute("errorMessage", e.getMessage());
             model.addAttribute("industries", industryRepository.findAll());
             return "admin/corporation/form";
@@ -113,6 +119,7 @@ public class AdminController {
     public String updateCorporation(
             @PathVariable Long id,
             @Valid @ModelAttribute("corporation") CorporationUpdateDto dto,
+            @RequestParam(value = "logoFile", required = false) MultipartFile logoFile,
             BindingResult bindingResult,
             Model model,
             RedirectAttributes redirectAttributes) {
@@ -124,10 +131,14 @@ public class AdminController {
         }
         
         try {
-            corporationService.updateCorporation(id, dto);
+            if (logoFile != null && !logoFile.isEmpty()) {
+                corporationService.updateCorporationWithLogo(id, dto, logoFile);
+            } else {
+                corporationService.updateCorporation(id, dto);
+            }
             redirectAttributes.addFlashAttribute("successMessage", "기업 정보가 성공적으로 수정되었습니다.");
             return "redirect:/admin/corporations";
-        } catch (CorporationException e) {
+        } catch (Exception e) {
             model.addAttribute("errorMessage", e.getMessage());
             model.addAttribute("corporationId", id);
             model.addAttribute("industries", industryRepository.findAll());

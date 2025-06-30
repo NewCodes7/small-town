@@ -15,6 +15,7 @@ public class CorporationResponseDto {
     private String blogLink;
     private String crewLink;
     private String logoUrl;
+    private String logoFilename;
     private Boolean isDomestic;
     private Long articleCount;
     private List<String> industries;
@@ -25,6 +26,17 @@ public class CorporationResponseDto {
         return Boolean.TRUE.equals(isDomestic) ? "국내" : "해외";
     }
     
+    /**
+     * 효과적인 로고 URL을 반환합니다.
+     * logoFilename이 있으면 로컬 파일 경로를, 없으면 logoUrl을 반환합니다.
+     */
+    public String getEffectiveLogoUrl() {
+        if (logoFilename != null && !logoFilename.trim().isEmpty()) {
+            return "/images/logos/" + logoFilename;
+        }
+        return logoUrl; // 기존 URL 방식 fallback
+    }
+    
     public static CorporationResponseDto from(Corporation corporation) {
         CorporationResponseDto dto = new CorporationResponseDto();
         dto.setId(corporation.getId());
@@ -33,6 +45,7 @@ public class CorporationResponseDto {
         dto.setBlogLink(corporation.getBlogLink());
         dto.setCrewLink(corporation.getCrewLink());
         dto.setLogoUrl(corporation.getLogoUrl());
+        dto.setLogoFilename(corporation.getLogoFilename());
         // Default to domestic if not specified (corporation module doesn't have isDomestic field)
         dto.setIsDomestic(true);
         dto.setArticleCount(0L); // Default article count

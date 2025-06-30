@@ -36,6 +36,9 @@ public class Corporation {
     @Column(name = "logo_url")
     private String logoUrl;
     
+    @Column(name = "logo_filename")
+    private String logoFilename;
+    
     @Column(name = "is_domestic", nullable = false)
     private Boolean isDomestic = true;
     
@@ -49,4 +52,12 @@ public class Corporation {
     
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+    
+    // 로고 URL 동적 생성 메서드
+    public String getEffectiveLogoUrl() {
+        if (logoFilename != null && !logoFilename.trim().isEmpty()) {
+            return "/images/logos/" + logoFilename;
+        }
+        return logoUrl; // 기존 URL 방식 fallback
+    }
 }

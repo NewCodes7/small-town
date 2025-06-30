@@ -45,6 +45,9 @@ public class Corporation {
     @Column(name = "logo_url")
     private String logoUrl;
     
+    @Column(name = "logo_filename")
+    private String logoFilename;
+    
     @CreationTimestamp
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -64,5 +67,13 @@ public class Corporation {
             return false;
         }
         return blogLink.contains(keyword);
+    }
+    
+    // 로고 URL 동적 생성 메서드
+    public String getEffectiveLogoUrl() {
+        if (logoFilename != null && !logoFilename.trim().isEmpty()) {
+            return "/images/logos/" + logoFilename;
+        }
+        return logoUrl; // 기존 URL 방식 fallback
     }
 }

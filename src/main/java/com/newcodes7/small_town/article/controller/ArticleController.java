@@ -85,7 +85,11 @@ public class ArticleController {
             .limit(20) 
             .toList();
         
+        // 인기글 5개 가져오기 (배너용)
+        Page<ArticleListResponseDto> popularArticles = articleService.getArticleList(0, 5, "popular");
+        
         log.info("로고가 있는 회사 수: {}", corporationsWithLogos.size());
+        log.info("인기글 수: {}", popularArticles.getContent().size());
 
         model.addAttribute("articles", articles);
         model.addAttribute("currentPage", page);
@@ -97,6 +101,7 @@ public class ArticleController {
         model.addAttribute("hasNext", articles.hasNext());
         model.addAttribute("hasPrevious", articles.hasPrevious());
         model.addAttribute("corporations", corporationsWithLogos);
+        model.addAttribute("popularArticles", popularArticles.getContent());
         
         return "home";
     }
