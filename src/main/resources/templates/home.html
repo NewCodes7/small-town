@@ -5,10 +5,14 @@
     <title>홈</title>
     <style>
         .floating-logos-container {
-            position: relative;
-            height: 300px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             overflow: hidden;
-            margin: 3rem 0;
+            pointer-events: none;
+            z-index: 1;
         }
         
         .floating-logo {
@@ -21,6 +25,7 @@
         .floating-logo:hover {
             opacity: 1;
             transform: scale(1.1);
+            pointer-events: auto;
         }
         
         .logo-image {
@@ -49,6 +54,291 @@
             }
         }
         
+        /* Banner Carousel Styles */
+        .banner-carousel {
+            position: relative;
+            height: 33vh;
+            border-radius: 24px;
+            margin-bottom: 48px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        
+        .banner-slides {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .banner-slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.5s ease-in-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .banner-slide.active {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        
+        .banner-slide.prev {
+            transform: translateX(-100%);
+        }
+        
+        /* First slide (Hero) styles */
+        .banner-slide:first-child {
+            background: linear-gradient(135deg, var(--secondary-green) 0%, #F0F8F0 100%);
+            border: 1px solid rgba(40, 199, 111, 0.1);
+        }
+        
+        .hero-content {
+            position: relative;
+            z-index: 2;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(8px);
+            border-radius: 16px;
+            padding: 20px;
+            margin: 0 auto;
+            max-width: 600px;
+            text-align: center;
+        }
+        
+        /* Popular article banner styles */
+        .popular-article-banner {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, var(--secondary-green) 0%, #F0F8F0 100%);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: var(--text-dark);
+            position: relative;
+            padding: 40px;
+            gap: 40px;
+        }
+        
+        .article-thumbnail {
+            flex: 0 0 200px;
+            height: 150px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+        }
+        
+        .thumbnail-image {
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            background: white;
+            display: block;
+            margin: auto;
+        }
+        
+        .article-thumbnail .default-thumbnail {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--primary-green) 0%, #1e7e34 100%);
+            color: white;
+            font-size: 3rem;
+        }
+        
+        .banner-link {
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.3s ease;
+        }
+        
+        .banner-link:hover {
+            transform: scale(1.02);
+            text-decoration: none;
+            color: inherit;
+        }
+        
+        .article-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 30px;
+        }
+        
+        .article-badge {
+            display: inline-block;
+            background: var(--primary-green);
+            color: white;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            align-self: flex-start;
+        }
+        
+        .article-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 0;
+            line-height: 1.4;
+            color: var(--text-dark);
+        }
+        
+        .article-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: auto;
+        }
+        
+        .article-company {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .company-logo {
+            width: 24px;
+            height: 24px;
+            object-fit: contain;
+            border-radius: 6px;
+            background: white;
+            padding: 3px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        
+        .company-name {
+            font-weight: 600;
+            color: var(--primary-green);
+            font-size: 1rem;
+        }
+        
+        .article-metrics {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            text-align: right;
+        }
+        
+        .publish-date {
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
+        
+        .article-stats {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--text-light);
+            font-size: 0.85rem;
+        }
+        
+        .read-more-btn {
+            background: var(--primary-green);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+        
+        .read-more-btn:hover {
+            background: #1e7e34;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(40, 199, 111, 0.3);
+            color: white;
+        }
+        
+        /* Bottom Controls */
+        .banner-controls {
+            position: absolute;
+            bottom: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+        
+        /* Navigation Arrows */
+        .banner-nav {
+            background: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            opacity: 0.6;
+            padding: 8px;
+        }
+        
+        .banner-nav:hover {
+            opacity: 1;
+            transform: scale(1.2);
+        }
+        
+        .banner-nav i {
+            color: #1e7e34;
+            font-size: 1.2rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        /* Slide Indicators */
+        .banner-indicators {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255, 255, 255, 0.5);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+            padding: 0;
+            margin: 0;
+            outline: none;
+            display: block;
+        }
+        
+        .indicator.active {
+            background: var(--primary-green);
+            transform: scale(1.2);
+        }
+        
+        .indicator:hover {
+            background: rgba(255, 255, 255, 0.8);
+        }
+        
         @media (max-width: 768px) {
             .floating-logos-container {
                 height: 200px;
@@ -56,6 +346,53 @@
             .logo-image {
                 width: 45px;
                 height: 45px;
+            }
+            .hero-content {
+                padding: 15px;
+                max-width: 100%;
+            }
+            .popular-article-banner {
+                flex-direction: column;
+                gap: 20px;
+                padding: 20px;
+                text-align: center;
+            }
+            .article-thumbnail {
+                flex: none;
+                width: 100%;
+                max-width: 300px;
+                margin: 0 auto;
+            }
+            .article-content {
+                padding: 20px;
+                text-align: center;
+                align-items: center;
+            }
+            .article-badge {
+                align-self: center;
+            }
+            .article-title {
+                font-size: 1.4rem;
+            }
+            .article-info {
+                flex-direction: column;
+                align-items: center;
+                gap: 12px;
+            }
+            .company-logo {
+                width: 20px;
+                height: 20px;
+            }
+            .article-metrics {
+                justify-content: center;
+                gap: 12px;
+            }
+            .banner-controls {
+                gap: 10px;
+                bottom: 6px;
+            }
+            .banner-nav i {
+                font-size: 1rem;
             }
         }
         
@@ -180,38 +517,270 @@
         .default-thumbnail:nth-child(5n) {
             background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
         }
+        
+        /* Region Filter Styles */
+        .region-filter-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .region-checkbox {
+            display: none;
+        }
+        
+        .region-toggle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            background: var(--background-light);
+            border: 2px solid var(--border-light);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-light);
+            user-select: none;
+            white-space: nowrap;
+        }
+        
+        .region-toggle:hover {
+            background: var(--secondary-green);
+            border-color: var(--primary-green);
+            color: var(--text-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(40, 199, 111, 0.15);
+        }
+        
+        .region-checkbox:checked + .region-toggle {
+            background: var(--primary-green);
+            border-color: var(--primary-green);
+            color: white;
+            box-shadow: 0 4px 12px rgba(40, 199, 111, 0.3);
+        }
+        
+        .region-checkbox:checked + .region-toggle:hover {
+            background: #1e7e34;
+            border-color: #1e7e34;
+            color: white;
+        }
+        
+        .region-toggle i {
+            font-size: 0.8rem;
+            opacity: 0.8;
+        }
+        
+        .region-checkbox:checked + .region-toggle i {
+            opacity: 1;
+        }
+        
+        @media (max-width: 768px) {
+            .region-filter-group {
+                gap: 6px;
+            }
+            
+            .region-toggle {
+                padding: 6px 12px;
+                font-size: 0.85rem;
+                gap: 4px;
+            }
+        }
     </style>
+    
+    <script>
+        let currentSlide = 0;
+        let totalSlides = 6; // 1 hero + 5 popular articles
+        let slideInterval;
+        let isHovered = false;
+        let manualControl = false;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            totalSlides = document.querySelectorAll('.banner-slide').length;
+            startAutoSlide();
+        });
+        
+        function startAutoSlide() {
+            if (slideInterval) {
+                clearInterval(slideInterval);
+            }
+            slideInterval = setInterval(() => {
+                if (!isHovered && !manualControl) {
+                    nextSlide();
+                }
+            }, 4000);
+        }
+        
+        function stopAutoSlide() {
+            if (slideInterval) {
+                clearInterval(slideInterval);
+                slideInterval = null;
+            }
+        }
+        
+        function nextSlide() {
+            currentSlide = (currentSlide + 1) % totalSlides;
+            updateSlide();
+        }
+        
+        function previousSlide() {
+            currentSlide = (currentSlide - 1 + totalSlides) % totalSlides;
+            updateSlide();
+            handleManualControl();
+        }
+        
+        function goToSlide(index) {
+            currentSlide = index;
+            updateSlide();
+            handleManualControl();
+        }
+        
+        function handleManualControl() {
+            manualControl = true;
+            stopAutoSlide();
+            setTimeout(() => {
+                manualControl = false;
+                startAutoSlide();
+            }, 8000); // 8초 후 자동 슬라이드 재시작
+        }
+        
+        function updateSlide() {
+            const slides = document.querySelectorAll('.banner-slide');
+            const indicators = document.querySelectorAll('.indicator');
+            
+            slides.forEach((slide, index) => {
+                slide.classList.remove('active', 'prev');
+                if (index === currentSlide) {
+                    slide.classList.add('active');
+                } else if (index < currentSlide) {
+                    slide.classList.add('prev');
+                }
+            });
+            
+            indicators.forEach((indicator, index) => {
+                indicator.classList.toggle('active', index === currentSlide);
+            });
+        }
+        
+        // 마우스 호버 시 자동 슬라이드 일시정지
+        document.querySelector('.banner-carousel').addEventListener('mouseenter', () => {
+            isHovered = true;
+        });
+        
+        document.querySelector('.banner-carousel').addEventListener('mouseleave', () => {
+            isHovered = false;
+        });
+    </script>
 </head>
 <body>
     <div layout:fragment="content">
-        <!-- Hero Section -->
-        <div class="hero-section">
-            <h1 class="hero-title">
-                <i class="fas fa-seedling me-3" style="color: var(--primary-green);"></i>
-                기업 기술 블로그
-            </h1>
-            <p class="hero-subtitle">최신 기술 트렌드와 개발 인사이트를 한 곳에서 만나보세요</p>
-            
-            <!-- Stats Cards -->
-            <div class="row g-4 justify-content-center">
-                <div class="col-md-6 col-12">
-                    <div class="stats-card">
-                        <span class="stats-number" th:text="${totalElements}">0</span>
-                        <div class="stats-label">총 글 수</div>
+        <!-- Banner Carousel -->
+        <div class="banner-carousel">
+            <!-- Banner Slides -->
+            <div class="banner-slides">
+                <!-- Slide 1: Hero Section -->
+                <div class="banner-slide active">
+                    <div class="hero-content">
+                        <h1 class="hero-title">
+                            <i class="fas fa-seedling me-3" style="color: var(--primary-green);"></i>
+                            기업 기술 블로그
+                        </h1>
+                        <p class="hero-subtitle">최신 기술 트렌드와 개발 인사이트를 한 곳에서 만나보세요</p>
+                        
+                        <!-- Stats Cards -->
+                        <div class="row g-4 justify-content-center">
+                            <div class="col-md-3 col-sm-4 col-6">
+                                <div class="stats-card">
+                                    <span class="stats-number" th:text="${totalElements}">0</span>
+                                    <div class="stats-label">총 글 수</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+                    
+                    <!-- Floating Company Logos -->
+                    <div class="floating-logos-container">
+                        <div class="floating-logo" th:each="corporation, iterStat : ${corporations}" 
+                             th:style="'animation-delay: ' + ${iterStat.index * 0.5} + 's;'">
+                            <img th:if="${corporation.effectiveLogoUrl != null}" 
+                                 th:src="${corporation.effectiveLogoUrl}" 
+                                 th:alt="${corporation.name}"
+                                 th:title="${corporation.name}"
+                                 class="logo-image">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Slides 2-6: Popular Articles -->
+                <div class="banner-slide" th:each="article, iterStat : ${popularArticles}">
+                    <a th:href="${article.link}" target="_blank" class="banner-link">
+                        <div class="popular-article-banner">
+                            <!-- Article Thumbnail -->
+                            <div class="article-thumbnail">
+                                <img th:if="${article.thumbnailImage != null and !article.thumbnailImage.isEmpty()}" 
+                                     th:src="${article.thumbnailImage}" 
+                                     th:alt="${article.title}"
+                                     class="thumbnail-image">
+                                <div th:unless="${article.thumbnailImage != null and !article.thumbnailImage.isEmpty()}" 
+                                     class="default-thumbnail">
+                                    <i class="fas fa-file-alt"></i>
+                                </div>
+                            </div>
+                            
+                            <!-- Article Content -->
+                            <div class="article-content">
+                                <div class="article-top">
+                                    <div class="article-badge">🔥 인기글</div>
+                                    <h2 class="article-title" th:text="${article.title}">Article Title</h2>
+                                </div>
+                                <div class="article-info">
+                                    <div class="article-company">
+                                        <img th:if="${article.corporation.effectiveLogoUrl != null and !article.corporation.effectiveLogoUrl.isEmpty()}" 
+                                             th:src="${article.corporation.effectiveLogoUrl}" 
+                                             th:alt="${article.corporation.name}"
+                                             th:title="${article.corporation.name}"
+                                             class="company-logo">
+                                        <span class="company-name" th:text="${article.corporation.name}">Company</span>
+                                    </div>
+                                    <div class="article-metrics">
+                                        <span class="publish-date relative-time" 
+                                              th:attr="data-date=${article.publishedAt}"
+                                              th:title="${article.publishedAt}"
+                                              th:text="${article.publishedAt}">2024-01-01</span>
+                                        <div class="article-stats">
+                                            <span class="stat-item">
+                                                <i class="fas fa-eye"></i>
+                                                <span th:text="${article.viewCount ?: 0}">0</span>
+                                            </span>
+                                            <span class="stat-item">
+                                                <i class="fas fa-heart"></i>
+                                                <span th:text="${article.likeCount ?: 0}">0</span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
                 </div>
             </div>
             
-            <!-- Floating Company Logos -->
-            <div class="floating-logos-container">
-                <div class="floating-logo" th:each="corporation, iterStat : ${corporations}" 
-                     th:style="'animation-delay: ' + ${iterStat.index * 0.5} + 's;'">
-                    <img th:if="${corporation.logoUrl != null}" 
-                         th:src="${corporation.logoUrl}" 
-                         th:alt="${corporation.name}"
-                         th:title="${corporation.name}"
-                         class="logo-image">
+            <!-- Bottom Controls -->
+            <div class="banner-controls">
+                <button class="banner-nav banner-nav-prev" onclick="previousSlide()">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                
+                <!-- Slide Indicators -->
+                <div class="banner-indicators">
+                    <button class="indicator active" onclick="goToSlide(0)"></button>
+                    <button class="indicator" th:each="article, iterStat : ${popularArticles}" th:onclick="'goToSlide(' + ${iterStat.index + 1} + ')'"></button>
                 </div>
+                
+                <button class="banner-nav banner-nav-next" onclick="nextSlide()">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
             </div>
         </div>
         
@@ -238,23 +807,22 @@
                     <div class="col-lg-3 col-md-6">
                         <div class="d-flex flex-column">
                             <label class="form-label mb-2" style="font-size: 0.9rem; font-weight: 600; color: var(--text-dark);">지역</label>
-                            <div class="d-flex gap-2">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="regions" value="domestic" id="domestic"
-                                           th:checked="${selectedRegions.contains('domestic')}"
-                                           onchange="applyFilters()">
-                                    <label class="form-check-label" for="domestic" style="font-size: 0.9rem;">
-                                        국내
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="regions" value="overseas" id="overseas"
-                                           th:checked="${selectedRegions.contains('overseas')}"
-                                           onchange="applyFilters()">
-                                    <label class="form-check-label" for="overseas" style="font-size: 0.9rem;">
-                                        해외
-                                    </label>
-                                </div>
+                            <div class="region-filter-group">
+                                <input type="checkbox" name="regions" value="domestic" id="domestic"
+                                       th:checked="${selectedRegions.contains('domestic')}"
+                                       onchange="applyFilters()" class="region-checkbox">
+                                <label for="domestic" class="region-toggle">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    <span>국내</span>
+                                </label>
+                                
+                                <input type="checkbox" name="regions" value="overseas" id="overseas"
+                                       th:checked="${selectedRegions.contains('overseas')}"
+                                       onchange="applyFilters()" class="region-checkbox">
+                                <label for="overseas" class="region-toggle">
+                                    <i class="fas fa-globe"></i>
+                                    <span>해외</span>
+                                </label>
                             </div>
                         </div>
                     </div>
@@ -298,15 +866,15 @@
                     </h5>
                     
                     <!-- Company Info & Stats -->
-                    <div class="d-flex align-items-center mb-3 flex-wrap">
+                    <div class="d-flex align-items-center flex-wrap">
                         <div class="d-flex align-items-center me-4">
                             <a th:href="@{/corporations/{id}(id=${article.corporation.id})}" 
                                class="d-flex align-items-center text-decoration-none company-link"
                                style="transition: all 0.2s ease;"
                                onmouseover="this.style.opacity='0.7'"
                                onmouseout="this.style.opacity='1'">
-                                <img width="20px;" th:if="${article.corporation.logoUrl != null}"
-                                     th:src="${article.corporation.logoUrl}" 
+                                <img width="20px;" th:if="${article.corporation.effectiveLogoUrl != null}"
+                                     th:src="${article.corporation.effectiveLogoUrl}" 
                                      th:alt="${article.corporation.name}"
                                      class="company-logo me-2" style="border-radius: 4px;">
                                 <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;" th:text="${article.corporation.name}">Company</span>
