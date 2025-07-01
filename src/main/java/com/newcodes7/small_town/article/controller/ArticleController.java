@@ -49,13 +49,33 @@ public class ArticleController {
     
     @GetMapping("/api/articles")
     @ResponseBody
-    public ResponseEntity<Page<ArticleListResponseDto>> getArticleList(
+    public ResponseEntity<Map<String, Object>> getArticlesWithFilters(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "latest") String sort) {
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "latest") String sort,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) List<String> regions) {
         
-        Page<ArticleListResponseDto> articles = articleService.getArticleList(page, size, sort);
-        return ResponseEntity.ok(articles);
+        Page<ArticleListResponseDto> articles = articleService.getArticlesWithFilters(
+            keyword != null && !keyword.trim().isEmpty() ? keyword.trim() : null,
+            regions,
+            page,
+            size,
+            sort
+        );
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("content", articles.getContent());
+        response.put("currentPage", page);
+        response.put("totalPages", articles.getTotalPages());
+        response.put("totalElements", articles.getTotalElements());
+        response.put("hasNext", articles.hasNext());
+        response.put("hasPrevious", articles.hasPrevious());
+        response.put("currentSort", sort);
+        response.put("keyword", keyword);
+        response.put("selectedRegions", regions != null ? regions : new ArrayList<>());
+        
+        return ResponseEntity.ok(response);
     }
     
     @GetMapping({"", "/"})
