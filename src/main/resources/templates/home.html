@@ -103,7 +103,7 @@
             position: relative;
             z-index: 2;
             background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(8px);
+            /* backdrop-filter: blur(8px); */
             border-radius: 16px;
             padding: 20px;
             margin: 0 auto;
@@ -590,15 +590,527 @@
     </style>
     
     <script>
+        // 배너 슬라이드 관련 변수
         let currentSlide = 0;
         let totalSlides = 6; // 1 hero + 5 popular articles
         let slideInterval;
         let isHovered = false;
         let manualControl = false;
+
+        // ArticleManager 클래스
+        class ArticleManager {
+            constructor() {
+                this.currentPage = 0;
+                this.currentSort = 'latest';
+                this.currentKeyword = '';
+                this.currentRegions = [];
+                this.isLoading = false;
+                this.cache = new Map();
+                this.debounceTimer = null;
+                this.init();
+            }
+
+            init() {
+                this.loadStateFromURL();
+                this.bindEvents();
+                // 초기 로드는 서버에서 렌더링된 상태이므로 생략
+                this.bindArticleEvents();
+            }
+
+            loadStateFromURL() {
+                const params = new URLSearchParams(window.location.search);
+                this.currentPage = parseInt(params.get('page')) || 0;
+                this.currentSort = params.get('sort') || 'latest';
+                this.currentKeyword = params.get('keyword') || '';
+                this.currentRegions = params.getAll('regions') || [];
+                
+                // UI 상태 동기화
+                this.updateUIFromState();
+            }
+
+            updateUIFromState() {
+                // 검색 입력란 업데이트
+                const searchInput = document.getElementById('searchInput');
+                if (searchInput) {
+                    searchInput.value = this.currentKeyword;
+                }
+
+                // 정렬 버튼 상태 업데이트
+                this.updateSortButtons();
+
+                // 지역 필터 상태 업데이트
+                this.currentRegions.forEach(region => {
+                    const checkbox = document.getElementById(region);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                });
+            }
+
+            bindEvents() {
+                // 검색 폼 이벤트
+                const searchForm = document.getElementById('searchForm');
+                if (searchForm) {
+                    searchForm.addEventListener('submit', (e) => {
+                        e.preventDefault();
+                        this.handleSearch();
+                    });
+                }
+
+                // 검색 입력 디바운싱
+                const searchInput = document.getElementById('searchInput');
+                if (searchInput) {
+                    searchInput.addEventListener('input', (e) => {
+                        this.debounceSearch(() => {
+                            this.currentKeyword = e.target.value.trim();
+                            this.currentPage = 0;
+                            this.loadArticles();
+                        });
+                    });
+                }
+
+                // 정렬 버튼 이벤트 (기존 링크를 버튼으로 변경 필요)
+                const sortButtons = document.querySelectorAll('.sort-btn');
+                console.log('Found sort buttons:', sortButtons.length);
+                sortButtons.forEach(btn => {
+                    console.log('Binding sort button:', btn.dataset.sort);
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        console.log('Sort button clicked:', btn.dataset.sort);
+                        this.handleSortChange(btn.dataset.sort);
+                    });
+                });
+
+                // 지역 필터 이벤트 (기존 함수 오버라이드)
+                document.querySelectorAll('.region-checkbox').forEach(checkbox => {
+                    checkbox.addEventListener('change', () => {
+                        this.handleRegionChange();
+                    });
+                });
+
+                // 페이지네이션 이벤트 (동적 바인딩)
+                document.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('page-link') && e.target.dataset.page !== undefined) {
+                        e.preventDefault();
+                        const page = parseInt(e.target.dataset.page);
+                        if (!isNaN(page)) {
+                            this.currentPage = page;
+                            this.loadArticles();
+                        }
+                    }
+                });
+
+                // 브라우저 뒤로가기/앞으로가기 처리
+                window.addEventListener('popstate', () => {
+                    this.loadStateFromURL();
+                    this.loadArticles();
+                });
+            }
+
+            debounceSearch(callback, delay = 500) {
+                clearTimeout(this.debounceTimer);
+                this.debounceTimer = setTimeout(callback, delay);
+            }
+
+            handleSearch() {
+                const searchInput = document.getElementById('searchInput');
+                if (searchInput) {
+                    this.currentKeyword = searchInput.value.trim();
+                    this.currentPage = 0;
+                    this.loadArticles();
+                }
+            }
+
+            handleSortChange(sort) {
+                if (this.currentSort !== sort) {
+                    this.currentSort = sort;
+                    this.currentPage = 0;
+                    this.loadArticles();
+                }
+            }
+
+            handleRegionChange() {
+                const checkedRegions = [];
+                document.querySelectorAll('.region-checkbox:checked').forEach(checkbox => {
+                    checkedRegions.push(checkbox.value);
+                });
+                this.currentRegions = checkedRegions;
+                this.currentPage = 0;
+                this.loadArticles();
+            }
+
+            getCacheKey() {
+                return `${this.currentPage}-${this.currentSort}-${this.currentKeyword}-${this.currentRegions.join(',')}`;
+            }
+
+            async loadArticles() {
+                if (this.isLoading) return;
+
+                const cacheKey = this.getCacheKey();
+                const cachedResult = this.cache.get(cacheKey);
+                if (cachedResult) {
+                    this.renderArticles(cachedResult.content);
+                    this.renderPagination(cachedResult);
+                    this.updateURL();
+                    return;
+                }
+
+                this.isLoading = true;
+                this.showLoadingState();
+
+                try {
+                    const params = new URLSearchParams({
+                        page: this.currentPage,
+                        sort: this.currentSort
+                    });
+
+                    if (this.currentKeyword) {
+                        params.set('keyword', this.currentKeyword);
+                    }
+
+                    this.currentRegions.forEach(region => {
+                        params.append('regions', region);
+                    });
+
+                    const response = await fetch(`/api/articles?${params}`);
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+
+                    const data = await response.json();
+
+                    // 캐시 저장
+                    this.cache.set(cacheKey, data);
+
+                    this.renderArticles(data.content);
+                    this.renderPagination(data);
+                    this.updateURL();
+                    this.updateSortButtons();
+
+                } catch (error) {
+                    console.error('Error loading articles:', error);
+                    this.showErrorState();
+                } finally {
+                    this.isLoading = false;
+                    this.hideLoadingState();
+                }
+            }
+
+            renderArticles(articles) {
+                const container = document.querySelector('.articles-container');
+                if (!container) return;
+
+                if (articles.length === 0) {
+                    this.showEmptyState();
+                    return;
+                }
+
+                container.innerHTML = articles.map(article => this.generateArticleHTML(article)).join('');
+                this.bindArticleEvents();
+                
+                // 상대 시간 업데이트
+                this.updateRelativeTimes();
+                
+                // 좋아요 상태 로드
+                this.loadLikeStatuses();
+            }
+
+            generateArticleHTML(article) {
+                const thumbnailHTML = article.thumbnailImage ? 
+                    `<img src="${article.thumbnailImage}" alt="${article.title}" class="article-thumbnail">` :
+                    `<div class="article-thumbnail default-thumbnail">
+                        <div class="default-thumbnail-content">
+                            <i class="fas fa-code"></i>
+                            <span class="thumbnail-text">TECH</span>
+                            <div class="thumbnail-pattern"></div>
+                        </div>
+                    </div>`;
+
+                const tagsHTML = article.tags && article.tags.length > 0 ?
+                    `<div class="mt-auto">
+                        ${article.tags.map(tag => `<span class="badge tag-badge me-2">${tag.keyword}</span>`).join('')}
+                    </div>` : '';
+
+                return `
+                    <div class="article-card">
+                        <!-- Article Content (Left Side) -->
+                        <div class="article-content">
+                            <!-- Title -->
+                            <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
+                                <a href="${article.link}" target="_blank" class="text-decoration-none" style="color: inherit;">
+                                    ${article.title}
+                                </a>
+                            </h5>
+                            
+                            <!-- Company Info & Stats -->
+                            <div class="d-flex align-items-center flex-wrap">
+                                <div class="d-flex align-items-center me-4">
+                                    <a href="/corporations/${article.corporation.id}" class="d-flex align-items-center text-decoration-none company-link" style="transition: all 0.2s ease;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'">
+                                        ${article.corporation.effectiveLogoUrl ? 
+                                            `<img width="20px;" src="${article.corporation.effectiveLogoUrl}" alt="${article.corporation.name}" class="company-logo me-2" style="border-radius: 4px;">` : 
+                                            ''}
+                                        <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;">${article.corporation.name}</span>
+                                    </a>
+                                </div>
+                                <div class="d-flex align-items-center gap-3">
+                                    <small class="text-muted relative-time" data-date="${article.publishedAt}" title="${article.publishedAt}">${article.publishedAt}</small>
+                                    <span class="text-muted d-flex align-items-center" style="font-size: 0.85rem;">
+                                        <i class="fas fa-eye me-1"></i> <span>${article.viewCount || 0}</span>
+                                    </span>
+                                    <button class="like-button" data-article-id="${article.id}">
+                                        <i class="fas fa-heart like-icon"></i> 
+                                        <span class="like-count">${article.likeCount || 0}</span>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Tags -->
+                            ${tagsHTML}
+                        </div>
+                        
+                        <!-- Thumbnail Container (Right Side) -->
+                        <div class="article-thumbnail-container">
+                            ${thumbnailHTML}
+                            ${article.readingTime ? 
+                                `<div class="position-absolute top-0 end-0 m-3">
+                                    <span class="badge" style="background: rgba(255,255,255,0.9); color: var(--text-dark); font-weight: 600;">
+                                        <i class="fas fa-clock me-1"></i><span>${article.readingTime}</span>분
+                                    </span>
+                                </div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderPagination(data) {
+                const container = document.getElementById('paginationContainer');
+                if (!container || data.totalPages <= 1) {
+                    if (container) container.innerHTML = '';
+                    return;
+                }
+
+                let paginationHTML = `
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item ${!data.hasPrevious ? 'disabled' : ''}">
+                            <a class="page-link" href="#" data-page="${data.currentPage - 1}">
+                                <i class="fas fa-chevron-left me-1"></i>이전
+                            </a>
+                        </li>
+                `;
+
+                // 페이지 번호 (최대 5개)
+                const maxPages = Math.min(data.totalPages, 5);
+                for (let i = 0; i < maxPages; i++) {
+                    const isActive = i === data.currentPage;
+                    paginationHTML += `
+                        <li class="page-item ${isActive ? 'active' : ''}">
+                            <a class="page-link" href="#" data-page="${i}">${i + 1}</a>
+                        </li>
+                    `;
+                }
+
+                paginationHTML += `
+                        <li class="page-item ${!data.hasNext ? 'disabled' : ''}">
+                            <a class="page-link" href="#" data-page="${data.currentPage + 1}">
+                                다음<i class="fas fa-chevron-right ms-1"></i>
+                            </a>
+                        </li>
+                    </ul>
+                `;
+
+                container.innerHTML = `<nav>${paginationHTML}</nav>`;
+            }
+
+            updateURL() {
+                const params = new URLSearchParams();
+                if (this.currentPage > 0) params.set('page', this.currentPage);
+                if (this.currentSort !== 'latest') params.set('sort', this.currentSort);
+                if (this.currentKeyword) params.set('keyword', this.currentKeyword);
+                this.currentRegions.forEach(region => params.append('regions', region));
+
+                const newURL = `${window.location.pathname}?${params.toString()}`;
+                history.pushState(null, '', newURL);
+            }
+
+            updateSortButtons() {
+                document.querySelectorAll('.sort-btn').forEach(btn => {
+                    const isActive = btn.dataset.sort === this.currentSort;
+                    btn.className = `btn flex-fill text-center ${isActive ? 'btn-primary' : 'btn-secondary'}`;
+                });
+            }
+
+            showLoadingState() {
+                const loadingState = document.getElementById('loadingState');
+                const articlesContainer = document.querySelector('.articles-container');
+                
+                if (loadingState) {
+                    loadingState.classList.remove('d-none');
+                }
+                if (articlesContainer) {
+                    articlesContainer.style.opacity = '0.5';
+                }
+            }
+
+            hideLoadingState() {
+                const loadingState = document.getElementById('loadingState');
+                const articlesContainer = document.querySelector('.articles-container');
+                
+                if (loadingState) {
+                    loadingState.classList.add('d-none');
+                }
+                if (articlesContainer) {
+                    articlesContainer.style.opacity = '1';
+                }
+            }
+
+            showErrorState() {
+                const container = document.querySelector('.articles-container');
+                if (container) {
+                    container.innerHTML = `
+                        <div class="alert alert-warning text-center">
+                            <i class="fas fa-exclamation-triangle mb-2"></i>
+                            <p>글을 불러오는 중 오류가 발생했습니다.</p>
+                            <button class="btn btn-primary" onclick="articleManager.loadArticles()">
+                                다시 시도
+                            </button>
+                        </div>
+                    `;
+                }
+            }
+
+            showEmptyState() {
+                const container = document.querySelector('.articles-container');
+                if (container) {
+                    const isSearch = this.currentKeyword && this.currentKeyword.trim() !== '';
+                    
+                    container.innerHTML = `
+                        <div class="text-center py-5">
+                            <div class="hero-section">
+                                <i class="fas fa-${isSearch ? 'search' : 'seedling'} fa-4x mb-4" style="color: var(--primary-green); opacity: 0.5;"></i>
+                                <h4 class="mb-3" style="color: var(--text-dark); font-weight: 700;">
+                                    ${isSearch ? `'${this.currentKeyword}' 검색 결과가 없어요` : '아직 등록된 글이 없어요'}
+                                </h4>
+                                <p class="text-muted mb-4">
+                                    ${isSearch ? '다른 키워드로 검색하거나 전체 글 목록을 확인해보세요.' : '새로운 기술 블로그 글이 곧 업데이트될 예정입니다.'}
+                                </p>
+                                ${isSearch ? '' : '<a href="/admin/corporations" class="btn btn-primary"><i class="fas fa-plus me-2"></i>기업 추가하기</a>'}
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            bindArticleEvents() {
+                // 기존 좋아요 버튼 이벤트 바인딩
+                this.bindLikeButtons();
+                
+                // 기존 카드 클릭 이벤트 바인딩
+                this.bindCardEvents();
+            }
+
+            bindLikeButtons() {
+                document.querySelectorAll('.like-button').forEach(btn => {
+                    btn.addEventListener('click', async function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        const articleId = this.getAttribute('data-article-id');
+                        const likeIcon = this.querySelector('.like-icon');
+                        const likeCount = this.querySelector('.like-count');
+                        
+                        try {
+                            const response = await fetch(`/api/articles/${articleId}/like`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                credentials: 'same-origin',
+                                redirect: 'manual'
+                            });
+                            
+                            if (response.status === 401 || response.status === 0) {
+                                showLoginPopup();
+                                return;
+                            }
+                            
+                            if (response.ok) {
+                                const data = await response.json();
+                                likeCount.textContent = data.likeCount;
+                                
+                                if (data.isLiked) {
+                                    this.classList.add('liked');
+                                } else {
+                                    this.classList.remove('liked');
+                                }
+                            }
+                        } catch (error) {
+                            console.error('좋아요 처리 중 오류 발생:', error);
+                        }
+                    });
+                });
+            }
+
+            bindCardEvents() {
+                document.querySelectorAll('.article-card').forEach(card => {
+                    card.addEventListener('click', function(e) {
+                        if (e.target.tagName !== 'A' && !e.target.closest('a') && !e.target.closest('.badge') && !e.target.closest('.like-button') && !e.target.closest('.company-link')) {
+                            const titleLink = this.querySelector('h5 a');
+                            if (titleLink) {
+                                window.open(titleLink.href, '_blank');
+                            }
+                        }
+                    });
+                    
+                    card.style.cursor = 'pointer';
+                });
+            }
+
+            updateRelativeTimes() {
+                document.querySelectorAll('.relative-time').forEach(element => {
+                    const dateString = element.getAttribute('data-date');
+                    if (dateString) {
+                        element.textContent = getRelativeTime(dateString);
+                        element.title = formatDate(dateString);
+                    }
+                });
+            }
+
+            async loadLikeStatuses() {
+                const likeButtons = document.querySelectorAll('.like-button');
+                
+                for (const btn of likeButtons) {
+                    const articleId = btn.getAttribute('data-article-id');
+                    
+                    try {
+                        const response = await fetch(`/api/articles/${articleId}/like-status`, {
+                            credentials: 'same-origin'
+                        });
+                        if (response.ok) {
+                            const data = await response.json();
+                            
+                            if (data.authenticated && data.hasLiked) {
+                                btn.classList.add('liked');
+                            }
+                            
+                            const likeCount = btn.querySelector('.like-count');
+                            likeCount.textContent = data.likeCount;
+                        }
+                    } catch (error) {
+                        console.error('좋아요 상태 로드 중 오류 발생:', error);
+                    }
+                }
+            }
+        }
+
+        // 전역 변수로 ArticleManager 인스턴스 저장
+        let articleManager;
         
         document.addEventListener('DOMContentLoaded', function() {
             totalSlides = document.querySelectorAll('.banner-slide').length;
             startAutoSlide();
+            
+            // ArticleManager 초기화
+            articleManager = new ArticleManager();
         });
         
         function startAutoSlide() {
@@ -684,9 +1196,9 @@
                     <div class="hero-content">
                         <h1 class="hero-title">
                             <i class="fas fa-seedling me-3" style="color: var(--primary-green);"></i>
-                            기업 기술 블로그
+                            기술 블로그 플랫폼
                         </h1>
-                        <p class="hero-subtitle">최신 기술 트렌드와 개발 인사이트를 한 곳에서 만나보세요</p>
+                        <p class="hero-subtitle">최신 기술 트렌드와 개발 인사이트를 한 곳에서 만나보세요!</p>
                         
                         <!-- Stats Cards -->
                         <div class="row g-4 justify-content-center">
@@ -789,28 +1301,26 @@
             <div class="card-body p-4">
                 <div class="row align-items-center g-3">
                     <!-- Search -->
-                    <div class="col-lg-6 col-md-12">
-                        <form method="get" action="">
+                    <div class="col-lg-6 col-md-12 d-flex justify-content-center">
+                        <form id="searchForm" style="width: 100%; max-width: 500px;">
                             <div class="input-group">
                                 <span class="input-group-text" style="background: var(--secondary-green); border: 2px solid var(--border-light); color: var(--primary-green-dark);">
                                     <i class="fas fa-search"></i>
                                 </span>
-                                <input type="text" name="keyword" class="form-control" placeholder="글 제목으로 검색..." 
+                                <input type="text" id="searchInput" class="form-control" placeholder="글 제목으로 검색..." 
                                        th:value="${keyword}" style="border-left: none;">
-                                <input type="hidden" name="sort" th:value="${currentSort}">
                                 <button type="submit" class="btn btn-secondary">검색</button>
                             </div>
                         </form>
                     </div>
                     
                     <!-- Region Filter -->
-                    <div class="col-lg-3 col-md-6">
-                        <div class="d-flex flex-column">
-                            <label class="form-label mb-2" style="font-size: 0.9rem; font-weight: 600; color: var(--text-dark);">지역</label>
+                    <div class="col-lg-3 col-md-6 d-flex justify-content-center">
+                        <div class="d-flex flex-column align-items-center">
                             <div class="region-filter-group">
                                 <input type="checkbox" name="regions" value="domestic" id="domestic"
                                        th:checked="${selectedRegions.contains('domestic')}"
-                                       onchange="applyFilters()" class="region-checkbox">
+                                       class="region-checkbox">
                                 <label for="domestic" class="region-toggle">
                                     <i class="fas fa-map-marker-alt"></i>
                                     <span>국내</span>
@@ -818,7 +1328,7 @@
                                 
                                 <input type="checkbox" name="regions" value="overseas" id="overseas"
                                        th:checked="${selectedRegions.contains('overseas')}"
-                                       onchange="applyFilters()" class="region-checkbox">
+                                       class="region-checkbox">
                                 <label for="overseas" class="region-toggle">
                                     <i class="fas fa-globe"></i>
                                     <span>해외</span>
@@ -828,26 +1338,33 @@
                     </div>
                     
                     <!-- Sort Options -->
-                    <div class="col-lg-3 col-md-6">
+                    <div class="col-lg-3 col-md-6 d-flex justify-content-center">
                         <div class="d-flex gap-2">
-                            <a class="btn flex-fill text-center" 
+                            <button class="btn flex-fill text-center sort-btn" 
                                th:class="${currentSort == 'latest'} ? 'btn-primary' : 'btn-secondary'"
-                               th:href="@{/(sort='latest', keyword=${keyword}, regions=${selectedRegions})}"
+                               data-sort="latest"
                                title="발행일 기준으로 최신 글부터 보여줍니다">
                                 <i class="fas fa-clock me-1"></i>최신순
-                            </a>
-                            <a class="btn flex-fill text-center"
+                            </button>
+                            <button class="btn flex-fill text-center sort-btn"
                                th:class="${currentSort == 'popular'} ? 'btn-primary' : 'btn-secondary'"
-                               th:href="@{/(sort='popular', keyword=${keyword}, regions=${selectedRegions})}"
+                               data-sort="popular"
                                title="조회수(60%), 좋아요(30%), 최신성(10%)을 종합한 인기도순으로 보여줍니다">
                                 <i class="fas fa-fire me-1"></i>인기순
-                            </a>
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
+        <!-- Loading State -->
+        <div id="loadingState" class="text-center py-4 d-none">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">글을 불러오는 중...</p>
+        </div>
 
         <!-- Articles Stack -->
         <div class="articles-container">
@@ -954,35 +1471,34 @@
             </div>
         </div>
 
-        <!-- Pagination -->
-        <nav th:if="${totalPages > 1}" class="mt-5">
-            <ul class="pagination justify-content-center">
-                <!-- Previous Button -->
-                <li class="page-item" th:class="${!hasPrevious} ? 'page-item disabled' : 'page-item'">
-                    <a class="page-link" 
-                       th:href="@{/(page=${currentPage - 1}, sort=${currentSort}, keyword=${keyword}, regions=${selectedRegions})}">
-                        <i class="fas fa-chevron-left me-1"></i>이전
-                    </a>
-                </li>
-                
-                <!-- Page Numbers (show max 5 pages: 1,2,3,4,5) -->
-                <li class="page-item" 
-                    th:each="pageNum : ${#numbers.sequence(0, T(java.lang.Math).min(totalPages - 1, 4))}"
-                    th:class="${pageNum == currentPage} ? 'page-item active' : 'page-item'">
-                    <a class="page-link" 
-                       th:href="@{/(page=${pageNum}, sort=${currentSort}, keyword=${keyword}, regions=${selectedRegions})}"
-                       th:text="${pageNum + 1}">1</a>
-                </li>
-                
-                <!-- Next Button -->
-                <li class="page-item" th:class="${!hasNext} ? 'page-item disabled' : 'page-item'">
-                    <a class="page-link" 
-                       th:href="@{/(page=${currentPage + 1}, sort=${currentSort}, keyword=${keyword}, regions=${selectedRegions})}">
-                        다음<i class="fas fa-chevron-right ms-1"></i>
-                    </a>
-                </li>
-            </ul>
-        </nav>
+        <!-- Pagination Container -->
+        <div id="paginationContainer" class="mt-5">
+            <!-- 동적으로 생성되는 페이지네이션 -->
+            <nav th:if="${totalPages > 1}">
+                <ul class="pagination justify-content-center">
+                    <!-- Previous Button -->
+                    <li class="page-item" th:class="${!hasPrevious} ? 'page-item disabled' : 'page-item'">
+                        <a class="page-link" href="#" th:attr="data-page=${currentPage - 1}">
+                            <i class="fas fa-chevron-left me-1"></i>이전
+                        </a>
+                    </li>
+                    
+                    <!-- Page Numbers (show max 5 pages: 1,2,3,4,5) -->
+                    <li class="page-item" 
+                        th:each="pageNum : ${#numbers.sequence(0, T(java.lang.Math).min(totalPages - 1, 4))}"
+                        th:class="${pageNum == currentPage} ? 'page-item active' : 'page-item'">
+                        <a class="page-link" href="#" th:attr="data-page=${pageNum}" th:text="${pageNum + 1}">1</a>
+                    </li>
+                    
+                    <!-- Next Button -->
+                    <li class="page-item" th:class="${!hasNext} ? 'page-item disabled' : 'page-item'">
+                        <a class="page-link" href="#" th:attr="data-page=${currentPage + 1}">
+                            다음<i class="fas fa-chevron-right ms-1"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
         
         <!-- 플로팅 로그인 모달 -->
         <div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
@@ -996,13 +1512,6 @@
                     </div>
                     <div class="modal-body pt-0">
                         <div id="loginMessage" class="alert d-none" role="alert"></div>
-                        
-                        <div class="text-center mb-4">
-                            <div class="company-avatar mx-auto mb-3" style="width: 60px; height: 60px;">
-                                <i class="fas fa-seedling fa-2x" style="color: var(--primary-green);"></i>
-                            </div>
-                            <p class="text-muted">Small Town에 로그인하여 좋아요를 표시해보세요!</p>
-                        </div>
 
                         <form id="loginForm">
                             <div class="mb-3">
@@ -1189,27 +1698,10 @@
             }
         }
         
-        // 지역 필터링 기능
-        function applyFilters() {
-            const urlParams = new URLSearchParams(window.location.search);
-            
-            // 기존 regions 파라미터 제거
-            urlParams.delete('regions');
-            
-            // 체크된 지역 필터 수집
-            const checkedRegions = [];
-            document.querySelectorAll('input[name="regions"]:checked').forEach(checkbox => {
-                checkedRegions.push(checkbox.value);
-            });
-            
-            // 체크된 지역이 있으면 파라미터에 추가
-            checkedRegions.forEach(region => {
-                urlParams.append('regions', region);
-            });
-            
-            urlParams.set('page', '0'); // 필터 변경 시 첫 페이지로
-            window.location.search = urlParams.toString();
-        }
+        // 지역 필터링 기능 (ArticleManager로 대체됨)
+        // function applyFilters() {
+        //     이 함수는 ArticleManager 클래스의 handleRegionChange()로 대체되었습니다
+        // }
         
         // 상대 시간 계산 함수
         function getRelativeTime(dateString) {
