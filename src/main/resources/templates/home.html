@@ -518,6 +518,43 @@
             background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
         }
         
+        /* 관리자 삭제 버튼 스타일 */
+        .admin-delete-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(220, 53, 69, 0.9);
+            border: none;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 10;
+            font-size: 14px;
+            opacity: 0;
+            transform: scale(0.8);
+        }
+        
+        .article-card:hover .admin-delete-btn {
+            opacity: 1;
+            transform: scale(1);
+        }
+        
+        .admin-delete-btn:hover {
+            background: rgba(220, 53, 69, 1);
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+        }
+        
+        .admin-delete-btn:active {
+            transform: scale(0.95);
+        }
+        
         /* Region Filter Styles */
         .region-filter-group {
             display: flex;
@@ -596,6 +633,23 @@
         let slideInterval;
         let isHovered = false;
         let manualControl = false;
+
+        // UserInfo 관리
+        let currentUser = null;
+        
+        async function loadUserInfo() {
+            try {
+                const response = await fetch('/api/user-info', {
+                    credentials: 'same-origin'
+                });
+                if (response.ok) {
+                    currentUser = await response.json();
+                    console.log('Current user:', currentUser);
+                }
+            } catch (error) {
+                console.error('사용자 정보 로드 실패:', error);
+            }
+        }
 
         // ArticleManager 클래스
         class ArticleManager {
@@ -855,8 +909,14 @@
                         ${article.tags.map(tag => `<span class="badge tag-badge me-2">${tag.keyword}</span>`).join('')}
                     </div>` : '';
 
+                const adminDeleteButton = currentUser && currentUser.isAdmin ?
+                    `<button class="admin-delete-btn" onclick="deleteArticle(${article.id})" title="글 삭제">
+                        <i class="fas fa-trash"></i>
+                    </button>` : '';
+
                 return `
-                    <div class="article-card">
+                    <div class="article-card" style="position: relative;">
+                        ${adminDeleteButton}
                         <!-- Article Content (Left Side) -->
                         <div class="article-content">
                             <!-- Title -->
@@ -1094,7 +1154,7 @@
             bindCardEvents() {
                 document.querySelectorAll('.article-card').forEach(card => {
                     card.addEventListener('click', function(e) {
-                        if (e.target.tagName !== 'A' && !e.target.closest('a') && !e.target.closest('.badge') && !e.target.closest('.like-button') && !e.target.closest('.company-link')) {
+                        if (e.target.tagName !== 'A' && !e.target.closest('a') && !e.target.closest('.badge') && !e.target.closest('.like-button') && !e.target.closest('.company-link') && !e.target.closest('.admin-delete-btn')) {
                             const titleLink = this.querySelector('h5 a');
                             if (titleLink) {
                                 window.open(titleLink.href, '_blank');
@@ -1156,9 +1216,48 @@
             }
         }
         
-        document.addEventListener('DOMContentLoaded', function() {
+        // 글 삭제 함수
+        async function deleteArticle(articleId) {
+            if (!currentUser || !currentUser.isAdmin) {
+                alert('관리자 권한이 필요합니다.');
+                return;
+            }
+            
+            if (!confirm('정말로 이 글을 삭제하시겠습니까?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/articles/${articleId}`, {
+                    method: 'DELETE',
+                    credentials: 'same-origin'
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    alert('글이 성공적으로 삭제되었습니다.');
+                    // 목록 새로고침
+                    if (articleManager) {
+                        articleManager.loadArticles();
+                    } else {
+                        window.location.reload();
+                    }
+                } else {
+                    alert(data.message || '삭제 중 오류가 발생했습니다.');
+                }
+            } catch (error) {
+                console.error('삭제 요청 중 오류:', error);
+                alert('삭제 요청 중 오류가 발생했습니다.');
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', async function() {
             totalSlides = document.querySelectorAll('.banner-slide').length;
             startAutoSlide();
+            
+            // 사용자 정보 로드
+            await loadUserInfo();
             
             // ArticleManager 초기화
             articleManager = new ArticleManager();
@@ -1419,7 +1518,9 @@
 
         <!-- Articles Stack -->
         <div class="articles-container">
-            <div class="article-card" th:each="article : ${articles.content}">
+            <div class="article-card" th:each="article : ${articles.content}" style="position: relative;">
+                <!-- Admin Delete Button (only shown via JavaScript for admin users) -->
+                
                 <!-- Article Content (Left Side) -->
                 <div class="article-content">
                     <!-- Title -->
@@ -1614,8 +1715,8 @@
         // 카드 클릭 시 외부 링크로 이동
         document.querySelectorAll('.article-card').forEach(card => {
             card.addEventListener('click', function(e) {
-                // 태그나 다른 링크, 좋아요 버튼, 회사 링크를 클릭한 경우가 아니라면
-                if (e.target.tagName !== 'A' && !e.target.closest('a') && !e.target.closest('.badge') && !e.target.closest('.like-button') && !e.target.closest('.company-link')) {
+                // 태그나 다른 링크, 좋아요 버튼, 회사 링크, 삭제 버튼을 클릭한 경우가 아니라면
+                if (e.target.tagName !== 'A' && !e.target.closest('a') && !e.target.closest('.badge') && !e.target.closest('.like-button') && !e.target.closest('.company-link') && !e.target.closest('.admin-delete-btn')) {
                     const titleLink = this.querySelector('h5 a');
                     if (titleLink) {
                         window.open(titleLink.href, '_blank');
@@ -1853,8 +1954,27 @@
             });
         }
         
+        // 관리자 삭제 버튼 표시 함수
+        function showAdminDeleteButtons() {
+            if (currentUser && currentUser.isAdmin) {
+                document.querySelectorAll('.article-card').forEach(card => {
+                    if (!card.querySelector('.admin-delete-btn')) {
+                        const articleId = card.querySelector('.like-button').getAttribute('data-article-id');
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.className = 'admin-delete-btn';
+                        deleteBtn.onclick = () => deleteArticle(articleId);
+                        deleteBtn.title = '글 삭제';
+                        deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                        card.appendChild(deleteBtn);
+                    }
+                });
+            }
+        }
+        
         // 페이지 로드 후 상대 시간 적용 및 좋아요 상태 로드
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
+            // 사용자 정보 로드
+            await loadUserInfo();
             document.querySelectorAll('.relative-time').forEach(element => {
                 const dateString = element.getAttribute('data-date');
                 if (dateString) {
@@ -1873,6 +1993,9 @@
             
             // 기본 썸네일 설정
             setupDefaultThumbnails();
+            
+            // 관리자 삭제 버튼 표시
+            showAdminDeleteButtons();
             
             // 모달 로그인 처리
             const loginForm = document.getElementById('loginForm');
