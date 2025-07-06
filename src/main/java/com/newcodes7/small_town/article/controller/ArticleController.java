@@ -12,6 +12,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,6 +29,7 @@ import com.newcodes7.small_town.article.service.FeedbackService;
 import com.newcodes7.small_town.article.service.LikeService;
 import com.newcodes7.small_town.article.service.UserLikeService;
 import com.newcodes7.small_town.article.service.ViewService;
+import com.newcodes7.small_town.auth.entity.User;
 import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
 import com.newcodes7.small_town.corporation.service.CorporationService;
 
@@ -343,5 +345,61 @@ public class ArticleController {
         model.addAttribute("totalArticles", totalArticles);
         
         return "corporations";
+    }
+    
+    @DeleteMapping("/api/admin/articles/{articleId}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> deleteArticle(
+            @PathVariable Long articleId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            // 관리자 권한 확인
+            if (userDetails == null || !isAdmin(userDetails)) {
+                response.put("status", "error");
+                response.put("message", "관리자 권한이 필요합니다.");
+                return ResponseEntity.status(403).body(response);
+            }
+            
+            // 게시글 삭제
+            articleService.deleteArticle(articleId);
+            
+            response.put("status", "success");
+            response.put("message", "게시글이 성공적으로 삭제되었습니다.");
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("게시글 삭제 중 오류 발생: {}", e.getMessage(), e);
+            
+            response.put("status", "error");
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+    
+    @GetMapping("/api/user-info")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getUserInfo(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        if (userDetails == null) {
+            response.put("authenticated", false);
+            response.put("isAdmin", false);
+        } else {
+            response.put("authenticated", true);
+            response.put("isAdmin", isAdmin(userDetails));
+            response.put("username", userDetails.getUsername());
+        }
+        
+        return ResponseEntity.ok(response);
+    }
+    
+    private boolean isAdmin(UserDetails userDetails) {
+        return userDetails.getAuthorities().stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"));
     }
 }

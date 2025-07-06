@@ -9,6 +9,7 @@ import com.newcodes7.small_town.article.entity.Article;
 import com.newcodes7.small_town.article.entity.Corporation;
 import com.newcodes7.small_town.article.exception.CorporationNotFoundException;
 import com.newcodes7.small_town.article.exception.InvalidParameterException;
+import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -17,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -99,5 +101,22 @@ public class ArticleService {
     
     public long getTotalArticleCount() {
         return articleRepository.countByDeletedAtIsNull();
+    }
+    
+    @Transactional
+    public void deleteArticle(Long articleId) {
+        if (articleId == null || articleId <= 0) {
+            throw new InvalidParameterException("articleId", articleId, "유효하지 않은 게시글 ID입니다");
+        }
+        
+        Article article = articleRepository.findById(articleId)
+            .orElseThrow(() -> new ArticleNotFoundException(articleId));
+        
+        if (article.getDeletedAt() != null) {
+            throw new InvalidParameterException("articleId", articleId, "이미 삭제된 게시글입니다");
+        }
+        
+        article.softDelete();
+        articleRepository.save(article);
     }
 }
