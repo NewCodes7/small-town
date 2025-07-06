@@ -1,5 +1,6 @@
 package com.newcodes7.small_town.corporation.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -49,6 +50,7 @@ public class Corporation {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
     
+    @JsonIgnore
     @OneToMany(mappedBy = "corporation", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<CorporationIndustry> corporationIndustries = new ArrayList<>();

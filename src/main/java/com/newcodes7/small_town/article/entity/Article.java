@@ -1,5 +1,6 @@
 package com.newcodes7.small_town.article.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -58,10 +59,20 @@ public class Article {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
     
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "corporation_id", nullable = false)
     private Corporation corporation;
     
+    @JsonIgnore
     @OneToMany(mappedBy = "article", cascade = CascadeType.ALL)
     private List<ArticleTag> articleTags = new ArrayList<>();
+    
+    public void softDelete() {
+        this.deletedAt = LocalDateTime.now();
+    }
+    
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
 }

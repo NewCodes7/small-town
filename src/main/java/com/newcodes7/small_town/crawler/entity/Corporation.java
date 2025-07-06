@@ -6,6 +6,7 @@ import java.util.List;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -59,6 +60,7 @@ public class Corporation {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
     
+    @JsonIgnore
     @OneToMany(mappedBy = "corporation", cascade = CascadeType.ALL)
     private List<Article> articles;
 

@@ -1,5 +1,6 @@
 package com.newcodes7.small_town.corporation.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -25,6 +26,7 @@ public class Industry {
     @Column(nullable = false, unique = true, length = 50)
     private String name;
     
+    @JsonIgnore
     @OneToMany(mappedBy = "industry", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<CorporationIndustry> corporationIndustries = new ArrayList<>();

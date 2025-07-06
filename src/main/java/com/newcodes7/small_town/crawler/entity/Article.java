@@ -1,5 +1,6 @@
 package com.newcodes7.small_town.crawler.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -61,6 +62,7 @@ public class Article {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
     
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "corporation_id", insertable = false, updatable = false)
     private Corporation corporation;
