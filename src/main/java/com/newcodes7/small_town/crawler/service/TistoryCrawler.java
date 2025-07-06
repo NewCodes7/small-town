@@ -4,6 +4,8 @@ import com.newcodes7.small_town.crawler.entity.Article;
 import com.newcodes7.small_town.crawler.entity.Corporation;
 import com.newcodes7.small_town.crawler.exception.*;
 import com.newcodes7.small_town.crawler.service.BlogCrawler;
+import com.newcodes7.small_town.service.S3ImageService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -18,8 +20,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Component
+@RequiredArgsConstructor
 @Slf4j
 public class TistoryCrawler implements BlogCrawler {
+    
+    private final S3ImageService s3ImageService;
     
     @Override
     public boolean canHandle(String blogUrl) {
@@ -99,7 +104,19 @@ public class TistoryCrawler implements BlogCrawler {
             String thumbnailImage = "";
             Element imgElement = element.selectFirst("img");
             if (imgElement != null) {
-                thumbnailImage = imgElement.attr("src");
+                String imgSrc = imgElement.attr("src");
+                if (!imgSrc.startsWith("http") && imgSrc.startsWith("/")) {
+                    String baseUrl = corporation.getBlogLink();
+                    if (baseUrl.endsWith("/")) {
+                        baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+                    }
+                    imgSrc = baseUrl + imgSrc;
+                }
+                
+                // 이미지를 S3에 업로드하고 CloudFront URL로 변환
+                if (!imgSrc.isEmpty()) {
+                    thumbnailImage = s3ImageService.uploadImageFromUrl(imgSrc, corporation.getName());
+                }
             }
             
             return Article.builder()

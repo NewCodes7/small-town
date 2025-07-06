@@ -28,15 +28,23 @@ import org.springframework.stereotype.Component;
 import com.newcodes7.small_town.crawler.entity.Article;
 import com.newcodes7.small_town.crawler.entity.Corporation;
 import com.newcodes7.small_town.crawler.exception.*;
+import com.newcodes7.small_town.service.S3ImageService;
 import com.rometools.rome.feed.synd.SyndEntry;
 import com.rometools.rome.feed.synd.SyndFeed;
 import com.rometools.rome.io.SyndFeedInput;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import lombok.extern.slf4j.Slf4j;
 
 @Component
 @Slf4j
 public class DefaultBlogCrawler implements BlogCrawler {
+    
+    private final S3ImageService s3ImageService;
+    
+    public DefaultBlogCrawler(@Autowired(required = false) S3ImageService s3ImageService) {
+        this.s3ImageService = s3ImageService;
+    }
     
     @Override
     public boolean canHandle(String blogUrl) {
@@ -214,7 +222,11 @@ public class DefaultBlogCrawler implements BlogCrawler {
                     }
                     imgSrc = baseUrl + imgSrc;
                 }
-                thumbnailImage = imgSrc;
+                
+                // 이미지를 S3에 업로드하고 CloudFront URL로 변환
+                if (!imgSrc.isEmpty()) {
+                    thumbnailImage = s3ImageService.uploadImageFromUrl(imgSrc, corporation.getName());
+                }
             }
 
             // 발행일 찾기 (네이버 d2 기준)

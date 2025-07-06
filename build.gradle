@@ -55,6 +55,11 @@ dependencies {
     
     // RSS/Atom Feed 파싱
     implementation 'com.rometools:rome:2.1.0'
+    
+    // AWS S3 and CloudFront
+    implementation 'org.springframework.cloud:spring-cloud-starter-aws:2.2.6.RELEASE'
+    implementation 'com.amazonaws:aws-java-sdk-s3:1.12.261'
+    implementation 'com.amazonaws:aws-java-sdk-core:1.12.261'
 
     runtimeOnly 'com.h2database:h2'
 	compileOnly 'org.projectlombok:lombok'
