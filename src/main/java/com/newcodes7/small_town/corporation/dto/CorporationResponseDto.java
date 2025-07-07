@@ -16,6 +16,7 @@ public class CorporationResponseDto {
     private String crewLink;
     private String logoUrl;
     private String logoFilename;
+    private String logoS3Url;
     private Boolean isDomestic;
     private Long articleCount;
     private List<String> industries;
@@ -28,9 +29,14 @@ public class CorporationResponseDto {
     
     /**
      * 효과적인 로고 URL을 반환합니다.
-     * logoFilename이 있으면 로컬 파일 경로를, 없으면 logoUrl을 반환합니다.
+     * S3 URL > 로컬 파일 경로 > 외부 URL 순서로 우선순위를 가집니다.
      */
     public String getEffectiveLogoUrl() {
+        // S3 URL이 있으면 우선 사용
+        if (logoS3Url != null && !logoS3Url.trim().isEmpty()) {
+            return logoS3Url;
+        }
+        // 로컬 파일명이 있으면 사용
         if (logoFilename != null && !logoFilename.trim().isEmpty()) {
             return "/images/logos/" + logoFilename;
         }
@@ -46,6 +52,7 @@ public class CorporationResponseDto {
         dto.setCrewLink(corporation.getCrewLink());
         dto.setLogoUrl(corporation.getLogoUrl());
         dto.setLogoFilename(corporation.getLogoFilename());
+        dto.setLogoS3Url(corporation.getLogoS3Url());
         // Default to domestic if not specified (corporation module doesn't have isDomestic field)
         dto.setIsDomestic(true);
         dto.setArticleCount(0L); // Default article count

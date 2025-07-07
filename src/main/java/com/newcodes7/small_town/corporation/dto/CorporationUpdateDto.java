@@ -17,6 +17,7 @@ public class CorporationUpdateDto {
     private String blogLink;
     private String crewLink;
     private String logoUrl;
+    private String effectiveLogoUrl; // 읽기 전용 필드 (폼에서 표시용)
     
     private List<Integer> industryIds;
 }
