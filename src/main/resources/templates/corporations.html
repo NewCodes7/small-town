@@ -303,11 +303,11 @@
                     
                     <!-- Logo Section -->
                     <div class="corp-logo-container">
-                        <img th:if="${corp.logoUrl != null}" 
-                             th:src="${corp.logoUrl}" 
+                        <img th:if="${corp.effectiveLogoUrl != null}" 
+                             th:src="${corp.effectiveLogoUrl}" 
                              th:alt="${corp.name}"
                              class="corp-logo">
-                        <div th:unless="${corp.logoUrl != null}" class="default-corp-logo">
+                        <div th:unless="${corp.effectiveLogoUrl != null}" class="default-corp-logo">
                             <i class="fas fa-building fa-2x" style="color: var(--primary-green);"></i>
                         </div>
                     </div>

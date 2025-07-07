@@ -46,10 +46,10 @@
                                 <label class="form-label fw-bold">로고 이미지</label>
                                 
                                 <!-- Current Logo Preview -->
-                                <div class="mb-3" th:if="${corporation.logoUrl != null}">
+                                <div class="mb-3" th:if="${corporation.effectiveLogoUrl != null}">
                                     <label class="form-label fw-normal">현재 로고</label>
                                     <div class="text-center p-3" style="background: var(--background-light); border-radius: 8px;">
-                                        <img th:src="${corporation.logoUrl}" th:alt="${corporation.name}" 
+                                        <img th:src="${corporation.effectiveLogoUrl}" th:alt="${corporation.name}" 
                                              style="max-width: 100px; max-height: 100px; object-fit: contain;">
                                     </div>
                                 </div>

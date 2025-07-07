@@ -54,8 +54,8 @@
                         <!-- Company Header -->
                         <div class="d-flex align-items-center mb-4">
                             <div class="company-avatar me-3">
-                                <img th:if="${corp.logoUrl}" th:src="${corp.logoUrl}" alt="logo" style="width: 44px; height: 44px; object-fit: contain; border-radius: 10px;">
-                                <i th:unless="${corp.logoUrl}" class="fas fa-building fa-lg" style="color: var(--primary-green);"></i>
+                                <img th:if="${corp.effectiveLogoUrl}" th:src="${corp.effectiveLogoUrl}" alt="logo" style="width: 44px; height: 44px; object-fit: contain; border-radius: 10px;">
+                                <i th:unless="${corp.effectiveLogoUrl}" class="fas fa-building fa-lg" style="color: var(--primary-green);"></i>
                             </div>
                             <div class="flex-grow-1">
                                 <h5 class="mb-1 fw-bold" style="color: var(--text-dark);" th:text="${corp.name}">Company Name</h5>
