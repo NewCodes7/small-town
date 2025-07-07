@@ -120,6 +120,8 @@ public class CrawlingService {
             
             for (Article article : crawledArticles) {
                 if (!crawlerArticleRepository.findByLinkAndDeletedAtIsNull(article.getLink()).isPresent()) {
+                    // 중복이 아닌 경우에만 이미지 업로드 처리
+                    crawler.processImageUpload(article, corporation);
                     Article savedArticle = crawlerArticleRepository.save(article);
                     savedArticles.add(savedArticle);
                     newArticlesCount++;
