@@ -21,14 +21,18 @@ import org.springframework.stereotype.Component;
 import com.newcodes7.small_town.crawler.entity.Article;
 import com.newcodes7.small_town.crawler.entity.Corporation;
 import com.newcodes7.small_town.crawler.exception.*;
+import com.newcodes7.small_town.service.S3ImageService;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Component
+@RequiredArgsConstructor
 @Slf4j
 public class MediumBlogCrawler implements BlogCrawler {
     
     private final Random random = new Random();
+    private final S3ImageService s3ImageService;
     
     @Override
     public boolean canHandle(String blogUrl) {
@@ -288,5 +292,21 @@ public class MediumBlogCrawler implements BlogCrawler {
     @Override
     public String getProviderName() {
         return "Medium";
+    }
+    
+    @Override
+    public void processImageUpload(Article article, Corporation corporation) {
+        String originalImageUrl = article.getThumbnailImage();
+        
+        if (originalImageUrl != null && !originalImageUrl.isEmpty() && originalImageUrl.startsWith("http")) {
+            try {
+                String s3ImageUrl = s3ImageService.uploadImageFromUrl(originalImageUrl, corporation.getName());
+                article.setThumbnailImage(s3ImageUrl);
+                log.debug("이미지 S3 업로드 성공: {} -> {}", originalImageUrl, s3ImageUrl);
+            } catch (Exception e) {
+                log.warn("썸네일 이미지 업로드 실패: {} - {}", originalImageUrl, e.getMessage());
+                // S3 업로드 실패 시 원본 URL 그대로 유지
+            }
+        }
     }
 }
