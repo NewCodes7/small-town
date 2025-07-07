@@ -13,6 +13,15 @@ public interface BlogCrawler {
     String getProviderName();
     
     /**
+     * 이미지 업로드 처리 (중복이 아닌 경우에만 호출)
+     * @param article 이미지 업로드할 아티클
+     * @param corporation 기업 정보
+     */
+    default void processImageUpload(Article article, Corporation corporation) {
+        // 기본 구현은 아무것도 하지 않음 (이미지 업로드 없음)
+    }
+    
+    /**
      * robots.txt 검사 후 크롤링
      * @param driver WebDriver 인스턴스
      * @param corporation 기업 정보
