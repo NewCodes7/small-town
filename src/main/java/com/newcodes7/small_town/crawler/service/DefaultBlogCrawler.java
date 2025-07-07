@@ -89,7 +89,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
             Elements articleElements = doc.select(
                 "article, .post, .entry, .blog-post, .item, " +
                 "[class*='post'], [class*='article'], [class*='entry'], " +
-                "[id*='post'], [id*='article'], [id*='entry']"
+                "[id*='post'], [id*='a`rticle'], [id*='entry']"
             );
 
             if (corporation.getBlogLink().contains("toss.tech")) {
@@ -98,6 +98,8 @@ public class DefaultBlogCrawler implements BlogCrawler {
                 articleElements = doc.select("article[class*='blog-post']");
             } else if (corporation.getBlogLink().contains("googleblog")) {
                 articleElements = doc.select("div[class*='search-result__wrapper']");
+            } else if (corporation.getBlogLink().contains("lycorp")) {
+                articleElements = doc.select("a[class*='link list_item']");
             }
             
             for (Element element : articleElements) {
@@ -142,6 +144,9 @@ public class DefaultBlogCrawler implements BlogCrawler {
             }
             if (corporation.getBlogLink().contains("googleblog")) {
                 titleElement = element.selectFirst("h3[class*='search-result__title']");
+            }
+            if (corporation.getBlogLink().contains("lycorp")) {
+                titleElement = element.selectFirst("h2[class*='title']");
             }
             
             if (titleElement == null) return null;
@@ -196,7 +201,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
                 }
             }
             
-            // 썸네일 이미지 찾기
+            // 썸네일 이미지 URL 찾기 (업로드는 processImageUpload에서 수행)
             String thumbnailImage = "";
             Element imgElement = null;
 
@@ -215,18 +220,14 @@ public class DefaultBlogCrawler implements BlogCrawler {
 
             if (imgElement != null) {
                 String imgSrc = imgElement.attr("src");
-                if (!imgSrc.startsWith("http") && imgSrc.startsWith("/")) {
-                    String baseUrl = corporation.getBlogLink();
-                    if (baseUrl.endsWith("/")) {
-                        baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
-                    }
-                    imgSrc = baseUrl + imgSrc;
+                
+                // 상대 경로를 절대 경로로 변환
+                if (!imgSrc.startsWith("http")) {
+                    imgSrc = resolveImageUrl(imgSrc, corporation.getBlogLink());
                 }
                 
-                // 이미지를 S3에 업로드하고 CloudFront URL로 변환
-                if (!imgSrc.isEmpty()) {
-                    thumbnailImage = s3ImageService.uploadImageFromUrl(imgSrc, corporation.getName());
-                }
+                // 원본 이미지 URL 저장 (S3 업로드는 나중에 수행)
+                thumbnailImage = imgSrc;
             }
 
             // 발행일 찾기 (네이버 d2 기준)
@@ -248,23 +249,53 @@ public class DefaultBlogCrawler implements BlogCrawler {
             
             if (corporation.getBlogLink().contains("toss.tech")) {
                 publishElement = element.selectFirst("span[class*='typography--small']");
-                String rawDateText = publishElement.text();
-                String cleanDateText = extractDateOnly(rawDateText);
-                publishedAt = parseKoreanDate(cleanDateText);
+                try {
+                    String rawDateText = publishElement.text();
+                    String cleanDateText = extractDateOnly(rawDateText);
+                    publishedAt = parseKoreanDate(cleanDateText);
+                } catch (Exception e) {
+                    log.warn("toss.tech 날짜 파싱 실패: {}", e.getMessage());
+                    publishedAt = LocalDateTime.now();
+                }
             } else if (corporation.getBlogLink().contains("aws")) {
                 Element timeElement = element.selectFirst("time");
-                String datetime = timeElement.attr("datetime");
-                ZonedDateTime zonedDateTime = ZonedDateTime.parse(datetime);
-                publishedAt = zonedDateTime.toLocalDateTime();
+                try {
+                    String datetime = timeElement.attr("datetime");
+                    ZonedDateTime zonedDateTime = ZonedDateTime.parse(datetime);
+                    publishedAt = zonedDateTime.toLocalDateTime();
+                } catch (Exception e) {
+                    log.warn("aws 날짜 파싱 실패: {}", e.getMessage());
+                    publishedAt = LocalDateTime.now();
+                }
             } else if (corporation.getBlogLink().contains("googleblog")) {
                 // ex. 2025년 6월 18일 / Cloud
                 Element timeElement = element.selectFirst("p[class*='search-result__eyebrow']");
-                String dateText = timeElement.text().trim();
-                String cleanDateText = extractDateOnly(dateText);
-                publishedAt = parseKoreanDate(cleanDateText);
+                try {
+                    String dateText = timeElement.text().trim();
+                    String cleanDateText = extractDateOnly(dateText);
+                    publishedAt = parseKoreanDate(cleanDateText);
+                } catch (Exception e) {
+                    log.warn("googleblog 날짜 파싱 실패: {}", e.getMessage());
+                    publishedAt = LocalDateTime.now();
+                }
+            } else if (corporation.getBlogLink().contains("lycorp")) {
+                Element timeElement = element.selectFirst("p[class*='update']");
+                if (timeElement != null) {
+                    String dateText = timeElement.text().trim();
+                    try {
+                        String cleanDateText = dateText.split(":")[1].trim();
+                        customFormatter = DateTimeFormatter.ofPattern("yyyy.MM.dd");
+                        publishedAt = LocalDate.parse(cleanDateText, customFormatter).atStartOfDay();
+                    } catch (Exception e) {
+                        log.warn("lycorp 날짜 파싱 실패: {} - {}", dateText, e.getMessage());
+                        publishedAt = LocalDateTime.now();
+                    }
+                } else {
+                    publishedAt = LocalDateTime.now();
+                }
             } else {
                 publishedAt = publishElement != null ? 
-                LocalDate.parse(publishElement.text().trim(), customFormatter).atStartOfDay() : 
+                parseGenericDate(publishElement.text().trim(), customFormatter) : 
                 LocalDateTime.now();
             }
 
@@ -281,6 +312,50 @@ public class DefaultBlogCrawler implements BlogCrawler {
             log.warn("기본 크롤러 아티클 파싱 오류: {}", e.getMessage());
             e.printStackTrace();
             return null;
+        }
+    }
+
+    private String resolveImageUrl(String imgSrc, String baseUrl) {
+        try {
+            if (imgSrc.startsWith("http")) {
+                return imgSrc; // 이미 절대 URL
+            }
+            
+            // 기본 URL을 java.net.URL로 파싱
+            java.net.URL base = new java.net.URL(baseUrl);
+            
+            if (imgSrc.startsWith("/")) {
+                // 절대 경로: 프로토콜 + 호스트 + 경로
+                return base.getProtocol() + "://" + base.getHost() + 
+                       (base.getPort() != -1 ? ":" + base.getPort() : "") + imgSrc;
+            } else {
+                // 상대 경로: 현재 디렉토리 기준
+                java.net.URL resolved = new java.net.URL(base, imgSrc);
+                return resolved.toString();
+            }
+        } catch (Exception e) {
+            log.warn("이미지 URL 해석 실패: {} (base: {})", imgSrc, baseUrl);
+            return imgSrc; // 실패 시 원본 반환
+        }
+    }
+
+    private LocalDateTime parseGenericDate(String dateText, DateTimeFormatter formatter) {
+        try {
+            // "Date:" 같은 접두사 제거
+            String cleanText = dateText.replaceAll("^[^\\d]*", "").trim();
+            
+            // 숫자와 점/하이픈만 남기기
+            String dateOnly = cleanText.replaceAll("[^\\d.-]", "");
+            
+            if (dateOnly.isEmpty()) {
+                log.warn("날짜 텍스트에서 날짜를 추출할 수 없습니다: {}", dateText);
+                return LocalDateTime.now();
+            }
+            
+            return LocalDate.parse(dateOnly, formatter).atStartOfDay();
+        } catch (DateTimeParseException e) {
+            log.warn("날짜 파싱 실패 ({}): {}", dateText, e.getMessage());
+            return LocalDateTime.now();
         }
     }
 
@@ -499,5 +574,21 @@ public class DefaultBlogCrawler implements BlogCrawler {
     @Override
     public String getProviderName() {
         return "Default";
+    }
+    
+    @Override
+    public void processImageUpload(Article article, Corporation corporation) {
+        String originalImageUrl = article.getThumbnailImage();
+        
+        if (originalImageUrl != null && !originalImageUrl.isEmpty() && originalImageUrl.startsWith("http")) {
+            try {
+                String s3ImageUrl = s3ImageService.uploadImageFromUrl(originalImageUrl, corporation.getName());
+                article.setThumbnailImage(s3ImageUrl);
+                log.debug("이미지 S3 업로드 성공: {} -> {}", originalImageUrl, s3ImageUrl);
+            } catch (Exception e) {
+                log.warn("썸네일 이미지 업로드 실패: {} - {}", originalImageUrl, e.getMessage());
+                // S3 업로드 실패 시 원본 URL 그대로 유지
+            }
+        }
     }
 }
