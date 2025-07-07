@@ -35,6 +35,51 @@ public class S3ImageService {
     @Value("${cloud.aws.region.static}")
     private String region;
 
+    /**
+     * 바이트 배열로부터 이미지를 S3에 업로드합니다.
+     * 
+     * @param imageData 이미지 바이트 배열
+     * @param s3Key S3 키
+     * @return 업로드된 이미지 URL
+     */
+    public String uploadImageFromBytes(byte[] imageData, String s3Key) {
+        try {
+            // S3에 업로드
+            ObjectMetadata metadata = new ObjectMetadata();
+            metadata.setContentLength(imageData.length);
+            metadata.setContentType(getContentTypeFromKey(s3Key));
+            metadata.setCacheControl("max-age=31536000"); // 1년 캐시
+
+            PutObjectRequest putObjectRequest = new PutObjectRequest(
+                    bucketName,
+                    s3Key,
+                    new ByteArrayInputStream(imageData),
+                    metadata
+            );
+
+            amazonS3.putObject(putObjectRequest);
+
+            // CloudFront 사용 가능하면 CloudFront URL, 아니면 직접 S3 URL
+            String resultUrl;
+            if (cloudfrontDomain != null && !cloudfrontDomain.trim().isEmpty()) {
+                // 운영환경: CloudFront URL 사용
+                resultUrl = cloudfrontDomain + "/" + s3Key;
+                log.info("이미지 업로드 완료 (CloudFront): {}", resultUrl);
+            } else {
+                // 개발환경: 직접 S3 URL 사용
+                resultUrl = String.format("https://%s.s3.%s.amazonaws.com/%s", 
+                    bucketName, region, s3Key);
+                log.info("이미지 업로드 완료 (직접 S3): {}", resultUrl);
+            }
+            
+            return resultUrl;
+
+        } catch (Exception e) {
+            log.error("바이트 배열 이미지 업로드 실패: {}", s3Key, e);
+            throw new RuntimeException("이미지 업로드 실패", e);
+        }
+    }
+    
     public String uploadImageFromUrl(String imageUrl, String corporationName) {
         try {
             // 외부 URL에서 이미지 다운로드
@@ -133,5 +178,16 @@ public class S3ImageService {
             default:
                 return "image/jpeg";
         }
+    }
+    
+    /**
+     * S3 키로부터 Content-Type을 추출합니다.
+     */
+    private String getContentTypeFromKey(String s3Key) {
+        String extension = "";
+        if (s3Key.contains(".")) {
+            extension = s3Key.substring(s3Key.lastIndexOf(".") + 1);
+        }
+        return getContentType(extension);
     }
 }

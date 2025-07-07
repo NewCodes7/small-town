@@ -1,5 +1,7 @@
 package com.newcodes7.small_town.corporation.service;
 
+import com.newcodes7.small_town.service.S3ImageService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -8,6 +10,8 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -17,7 +21,16 @@ import java.util.UUID;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class FileUploadService {
+    
+    private final S3ImageService s3ImageService;
+    
+    @Value("${s3.upload.enabled:false}")
+    private boolean s3UploadEnabled;
+    
+    @Value("${cloud.aws.credentials.access-key:}")
+    private String awsAccessKey;
     
     private static final String UPLOAD_DIR = "src/main/resources/static/images/logos/";
     private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -52,6 +65,76 @@ public class FileUploadService {
         
         log.info("로고 파일 저장 완료: {} (회사 ID: {})", filename, corporationId);
         return filename;
+    }
+    
+    /**
+     * S3 업로드가 가능한지 확인합니다.
+     */
+    private boolean isS3Available() {
+        return s3UploadEnabled && awsAccessKey != null && !awsAccessKey.trim().isEmpty();
+    }
+    
+    /**
+     * 회사 로고 파일을 S3에 업로드합니다.
+     * 
+     * @param file 업로드할 이미지 파일
+     * @param corporationName 회사 이름
+     * @return S3 URL
+     * @throws IOException 파일 처리 중 오류
+     */
+    public String saveLogoFileToS3(MultipartFile file, String corporationName) throws IOException {
+        if (!isS3Available()) {
+            throw new IOException("S3 업로드가 비활성화되었거나 AWS 자격증명이 설정되지 않았습니다.");
+        }
+        // 파일 검증
+        validateFile(file);
+        
+        // 이미지 리사이징
+        BufferedImage originalImage = ImageIO.read(file.getInputStream());
+        BufferedImage resizedImage = resizeImage(originalImage, LOGO_SIZE);
+        
+        // 리사이징된 이미지를 바이트 배열로 변환
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        String formatName = getFileExtension(file.getOriginalFilename());
+        ImageIO.write(resizedImage, formatName, baos);
+        
+        // 임시 URL 생성하여 S3에 업로드
+        String tempUrl = "data:image/" + formatName + ";base64," + 
+                        java.util.Base64.getEncoder().encodeToString(baos.toByteArray());
+        
+        // S3ImageService의 uploadLogoFromBytes 메서드 사용
+        return uploadLogoFromBytes(baos.toByteArray(), corporationName, formatName);
+    }
+    
+    /**
+     * 바이트 배열을 S3에 로고로 업로드합니다.
+     */
+    private String uploadLogoFromBytes(byte[] imageData, String corporationName, String fileExtension) {
+        try {
+            // S3 키 생성 (logos/corporationName/yyyy/MM/dd/uuid.extension)
+            String s3Key = generateS3LogoKey(corporationName, fileExtension);
+            
+            // S3ImageService를 사용하여 업로드
+            return s3ImageService.uploadImageFromBytes(imageData, s3Key);
+        } catch (Exception e) {
+            log.error("S3 로고 업로드 실패: {}", corporationName, e);
+            throw new RuntimeException("S3 로고 업로드 실패", e);
+        }
+    }
+    
+    /**
+     * S3 로고 키 생성
+     */
+    private String generateS3LogoKey(String corporationName, String fileExtension) {
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        String datePrefix = now.format(java.time.format.DateTimeFormatter.ofPattern("yyyy/MM/dd"));
+        String uuid = UUID.randomUUID().toString();
+        
+        return String.format("logos/%s/%s/%s.%s", 
+                corporationName.toLowerCase().replaceAll("\\s+", "-"), 
+                datePrefix, 
+                uuid, 
+                fileExtension);
     }
     
     /**
