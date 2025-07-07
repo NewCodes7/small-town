@@ -113,10 +113,8 @@ public class TistoryCrawler implements BlogCrawler {
                     imgSrc = baseUrl + imgSrc;
                 }
                 
-                // 이미지를 S3에 업로드하고 CloudFront URL로 변환
-                if (!imgSrc.isEmpty()) {
-                    thumbnailImage = s3ImageService.uploadImageFromUrl(imgSrc, corporation.getName());
-                }
+                // 원본 이미지 URL 저장 (S3 업로드는 나중에 수행)
+                thumbnailImage = imgSrc;
             }
             
             return Article.builder()
@@ -137,5 +135,21 @@ public class TistoryCrawler implements BlogCrawler {
     @Override
     public String getProviderName() {
         return "Tistory";
+    }
+    
+    @Override
+    public void processImageUpload(Article article, Corporation corporation) {
+        String originalImageUrl = article.getThumbnailImage();
+        
+        if (originalImageUrl != null && !originalImageUrl.isEmpty() && originalImageUrl.startsWith("http")) {
+            try {
+                String s3ImageUrl = s3ImageService.uploadImageFromUrl(originalImageUrl, corporation.getName());
+                article.setThumbnailImage(s3ImageUrl);
+                log.debug("이미지 S3 업로드 성공: {} -> {}", originalImageUrl, s3ImageUrl);
+            } catch (Exception e) {
+                log.warn("썸네일 이미지 업로드 실패: {} - {}", originalImageUrl, e.getMessage());
+                // S3 업로드 실패 시 원본 URL 그대로 유지
+            }
+        }
     }
 }
