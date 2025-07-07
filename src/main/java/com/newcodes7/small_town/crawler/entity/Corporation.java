@@ -49,6 +49,9 @@ public class Corporation {
     @Column(name = "logo_filename")
     private String logoFilename;
     
+    @Column(name = "logo_s3_url")
+    private String logoS3Url;
+    
     @CreationTimestamp
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -73,6 +76,11 @@ public class Corporation {
     
     // 로고 URL 동적 생성 메서드
     public String getEffectiveLogoUrl() {
+        // S3 URL이 있으면 우선 사용
+        if (logoS3Url != null && !logoS3Url.trim().isEmpty()) {
+            return logoS3Url;
+        }
+        // 로컬 파일명이 있으면 사용
         if (logoFilename != null && !logoFilename.trim().isEmpty()) {
             return "/images/logos/" + logoFilename;
         }
