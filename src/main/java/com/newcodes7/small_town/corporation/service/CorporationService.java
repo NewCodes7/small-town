@@ -185,12 +185,21 @@ public class CorporationService {
         // 로고 파일 업로드 처리
         if (logoFile != null && !logoFile.isEmpty()) {
             try {
-                String logoFilename = fileUploadService.saveLogoFile(logoFile, savedCorporation.getId());
-                savedCorporation.setLogoFilename(logoFilename);
-                log.info("회사 로고 업로드 완료: {} -> {}", savedCorporation.getName(), logoFilename);
-            } catch (IOException e) {
-                log.error("회사 로고 업로드 실패: {}", savedCorporation.getName(), e);
-                throw new RuntimeException("로고 파일 업로드에 실패했습니다: " + e.getMessage(), e);
+                // S3에 업로드 시도
+                String logoS3Url = fileUploadService.saveLogoFileToS3(logoFile, savedCorporation.getName());
+                savedCorporation.setLogoS3Url(logoS3Url);
+                log.info("회사 로고 S3 업로드 완료: {} -> {}", savedCorporation.getName(), logoS3Url);
+            } catch (Exception e) {
+                log.warn("S3 업로드 실패, 로컬 저장으로 대체: {}", savedCorporation.getName(), e);
+                try {
+                    // S3 업로드 실패 시 로컬 저장
+                    String logoFilename = fileUploadService.saveLogoFile(logoFile, savedCorporation.getId());
+                    savedCorporation.setLogoFilename(logoFilename);
+                    log.info("회사 로고 로컬 업로드 완료: {} -> {}", savedCorporation.getName(), logoFilename);
+                } catch (IOException localE) {
+                    log.error("회사 로고 업로드 실패: {}", savedCorporation.getName(), localE);
+                    throw new RuntimeException("로고 파일 업로드에 실패했습니다: " + localE.getMessage(), localE);
+                }
             }
         }
         
@@ -250,12 +259,23 @@ public class CorporationService {
             }
             
             try {
-                String logoFilename = fileUploadService.saveLogoFile(logoFile, corporation.getId());
-                corporation.setLogoFilename(logoFilename);
-                log.info("회사 로고 업데이트 완료: {} -> {}", corporation.getName(), logoFilename);
-            } catch (IOException e) {
-                log.error("회사 로고 업데이트 실패: {}", corporation.getName(), e);
-                throw new RuntimeException("로고 파일 업데이트에 실패했습니다: " + e.getMessage(), e);
+                // S3에 업로드 시도
+                String logoS3Url = fileUploadService.saveLogoFileToS3(logoFile, corporation.getName());
+                corporation.setLogoS3Url(logoS3Url);
+                corporation.setLogoFilename(null); // S3 사용 시 로컬 파일명 제거
+                log.info("회사 로고 S3 업데이트 완료: {} -> {}", corporation.getName(), logoS3Url);
+            } catch (Exception e) {
+                log.warn("S3 업로드 실패, 로컬 저장으로 대체: {}", corporation.getName(), e);
+                try {
+                    // S3 업로드 실패 시 로컬 저장
+                    String logoFilename = fileUploadService.saveLogoFile(logoFile, corporation.getId());
+                    corporation.setLogoFilename(logoFilename);
+                    corporation.setLogoS3Url(null); // 로컬 사용 시 S3 URL 제거
+                    log.info("회사 로고 로컬 업데이트 완료: {} -> {}", corporation.getName(), logoFilename);
+                } catch (IOException localE) {
+                    log.error("회사 로고 업데이트 실패: {}", corporation.getName(), localE);
+                    throw new RuntimeException("로고 파일 업데이트에 실패했습니다: " + localE.getMessage(), localE);
+                }
             }
         }
         

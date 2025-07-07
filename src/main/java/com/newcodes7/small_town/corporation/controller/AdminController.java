@@ -104,6 +104,7 @@ public class AdminController {
             updateDto.setBlogLink(corporation.getBlogLink());
             updateDto.setCrewLink(corporation.getCrewLink());
             updateDto.setLogoUrl(corporation.getLogoUrl());
+            updateDto.setEffectiveLogoUrl(corporation.getEffectiveLogoUrl());
             
             model.addAttribute("corporation", updateDto);
             model.addAttribute("corporationId", id);
