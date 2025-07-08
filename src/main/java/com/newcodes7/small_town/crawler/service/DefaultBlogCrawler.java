@@ -206,15 +206,8 @@ public class DefaultBlogCrawler implements BlogCrawler {
             Element imgElement = null;
 
             if (corporation.getBlogLink().contains("toss.tech")) {
-                // Toss 기술블로그의 경우 두 번째 img 태그 선택
-                Elements imgElements = element.select("img");
-                if (imgElements.size() >= 2) {
-                    imgElement = imgElements.get(1); // 두 번째 img 태그 (인덱스 1)
-                } else if (imgElements.size() == 1) {
-                    imgElement = imgElements.get(0); // 하나만 있다면 첫 번째 사용
-                }
+                imgElement = element.selectFirst("img[alt*='thumbnail']");
             } else {
-                // 다른 기업 블로그의 경우 첫 번째 img 태그 선택
                 imgElement = element.selectFirst("img");
             }
 
