@@ -43,6 +43,20 @@
                             </div>
                             
                             <div class="col-md-6 mb-4">
+                                <label for="name" class="form-label fw-bold">국내/해외 *</label>
+                                <div class="input-group">
+                                    <span class="input-group-text" style="background: var(--secondary-green); border: 2px solid var(--border-light); color: var(--primary-green-dark);">
+                                        <i class="fas fa-building"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="isDomestic" th:field="*{isDomestic}" required 
+                                           placeholder="국내(1)/해외(0)를 입력하세요" style="border-left: none;">
+                                </div>
+                                <div th:if="${#fields.hasErrors('isDomestic')}" class="text-danger mt-2">
+                                    <small><i class="fas fa-exclamation-circle me-1"></i><span th:errors="*{isDomestic}"></span></small>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-4">
                                 <label class="form-label fw-bold">로고 이미지</label>
                                 
                                 <!-- File Upload (Primary Option) -->

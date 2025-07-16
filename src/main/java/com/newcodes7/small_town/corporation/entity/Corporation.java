@@ -25,6 +25,9 @@ public class Corporation {
     
     @Column(nullable = false, length = 100)
     private String name;
+
+    @Column(name = "is_domestic")
+    private Integer isDomestic;
     
     @Column(name = "home_link")
     private String homeLink;

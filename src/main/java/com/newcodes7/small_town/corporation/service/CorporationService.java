@@ -68,6 +68,7 @@ public class CorporationService {
         
         Corporation corporation = Corporation.builder()
                 .name(dto.getName())
+                .isDomestic(dto.getIsDomestic())
                 .homeLink(dto.getHomeLink())
                 .blogLink(dto.getBlogLink())
                 .crewLink(dto.getCrewLink())
@@ -174,6 +175,7 @@ public class CorporationService {
         
         Corporation corporation = Corporation.builder()
                 .name(dto.getName())
+                .isDomestic(dto.getIsDomestic())
                 .homeLink(dto.getHomeLink())
                 .blogLink(dto.getBlogLink())
                 .crewLink(dto.getCrewLink())
