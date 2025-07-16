@@ -128,98 +128,98 @@ public class ArticleController {
         return "home";
     }
     
-    @PostMapping("/api/articles/{articleId}/like")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> toggleLike(@PathVariable Long articleId,
-                                                         @AuthenticationPrincipal UserDetails userDetails) {
-        if (userDetails == null) {
-            return ResponseEntity.status(401).build();
-        }
+    // @PostMapping("/api/articles/{articleId}/like")
+    // @ResponseBody
+    // public ResponseEntity<Map<String, Object>> toggleLike(@PathVariable Long articleId,
+    //                                                      @AuthenticationPrincipal UserDetails userDetails) {
+    //     if (userDetails == null) {
+    //         return ResponseEntity.status(401).build();
+    //     }
         
-        boolean isLiked = userLikeService.toggleLike(articleId, userDetails.getUsername());
-        long likeCount = userLikeService.getLikeCount(articleId);
+    //     boolean isLiked = userLikeService.toggleLike(articleId, userDetails.getUsername());
+    //     long likeCount = userLikeService.getLikeCount(articleId);
         
-        Map<String, Object> response = new HashMap<>();
-        response.put("isLiked", isLiked);
-        response.put("likeCount", likeCount);
+    //     Map<String, Object> response = new HashMap<>();
+    //     response.put("isLiked", isLiked);
+    //     response.put("likeCount", likeCount);
         
-        return ResponseEntity.ok(response);
-    }
+    //     return ResponseEntity.ok(response);
+    // }
     
-    @GetMapping("/api/articles/{articleId}/like-status")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> getLikeStatus(@PathVariable Long articleId,
-                                                           @AuthenticationPrincipal UserDetails userDetails) {
-        boolean hasLiked = false;
-        if (userDetails != null) {
-            hasLiked = userLikeService.hasLiked(articleId, userDetails.getUsername());
-        }
+    // @GetMapping("/api/articles/{articleId}/like-status")
+    // @ResponseBody
+    // public ResponseEntity<Map<String, Object>> getLikeStatus(@PathVariable Long articleId,
+    //                                                        @AuthenticationPrincipal UserDetails userDetails) {
+    //     boolean hasLiked = false;
+    //     if (userDetails != null) {
+    //         hasLiked = userLikeService.hasLiked(articleId, userDetails.getUsername());
+    //     }
         
-        long likeCount = userLikeService.getLikeCount(articleId);
+    //     long likeCount = userLikeService.getLikeCount(articleId);
         
-        Map<String, Object> response = new HashMap<>();
-        response.put("hasLiked", hasLiked);
-        response.put("likeCount", likeCount);
-        response.put("authenticated", userDetails != null);
+    //     Map<String, Object> response = new HashMap<>();
+    //     response.put("hasLiked", hasLiked);
+    //     response.put("likeCount", likeCount);
+    //     response.put("authenticated", userDetails != null);
         
-        return ResponseEntity.ok(response);
-    }
+    //     return ResponseEntity.ok(response);
+    // }
     
-    @PostMapping("/api/articles/{articleId}/view")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> incrementViewCount(@PathVariable Long articleId,
-                                                                @AuthenticationPrincipal UserDetails userDetails,
-                                                                HttpServletRequest request) {
-        String ipAddress = getClientIpAddress(request);
-        boolean incremented;
+    // @PostMapping("/api/articles/{articleId}/view")
+    // @ResponseBody
+    // public ResponseEntity<Map<String, Object>> incrementViewCount(@PathVariable Long articleId,
+    //                                                             @AuthenticationPrincipal UserDetails userDetails,
+    //                                                             HttpServletRequest request) {
+    //     String ipAddress = getClientIpAddress(request);
+    //     boolean incremented;
         
-        if (userDetails != null) {
-            // 인증된 사용자
-            incremented = viewService.incrementViewCount(articleId, userDetails.getUsername(), ipAddress);
-        } else {
-            // 익명 사용자 (IP 기반)
-            incremented = viewService.incrementViewCountByIp(articleId, ipAddress);
-        }
+    //     if (userDetails != null) {
+    //         // 인증된 사용자
+    //         incremented = viewService.incrementViewCount(articleId, userDetails.getUsername(), ipAddress);
+    //     } else {
+    //         // 익명 사용자 (IP 기반)
+    //         incremented = viewService.incrementViewCountByIp(articleId, ipAddress);
+    //     }
         
-        long viewCount = viewService.getViewCount(articleId);
+    //     long viewCount = viewService.getViewCount(articleId);
         
-        Map<String, Object> response = new HashMap<>();
-        response.put("incremented", incremented);
-        response.put("viewCount", viewCount);
-        response.put("authenticated", userDetails != null);
+    //     Map<String, Object> response = new HashMap<>();
+    //     response.put("incremented", incremented);
+    //     response.put("viewCount", viewCount);
+    //     response.put("authenticated", userDetails != null);
         
-        return ResponseEntity.ok(response);
-    }
+    //     return ResponseEntity.ok(response);
+    // }
     
-    @GetMapping("/api/articles/{articleId}/view-status")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> getViewStatus(@PathVariable Long articleId,
-                                                           @AuthenticationPrincipal UserDetails userDetails,
-                                                           HttpServletRequest request) {
-        String ipAddress = getClientIpAddress(request);
-        long viewCount = viewService.getViewCount(articleId);
+    // @GetMapping("/api/articles/{articleId}/view-status")
+    // @ResponseBody
+    // public ResponseEntity<Map<String, Object>> getViewStatus(@PathVariable Long articleId,
+    //                                                        @AuthenticationPrincipal UserDetails userDetails,
+    //                                                        HttpServletRequest request) {
+    //     String ipAddress = getClientIpAddress(request);
+    //     long viewCount = viewService.getViewCount(articleId);
         
-        Map<String, Object> response = new HashMap<>();
-        response.put("viewCount", viewCount);
-        response.put("authenticated", userDetails != null);
+    //     Map<String, Object> response = new HashMap<>();
+    //     response.put("viewCount", viewCount);
+    //     response.put("authenticated", userDetails != null);
         
-        // 쿨다운 정보 추가
-        if (userDetails != null) {
-            viewService.getLastViewTime(articleId, userDetails.getUsername())
-                .ifPresent(lastViewTime -> {
-                    response.put("lastViewTime", lastViewTime);
-                    response.put("canView", lastViewTime.plusMinutes(30).isBefore(java.time.LocalDateTime.now()));
-                });
-        } else {
-            viewService.getLastViewTimeByIp(articleId, ipAddress)
-                .ifPresent(lastViewTime -> {
-                    response.put("lastViewTime", lastViewTime);
-                    response.put("canView", lastViewTime.plusMinutes(30).isBefore(java.time.LocalDateTime.now()));
-                });
-        }
+    //     // 쿨다운 정보 추가
+    //     if (userDetails != null) {
+    //         viewService.getLastViewTime(articleId, userDetails.getUsername())
+    //             .ifPresent(lastViewTime -> {
+    //                 response.put("lastViewTime", lastViewTime);
+    //                 response.put("canView", lastViewTime.plusMinutes(30).isBefore(java.time.LocalDateTime.now()));
+    //             });
+    //     } else {
+    //         viewService.getLastViewTimeByIp(articleId, ipAddress)
+    //             .ifPresent(lastViewTime -> {
+    //                 response.put("lastViewTime", lastViewTime);
+    //                 response.put("canView", lastViewTime.plusMinutes(30).isBefore(java.time.LocalDateTime.now()));
+    //             });
+    //     }
         
-        return ResponseEntity.ok(response);
-    }
+    //     return ResponseEntity.ok(response);
+    // }
     
     private String getClientIpAddress(HttpServletRequest request) {
         String xForwardedFor = request.getHeader("X-Forwarded-For");

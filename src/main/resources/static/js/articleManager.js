@@ -261,7 +261,7 @@ class ArticleManager {
         this.updateRelativeTimes();
         
         // 좋아요 상태 로드
-        this.loadLikeStatuses();
+        // this.loadLikeStatuses();
     }
 
     generateArticleHTML(article) {
@@ -309,13 +309,6 @@ class ArticleManager {
                         </div>
                         <div class="d-flex align-items-center gap-3">
                             <small class="text-muted relative-time" data-date="${article.publishedAt}" title="${article.publishedAt}">${article.publishedAt}</small>
-                            <span class="text-muted d-flex align-items-center" style="font-size: 0.85rem;">
-                                <i class="fas fa-eye me-1"></i> <span class="view-count">${article.viewCount || 0}</span>
-                            </span>
-                            <button class="like-button" data-article-id="${article.id}">
-                                <i class="fas fa-heart like-icon"></i> 
-                                <span class="like-count">${article.likeCount || 0}</span>
-                            </button>
                         </div>
                     </div>
                     
@@ -474,7 +467,7 @@ class ArticleManager {
 
     bindArticleEvents() {
         // 기존 좋아요 버튼 이벤트 바인딩
-        this.bindLikeButtons();
+        // this.bindLikeButtons();
         
         // 기존 카드 클릭 이벤트 바인딩
         this.bindCardEvents();
@@ -532,23 +525,23 @@ class ArticleManager {
                     if (titleLink) {
                         window.open(titleLink.href, '_blank');
 
-                        const response = await fetch(`/api/articles/${articleId}/view`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            credentials: 'same-origin',
-                            redirect: 'manual'
-                        });
+                        // const response = await fetch(`/api/articles/${articleId}/view`, {
+                        //     method: 'POST',
+                        //     headers: {
+                        //         'Content-Type': 'application/json',
+                        //     },
+                        //     credentials: 'same-origin',
+                        //     redirect: 'manual'
+                        // });
 
-                        if (response.ok) {
-                            const data = await response.json();
+                        // if (response.ok) {
+                        //     const data = await response.json();
 
-                            if (data.incremented) {
-                                const viewCount = this.querySelector('.view-count');
-                                viewCount.textContent = data.viewCount;
-                            }
-                        }
+                        //     if (data.incremented) {
+                        //         const viewCount = this.querySelector('.view-count');
+                        //         viewCount.textContent = data.viewCount;
+                        //     }
+                        // }
                     }
                 }
             });

@@ -1,14 +1,62 @@
-// 카드 클릭 시 외부 링크로 이동
-document.querySelectorAll('.article-card').forEach(card => {
-    card.addEventListener('click', async function(e) {
-        // 태그나 다른 링크, 좋아요 버튼, 회사 링크, 삭제 버튼을 클릭한 경우가 아니라면
-        if (e.target.tagName !== 'A' && !e.target.closest('a') && !e.target.closest('.badge') && !e.target.closest('.like-button') && !e.target.closest('.company-link') && !e.target.closest('.admin-delete-btn')) {
-            const titleLink = this.querySelector('h5 a');
-            const articleId = this.getAttribute('data-article-id');
-            if (titleLink) {
-                window.open(titleLink.href, '_blank');
+function bindArticleEvents() {
+    clickCard();
+    likeButton();
+    initPagination();
+}
 
-                const response = await fetch(`/api/articles/${articleId}/view`, {
+// 카드 클릭 시 외부 링크로 이동
+function clickCard() {
+    document.querySelectorAll('.article-card').forEach(card => {
+        card.addEventListener('click', async function(e) {
+            // 태그나 다른 링크, 좋아요 버튼, 회사 링크, 삭제 버튼을 클릭한 경우가 아니라면
+            if (e.target.tagName !== 'A' && !e.target.closest('a') && !e.target.closest('.badge') && !e.target.closest('.like-button') && !e.target.closest('.company-link') && !e.target.closest('.admin-delete-btn')) {
+                const titleLink = this.querySelector('h5 a');
+                const articleId = this.getAttribute('data-article-id');
+                if (titleLink) {
+                    window.open(titleLink.href, '_blank');
+
+                    const response = await fetch(`/api/articles/${articleId}/view`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'same-origin',
+                        redirect: 'manual'
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+
+                        if (data.incremented) {
+                            const viewCount = this.querySelector('.view-count');
+                            viewCount.textContent = data.viewCount;
+                        }
+                    }
+                }
+            }
+        });
+        
+        // 카드에 커서 스타일 추가
+        card.style.cursor = 'pointer';
+    });
+};
+
+// 좋아요 버튼 클릭 이벤트
+function likeButton() {
+    document.querySelectorAll('.like-button').forEach(btn => {
+        console.log('좋아요 버튼 이벤트 리스너 추가:', btn);
+        btn.addEventListener('click', async function(e) {
+            console.log('좋아요 버튼 클릭됨');
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const articleId = this.getAttribute('data-article-id');
+            const likeIcon = this.querySelector('.like-icon');
+            const likeCount = this.querySelector('.like-count');
+            console.log('articleId:', articleId);
+            
+            try {
+                const response = await fetch(`/api/articles/${articleId}/like`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -16,22 +64,108 @@ document.querySelectorAll('.article-card').forEach(card => {
                     credentials: 'same-origin',
                     redirect: 'manual'
                 });
-
+                
+                if (response.status === 401 || response.status === 0) {
+                    // 인증되지 않은 사용자 (401) 또는 수동 리다이렉트로 인한 opaque response (0)
+                    console.log('401 응답 받음, 로그인 모달 표시');
+                    showLoginPopup();
+                    return;
+                }
+                
                 if (response.ok) {
                     const data = await response.json();
-
-                    if (data.incremented) {
-                        const viewCount = this.querySelector('.view-count');
-                        viewCount.textContent = data.viewCount;
+                    
+                    // 좋아요 수 업데이트
+                    likeCount.textContent = data.likeCount;
+                    
+                    // 좋아요 상태에 따른 스타일 변경
+                    if (data.isLiked) {
+                        this.classList.add('liked');
+                    } else {
+                        this.classList.remove('liked');
                     }
                 }
+            } catch (error) {
+                console.error('좋아요 처리 중 오류 발생:', error);
             }
+        });
+    });
+}
+
+// 페이지 로드 후 상대 시간 적용 및 좋아요 상태 로드
+async function initPagination() {
+    // 사용자 정보 로드
+    await loadUserInfo();
+    document.querySelectorAll('.relative-time').forEach(element => {
+        const dateString = element.getAttribute('data-date');
+        if (dateString) {
+            // 상대 시간 표시
+            element.textContent = getRelativeTime(dateString);
+            // 툴팁에 포맷된 날짜 표시
+            element.title = formatDate(dateString);
         }
     });
     
-    // 카드에 커서 스타일 추가
-    card.style.cursor = 'pointer';
-});
+    // 좋아요 상태 로드
+    loadLikeStatuses();
+    
+    // 떠다니는 로고 위치 설정
+    positionFloatingLogos();
+    
+    // 기본 썸네일 설정
+    setupDefaultThumbnails();
+    
+    // 관리자 삭제 버튼 표시
+    showAdminDeleteButtons();
+    
+    // 모달 로그인 처리
+    const loginForm = document.getElementById('loginForm');
+    if (loginForm) {
+        loginForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('modalEmail').value;
+            const password = document.getElementById('modalPassword').value;
+            const messageDiv = document.getElementById('loginMessage');
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ email, password })
+                });
+                
+                if (response.ok) {
+                    messageDiv.textContent = '로그인 성공! 페이지를 새로고침합니다.';
+                    messageDiv.className = 'alert alert-success';
+                    messageDiv.classList.remove('d-none');
+                    
+                    // 로그인 성공 후 페이지 새로고침하여 인증 상태 반영
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    const data = await response.json();
+                    messageDiv.textContent = data.message || '로그인에 실패했습니다.';
+                    messageDiv.className = 'alert alert-danger';
+                    messageDiv.classList.remove('d-none');
+                }
+            } catch (error) {
+                messageDiv.textContent = '로그인 중 오류가 발생했습니다.';
+                messageDiv.className = 'alert alert-danger';
+                messageDiv.classList.remove('d-none');
+            }
+        });
+    }
+    
+    // 윈도우 리사이즈 시 위치 재조정
+    window.addEventListener('resize', function() {
+        setTimeout(positionFloatingLogos, 100);
+    });
+}
 
 // 로그인 모달 표시 함수
 function showLoginPopup() {
@@ -74,55 +208,6 @@ function showLoginPopup() {
         console.error('loginModal 엘리먼트를 찾을 수 없습니다');
     }
 }
-
-// 좋아요 버튼 클릭 이벤트
-document.querySelectorAll('.like-button').forEach(btn => {
-    console.log('좋아요 버튼 이벤트 리스너 추가:', btn);
-    btn.addEventListener('click', async function(e) {
-        console.log('좋아요 버튼 클릭됨');
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const articleId = this.getAttribute('data-article-id');
-        const likeIcon = this.querySelector('.like-icon');
-        const likeCount = this.querySelector('.like-count');
-        console.log('articleId:', articleId);
-        
-        try {
-            const response = await fetch(`/api/articles/${articleId}/like`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'same-origin',
-                redirect: 'manual'
-            });
-            
-            if (response.status === 401 || response.status === 0) {
-                // 인증되지 않은 사용자 (401) 또는 수동 리다이렉트로 인한 opaque response (0)
-                console.log('401 응답 받음, 로그인 모달 표시');
-                showLoginPopup();
-                return;
-            }
-            
-            if (response.ok) {
-                const data = await response.json();
-                
-                // 좋아요 수 업데이트
-                likeCount.textContent = data.likeCount;
-                
-                // 좋아요 상태에 따른 스타일 변경
-                if (data.isLiked) {
-                    this.classList.add('liked');
-                } else {
-                    this.classList.remove('liked');
-                }
-            }
-        } catch (error) {
-            console.error('좋아요 처리 중 오류 발생:', error);
-        }
-    });
-});
 
 // 페이지 로드 시 좋아요 상태 확인
 async function loadLikeStatuses() {
@@ -270,77 +355,6 @@ function showAdminDeleteButtons() {
     }
 }
 
-// 페이지 로드 후 상대 시간 적용 및 좋아요 상태 로드
-document.addEventListener('DOMContentLoaded', async function() {
-    // 사용자 정보 로드
-    await loadUserInfo();
-    document.querySelectorAll('.relative-time').forEach(element => {
-        const dateString = element.getAttribute('data-date');
-        if (dateString) {
-            // 상대 시간 표시
-            element.textContent = getRelativeTime(dateString);
-            // 툴팁에 포맷된 날짜 표시
-            element.title = formatDate(dateString);
-        }
-    });
-    
-    // 좋아요 상태 로드
-    loadLikeStatuses();
-    
-    // 떠다니는 로고 위치 설정
-    positionFloatingLogos();
-    
-    // 기본 썸네일 설정
-    setupDefaultThumbnails();
-    
-    // 관리자 삭제 버튼 표시
-    showAdminDeleteButtons();
-    
-    // 모달 로그인 처리
-    const loginForm = document.getElementById('loginForm');
-    if (loginForm) {
-        loginForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const email = document.getElementById('modalEmail').value;
-            const password = document.getElementById('modalPassword').value;
-            const messageDiv = document.getElementById('loginMessage');
-            
-            try {
-                const response = await fetch('/api/auth/login', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    credentials: 'same-origin',
-                    body: JSON.stringify({ email, password })
-                });
-                
-                if (response.ok) {
-                    messageDiv.textContent = '로그인 성공! 페이지를 새로고침합니다.';
-                    messageDiv.className = 'alert alert-success';
-                    messageDiv.classList.remove('d-none');
-                    
-                    // 로그인 성공 후 페이지 새로고침하여 인증 상태 반영
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1000);
-                } else {
-                    const data = await response.json();
-                    messageDiv.textContent = data.message || '로그인에 실패했습니다.';
-                    messageDiv.className = 'alert alert-danger';
-                    messageDiv.classList.remove('d-none');
-                }
-            } catch (error) {
-                messageDiv.textContent = '로그인 중 오류가 발생했습니다.';
-                messageDiv.className = 'alert alert-danger';
-                messageDiv.classList.remove('d-none');
-            }
-        });
-    }
-    
-    // 윈도우 리사이즈 시 위치 재조정
-    window.addEventListener('resize', function() {
-        setTimeout(positionFloatingLogos, 100);
-    });
+document.addEventListener('DOMContentLoaded', function() {
+    bindArticleEvents();
 });
