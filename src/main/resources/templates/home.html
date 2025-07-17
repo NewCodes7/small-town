@@ -17,19 +17,19 @@
                     <div class="hero-content">
                         <h1 class="hero-title">
                             <i class="fas fa-seedling me-3" style="color: var(--primary-green);"></i>
-                            기술 블로그 플랫폼
+                            Small Town - 기술 블로그 플랫폼
                         </h1>
-                        <p class="hero-subtitle">최신 기술 트렌드와 개발 인사이트를 한 곳에서 만나보세요!</p>
+                        <p class="hero-subtitle">모든 기술블로그를 한 곳에서 만나보세요!</p>
                         
                         <!-- Stats Cards -->
-                        <div class="row g-4 justify-content-center">
+                        <!-- <div class="row g-4 justify-content-center">
                             <div class="col-md-3 col-sm-4 col-6">
                                 <div class="stats-card">
                                     <span class="stats-number" th:text="${totalElements}">0</span>
                                     <div class="stats-label">총 글 수</div>
                                 </div>
                             </div>
-                        </div>
+                        </div> -->
                     </div>
                     
                     <!-- Floating Company Logos -->
@@ -100,12 +100,11 @@
             </div>
             
             <!-- Bottom Controls -->
-            <div class="banner-controls">
+            <!-- <div class="banner-controls">
                 <button class="banner-nav banner-nav-prev" onclick="previousSlide()">
                     <i class="fas fa-chevron-left"></i>
                 </button>
                 
-                <!-- Slide Indicators -->
                 <div class="banner-indicators">
                     <button class="indicator active" onclick="goToSlide(0)"></button>
                     <button class="indicator" th:each="article, iterStat : ${popularArticles}" th:onclick="'goToSlide(' + ${iterStat.index + 1} + ')'"></button>
@@ -114,7 +113,7 @@
                 <button class="banner-nav banner-nav-next" onclick="nextSlide()">
                     <i class="fas fa-chevron-right"></i>
                 </button>
-            </div>
+            </div> -->
         </div>
         
         <!-- Search and Filter Section -->
@@ -387,6 +386,7 @@
     <div layout:fragment="scripts">
         <script th:src="@{/js/articleManager.js}"></script>
         <script th:src="@{/js/home.js}"></script>
+        <script th:src="@{/js/banner.js}"></script>
     </div>
 </body>
 </html>
