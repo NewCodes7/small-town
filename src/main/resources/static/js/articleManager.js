@@ -138,6 +138,7 @@ class ArticleManager {
                 const page = parseInt(e.target.dataset.page);
                 if (!isNaN(page)) {
                     this.currentPage = page;
+                    smoothScrollToElement('searchForm', -70);
                     this.loadArticles();
                 }
             }
@@ -634,4 +635,16 @@ async function deleteArticle(articleId) {
         console.error('삭제 요청 중 오류:', error);
         alert('삭제 요청 중 오류가 발생했습니다.');
     }
+}
+
+function smoothScrollToElement(id, offset = 0) {
+  const element = document.getElementById(id);
+  if (!element) return;
+
+  const y = element.getBoundingClientRect().top + window.pageYOffset + offset;
+
+  window.scrollTo({
+    top: y,
+    behavior: 'smooth'
+  });
 }
