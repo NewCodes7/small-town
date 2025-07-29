@@ -18,6 +18,15 @@ public class CorporationCreateDto {
     private String blogLink;
     private String crewLink;
     private String logoUrl;
+
+    // 블로그 글 파싱을 위해 필요한 속성 
+    private String baseUrl;
+    private String article; 
+    private String title;
+    private String link;
+    private String thumbnail;
+    private String publish;
+    private String publishFormat;
     
     private List<Integer> industryIds;
 }

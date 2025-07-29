@@ -9,6 +9,8 @@ import com.newcodes7.small_town.corporation.entity.Industry;
 import com.newcodes7.small_town.corporation.exception.*;
 import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.corporation.repository.IndustryRepository;
+import com.newcodes7.small_town.crawler.entity.ParsingSelector;
+import com.newcodes7.small_town.crawler.repository.ParsingSelectorRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +32,7 @@ public class CorporationService {
     private final CorporationRepository corporationRepository;
     private final IndustryRepository industryRepository;
     private final FileUploadService fileUploadService;
+    private final ParsingSelectorRepository parsingSelectorRepository;
     
     public Page<CorporationResponseDto> getAllCorporations(Pageable pageable) {
         return corporationRepository.findAllActive(pageable)
@@ -76,6 +79,19 @@ public class CorporationService {
                 .build();
         
         Corporation savedCorporation = corporationRepository.save(corporation);
+
+        ParsingSelector parsingSelector = ParsingSelector.builder()
+                .corporationId(corporation.getId())
+                .baseUrl(dto.getBaseUrl())
+                .article(dto.getArticle())
+                .title(dto.getTitle())
+                .link(dto.getLink())
+                .thumbnail(dto.getThumbnail())
+                .publish(dto.getPublish())
+                .publishFormat(dto.getPublishFormat())
+                .build();
+
+        parsingSelectorRepository.save(parsingSelector);
         
         // 업종 관계 설정
         if (dto.getIndustryIds() != null && !dto.getIndustryIds().isEmpty()) {
@@ -183,7 +199,20 @@ public class CorporationService {
                 .build();
         
         Corporation savedCorporation = corporationRepository.save(corporation);
-        
+
+        ParsingSelector parsingSelector = ParsingSelector.builder()
+                .corporationId(corporation.getId())
+                .baseUrl(dto.getBaseUrl())
+                .article(dto.getArticle())
+                .title(dto.getTitle())
+                .link(dto.getLink())
+                .thumbnail(dto.getThumbnail())
+                .publish(dto.getPublish())
+                .publishFormat(dto.getPublishFormat())
+                .build();
+
+        parsingSelectorRepository.save(parsingSelector);
+
         // 로고 파일 업로드 처리
         if (logoFile != null && !logoFile.isEmpty()) {
             try {
