@@ -202,6 +202,10 @@ public class DefaultBlogCrawler implements BlogCrawler {
             // 썸네일 이미지 URL 찾기 (업로드는 processImageUpload에서 수행)
             String thumbnailImage = "";
             Element imgElement = element.selectFirst(parsingSelector.getThumbnail());
+            // 토스 블로그는 Next.js로 이루어져 있어 noscript에 있는 img를 가져와야 함 
+            if (parsingSelector.getBaseUrl().contains("toss")) {
+                imgElement = element.select("img[alt*='thumbnail']").get(1);
+            }
             if (imgElement != null) {
                 String imgSrc = imgElement.attr("src");
                 
@@ -213,9 +217,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
                 // 원본 이미지 URL 저장 (S3 업로드는 나중에 수행)
                 thumbnailImage = imgSrc;
             }
-            // if (corporation.getBlogLink().contains("toss.tech")) {
-            //     imgElement = element.selectFirst("img[alt*='thumbnail']");
-            // }
+
 
             // 발행일 찾기 (네이버 d2 기준)
             Element publishElement = element.selectFirst(parsingSelector.getPublish());;
