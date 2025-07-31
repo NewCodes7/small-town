@@ -26,7 +26,7 @@
     <nav class="navbar navbar-expand-lg navbar-light">
         <div class="container">
             <a class="navbar-brand" th:href="@{/}">
-                <i class="fas fa-seedling"></i> Small Town
+                <i class="fas fa-seedling"></i> NewCodes
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -44,7 +44,7 @@
                         </a>
                     </li> -->
                     <li class="nav-item">
-                        <a class="nav-link" th:href="@{/about}" title="Small Town 소개">
+                        <a class="nav-link" th:href="@{/about}" title="NewCodes 소개">
                             <i class="fas fa-info-circle me-1"></i>소개
                         </a>
                     </li>
@@ -55,7 +55,7 @@
                     </li>
                     
                     <!-- 인증되지 않은 사용자 -->
-                    <li class="nav-item" id="unauthenticatedLoginMenu" style="display: none;">
+                    <!-- <li class="nav-item" id="unauthenticatedLoginMenu" style="display: none;">
                         <a class="nav-link" th:href="@{/auth/login}">
                             <i class="fas fa-sign-in-alt me-1"></i>로그인
                         </a>
@@ -64,10 +64,10 @@
                         <a class="nav-link" th:href="@{/auth/signup}">
                             <i class="fas fa-user-plus me-1"></i>회원가입
                         </a>
-                    </li>
+                    </li> -->
                     
                     <!-- 인증된 사용자 -->
-                    <li class="nav-item dropdown" id="authenticatedMenu" style="display: none;">
+                    <!-- <li class="nav-item dropdown" id="authenticatedMenu" style="display: none;">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-user me-1"></i><span id="userNickname">사용자</span>
                         </a>
@@ -80,7 +80,7 @@
                                 <i class="fas fa-sign-out-alt me-2"></i>로그아웃
                             </a></li>
                         </ul>
-                    </li>
+                    </li> -->
                 </ul>
             </div>
         </div>
@@ -97,7 +97,7 @@
             <div class="row align-items-center">
                 <div class="col-md-6 text-md-start">
                     <h5 class="mb-2" style="color: var(--primary-green); font-weight: 700;">
-                        <i class="fas fa-seedling me-2"></i>Small Town
+                        <i class="fas fa-seedling me-2"></i>NewCodes
                     </h5>
                     <p class="text-muted mb-0">모든 기술 블로그를 한 곳에서 만나보세요</p>
                 </div>
@@ -126,7 +126,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body pt-0">
-                    <p class="text-muted mb-4">Small Town을 더 좋은 서비스로 만들기 위해 여러분의 소중한 의견을 기다립니다.</p>
+                    <p class="text-muted mb-4">NewCodes을 더 좋은 서비스로 만들기 위해 여러분의 소중한 의견을 기다립니다.</p>
                     
                     <form id="globalFeedbackForm">
                         <div class="row g-3">
