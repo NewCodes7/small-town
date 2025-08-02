@@ -82,7 +82,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Links -->
                     <div class="mb-5">
                         <h4 class="mb-4" style="color: var(--primary-green); font-weight: 700;">
@@ -120,6 +120,92 @@
                                     </span>
                                     <input type="url" class="form-control" id="crewLink" th:field="*{crewLink}" 
                                            placeholder="채용 페이지 URL" style="border-left: none;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ParsingSelector -->
+                    <div class="mb-5">
+                        <h4 class="mb-4" style="color: var(--primary-green); font-weight: 700;">
+                            <i class="fas fa-link me-2"></i>파싱 정보
+                        </h4>
+                        
+                        <div class="row">
+                            <div class="col-md-4 mb-4">
+                                <label for="baseUrl" class="form-label fw-bold">baseUrl</label>
+                                <div class="input-group">
+                                    <span class="input-group-text" style="background: var(--secondary-green); border: 2px solid var(--border-light); color: var(--primary-green-dark);">
+                                        <i class="fas fa-home"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="baseUrl" th:field="*{baseUrl}" 
+                                           placeholder="baseUrl" style="border-left: none;">
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4 mb-4">
+                                <label for="article" class="form-label fw-bold">article</label>
+                                <div class="input-group">
+                                    <span class="input-group-text" style="background: var(--secondary-green); border: 2px solid var(--border-light); color: var(--primary-green-dark);">
+                                        <i class="fas fa-blog"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="article" th:field="*{article}" 
+                                           placeholder="article" style="border-left: none;">
+                                </div>
+                            </div>
+
+                            <div class="col-md-4 mb-4">
+                                <label for="title" class="form-label fw-bold">title</label>
+                                <div class="input-group">
+                                    <span class="input-group-text" style="background: var(--secondary-green); border: 2px solid var(--border-light); color: var(--primary-green-dark);">
+                                        <i class="fas fa-blog"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="title" th:field="*{title}" 
+                                           placeholder="title" style="border-left: none;">
+                                </div>
+                            </div>
+
+                            <div class="col-md-4 mb-4">
+                                <label for="link" class="form-label fw-bold">link</label>
+                                <div class="input-group">
+                                    <span class="input-group-text" style="background: var(--secondary-green); border: 2px solid var(--border-light); color: var(--primary-green-dark);">
+                                        <i class="fas fa-blog"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="link" th:field="*{link}" 
+                                           placeholder="link" style="border-left: none;">
+                                </div>
+                            </div>
+
+                            <div class="col-md-4 mb-4">
+                                <label for="thumbnail" class="form-label fw-bold">thumbnail</label>
+                                <div class="input-group">
+                                    <span class="input-group-text" style="background: var(--secondary-green); border: 2px solid var(--border-light); color: var(--primary-green-dark);">
+                                        <i class="fas fa-blog"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="thumbnail" th:field="*{thumbnail}" 
+                                           placeholder="thumbnail" style="border-left: none;">
+                                </div>
+                            </div>
+
+                            <div class="col-md-4 mb-4">
+                                <label for="publish" class="form-label fw-bold">publish</label>
+                                <div class="input-group">
+                                    <span class="input-group-text" style="background: var(--secondary-green); border: 2px solid var(--border-light); color: var(--primary-green-dark);">
+                                        <i class="fas fa-blog"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="publish" th:field="*{publish}" 
+                                           placeholder="publish" style="border-left: none;">
+                                </div>
+                            </div>
+
+                            <div class="col-md-4 mb-4">
+                                <label for="publishFormat" class="form-label fw-bold">publishFormat</label>
+                                <div class="input-group">
+                                    <span class="input-group-text" style="background: var(--secondary-green); border: 2px solid var(--border-light); color: var(--primary-green-dark);">
+                                        <i class="fas fa-blog"></i>
+                                    </span>
+                                    <input class="form-control" id="publishFormat" th:field="*{publishFormat}" 
+                                           placeholder="publishFormat" style="border-left: none;">
                                 </div>
                             </div>
                         </div>
