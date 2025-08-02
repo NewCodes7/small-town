@@ -53,7 +53,8 @@ public class CorporationService {
         }
         Corporation corporation = corporationRepository.findActiveById(id)
                 .orElseThrow(() -> new CorporationNotFoundException(id));
-        return CorporationResponseDto.from(corporation);
+        ParsingSelector parsingSelector = parsingSelectorRepository.findByCorporationIdOrDefault(corporation.getId());
+        return CorporationResponseDto.from(corporation, parsingSelector);
     }
     
     @Transactional
@@ -155,8 +156,18 @@ public class CorporationService {
                 corporation.getCorporationIndustries().add(corporationIndustry);
             }
         }
+
+        ParsingSelector parsingSelector = parsingSelectorRepository.findByCorporationIdOrDefault(corporation.getId());
+        parsingSelector.setBaseUrl(dto.getBaseUrl());
+        parsingSelector.setArticle(dto.getArticle());
+        parsingSelector.setTitle(dto.getTitle());
+        parsingSelector.setLink(dto.getLink());
+        parsingSelector.setThumbnail(dto.getThumbnail());
+        parsingSelector.setPublish(dto.getPublish());
+        parsingSelector.setPublishFormat(dto.getPublishFormat());
+        parsingSelectorRepository.save(parsingSelector);
         
-        return CorporationResponseDto.from(corporation);
+        return CorporationResponseDto.from(corporation, parsingSelector);
     }
     
     @Transactional
@@ -167,6 +178,8 @@ public class CorporationService {
         Corporation corporation = corporationRepository.findActiveById(id)
                 .orElseThrow(() -> new CorporationNotFoundException(id));
         corporation.softDelete();
+
+        parsingSelectorRepository.deleteByCorporationId(id);
     }
     
     public long getTotalCorporationCount() {
@@ -327,7 +340,17 @@ public class CorporationService {
                 }
             }
         }
+
+        ParsingSelector parsingSelector = parsingSelectorRepository.findByCorporationIdOrDefault(corporation.getId());
+        parsingSelector.setBaseUrl(dto.getBaseUrl());
+        parsingSelector.setArticle(dto.getArticle());
+        parsingSelector.setTitle(dto.getTitle());
+        parsingSelector.setLink(dto.getLink());
+        parsingSelector.setThumbnail(dto.getThumbnail());
+        parsingSelector.setPublish(dto.getPublish());
+        parsingSelector.setPublishFormat(dto.getPublishFormat());
+        parsingSelectorRepository.save(parsingSelector);
         
-        return CorporationResponseDto.from(corporation);
+        return CorporationResponseDto.from(corporation, parsingSelector);
     }
 }

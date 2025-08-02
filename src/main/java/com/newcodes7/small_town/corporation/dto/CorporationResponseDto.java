@@ -1,6 +1,8 @@
 package com.newcodes7.small_town.corporation.dto;
 
 import com.newcodes7.small_town.corporation.entity.Corporation;
+import com.newcodes7.small_town.crawler.entity.ParsingSelector;
+
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -19,6 +21,13 @@ public class CorporationResponseDto {
     private String logoS3Url;
     private Boolean isDomestic;
     private Long articleCount;
+    private String baseUrl;
+    private String article; 
+    private String title;
+    private String link;
+    private String thumbnail;
+    private String publish;
+    private String publishFormat;
     private List<String> industries;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -43,6 +52,35 @@ public class CorporationResponseDto {
         return logoUrl; // 기존 URL 방식 fallback
     }
     
+    public static CorporationResponseDto from(Corporation corporation, ParsingSelector parsingSelector) {
+        CorporationResponseDto dto = new CorporationResponseDto();
+        dto.setId(corporation.getId());
+        dto.setName(corporation.getName());
+        dto.setHomeLink(corporation.getHomeLink());
+        dto.setBlogLink(corporation.getBlogLink());
+        dto.setCrewLink(corporation.getCrewLink());
+        dto.setLogoUrl(corporation.getLogoUrl());
+        dto.setLogoFilename(corporation.getLogoFilename());
+        dto.setLogoS3Url(corporation.getLogoS3Url());
+        dto.setIsDomestic(corporation.getIsDomestic() == 1 ? true : false);
+        dto.setBaseUrl(parsingSelector.getBaseUrl());
+        dto.setArticle(parsingSelector.getArticle());
+        dto.setTitle(parsingSelector.getTitle());
+        dto.setLink(parsingSelector.getLink());
+        dto.setThumbnail(parsingSelector.getThumbnail());
+        dto.setPublish(parsingSelector.getPublish());
+        dto.setPublishFormat(parsingSelector.getPublishFormat());
+        dto.setArticleCount(0L); // Default article count
+        dto.setCreatedAt(corporation.getCreatedAt());
+        dto.setUpdatedAt(corporation.getUpdatedAt());
+        dto.setIndustries(
+            corporation.getCorporationIndustries().stream()
+                .map(ci -> ci.getIndustry().getName())
+                .collect(Collectors.toList())
+        );
+        return dto;
+    }
+
     public static CorporationResponseDto from(Corporation corporation) {
         CorporationResponseDto dto = new CorporationResponseDto();
         dto.setId(corporation.getId());
@@ -53,8 +91,7 @@ public class CorporationResponseDto {
         dto.setLogoUrl(corporation.getLogoUrl());
         dto.setLogoFilename(corporation.getLogoFilename());
         dto.setLogoS3Url(corporation.getLogoS3Url());
-        // Default to domestic if not specified (corporation module doesn't have isDomestic field)
-        dto.setIsDomestic(true);
+        dto.setIsDomestic(corporation.getIsDomestic() == 1 ? true : false);
         dto.setArticleCount(0L); // Default article count
         dto.setCreatedAt(corporation.getCreatedAt());
         dto.setUpdatedAt(corporation.getUpdatedAt());

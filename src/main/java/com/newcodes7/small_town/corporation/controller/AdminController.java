@@ -104,6 +104,13 @@ public class AdminController {
             updateDto.setBlogLink(corporation.getBlogLink());
             updateDto.setCrewLink(corporation.getCrewLink());
             updateDto.setLogoUrl(corporation.getLogoUrl());
+            updateDto.setBaseUrl(corporation.getBaseUrl());
+            updateDto.setArticle(corporation.getArticle());
+            updateDto.setTitle(corporation.getTitle());
+            updateDto.setLink(corporation.getLink());
+            updateDto.setThumbnail(corporation.getThumbnail());
+            updateDto.setPublish(corporation.getPublish());
+            updateDto.setPublishFormat(corporation.getPublishFormat());
             updateDto.setEffectiveLogoUrl(corporation.getEffectiveLogoUrl());
             
             model.addAttribute("corporation", updateDto);

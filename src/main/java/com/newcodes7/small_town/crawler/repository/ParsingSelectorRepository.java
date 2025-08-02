@@ -17,4 +17,7 @@ public interface ParsingSelectorRepository extends JpaRepository<ParsingSelector
         return findOptionalByCorporationId(id)
             .orElseGet(() -> ParsingSelector.defaultSelector(id));
     }
+
+    @Query("DELETE FROM ParsingSelector p WHERE p.corporationId = :corporationId")
+    void deleteByCorporationId(Long corporationId);
 }
