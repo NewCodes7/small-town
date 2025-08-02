@@ -16,7 +16,7 @@
                 <div class="banner-slide active">
                     <div class="hero-content">
                         <h1 class="hero-title">
-                            <i class="fas fa-seedling me-3" style="color: var(--primary-green);"></i>
+                            <i class="fas me-3" style="color: var(--primary-green);"></i>
                             NewCodes
                         </h1>
                         <p class="hero-subtitle">모든 기술블로그를 한 곳에서 만나보세요!</p>
@@ -57,7 +57,13 @@
                                      class="thumbnail-image">
                                 <div th:unless="${article.thumbnailImage != null and !article.thumbnailImage.isEmpty()}" 
                                      class="default-thumbnail">
-                                    <i class="fas fa-file-alt"></i>
+                                     <div class="article-thumbnail default-thumbnail">
+                                        <div class="default-thumbnail-content">
+                                            <i class="fas fa-code"></i>
+                                            <span class="thumbnail-text">NewCodes</span>
+                                            <div class="thumbnail-pattern"></div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             
@@ -246,15 +252,15 @@
                     
                     <!-- Thumbnail Container (Right Side) -->
                     <div class="article-thumbnail-container">
-                        <img th:if="${article.thumbnailImage != null}" 
+                        <img th:if="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}" 
                             th:src="${article.thumbnailImage}" 
                             th:alt="${article.title}"
                             class="article-thumbnail">
-                        <div th:unless="${article.thumbnailImage != null}" 
+                        <div th:unless="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}" 
                             class="article-thumbnail default-thumbnail">
                             <div class="default-thumbnail-content">
                                 <i class="fas fa-code"></i>
-                                <span class="thumbnail-text">TECH</span>
+                                <span class="thumbnail-text">NewCodes</span>
                                 <div class="thumbnail-pattern"></div>
                             </div>
                         </div>
@@ -272,7 +278,7 @@
             <div th:if="${articles.content.isEmpty()}" class="text-center py-5">
                 <div class="hero-section">
                     <i class="fas fa-search fa-4x mb-4" style="color: var(--primary-green); opacity: 0.5;" th:if="${keyword != null && !keyword.isEmpty()}"></i>
-                    <i class="fas fa-seedling fa-4x mb-4" style="color: var(--primary-green); opacity: 0.5;" th:unless="${keyword != null && !keyword.isEmpty()}"></i>
+                    <i class="fas fa-4x mb-4" style="color: var(--primary-green); opacity: 0.5;" th:unless="${keyword != null && !keyword.isEmpty()}"></i>
                     
                     <h4 class="mb-3" style="color: var(--text-dark); font-weight: 700;" th:if="${keyword != null && !keyword.isEmpty()}">
                         '<span th:text="${keyword}"></span>' 검색 결과가 없어요

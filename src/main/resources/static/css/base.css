@@ -203,6 +203,7 @@ body {
     font-size: 1.75rem;
     color: var(--primary-green) !important;
     letter-spacing: -0.5px;
+    transform: skewX(-10deg);
 }
 
 .nav-link {
@@ -373,9 +374,10 @@ body {
 .hero-title {
     font-size: 2rem;
     font-weight: 800;
-    color: var(--text-dark);
+    color: #03C75A;
     margin-bottom: 12px;
     letter-spacing: -1px;
+    transform: skewX(-10deg);
 }
 
 .hero-subtitle {

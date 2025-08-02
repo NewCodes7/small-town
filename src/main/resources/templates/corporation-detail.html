@@ -447,16 +447,13 @@
         
         // 기본 썸네일 아이콘 랜덤 설정
         function setupDefaultThumbnails() {
-            const icons = ['fa-code', 'fa-laptop-code', 'fa-terminal', 'fa-database', 'fa-server', 'fa-cogs', 'fa-microchip', 'fa-rocket', 'fa-chart-line', 'fa-lightbulb'];
-            const texts = ['TECH', 'CODE', 'DATA', 'API', 'WEB', 'DEV', 'AI', 'ML', 'UI', 'UX'];
-            
             document.querySelectorAll('.default-thumbnail').forEach((thumbnail, index) => {
                 const iconElement = thumbnail.querySelector('i');
                 const textElement = thumbnail.querySelector('.thumbnail-text');
                 
                 if (iconElement && textElement) {
-                    iconElement.className = `fas ${icons[index % icons.length]}`;
-                    textElement.textContent = texts[index % texts.length];
+                    iconElement.className = "fas fa-code";
+                    textElement.textContent = "NewCodes";
                 }
             });
         }

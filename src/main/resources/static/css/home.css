@@ -128,7 +128,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: white;
+    background: #E8FFF2;
 }
 
 .thumbnail-image {
@@ -469,6 +469,7 @@
     font-size: 2.5rem;
     margin-bottom: 0.5rem;
     opacity: 0.9;
+    color: #03C75A;
 }
 
 .thumbnail-text {
@@ -476,6 +477,7 @@
     font-weight: 700;
     letter-spacing: 2px;
     opacity: 0.8;
+    color: #03C75A;
 }
 
 .thumbnail-pattern {
@@ -491,25 +493,8 @@
     z-index: 1;
 }
 
-/* 다양한 색상 테마 */
-.default-thumbnail:nth-child(odd) {
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-}
-
-.default-thumbnail:nth-child(even) {
-    background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
-}
-
-.default-thumbnail:nth-child(3n) {
-    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-}
-
-.default-thumbnail:nth-child(4n) {
-    background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
-}
-
-.default-thumbnail:nth-child(5n) {
-    background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+.default-thumbnail {
+    background: #E8FFF2;
 }
 
 /* 관리자 삭제 버튼 스타일 */

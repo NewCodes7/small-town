@@ -11,7 +11,7 @@
         <div class="intro-hero">
             <div class="intro-content">
                 <h1 class="intro-title">
-                    <i class="fas fa-seedling me-3" style="color: var(--primary-green);"></i>
+                    <i class="fas me-3" style="color: var(--primary-green);"></i>
                     NewCodes
                 </h1>
                 <p class="intro-subtitle">
@@ -31,20 +31,16 @@
         <!-- Stats Section -->
         <div class="stats-grid">
             <div class="stat-item">
-                <span class="stat-number" th:text="${totalCorporations ?: '50+'}">50+</span>
+                <span class="stat-number" th:text="${totalCorporations\}"></span>
                 <div class="stat-label">구독 중인 기업</div>
             </div>
             <div class="stat-item">
-                <span class="stat-number" th:text="${totalArticles ?: '1000+'}">1000+</span>
-                <div class="stat-label">큐레이션된 글</div>
+                <span class="stat-number" th:text="${totalArticles}"></span>
+                <div class="stat-label">현재 모인 글</div>
             </div>
             <div class="stat-item">
                 <span class="stat-number">매일</span>
                 <div class="stat-label">자동 업데이트</div>
-            </div>
-            <div class="stat-item">
-                <span class="stat-number">무료</span>
-                <div class="stat-label">서비스 이용</div>
             </div>
         </div>
 

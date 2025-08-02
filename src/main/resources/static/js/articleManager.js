@@ -271,7 +271,7 @@ class ArticleManager {
             `<div class="article-thumbnail default-thumbnail">
                 <div class="default-thumbnail-content">
                     <i class="fas fa-code"></i>
-                    <span class="thumbnail-text">TECH</span>
+                    <span class="thumbnail-text">NewCodes</span>
                     <div class="thumbnail-pattern"></div>
                 </div>
             </div>`;
