@@ -238,10 +238,17 @@ public class DefaultBlogCrawler implements BlogCrawler {
                 String datetime = publishElement.attr("datetime");
                 ZonedDateTime zonedDateTime = ZonedDateTime.parse(datetime);
                 publishedAt = zonedDateTime.toLocalDateTime();
+            } else if (parsingSelector.getPublishFormat().equals("MMM d, yyyy")) {
+                // JUL 16, 2025 파싱
+                String dateText = publishElement.text().trim();
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM d, yyyy", java.util.Locale.ENGLISH);
+                LocalDate date = LocalDate.parse(dateText, formatter);
+                publishedAt = date.atStartOfDay();
             } else {
                 String cleanDateText = extractDateOnly(publishElement.text());
                 publishedAt = parseDate(cleanDateText).atStartOfDay();
             }
+
             // if (corporation.getBlogLink().contains("toss.tech")) {
             //     // ex. <span>2025년 7월 25일<!-- --> · <!-- -->박세진</span>
             //     publishElement = element.selectFirst("span[class*='typography--small']");
