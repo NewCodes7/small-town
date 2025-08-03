@@ -40,7 +40,7 @@ public class MediumBlogCrawler implements BlogCrawler {
     
     @Override
     public boolean canHandle(String blogUrl) {
-        return blogUrl != null && blogUrl.contains("medium.com");
+        return blogUrl != null && (blogUrl.contains("medium.com") || blogUrl.contains("netflixtechblog.com"));
     }
     
     @Override
