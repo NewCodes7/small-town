@@ -1,11 +1,8 @@
 package com.newcodes7.small_town.global.exception;
 
-import com.newcodes7.small_town.article.exception.ArticleException;
-import com.newcodes7.small_town.article.exception.ErrorResponse;
-import com.newcodes7.small_town.crawler.exception.CrawlerException;
-import lombok.extern.slf4j.Slf4j;
+import java.time.LocalDateTime;
+
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -13,8 +10,12 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
+import com.newcodes7.small_town.article.exception.ArticleException;
+import com.newcodes7.small_town.article.exception.ErrorResponse;
+import com.newcodes7.small_town.crawler.exception.CrawlerException;
+
 import jakarta.servlet.http.HttpServletRequest;
-import java.time.LocalDateTime;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @ControllerAdvice
@@ -39,7 +40,7 @@ public class GlobalExceptionHandler {
     
     @ExceptionHandler(Exception.class)
     public String handleGeneralException(Exception e, Model model, HttpServletRequest request) {
-        log.error("예상치 못한 오류 발생: {} at {}", e.getMessage(), request.getRequestURI(), e);
+        log.error("예상치 못한 오류 발생: {} at {}", e.getMessage(), request.getRequestURI());
         
         if (isApiRequest(request)) {
             return handleApiException(e, request);
