@@ -5,10 +5,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -20,7 +23,8 @@ import org.springframework.stereotype.Component;
 
 import com.newcodes7.small_town.crawler.entity.Article;
 import com.newcodes7.small_town.crawler.entity.Corporation;
-import com.newcodes7.small_town.crawler.exception.*;
+import com.newcodes7.small_town.crawler.exception.CrawlerException;
+import com.newcodes7.small_town.crawler.exception.CrawlerTimeoutException;
 import com.newcodes7.small_town.service.S3ImageService;
 
 import lombok.RequiredArgsConstructor;
@@ -47,30 +51,30 @@ public class MediumBlogCrawler implements BlogCrawler {
             // Medium bot 감지 우회를 위한 추가 설정
             setupAntiDetection(driver);
             
-            driver.get(corporation.getBlogLink() + "/archive");
+            // driver.get(corporation.getBlogLink() + "/archive");
             
             // 페이지 로딩 완료 확인 및 bot 감지 체크
-            if (checkForBotDetection(driver)) {
-                log.warn("Bot 감지 페이지 발견, 우회 시도 중...");
-                handleBotDetection(driver);
-            }
+            // if (checkForBotDetection(driver)) {
+            //     log.warn("Bot 감지 페이지 발견, 우회 시도 중...");
+            //     handleBotDetection(driver);
+            // }
             
-            // 인간처럼 페이지 스크롤링
-            simulateHumanBehavior(driver);
+            // // 인간처럼 페이지 스크롤링
+            // simulateHumanBehavior(driver);
             
-            String pageSource = driver.getPageSource();
-            Document doc = Jsoup.parse(pageSource);
-            // 디버깅용
-            Files.write(Paths.get("doc.html"), doc.html().getBytes(StandardCharsets.UTF_8));
+            // String pageSource = driver.getPageSource();
+            // Document doc = Jsoup.parse(pageSource);
+            // List<Element> timebucketElements = doc.select("div[class*='timebucket']");
+            // for (Element timebucket : timebucketElements) {
+            //     String link = timebucket.selectFirst("a").attr("href");
+            //     articles.addAll(crawlHtmlWithInfiniteScroll(driver, corporation, link));
+            //     // 2초 ~ 8초 사이의 랜덤 딜레이 (더 긴 딜레이)
+            //     int delay = 2000 + random.nextInt(6000);
+            //     Thread.sleep(delay);
+            // }
 
-            List<Element> timebucketElements = doc.select("div[class*='timebucket']");
-            for (Element timebucket : timebucketElements) {
-                String link = timebucket.selectFirst("a").attr("href");
-                articles.addAll(crawlHtmlWithInfiniteScroll(driver, corporation, link));
-                // 2초 ~ 8초 사이의 랜덤 딜레이 (더 긴 딜레이)
-                int delay = 2000 + random.nextInt(6000);
-                Thread.sleep(delay);
-            }
+            articles = crawlHtmlWithInfiniteScroll(driver, corporation, corporation.getBlogLink());
+
 
             log.info("Medium HTML 크롤링 완료 - 기업: {}, 수집된 글: {}개", corporation.getName(), articles.size());
         } catch (CrawlerException e) {
@@ -90,11 +94,16 @@ public class MediumBlogCrawler implements BlogCrawler {
         try {
             driver.get(link);
             
-            // Bot 감지 체크
-            if (checkForBotDetection(driver)) {
-                log.warn("Bot 감지 페이지 발견, 우회 시도 중...");
-                handleBotDetection(driver);
-            }
+            // 페이지 파일로 저장하기
+            String pageSource2 = driver.getPageSource();
+            String filePath = "src/main/resources/medium_page.html";
+            Files.write(Paths.get(filePath), pageSource2.getBytes(StandardCharsets.UTF_8));
+            log.info("Medium 페이지 저장 완료: {}", filePath);
+            // // Bot 감지 체크
+            // while (checkForBotDetection(driver)) {
+            //     log.warn("Bot 감지 페이지 발견, 우회 시도 중...");
+            //     handleBotDetection(driver);
+            // }
             
             // 인간처럼 페이지 행동 시뮬레이션
             simulateHumanBehavior(driver);
@@ -102,10 +111,7 @@ public class MediumBlogCrawler implements BlogCrawler {
             String pageSource = driver.getPageSource();
             Document doc = Jsoup.parse(pageSource);
 
-            // 디버깅용
-            Files.write(Paths.get("doc.html"), doc.html().getBytes(StandardCharsets.UTF_8));
-
-            Elements articleElements = doc.select("div.postArticle[data-post-id]");
+            Elements articleElements = doc.select("article[data-testid='post-preview']");
 
             log.info("{} 발견된 Medium 아티클 요소 수: {}", link, articleElements.size());
             
@@ -123,7 +129,8 @@ public class MediumBlogCrawler implements BlogCrawler {
             Thread.currentThread().interrupt();
             throw CrawlerTimeoutException.pageLoadTimeout(link, 10);
         } catch (IOException e) {
-            throw new NetworkAccessException(link, e);
+            log.error("Medium 페이지 저장 실패: {}", e.getMessage());
+            throw new CrawlerException("CRAWLER_IO_ERROR", "Failed to save Medium page source for corporation: " + corporation.getName(), e) {};
         }
         
         return articles;
@@ -131,7 +138,7 @@ public class MediumBlogCrawler implements BlogCrawler {
     
     private Article parseArticleFromElement(Element element, Corporation corporation, WebDriver driver) {
         try {
-            Element titleElement = element.selectFirst("h3");
+            Element titleElement = element.selectFirst("h2");
             if (titleElement == null) {
                 log.debug("제목 요소를 찾을 수 없습니다.");
                 return null;
@@ -143,11 +150,7 @@ public class MediumBlogCrawler implements BlogCrawler {
             String link = "";
 
             // 4번째로 나온 a 태그를 선택
-            Element linkElement = element.select("a").stream()
-                .filter(a -> a.hasAttr("href"))
-                .skip(3) // 4번째 요소 선택
-                .findFirst()
-                .orElse(null);
+            Element linkElement = element.selectFirst("a");
             if (linkElement == null) {
                 log.debug("링크 요소를 찾을 수 없습니다.");
                 return null;
@@ -158,7 +161,7 @@ public class MediumBlogCrawler implements BlogCrawler {
             
             if (!link.startsWith("http")) {
                 if (link.startsWith("/")) {
-                    link = driver.getCurrentUrl() + link;
+                    link = "https://medium.com" + link;
                 } else {
                     return null;
                 }
@@ -168,7 +171,7 @@ public class MediumBlogCrawler implements BlogCrawler {
             
             String thumbnailImage = "";
             try {
-                Element imgElement = element.selectFirst("img[class*='progressiveMedia-image']");
+                Element imgElement = element.selectFirst("img[class*='mq fi']");
                 String originalUrl = imgElement.attr("src");
                 thumbnailImage = originalUrl.replaceAll("/resize:fill:\\d+:\\d+/", "/");
             } catch (Exception e) {
@@ -176,21 +179,8 @@ public class MediumBlogCrawler implements BlogCrawler {
             }
             
             // 발행일 찾기
-            Element timeElement = element.selectFirst("time");
-            LocalDateTime publishedAt = LocalDateTime.now(); // 기본값
-            
-            if (timeElement != null) {
-                try {
-                    String datetime = timeElement.attr("datetime");
-                    if (datetime != null && !datetime.isEmpty()) {
-                        ZonedDateTime zonedDateTime = ZonedDateTime.parse(datetime);
-                        publishedAt = zonedDateTime.toLocalDateTime();
-                    }
-                } catch (Exception e) {
-                    log.debug("datetime 파싱 실패: {}", e.getMessage());
-                    // datetime 파싱이 실패하면 현재 시간 사용
-                }
-            }
+            Element timeElement = element.selectFirst("span[class*='y ez']");
+            LocalDateTime publishedAt = parseDateText(timeElement.text().trim());
             
             return Article.builder()
                     .corporationId(corporation.getId())
@@ -307,6 +297,102 @@ public class MediumBlogCrawler implements BlogCrawler {
                 log.warn("썸네일 이미지 업로드 실패: {} - {}", originalImageUrl, e.getMessage());
                 // S3 업로드 실패 시 원본 URL 그대로 유지
             }
+        }
+    }
+
+    private LocalDateTime parseDateText(String text) {
+        if (text == null || text.isEmpty()) {
+            return null;
+        }
+        
+        text = text.toLowerCase().trim();
+        LocalDateTime now = LocalDateTime.now();
+        
+        // 미디엄에서 쓰이는 발행일 패턴 (e.g., "3d ago", "2h ago", "5m ago")
+        Pattern simplePattern = Pattern.compile("(\\d+)([dhm])\\s*(?:ago)?");
+        Matcher simpleMatcher = simplePattern.matcher(text);
+        if (simpleMatcher.find()) {
+            try {
+                int value = Integer.parseInt(simpleMatcher.group(1));
+                String unit = simpleMatcher.group(2);
+                
+                switch (unit) {
+                    case "d":
+                        return now.minusDays(value);
+                    case "h":
+                        return now.minusHours(value);
+                    case "m":
+                        return now.minusMinutes(value);
+                }
+            } catch (NumberFormatException e) {
+                log.debug("Simple pattern parsing failed: {}", text);
+            }
+        }
+                
+        // Absolute date patterns (e.g., Oct 15, 2023)
+        Pattern absolutePattern = Pattern.compile("(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\\s+(\\d{1,2}),?\\s+(\\d{4})");
+        Matcher absoluteMatcher = absolutePattern.matcher(text);
+        if (absoluteMatcher.find()) {
+            try {
+                String monthStr = absoluteMatcher.group(1);
+                int day = Integer.parseInt(absoluteMatcher.group(2));
+                int year = Integer.parseInt(absoluteMatcher.group(3));
+                
+                int month = getMonthNumber(monthStr);
+
+                LocalDateTime parsedDate = LocalDateTime.of(year, month, day, 0, 0);
+                ZonedDateTime koreanTime = parsedDate.atZone(ZoneId.of("UTC")).withZoneSameInstant(ZoneId.of("Asia/Seoul"));
+                LocalDateTime adjustedDate = koreanTime.toLocalDateTime();
+                
+                return adjustedDate;
+            } catch (Exception e) {
+                log.debug("Absolute date parsing failed: {}", text);
+            }
+        }
+
+        // Absolute date patterns (e.g., Oct 15, OCT 15)
+        absolutePattern = Pattern.compile(
+            "(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\\s+(\\d{1,2})", 
+            Pattern.CASE_INSENSITIVE
+        );
+        absoluteMatcher = absolutePattern.matcher(text.toLowerCase());
+        if (absoluteMatcher.find()) {
+            try {
+                String monthStr = absoluteMatcher.group(1);
+                int day = Integer.parseInt(absoluteMatcher.group(2));
+                int month = getMonthNumber(monthStr);
+                int year = LocalDateTime.now().getYear();
+                
+                if (day < 1 || day > 31) {
+                    log.debug("Invalid day: {}", day);
+                    return null;
+                }
+                
+                return LocalDateTime.of(year, month, day, 0, 0);
+            } catch (Exception e) {
+                log.debug("Absolute date parsing failed: {}", text, e);
+                return null;
+            }
+        }
+        
+        return null;
+    }
+    
+    private int getMonthNumber(String monthStr) {
+        switch (monthStr.toLowerCase()) {
+            case "jan": return 1;
+            case "feb": return 2;
+            case "mar": return 3;
+            case "apr": return 4;
+            case "may": return 5;
+            case "jun": return 6;
+            case "jul": return 7;
+            case "aug": return 8;
+            case "sep": return 9;
+            case "oct": return 10;
+            case "nov": return 11;
+            case "dec": return 12;
+            default: return 1;
         }
     }
 }
