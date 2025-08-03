@@ -221,7 +221,6 @@ public class DefaultBlogCrawler implements BlogCrawler {
 
             // 발행일 찾기 (네이버 d2 기준)
             Element publishElement = element.selectFirst(parsingSelector.getPublish());;
-            DateTimeFormatter customFormatter = DateTimeFormatter.ofPattern(parsingSelector.getPublishFormat());
             // if (corporation.getBlogLink().contains("d2.naver.com")) {
             //     publishElement = element.selectFirst("dd");
             //     customFormatter = DateTimeFormatter.ofPattern("yyyy.MM.dd");
