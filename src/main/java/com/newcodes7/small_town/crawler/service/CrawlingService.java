@@ -1,21 +1,5 @@
 package com.newcodes7.small_town.crawler.service;
 
-import com.newcodes7.small_town.crawler.config.CrawlerProperties;
-import com.newcodes7.small_town.crawler.dto.CrawlingStats;
-import com.newcodes7.small_town.crawler.entity.Article;
-import com.newcodes7.small_town.crawler.entity.Corporation;
-import com.newcodes7.small_town.crawler.repository.CrawlerArticleRepository;
-import com.newcodes7.small_town.crawler.repository.CrawlerCorporationRepository;
-import com.newcodes7.small_town.crawler.service.BlogCrawler;
-import com.newcodes7.small_town.crawler.dto.CrawlResult;
-import com.newcodes7.small_town.crawler.exception.*;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.openqa.selenium.WebDriver;
-import org.springframework.context.ApplicationContext;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +7,26 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+
+import org.openqa.selenium.WebDriver;
+import org.springframework.context.ApplicationContext;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.newcodes7.small_town.crawler.config.CrawlerProperties;
+import com.newcodes7.small_town.crawler.dto.CrawlResult;
+import com.newcodes7.small_town.crawler.dto.CrawlingStats;
+import com.newcodes7.small_town.crawler.entity.Article;
+import com.newcodes7.small_town.crawler.entity.Corporation;
+import com.newcodes7.small_town.crawler.exception.CorporationCrawlingException;
+import com.newcodes7.small_town.crawler.exception.CrawlerException;
+import com.newcodes7.small_town.crawler.exception.CrawlerNotFoundException;
+import com.newcodes7.small_town.crawler.exception.WebDriverException;
+import com.newcodes7.small_town.crawler.repository.CrawlerArticleRepository;
+import com.newcodes7.small_town.crawler.repository.CrawlerCorporationRepository;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor

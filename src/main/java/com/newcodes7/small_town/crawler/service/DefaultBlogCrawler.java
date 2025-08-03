@@ -172,34 +172,29 @@ public class DefaultBlogCrawler implements BlogCrawler {
             // 썸네일 이미지 URL 찾기 (업로드는 processImageUpload에서 수행)
             String thumbnailImage = "";
             Element imgElement = element.selectFirst(parsingSelector.getThumbnail());
+            String imgSrc = "";
             // 토스 블로그는 Next.js로 이루어져 있어 noscript에 있는 img를 가져와야 함 
             if (parsingSelector.getBaseUrl().contains("toss")) {
                 imgElement = element.select("img[alt*='thumbnail']").get(1);
             }
             if (parsingSelector.getBaseUrl().contains("nhncloud")){
-                String imgSrc = imgElement.attr("style").replaceAll("^url\\(['\"]?(.*?)['\"]?\\)$", "$1");
-
-                // 상대 경로를 절대 경로로 변환
-                if (!imgSrc.startsWith("http")) {
-                    imgSrc = resolveImageUrl(imgSrc, corporation.getBlogLink());
-                }
-                
-                // 원본 이미지 URL 저장 (S3 업로드는 나중에 수행)
-                thumbnailImage = imgSrc;
+                imgSrc = imgElement.attr("style").replaceAll("^url\\(['\"]?(.*?)['\"]?\\)$", "$1");
+            } else if (parsingSelector.getBaseUrl().contains("gangnamunni")) {
+                imgSrc = imgElement.attr("srcset");
             } else if (imgElement != null) {
-                String imgSrc = imgElement.attr("src");
-                
+                imgSrc = imgElement.attr("src");
+            }
+            if (imgElement != null) {
                 // 상대 경로를 절대 경로로 변환
                 if (!imgSrc.startsWith("http")) {
                     imgSrc = resolveImageUrl(imgSrc, corporation.getBlogLink());
                 }
-                
                 // 원본 이미지 URL 저장 (S3 업로드는 나중에 수행)
                 thumbnailImage = imgSrc;
             }
 
-            // 발행일 찾기 
-            Element publishElement = element.selectFirst(parsingSelector.getPublish());;
+            // 발행일 찾기
+            Element publishElement = element.selectFirst(parsingSelector.getPublish());
             LocalDateTime publishedAt;
             if (parsingSelector.getPublishFormat().equals("yyyy.MM.dd") 
                 || parsingSelector.getPublishFormat().equals("yyyy.M.dd")
