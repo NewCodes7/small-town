@@ -6,11 +6,15 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoField;
+import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 
 import org.jsoup.Jsoup;
@@ -104,17 +108,6 @@ public class DefaultBlogCrawler implements BlogCrawler {
 
             // 다양한 CSS 선택자로 아티클 찾기
             Elements articleElements = doc.select(parsingSelector.getArticle());
-
-            // if (corporation.getBlogLink().contains("toss.tech")) {
-            //     articleElements = doc.select("a[class*='css-1qr3mg1'], a[class*='e1sck7qg4']");
-            // } else if (corporation.getBlogLink().contains("aws")) {
-            //     articleElements = doc.select("article[class*='blog-post']");
-            // } else if (corporation.getBlogLink().contains("googleblog")) {
-            //     articleElements = doc.select("div[class*='search-result__wrapper']");
-            // } else if (corporation.getBlogLink().contains("lycorp")) {
-            //     articleElements = doc.select("a[class*='link list_item']");
-            // }
-            
             for (Element element : articleElements) {
                 try {
                     Article article = parseArticle(element, corporation);
@@ -141,22 +134,6 @@ public class DefaultBlogCrawler implements BlogCrawler {
         try {
             // 제목 찾기
             Element titleElement = element.selectFirst(parsingSelector.getTitle());
-            // if (corporation.getBlogLink().contains("kakao.com")) {
-            //     titleElement = element.selectFirst("h4");
-            // }
-            // if (corporation.getBlogLink().contains("toss.tech")) {
-            //     titleElement = element.selectFirst("span[class*='typography--h6']");
-            // }
-            // if (corporation.getBlogLink().contains("aws")) {
-            //     titleElement = element.selectFirst("span[property*='name headline']");
-            // }
-            // if (corporation.getBlogLink().contains("googleblog")) {
-            //     titleElement = element.selectFirst("h3[class*='search-result__title']");
-            // }
-            // if (corporation.getBlogLink().contains("lycorp")) {
-            //     titleElement = element.selectFirst("h2[class*='title']");
-            // }
-            
             if (titleElement == null) return null;
             String title = titleElement.text().trim();
             if (title.isEmpty()) return null;
@@ -170,9 +147,6 @@ public class DefaultBlogCrawler implements BlogCrawler {
             if (!link.startsWith("http")) {
                 if (link.startsWith("/")) {
                     String baseUrl = parsingSelector.getBaseUrl();
-                    // if (corporation.getBlogLink().contains("googleblog")) {
-                    //     baseUrl = "https://developers.googleblog.com";
-                    // }
                     if (baseUrl.endsWith("/")) {
                         baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
                     }
@@ -181,11 +155,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
                     return null;
                 }
             }
-            // 카카오 블로그일 경우 링크 수정
-            // if (corporation.getBlogLink().contains("kakao.com")) {
-            //     link = link.replace("https://tech.kakao.com/blog", "https://tech.kakao.com");
-            // }
-            
+
             // 요약 찾기 (아직 비즈니스 요구사항 상 요약은 사용하지 않음)
             String summary = "";
             Element summaryElement = element.selectFirst(
@@ -206,7 +176,17 @@ public class DefaultBlogCrawler implements BlogCrawler {
             if (parsingSelector.getBaseUrl().contains("toss")) {
                 imgElement = element.select("img[alt*='thumbnail']").get(1);
             }
-            if (imgElement != null) {
+            if (parsingSelector.getBaseUrl().contains("nhncloud")){
+                String imgSrc = imgElement.attr("style").replaceAll("^url\\(['\"]?(.*?)['\"]?\\)$", "$1");
+
+                // 상대 경로를 절대 경로로 변환
+                if (!imgSrc.startsWith("http")) {
+                    imgSrc = resolveImageUrl(imgSrc, corporation.getBlogLink());
+                }
+                
+                // 원본 이미지 URL 저장 (S3 업로드는 나중에 수행)
+                thumbnailImage = imgSrc;
+            } else if (imgElement != null) {
                 String imgSrc = imgElement.attr("src");
                 
                 // 상대 경로를 절대 경로로 변환
@@ -218,91 +198,42 @@ public class DefaultBlogCrawler implements BlogCrawler {
                 thumbnailImage = imgSrc;
             }
 
-
-            // 발행일 찾기 (네이버 d2 기준)
+            // 발행일 찾기 
             Element publishElement = element.selectFirst(parsingSelector.getPublish());;
-            // if (corporation.getBlogLink().contains("d2.naver.com")) {
-            //     publishElement = element.selectFirst("dd");
-            //     customFormatter = DateTimeFormatter.ofPattern("yyyy.MM.dd");
-            // } else if (corporation.getBlogLink().contains("kakao.com")) {
-            //     publishElement = element.selectFirst("dd[class*='txt_date']");
-            //     customFormatter = DateTimeFormatter.ofPattern("yyyy.MM.dd");
-            // } 
-
             LocalDateTime publishedAt;
             if (parsingSelector.getPublishFormat().equals("yyyy.MM.dd") 
-                || parsingSelector.getPublishFormat().equals("yyyy.M.dd")) {
+                || parsingSelector.getPublishFormat().equals("yyyy.M.dd")
+                || parsingSelector.getPublishFormat().equals("yyyy-MM-dd")) {
                 String cleanDateText = extractDateOnly(publishElement.text());
                 publishedAt = parseDate(cleanDateText).atStartOfDay();
             } else if (parsingSelector.getPublishFormat().equals("ISO8601")) {
                 String datetime = publishElement.attr("datetime");
                 ZonedDateTime zonedDateTime = ZonedDateTime.parse(datetime);
                 publishedAt = zonedDateTime.toLocalDateTime();
-            } else if (parsingSelector.getPublishFormat().equals("MMM d, yyyy")) {
-                // JUL 16, 2025 파싱
-                String dateText = publishElement.text().trim();
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM d, yyyy", java.util.Locale.ENGLISH);
+            } else if (parsingSelector.getPublishFormat().equals("MMM d, yyyy")
+                || parsingSelector.getPublishFormat().equals("MMMM d, yyyy")
+                || parsingSelector.getPublishFormat().equals("MMMM dd, yyyy")
+                || parsingSelector.getPublishFormat().equals("MMM dd, yyyy")) {
+                String dateText = publishElement.text().split("/")[0].trim();
+                dateText = dateText.replaceAll("[^a-zA-Z0-9\\s,]", "");
+                DateTimeFormatter formatter = new DateTimeFormatterBuilder()
+                                .parseCaseInsensitive() 
+                                .appendPattern("[MMMM d, yyyy][MMM d, yyyy]") // 풀네임 or 축약형 모두 지원
+                                .toFormatter(Locale.ENGLISH);
                 LocalDate date = LocalDate.parse(dateText, formatter);
+                publishedAt = date.atStartOfDay();
+            } else if (parsingSelector.getPublishFormat().equals("d MMMM")) {
+                String cleanDateText = publishElement.text(); // "3 August"
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("d MMMM", Locale.ENGLISH);
+                TemporalAccessor temporalAccessor = formatter.parse(cleanDateText);
+                LocalDate date = LocalDate.of(LocalDate.now().getYear(),
+                                            temporalAccessor.get(ChronoField.MONTH_OF_YEAR),
+                                            temporalAccessor.get(ChronoField.DAY_OF_MONTH));
                 publishedAt = date.atStartOfDay();
             } else {
                 String cleanDateText = extractDateOnly(publishElement.text());
                 publishedAt = parseDate(cleanDateText).atStartOfDay();
             }
-
-            // if (corporation.getBlogLink().contains("toss.tech")) {
-            //     // ex. <span>2025년 7월 25일<!-- --> · <!-- -->박세진</span>
-            //     publishElement = element.selectFirst("span[class*='typography--small']");
-            //     try {
-            //         String rawDateText = publishElement.text();
-            //         String cleanDateText = extractDateOnly(rawDateText);
-            //         publishedAt = parseKoreanDate(cleanDateText);
-            //     } catch (Exception e) {
-            //         log.warn("toss.tech 날짜 파싱 실패: {}", e.getMessage());
-            //         publishedAt = LocalDateTime.now();
-            //     }
-            // } else if (corporation.getBlogLink().contains("aws")) {
-            //     // ex. <time property="datePublished" datetime="2025-07-28T14:05:35+09:00">28 7월 2025</time>
-            //     Element timeElement = element.selectFirst("time");
-            //     try {
-            //         String datetime = timeElement.attr("datetime");
-            //         ZonedDateTime zonedDateTime = ZonedDateTime.parse(datetime);
-            //         publishedAt = zonedDateTime.toLocalDateTime();
-            //     } catch (Exception e) {
-            //         log.warn("aws 날짜 파싱 실패: {}", e.getMessage());
-            //         publishedAt = LocalDateTime.now();
-            //     }
-            // } else if (corporation.getBlogLink().contains("googleblog")) {
-            //     // ex. 2025년 6월 18일 / Cloud
-            //     Element timeElement = element.selectFirst("p[class*='search-result__eyebrow']");
-            //     try {
-            //         String dateText = timeElement.text().trim();
-            //         String cleanDateText = extractDateOnly(dateText);
-            //         publishedAt = parseKoreanDate(cleanDateText);
-            //     } catch (Exception e) {
-            //         log.warn("googleblog 날짜 파싱 실패: {}", e.getMessage());
-            //         publishedAt = LocalDateTime.now();
-            //     }
-            // } else if (corporation.getBlogLink().contains("lycorp")) {
-            //     // ex. <p class="update"><span class="blind">Date:</span>2025.07.18</p>
-            //     Element timeElement = element.selectFirst("p[class*='update']");
-            //     if (timeElement != null) {
-            //         String dateText = timeElement.text().trim();
-            //         try {
-            //             String cleanDateText = dateText.split(":")[1].trim();
-            //             customFormatter = DateTimeFormatter.ofPattern("yyyy.MM.dd");
-            //             publishedAt = LocalDate.parse(cleanDateText, customFormatter).atStartOfDay();
-            //         } catch (Exception e) {
-            //             log.warn("lycorp 날짜 파싱 실패: {} - {}", dateText, e.getMessage());
-            //             publishedAt = LocalDateTime.now();
-            //         }
-            //     } else {
-            //         publishedAt = LocalDateTime.now();
-            //     }
-            // } else {
-            //     publishedAt = publishElement != null ? 
-            //     parseGenericDate(publishElement.text().trim(), customFormatter) : 
-            //     LocalDateTime.now();
-            // }
 
             return Article.builder()
                     .corporationId(corporation.getId())
