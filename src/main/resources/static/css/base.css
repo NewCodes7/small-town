@@ -82,14 +82,13 @@ body {
 }
 
 .article-thumbnail-container {
-    flex: 0 0 200px;
+    flex: 0 0 300px;
     position: relative;
     overflow: hidden;
     background: linear-gradient(135deg, var(--secondary-green) 0%, #F0FFF0 100%);
     display: flex;
     align-items: center;
     justify-content: center;
-    order: 2;
 }
 
 .corporation-card {
@@ -153,7 +152,7 @@ body {
 .article-thumbnail {
     height: 130px;
     width: 100%;
-    object-fit: contain;
+    object-fit: cover;
     object-position: center;
     background: var(--primary-green);
     transition: transform 0.3s ease;
