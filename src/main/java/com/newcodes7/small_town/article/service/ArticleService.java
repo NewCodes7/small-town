@@ -4,7 +4,10 @@ import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.CorporationRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
+import com.newcodes7.small_town.article.dto.ArticleResponseDto;
 import com.newcodes7.small_town.article.dto.CorporationDetailDto;
+import com.newcodes7.small_town.article.dto.CorporationDto;
+import com.newcodes7.small_town.article.dto.GroupedArticlesDto;
 import com.newcodes7.small_town.article.entity.Article;
 import com.newcodes7.small_town.article.entity.Corporation;
 import com.newcodes7.small_town.article.exception.CorporationNotFoundException;
@@ -13,6 +16,7 @@ import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -20,7 +24,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 
 @Service
@@ -35,7 +43,91 @@ public class ArticleService {
         this.articleRepository = articleRepository;
         this.corporationRepository = corporationRepository;
     }
+
+    public Page<ArticleResponseDto> getArticlesWithFilters(String keyword, List<String> regions, 
+                                                     int page, int size, String sort, String view) {
+        List<Boolean> domesticTypes = null;
+        if (regions != null && !regions.isEmpty()) {
+            domesticTypes = new ArrayList<>();
+            if (regions.contains("domestic")) {
+                domesticTypes.add(true);
+            }
+            if (regions.contains("overseas")) {
+                domesticTypes.add(false);
+            }
+        }
+        
+        if (view.equals("list")) {
+            Pageable pageable = PageRequest.of(page, size);
+            Page<Article> articles = articleRepository.findArticlesWithFilters(keyword, domesticTypes, sort, pageable);
+            return articles.map(ArticleListResponseDto::new);
+        }
+        
+        if (view.equals("grouped")) {
+            return getArticlesGroupedByCorporationWithPaging(keyword, domesticTypes, page, size);
+        }
+
+        return Page.empty();
+    }
+
+    public Page<ArticleResponseDto> getArticlesGroupedByCorporationWithPaging(String keyword, 
+                                                                        List<Boolean> domesticTypes, 
+                                                                        int page, int size) {
+        // 1. 페이징된 기업 ID 목록 조회
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Long> corporationIdsPage = articleRepository.findCorporationIdsWithFilters(keyword, domesticTypes, pageable);
+        
+        if (corporationIdsPage.isEmpty()) {
+            return Page.empty();
+        }
+        
+        // 2-2. 또는 기존 방식에서 JOIN FETCH 추가한 경우
+        List<Article> allArticles = articleRepository.findTop3ArticlesByCorporations(
+            corporationIdsPage.getContent(), keyword, domesticTypes);
+        
+        // 3. 기업별로 그룹화 (Native Query 사용시 이미 TOP 3가 적용됨)
+        Map<Corporation, List<Article>> groupedByCorporation;
+        
+        // 기존 방식 사용시: Java에서 TOP 3 제한 적용
+        groupedByCorporation = allArticles.stream()
+                .collect(Collectors.groupingBy(Article::getCorporation,
+                    LinkedHashMap::new,
+                    Collectors.collectingAndThen(
+                        Collectors.toList(),
+                        list -> list.stream()
+                                    .sorted(Comparator.comparing(Article::getPublishedAt).reversed())
+                                    .limit(3)
+                                    .collect(Collectors.toList())
+                    )
+                ));
+        
+        // 4. 기업을 최신 글 순으로 정렬 (쿼리에서 이미 정렬되어 왔지만 확실히 하기 위해)
+        List<GroupedArticlesDto> groupedList = groupedByCorporation.entrySet().stream()
+                .sorted((entry1, entry2) -> {
+                    // 각 그룹의 첫 번째 글(최신 글)로 비교
+                    LocalDateTime latest1 = entry1.getValue().get(0).getPublishedAt();
+                    LocalDateTime latest2 = entry2.getValue().get(0).getPublishedAt();
+                    return latest2.compareTo(latest1);
+                })
+                .map(entry -> new GroupedArticlesDto(
+                        new CorporationDto(entry.getKey()),
+                        entry.getValue().stream()
+                                .map(ArticleListResponseDto::new)
+                                .collect(Collectors.toList())
+                ))
+                .collect(Collectors.toList());
+        
+        // 5. Page로 변환
+        return new PageImpl<>(
+            groupedList.stream()
+                    .map(dto -> (ArticleResponseDto) dto)
+                    .collect(Collectors.toList()),
+            pageable,
+            corporationIdsPage.getTotalElements()
+        );
+    }
     
+    // 인기글 배너용으로 쓰이고 있음
     public Page<ArticleListResponseDto> getArticleList(int page, int size, String sort) {
         if (page < 0) {
             throw new InvalidParameterException("page", page, "페이지 번호는 0 이상이어야 합니다");
@@ -55,31 +147,7 @@ public class ArticleService {
         
         return articles.map(ArticleListResponseDto::new);
     }
-    
-    public Page<ArticleListResponseDto> searchArticles(String keyword, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
-        Page<Article> articles = articleRepository.findArticlesByTitleContaining(keyword, pageable);
-        return articles.map(ArticleListResponseDto::new);
-    }
-    
-    public Page<ArticleListResponseDto> getArticlesWithFilters(String keyword, List<String> regions, int page, int size, String sort) {
-        Pageable pageable = PageRequest.of(page, size);
-        
-        List<Boolean> domesticTypes = null;
-        if (regions != null && !regions.isEmpty()) {
-            domesticTypes = new ArrayList<>();
-            if (regions.contains("domestic")) {
-                domesticTypes.add(true);
-            }
-            if (regions.contains("overseas")) {
-                domesticTypes.add(false);
-            }
-        }
-        
-        Page<Article> articles = articleRepository.findArticlesWithFilters(keyword, domesticTypes, sort, pageable);
-        return articles.map(ArticleListResponseDto::new);
-    }
-    
+
     public CorporationDetailDto getCorporationDetail(Long corporationId) {
         if (corporationId == null || corporationId <= 0) {
             throw new InvalidParameterException("corporationId", corporationId);

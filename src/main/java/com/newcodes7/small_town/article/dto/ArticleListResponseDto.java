@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Getter
-public class ArticleListResponseDto {
+public class ArticleListResponseDto implements ArticleResponseDto {
     
     private final Long id;
     private final String title;

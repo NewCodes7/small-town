@@ -22,13 +22,13 @@ async function loadUserInfo() {
     }
 }
 
-// ArticleManager 클래스
 class ArticleManager {
     constructor() {
         this.currentPage = 0;
         this.currentSort = 'latest';
         this.currentKeyword = '';
         this.currentRegions = [];
+        this.currentView = 'list'; // 'list' or 'grouped'
         this.isLoading = false;
         this.cache = new Map();
         this.debounceTimer = null;
@@ -36,17 +36,16 @@ class ArticleManager {
     }
 
     init() {
-        console.log('ArticleManager initialized');
-        this.loadStateFromURL();
+        // this.loadStateFromURL();
         this.bindEvents();
         // 초기 로드는 서버에서 렌더링된 상태이므로 생략
         this.bindArticleEvents();
-        console.log('ArticleManager initialization complete');
     }
 
     loadStateFromURL() {
         const params = new URLSearchParams(window.location.search);
-        this.currentPage = parseInt(params.get('page')) || 0;
+        this.currentPage = (parseInt(params.get('page')) - 1) || 0;
+        if (this.currentPage < 0) this.currentPage = 0;
         this.currentSort = params.get('sort') || 'latest';
         this.currentKeyword = params.get('keyword') || '';
         this.currentRegions = params.getAll('regions') || [];
@@ -63,9 +62,9 @@ class ArticleManager {
         }
 
         // 정렬 버튼 상태 업데이트
-        setTimeout(() => {
-            this.updateSortButtons();
-        }, 100);
+        // setTimeout(() => {
+        //     this.updateSortButtons();
+        // }, 100);
 
         // 지역 필터 상태 업데이트
         this.currentRegions.forEach(region => {
@@ -101,7 +100,6 @@ class ArticleManager {
         // 정렬 버튼 이벤트 (이벤트 위임 방식)
         const sortButtons = document.querySelectorAll('.sort-btn');
         console.log('Found sort buttons:', sortButtons.length);
-        
         // 직접 바인딩 시도
         sortButtons.forEach(btn => {
             console.log('Binding sort button:', btn.dataset.sort, btn);
@@ -112,7 +110,6 @@ class ArticleManager {
                 this.handleSortChange(btn.dataset.sort);
             });
         });
-        
         // 이벤트 위임으로도 처리
         document.addEventListener('click', (e) => {
             if (e.target.classList.contains('sort-btn') || e.target.closest('.sort-btn')) {
@@ -149,6 +146,45 @@ class ArticleManager {
             this.loadStateFromURL();
             this.loadArticles();
         });
+
+        this.initViewBtnToggle();
+    }
+
+    initViewBtnToggle() {
+        const groupedViewBtn = document.getElementById('groupedViewBtn');
+        const articleListContainer = document.getElementById('article-list-container');
+        const articleGroupedContainer = document.getElementById('article-grouped-container');
+
+        // latestViewBtn.addEventListener('click', () => {
+        //     this.currentView = 'list';
+
+        //     latestViewBtn.classList.add('btn-primary');
+        //     latestViewBtn.classList.remove('btn-secondary');
+        //     groupedViewBtn.classList.add('btn-secondary');
+        //     groupedViewBtn.classList.remove('btn-primary');
+
+        //     articleListContainer.classList.remove('d-none');
+        //     articleGroupedContainer.classList.add('d-none');
+
+        //     this.loadArticles();
+        // });
+
+        groupedViewBtn.addEventListener('click', () => {
+            const isGrouped = this.currentView === 'grouped';
+
+            // 상태 토글
+            this.currentView = isGrouped ? 'list' : 'grouped';
+
+            // 버튼 스타일 토글
+            groupedViewBtn.classList.toggle('btn-primary', !isGrouped);
+            groupedViewBtn.classList.toggle('btn-secondary', isGrouped);
+
+            // 컨테이너 토글
+            articleListContainer.classList.toggle('d-none', !isGrouped);
+            articleGroupedContainer.classList.toggle('d-none', isGrouped);
+
+            this.loadArticles();
+        });
     }
 
     debounceSearch(callback, delay = 500) {
@@ -172,7 +208,6 @@ class ArticleManager {
             this.currentPage = 0;
             this.loadArticles();
         } else {
-            console.log('Sort unchanged, but updating buttons');
             // 같은 정렬이라도 버튼 상태는 업데이트
             this.updateSortButtons();
         }
@@ -189,19 +224,24 @@ class ArticleManager {
     }
 
     getCacheKey() {
-        return `${this.currentPage}-${this.currentSort}-${this.currentKeyword}-${this.currentRegions.join(',')}`;
+        return `${this.currentView}-${this.currentPage}-${this.currentSort}-${this.currentKeyword}-${this.currentRegions.join(',')}`;
     }
 
+    // 게시글을 로드하는 핵심 함수 
     async loadArticles() {
         if (this.isLoading) return;
 
         const cacheKey = this.getCacheKey();
         const cachedResult = this.cache.get(cacheKey);
         if (cachedResult) {
-            this.renderArticles(cachedResult.content);
+            if (this.currentView === 'grouped') {
+                this.renderGroupedArticles(cachedResult.content);
+            } else {
+                this.renderArticles(cachedResult.content);
+            }
             this.renderPagination(cachedResult);
-            this.updateURL();
-            this.updateSortButtons();
+            // this.updateURL();
+            // this.updateSortButtons();
             return;
         }
 
@@ -222,6 +262,10 @@ class ArticleManager {
                 params.append('regions', region);
             });
 
+            if (this.currentView === 'grouped') {
+                params.set('view', 'grouped');
+            }
+
             const response = await fetch(`/api/articles?${params}`);
             if (!response.ok) {
                 throw new Error('Network response was not ok');
@@ -232,10 +276,14 @@ class ArticleManager {
             // 캐시 저장
             this.cache.set(cacheKey, data);
 
-            this.renderArticles(data.content);
+            if (this.currentView === 'grouped') {
+                this.renderGroupedArticles(data.content);
+            } else {
+                this.renderArticles(data.content);
+            }
             this.renderPagination(data);
-            this.updateURL();
-            this.updateSortButtons();
+            // this.updateURL();
+            // this.updateSortButtons();
 
         } catch (error) {
             console.error('Error loading articles:', error);
@@ -244,6 +292,27 @@ class ArticleManager {
             this.isLoading = false;
             this.hideLoadingState();
         }
+    }
+
+    renderGroupedArticles(groups) {
+        const container = document.querySelector('#article-grouped-container');
+        if (!container) return;
+
+        if (groups.length === 0) {
+            this.showEmptyState();
+            return;
+        }
+
+        container.innerHTML = groups.map(group => {
+            const firstArticle = group.articles[0];
+            const childArticles = this.generateChildArticleHTML(group.articles.slice(1));
+            return this.generateArticleHTML(firstArticle, childArticles);
+        }).join('');
+
+        this.bindArticleEvents();
+
+        // 상대 시간 업데이트
+        this.updateRelativeTimes();
     }
 
     renderArticles(articles) {
@@ -265,7 +334,27 @@ class ArticleManager {
         // this.loadLikeStatuses();
     }
 
-    generateArticleHTML(article) {
+    generateChildArticleHTML(childArticles) {
+        return childArticles.map(child => {
+            return `
+                <div class="child">
+                    <h6 style="margin: 0;">
+                        <a href=${child.link} target="_blank" class="text-decoration-none" style="color: inherit;">
+                            ${child.title}
+                        </a>
+                    </h6>
+                    <!-- Company Info & Stats -->
+                    <span class="child-date d-flex align-items-center flex-wrap">
+                        <span class="d-flex align-items-center gap-3">
+                            <small class="text-muted relative-time" data-date="${child.publishedAt}" title="${child.publishedAt}">${child.publishedAt}</small>
+                        </span>
+                    </span>
+                </div>
+            `
+        }).join('');
+    }
+
+    generateArticleHTML(article, childArticles = "") {
         const thumbnailHTML = article.thumbnailImage ? 
             `<img src="${article.thumbnailImage}" alt="${article.title}" class="article-thumbnail">` :
             `<div class="article-thumbnail default-thumbnail">
@@ -320,13 +409,12 @@ class ArticleManager {
                 <!-- Thumbnail Container (Right Side) -->
                 <div class="article-thumbnail-container">
                     ${thumbnailHTML}
-                    ${article.readingTime ? 
-                        `<div class="position-absolute top-0 end-0 m-3">
-                            <span class="badge" style="background: rgba(255,255,255,0.9); color: var(--text-dark); font-weight: 600;">
-                                <i class="fas fa-clock me-1"></i><span>${article.readingTime}</span>분
-                            </span>
-                        </div>` : ''}
                 </div>
+
+                <!-- Child Container (Bottom Side) -->
+                ${childArticles === "" ? "" : `<div class="child-container">
+                    ${childArticles}
+                </div>`}
             </div>
         `;
     }
@@ -338,19 +426,43 @@ class ArticleManager {
             return;
         }
 
+        const currentPage = data.currentPage;
+        const totalPages = data.totalPages;
+        const maxPagesToShow = 5;
+        let startPage, endPage;
+
+        if (totalPages <= maxPagesToShow) {
+            // 전체 페이지 수가 5개 이하일 경우
+            startPage = 0;
+            endPage = totalPages - 1;
+        } else {
+            // 전체 페이지 수가 5개 초과일 경우
+            const maxPagesBeforeCurrent = Math.floor(maxPagesToShow / 2);
+            const maxPagesAfterCurrent = Math.ceil(maxPagesToShow / 2) - 1;
+
+            if (currentPage <= maxPagesBeforeCurrent) {
+                startPage = 0;
+                endPage = maxPagesToShow - 1;
+            } else if (currentPage + maxPagesAfterCurrent >= totalPages) {
+                startPage = totalPages - maxPagesToShow;
+                endPage = totalPages - 1;
+            } else {
+                startPage = currentPage - maxPagesBeforeCurrent;
+                endPage = currentPage + maxPagesAfterCurrent;
+            }
+        }
+
         let paginationHTML = `
             <ul class="pagination justify-content-center">
                 <li class="page-item ${!data.hasPrevious ? 'disabled' : ''}">
-                    <a class="page-link" href="#" data-page="${data.currentPage - 1}">
+                    <a class="page-link" href="#" data-page="${currentPage - 1}">
                         <i class="fas fa-chevron-left me-1"></i>이전
                     </a>
                 </li>
         `;
 
-        // 페이지 번호 (최대 5개)
-        const maxPages = Math.min(data.totalPages, 5);
-        for (let i = 0; i < maxPages; i++) {
-            const isActive = i === data.currentPage;
+        for (let i = startPage; i <= endPage; i++) {
+            const isActive = i === currentPage;
             paginationHTML += `
                 <li class="page-item ${isActive ? 'active' : ''}">
                     <a class="page-link" href="#" data-page="${i}">${i + 1}</a>
@@ -360,7 +472,7 @@ class ArticleManager {
 
         paginationHTML += `
                 <li class="page-item ${!data.hasNext ? 'disabled' : ''}">
-                    <a class="page-link" href="#" data-page="${data.currentPage + 1}">
+                    <a class="page-link" href="#" data-page="${currentPage + 1}">
                         다음<i class="fas fa-chevron-right ms-1"></i>
                     </a>
                 </li>
@@ -372,10 +484,11 @@ class ArticleManager {
 
     updateURL() {
         const params = new URLSearchParams();
-        if (this.currentPage > 0) params.set('page', this.currentPage);
+        if (this.currentPage > 0) params.set('page', this.currentPage + 1);
         if (this.currentSort !== 'latest') params.set('sort', this.currentSort);
         if (this.currentKeyword) params.set('keyword', this.currentKeyword);
         this.currentRegions.forEach(region => params.append('regions', region));
+        params.set('view', this.currentView);
 
         const newURL = `${window.location.pathname}?${params.toString()}`;
         history.pushState(null, '', newURL);
@@ -471,7 +584,8 @@ class ArticleManager {
         // this.bindLikeButtons();
         
         // 기존 카드 클릭 이벤트 바인딩
-        this.bindCardEvents();
+        this.bindCardEvents('.article-card');
+        this.bindCardEvents('.child');
     }
 
     bindLikeButtons() {
@@ -516,12 +630,12 @@ class ArticleManager {
         });
     }
 
-    bindCardEvents() {
-        document.querySelectorAll('.article-card').forEach(card => {
+    bindCardEvents(cardSelector) {
+        document.querySelectorAll(cardSelector).forEach(card => {
             card.addEventListener('click', async function(e) {
                 // 태그나 다른 링크, 좋아요 버튼, 회사 링크, 삭제 버튼을 클릭한 경우가 아니라면
                 if (e.target.tagName !== 'A' && !e.target.closest('a') && !e.target.closest('.badge') && !e.target.closest('.like-button') && !e.target.closest('.company-link') && !e.target.closest('.admin-delete-btn')) {
-                    const titleLink = this.querySelector('h5 a');
+                    const titleLink = this.querySelector('h5 a') || this.querySelector('h6 a');
                     const articleId = this.getAttribute('data-article-id');
                     if (titleLink) {
                         window.open(titleLink.href, '_blank');

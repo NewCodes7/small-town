@@ -603,3 +603,52 @@
         gap: 4px;
     }
 }
+
+#article-grouped-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.child-container {
+    order: 3;
+    flex-basis: 100%;
+    padding: 15px 30px 30px 30px;
+}
+
+.child {
+    display: flex;
+    justify-content: space-between; /* 좌우 끝으로 배치 */
+    padding: 12px 18px;
+    margin-bottom: 10px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    transition: all 0.2s ease-in-out;
+    gap: 5px;
+}
+
+.child:last-child {
+    margin-bottom: 0;
+}
+
+.child:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    border-color: var(--primary-green);
+}
+
+.child a {
+    text-decoration: none;
+    color: var(--text-dark);
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.child a:hover {
+    color: var(--primary-green);
+}
+
+.child-date {
+    min-width: 55px;
+    justify-content: flex-end;
+}

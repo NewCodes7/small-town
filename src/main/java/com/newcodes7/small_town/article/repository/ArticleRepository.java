@@ -60,6 +60,23 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
                                          @Param("domesticTypes") List<Boolean> domesticTypes,
                                          @Param("sort") String sort,
                                          Pageable pageable);
+
+    @Query("SELECT DISTINCT a FROM Article a " +
+           "JOIN FETCH a.corporation c " +
+           "LEFT JOIN FETCH a.articleTags at " +
+           "LEFT JOIN FETCH at.tag " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "AND (:domesticTypes IS NULL OR c.isDomestic IN :domesticTypes) " +
+           "ORDER BY " +
+           "CASE WHEN :sort = 'popular' THEN " +
+           "(COALESCE(a.viewCount, 0) * 0.6 + " +
+           " COALESCE(a.likeCount, 0) * 0.3) " +
+           "END DESC, " +
+           "a.publishedAt DESC, a.createdAt DESC")
+    List<Article> findArticlesWithFilters(@Param("keyword") String keyword, 
+                                         @Param("domesticTypes") List<Boolean> domesticTypes,
+                                         @Param("sort") String sort);                       
     
     @Modifying
     @Query("UPDATE Article a SET a.likeCount = :likeCount WHERE a.id = :articleId")
@@ -81,4 +98,37 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     long countByCorporationIdAndDeletedAtIsNull(Long corporationId);
     
     long countByDeletedAtIsNull();
+
+       // 조건에 맞는 기업 수 조회 (삭제된 글 제외)
+       @Query("SELECT COUNT(DISTINCT a.corporation) FROM Article a " +
+              "WHERE a.deletedAt IS NULL " +
+              "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+              "AND (:domesticTypes IS NULL OR a.corporation.isDomestic IN :domesticTypes)")
+       long countDistinctCorporationsByFilters(@Param("keyword") String keyword, 
+                                          @Param("domesticTypes") List<Boolean> domesticTypes);
+
+       // 기업별 최신 글을 기준으로 정렬된 기업 ID 목록 조회 (페이징)
+       @Query("SELECT a.corporation.id FROM Article a " +
+              "WHERE a.deletedAt IS NULL " +
+              "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+              "AND (:domesticTypes IS NULL OR a.corporation.isDomestic IN :domesticTypes) " +
+              "GROUP BY a.corporation.id " +
+              "ORDER BY MAX(a.publishedAt) DESC")
+       Page<Long> findCorporationIdsWithFilters(@Param("keyword") String keyword,
+                                          @Param("domesticTypes") List<Boolean> domesticTypes,
+                                          Pageable pageable);
+
+       // 특정 기업들의 최신 글 3개씩 조회 (JOIN FETCH 추가)
+       @Query("SELECT DISTINCT a FROM Article a " +
+              "JOIN FETCH a.corporation c " +
+              "LEFT JOIN FETCH a.articleTags at " +
+              "LEFT JOIN FETCH at.tag " +
+              "WHERE a.deletedAt IS NULL " +
+              "AND a.corporation.id IN :corporationIds " +
+              "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+              "AND (:domesticTypes IS NULL OR a.corporation.isDomestic IN :domesticTypes) " +
+              "ORDER BY a.corporation.id, a.publishedAt DESC")
+       List<Article> findTop3ArticlesByCorporations(@Param("corporationIds") List<Long> corporationIds,
+                                                 @Param("keyword") String keyword,
+                                                 @Param("domesticTypes") List<Boolean> domesticTypes);
 }

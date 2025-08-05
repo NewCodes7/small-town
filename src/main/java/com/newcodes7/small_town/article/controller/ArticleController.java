@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
+import com.newcodes7.small_town.article.dto.ArticleResponseDto;
 import com.newcodes7.small_town.article.dto.CorporationDetailDto;
 import com.newcodes7.small_town.article.dto.FeedbackCreateDto;
 import com.newcodes7.small_town.article.dto.FeedbackResponseDto;
@@ -36,6 +37,13 @@ import com.newcodes7.small_town.corporation.service.CorporationService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import com.newcodes7.small_town.article.dto.CorporationDto;
+import com.newcodes7.small_town.article.dto.GroupedArticlesDto;
+import com.newcodes7.small_town.article.entity.Article;
+import com.newcodes7.small_town.article.entity.Corporation;
+
+import java.util.stream.Collectors;
 
 @Slf4j
 @Controller
@@ -56,14 +64,16 @@ public class ArticleController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "latest") String sort,
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) List<String> regions) {
+            @RequestParam(required = false) List<String> regions,
+            @RequestParam(defaultValue = "list") String view) {
         
-        Page<ArticleListResponseDto> articles = articleService.getArticlesWithFilters(
+        Page<ArticleResponseDto> articles = articleService.getArticlesWithFilters(
             keyword != null && !keyword.trim().isEmpty() ? keyword.trim() : null,
             regions,
             page,
             size,
-            sort
+            sort,
+            view
         );
         
         Map<String, Object> response = new HashMap<>();
@@ -76,9 +86,27 @@ public class ArticleController {
         response.put("currentSort", sort);
         response.put("keyword", keyword);
         response.put("selectedRegions", regions != null ? regions : new ArrayList<>());
+        response.put("view", view);
         
         return ResponseEntity.ok(response);
     }
+
+    // @GetMapping("/api/articles/grouped")
+    // @ResponseBody
+    // public ResponseEntity<List<GroupedArticlesDto>> getArticlesGroupedByCorporation() {
+    //     Map<Corporation, List<Article>> groupedArticles = articleService.getArticlesGroupedByCorporation();
+
+    //     List<GroupedArticlesDto> result = groupedArticles.entrySet().stream()
+    //             .map(entry -> new GroupedArticlesDto(
+    //                     new CorporationDto(entry.getKey()),
+    //                     entry.getValue().stream()
+    //                             .map(ArticleListResponseDto::new)
+    //                             .collect(Collectors.toList())
+    //             ))
+    //             .collect(Collectors.toList());
+
+    //     return ResponseEntity.ok(result);
+    // }
     
     @GetMapping({"", "/"})
     public String home(
@@ -87,14 +115,16 @@ public class ArticleController {
             @RequestParam(defaultValue = "latest") String sort,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) List<String> regions,
+            @RequestParam(defaultValue = "list") String view,
             Model model) {
         
-        Page<ArticleListResponseDto> articles = articleService.getArticlesWithFilters(
+        Page<ArticleResponseDto> articles = articleService.getArticlesWithFilters(
             keyword != null && !keyword.trim().isEmpty() ? keyword.trim() : null,
             regions,
             page,
             size,
-            sort
+            sort,
+            view
         );
         
         log.info("필터 조건: keyword='{}', regions={}, {}개의 글 조회", keyword, regions, articles.getTotalElements());

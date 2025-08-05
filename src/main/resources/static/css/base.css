@@ -34,9 +34,9 @@ body {
 }
 
 .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-    background: linear-gradient(135deg, var(--primary-green-dark) 0%, var(--primary-green) 100%);
+    background: #1e7e34;
+    border-color: #1e7e34;
+    transform: translateY(-1px);
 }
 
 .btn-secondary {
@@ -53,7 +53,9 @@ body {
 .btn-secondary:hover {
     background: var(--secondary-green);
     border-color: var(--primary-green);
-    color: var(--primary-green-dark);
+    color: var(--text-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(40, 199, 111, 0.15);
 }
 
 .article-card {
@@ -65,6 +67,7 @@ body {
     overflow: hidden;
     margin-bottom: 16px;
     display: flex;
+    flex-wrap: wrap;
     align-items: stretch;
 }
 
@@ -252,6 +255,8 @@ body {
     border-radius: 16px;
     box-shadow: var(--shadow-sm);
     transition: all 0.3s ease;
+    max-width: 800px;
+    margin: 0 auto;
 }
 
 .card:hover {
