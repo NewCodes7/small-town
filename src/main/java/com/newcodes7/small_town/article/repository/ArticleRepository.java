@@ -128,7 +128,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
               "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
               "AND (:domesticTypes IS NULL OR a.corporation.isDomestic IN :domesticTypes) " +
               "ORDER BY a.corporation.id, a.publishedAt DESC")
-       List<Article> findTop3ArticlesByCorporations(@Param("corporationIds") List<Long> corporationIds,
+       List<Article> findArticlesByCorporations(@Param("corporationIds") List<Long> corporationIds,
                                                  @Param("keyword") String keyword,
                                                  @Param("domesticTypes") List<Boolean> domesticTypes);
 }

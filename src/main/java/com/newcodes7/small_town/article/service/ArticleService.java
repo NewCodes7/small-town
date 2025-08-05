@@ -81,15 +81,12 @@ public class ArticleService {
             return Page.empty();
         }
         
-        // 2-2. 또는 기존 방식에서 JOIN FETCH 추가한 경우
-        List<Article> allArticles = articleRepository.findTop3ArticlesByCorporations(
+        // 2. 기업 ID 목록을 사용하여 해당 기업의 게시글 조회
+        List<Article> allArticles = articleRepository.findArticlesByCorporations(
             corporationIdsPage.getContent(), keyword, domesticTypes);
         
-        // 3. 기업별로 그룹화 (Native Query 사용시 이미 TOP 3가 적용됨)
-        Map<Corporation, List<Article>> groupedByCorporation;
-        
-        // 기존 방식 사용시: Java에서 TOP 3 제한 적용
-        groupedByCorporation = allArticles.stream()
+        // 3. 기업별로 3개씩 그룹화
+        Map<Corporation, List<Article>> groupedByCorporation = allArticles.stream()
                 .collect(Collectors.groupingBy(Article::getCorporation,
                     LinkedHashMap::new,
                     Collectors.collectingAndThen(
@@ -101,7 +98,7 @@ public class ArticleService {
                     )
                 ));
         
-        // 4. 기업을 최신 글 순으로 정렬 (쿼리에서 이미 정렬되어 왔지만 확실히 하기 위해)
+        // 4. 기업을 최신 글 순으로 정렬 
         List<GroupedArticlesDto> groupedList = groupedByCorporation.entrySet().stream()
                 .sorted((entry1, entry2) -> {
                     // 각 그룹의 첫 번째 글(최신 글)로 비교
