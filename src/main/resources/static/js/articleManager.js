@@ -412,9 +412,16 @@ class ArticleManager {
                 </div>
 
                 <!-- Child Container (Bottom Side) -->
-                ${childArticles === "" ? "" : `<div class="child-container">
-                    ${childArticles}
-                </div>`}
+                ${childArticles === "" ? "" : `
+                    <div class="child-container">
+                        ${childArticles}
+                        <div class="child more-corporation-articles">
+                            <a href="/corporations/${article.corporation.id}" class="me-2 d-flex align-items-center text-decoration-none">
+                                <span class="fw-bold me-2" style="font-size: 1rem;">더보기</span>    
+                            </a>
+                        </div>
+                    </div>
+                `}
             </div>
         `;
     }
