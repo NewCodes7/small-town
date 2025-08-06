@@ -338,7 +338,7 @@ class ArticleManager {
         return childArticles.map(child => {
             return `
                 <div class="child">
-                    <h6 style="margin: 0;">
+                    <h6 class="fw-bold" style="margin: 0;">
                         <a href=${child.link} target="_blank" class="text-decoration-none" style="color: inherit;">
                             ${child.title}
                         </a>

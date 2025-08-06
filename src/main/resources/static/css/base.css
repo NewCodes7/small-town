@@ -69,7 +69,6 @@ body {
     display: flex;
     flex-wrap: wrap;
     align-items: stretch;
-    height: 155.22px;
 }
 
 .article-card:hover {
@@ -136,7 +135,7 @@ body {
     .article-thumbnail-container {
         flex: none;
         height: 200px;
-        order: 1;
+        order: 0;
     }
     
     .article-content {
