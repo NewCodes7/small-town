@@ -136,16 +136,18 @@
                 
                 <!-- Thumbnail Container (Right Side) -->
                 <div class="article-thumbnail-container">
-                    <img th:if="${article.thumbnailImage != null}" 
+                    <img th:if="${article.thumbnailImage.length > 2}" 
                          th:src="${article.thumbnailImage}" 
                          th:alt="${article.title}"
                          class="article-thumbnail">
-                    <div th:unless="${article.thumbnailImage != null}" 
+                    <div th:unless="${article.thumbnailImage.length > 2}" 
                          class="article-thumbnail default-thumbnail">
-                        <div class="default-thumbnail-content">
-                            <i class="fas fa-code"></i>
-                            <span class="thumbnail-text">TECH</span>
-                            <div class="thumbnail-pattern"></div>
+                        <div class="article-thumbnail default-thumbnail">
+                            <div class="default-thumbnail-content">
+                                <i class="fas fa-code"></i>
+                                <span class="thumbnail-text">NewCodes</span>
+                                <div class="thumbnail-pattern"></div>
+                            </div>
                         </div>
                     </div>
                     <!-- Reading Time Badge -->

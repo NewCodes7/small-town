@@ -69,6 +69,7 @@ body {
     display: flex;
     flex-wrap: wrap;
     align-items: stretch;
+    height: 155.22px;
 }
 
 .article-card:hover {
