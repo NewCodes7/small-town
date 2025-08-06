@@ -56,6 +56,56 @@ public class ArticleController {
     private final ViewService viewService;
     private final CorporationService corporationService;
     private final FeedbackService feedbackService;
+
+    @GetMapping({"", "/"})
+    public String home(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "latest") String sort,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) List<String> regions,
+            @RequestParam(defaultValue = "list") String view,
+            Model model) {
+        
+        Page<ArticleResponseDto> articles = articleService.getArticlesWithFilters(
+            keyword != null && !keyword.trim().isEmpty() ? keyword.trim() : null,
+            regions,
+            page,
+            size,
+            sort,
+            view
+        );
+        
+        log.info("필터 조건: keyword='{}', regions={}, {}개의 글 조회", keyword, regions, articles.getTotalElements());
+
+        // 회사 목록 가져오기 (모든 회사 포함)
+        Page<CorporationResponseDto> corporations = corporationService.getAllCorporations(PageRequest.of(0, 50));
+        
+        List<CorporationResponseDto> corporationsWithLogos = corporations.getContent().stream()
+            // .filter(corp -> corp.getLogoUrl() != null && !corp.getLogoUrl().trim().isEmpty())
+            .limit(20) 
+            .toList();
+        
+        // 인기글 5개 가져오기 (배너용)
+        // Page<ArticleListResponseDto> popularArticles = articleService.getArticleList(0, 5, "popular");
+        
+        log.info("로고가 있는 회사 수: {}", corporationsWithLogos.size());
+        // log.info("인기글 수: {}", popularArticles.getContent().size());
+
+        model.addAttribute("articles", articles);
+        model.addAttribute("currentPage", page);
+        model.addAttribute("totalPages", articles.getTotalPages());
+        model.addAttribute("totalElements", articles.getTotalElements());
+        model.addAttribute("currentSort", sort);
+        model.addAttribute("keyword", keyword);
+        model.addAttribute("selectedRegions", regions != null ? regions : new ArrayList<>());
+        model.addAttribute("hasNext", articles.hasNext());
+        model.addAttribute("hasPrevious", articles.hasPrevious());
+        model.addAttribute("corporations", corporationsWithLogos);
+        // model.addAttribute("popularArticles", popularArticles.getContent());
+        
+        return "home";
+    }
     
     @GetMapping("/api/articles")
     @ResponseBody
@@ -107,56 +157,6 @@ public class ArticleController {
 
     //     return ResponseEntity.ok(result);
     // }
-    
-    @GetMapping({"", "/"})
-    public String home(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "latest") String sort,
-            @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) List<String> regions,
-            @RequestParam(defaultValue = "list") String view,
-            Model model) {
-        
-        Page<ArticleResponseDto> articles = articleService.getArticlesWithFilters(
-            keyword != null && !keyword.trim().isEmpty() ? keyword.trim() : null,
-            regions,
-            page,
-            size,
-            sort,
-            view
-        );
-        
-        log.info("필터 조건: keyword='{}', regions={}, {}개의 글 조회", keyword, regions, articles.getTotalElements());
-
-        // 회사 목록 가져오기 (모든 회사 포함)
-        Page<CorporationResponseDto> corporations = corporationService.getAllCorporations(PageRequest.of(0, 50));
-        
-        List<CorporationResponseDto> corporationsWithLogos = corporations.getContent().stream()
-            .filter(corp -> corp.getLogoUrl() != null && !corp.getLogoUrl().trim().isEmpty())
-            .limit(20) 
-            .toList();
-        
-        // 인기글 5개 가져오기 (배너용)
-        Page<ArticleListResponseDto> popularArticles = articleService.getArticleList(0, 5, "popular");
-        
-        log.info("로고가 있는 회사 수: {}", corporationsWithLogos.size());
-        log.info("인기글 수: {}", popularArticles.getContent().size());
-
-        model.addAttribute("articles", articles);
-        model.addAttribute("currentPage", page);
-        model.addAttribute("totalPages", articles.getTotalPages());
-        model.addAttribute("totalElements", articles.getTotalElements());
-        model.addAttribute("currentSort", sort);
-        model.addAttribute("keyword", keyword);
-        model.addAttribute("selectedRegions", regions != null ? regions : new ArrayList<>());
-        model.addAttribute("hasNext", articles.hasNext());
-        model.addAttribute("hasPrevious", articles.hasPrevious());
-        model.addAttribute("corporations", corporationsWithLogos);
-        model.addAttribute("popularArticles", popularArticles.getContent());
-        
-        return "home";
-    }
     
     // @PostMapping("/api/articles/{articleId}/like")
     // @ResponseBody
@@ -265,28 +265,8 @@ public class ArticleController {
         return request.getRemoteAddr();
     }
     
-    @GetMapping("/corporations/{corporationId}")
-    public String corporationDetail(@PathVariable Long corporationId,
-                                  @RequestParam(defaultValue = "0") int page,
-                                  @RequestParam(defaultValue = "10") int size,
-                                  Model model) {
-        CorporationDetailDto corporation = articleService.getCorporationDetail(corporationId);
-        Page<ArticleListResponseDto> articles = articleService.getArticlesByCorporation(corporationId, page, size);
-        
-        model.addAttribute("corporation", corporation);
-        model.addAttribute("articles", articles);
-        model.addAttribute("currentPage", page);
-        model.addAttribute("totalPages", articles.getTotalPages());
-        model.addAttribute("totalElements", articles.getTotalElements());
-        model.addAttribute("hasNext", articles.hasNext());
-        model.addAttribute("hasPrevious", articles.hasPrevious());
-        
-        return "corporation-detail";
-    }
-    
     @GetMapping("/about")
     public String about(Model model) {
-        // Add statistics for the about page
         long totalArticles = articleService.getTotalArticleCount();
         long totalCorporations = corporationService.getTotalCorporationCount();
         
@@ -355,8 +335,6 @@ public class ArticleController {
         long totalCorporations = corporationService.getTotalCorporationCount();
         long totalArticles = articleService.getTotalArticleCount();
         
-        // For now, assume all corporations are domestic since the corporation module doesn't have isDomestic field
-        // In a real implementation, you would add this field to the corporation entity and update the statistics accordingly
         long domesticCount = totalCorporations;
         long overseasCount = 0;
         
@@ -375,6 +353,25 @@ public class ArticleController {
         model.addAttribute("totalArticles", totalArticles);
         
         return "corporations";
+    }
+
+    @GetMapping("/corporations/{corporationId}")
+    public String corporationDetail(@PathVariable Long corporationId,
+                                  @RequestParam(defaultValue = "0") int page,
+                                  @RequestParam(defaultValue = "10") int size,
+                                  Model model) {
+        CorporationDetailDto corporation = articleService.getCorporationDetail(corporationId);
+        Page<ArticleListResponseDto> articles = articleService.getArticlesByCorporation(corporationId, page, size);
+        
+        model.addAttribute("corporation", corporation);
+        model.addAttribute("articles", articles);
+        model.addAttribute("currentPage", page);
+        model.addAttribute("totalPages", articles.getTotalPages());
+        model.addAttribute("totalElements", articles.getTotalElements());
+        model.addAttribute("hasNext", articles.hasNext());
+        model.addAttribute("hasPrevious", articles.hasPrevious());
+        
+        return "corporation-detail";
     }
     
     @DeleteMapping("/api/admin/articles/{articleId}")

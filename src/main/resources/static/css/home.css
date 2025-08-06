@@ -23,12 +23,12 @@
 }
 
 .logo-image {
-    width: 60px;
-    height: 60px;
+    width: 40px;
+    /* height: 60px; */
     object-fit: contain;
     border-radius: 8px;
-    background: white;
-    padding: 8px;
+    /* background: white; */
+    /* padding: 8px; */
     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     transition: all 0.3s ease;
 }
@@ -212,12 +212,11 @@
 }
 
 .company-logo {
-    width: 24px;
-    height: 24px;
+    width: 27px;
+    height: 27px;
     object-fit: contain;
     border-radius: 6px;
     background: white;
-    padding: 3px;
     box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 

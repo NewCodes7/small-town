@@ -107,7 +107,7 @@ async function initPagination() {
     });
     
     // 좋아요 상태 로드
-    loadLikeStatuses();
+    // loadLikeStatuses();
     
     // 떠다니는 로고 위치 설정
     positionFloatingLogos();
@@ -340,7 +340,7 @@ function showAdminDeleteButtons() {
     if (currentUser && currentUser.isAdmin) {
         document.querySelectorAll('.article-card').forEach(card => {
             if (!card.querySelector('.admin-delete-btn')) {
-                const articleId = card.querySelector('.like-button').getAttribute('data-article-id');
+                const articleId = card.getAttribute('data-article-id');
                 const deleteBtn = document.createElement('button');
                 deleteBtn.className = 'admin-delete-btn';
                 deleteBtn.onclick = () => deleteArticle(articleId);
