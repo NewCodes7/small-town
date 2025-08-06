@@ -34,8 +34,7 @@
                     
                     <!-- Floating Company Logos -->
                     <div class="floating-logos-container">
-                        <div class="floating-logo" th:each="corporation, iterStat : ${corporations}" 
-                             th:style="'animation-delay: ' + ${iterStat.index * 0.5} + 's;'">
+                        <div class="floating-logo" th:each="corporation, iterStat : ${corporations}">
                             <img th:if="${corporation.effectiveLogoUrl != null}" 
                                  th:src="${corporation.effectiveLogoUrl}" 
                                  th:alt="${corporation.name}"

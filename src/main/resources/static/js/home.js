@@ -331,7 +331,7 @@ function positionFloatingLogos() {
         logo.style.left = position.left + 'px';
         logo.style.top = position.top + 'px';
         logo.style.animationDuration = (7 + Math.random() * 6) + 's'; // 7-13초
-        logo.style.animationDelay = (index * 0.5) + 's';
+        logo.style.animationDelay = (index * 0.1) + 's';
     });
 }
 
