@@ -424,3 +424,28 @@ body {
     padding: 32px 0;
     margin-top: 64px;
 }
+
+.company-logo {
+    transition: all 0.2s ease;
+    opacity: 1;
+}
+
+.comapny-logo:hover {
+    opacity: 0.7;
+    transform: translateY(-4px);
+}
+
+.more-corporation-articles {
+    transition: all 0.2s ease;
+    order: 4;
+    display: flex; 
+    justify-content: center;
+    align-items: center;
+    flex-basis: 100%;
+    padding-bottom: 20px;
+}
+
+.more-corporation-articles:hover {
+    opacity: 0.7;
+    transform: translateY(-4px);
+}

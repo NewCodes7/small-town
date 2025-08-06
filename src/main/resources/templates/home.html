@@ -233,10 +233,7 @@
                         <div class="d-flex align-items-center flex-wrap">
                             <div class="d-flex align-items-center me-4">
                                 <a th:href="@{/corporations/{id}(id=${article.corporation.id})}" 
-                                class="d-flex align-items-center text-decoration-none company-link"
-                                style="transition: all 0.2s ease;"
-                                onmouseover="this.style.opacity='0.7'"
-                                onmouseout="this.style.opacity='1'">
+                                class="d-flex align-items-center text-decoration-none company-link">
                                     <img width="20px;" th:if="${article.corporation.effectiveLogoUrl != null}"
                                         th:src="${article.corporation.effectiveLogoUrl}" 
                                         th:alt="${article.corporation.name}"

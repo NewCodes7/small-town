@@ -629,6 +629,7 @@
 
 .child:last-child {
     margin-bottom: 0;
+    justify-content: center;
 }
 
 .child:hover {

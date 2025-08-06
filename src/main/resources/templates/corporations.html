@@ -16,7 +16,7 @@
                 </h1>
                 <p class="corp-subtitle">
                     NewCodes에서 구독하는<br>
-                    국내외 주요 기업들의 기술 블로그
+                    국내외 주요 기술 블로그
                 </p>
             </div>
         </div>
@@ -27,14 +27,14 @@
                 <span class="stat-number" th:text="${totalCorporations}">0</span>
                 <div class="stat-label">구독 중인 기업</div>
             </div>
-            <div class="stat-card">
+            <!-- <div class="stat-card">
                 <span class="stat-number" th:text="${domesticCount}">0</span>
                 <div class="stat-label">국내 기업</div>
             </div>
             <div class="stat-card">
                 <span class="stat-number" th:text="${overseasCount}">0</span>
                 <div class="stat-label">해외 기업</div>
-            </div>
+            </div> -->
             <div class="stat-card">
                 <span class="stat-number" th:text="${totalArticles}">0</span>
                 <div class="stat-label">총 블로그 글</div>
@@ -91,24 +91,24 @@
                         <h3 class="corp-name" th:text="${corp.name}">Company Name</h3>
                         
                         <!-- Info Badges -->
-                        <div class="corp-info">
+                        <!-- <div class="corp-info">
                             <span class="corp-badge" 
                                   th:class="${corp.isDomestic != null && corp.isDomestic} ? 'corp-badge badge-domestic' : 'corp-badge badge-overseas'"
                                   th:text="${corp.regionText}">지역</span>
                             <span class="corp-badge" style="background: #F3E5F5; color: #7B1FA2;" 
                                   th:if="${corp.industries != null && !corp.industries.isEmpty()}"
                                   th:text="${corp.industries.size() == 1 ? corp.industries[0] : corp.industries[0] + ' 외 ' + (corp.industries.size() - 1) + '개'}">업종</span>
-                        </div>
+                        </div> -->
                         
                         
                         <!-- Stats -->
-                        <div class="corp-stats">
+                        <!-- <div class="corp-stats">
                             <span class="corp-articles-count">
                                 <i class="fas fa-newspaper me-1"></i>
                                 블로그 글 <strong th:text="${corp.articleCount ?: 0}">0</strong>개
                             </span>
                             <span class="corp-date" th:text="'등록: ' + ${#temporals.format(corp.createdAt, 'MM.dd')}">등록: 01.01</span>
-                        </div>
+                        </div> -->
                     </div>
                 </div>
             </div>
