@@ -192,3 +192,13 @@
         padding: 24px;
     }
 }
+
+.letter {
+    background-color: #FAF3DD;
+    width: 60%;
+    text-align: left;
+    border-radius: 24px;
+    padding: 32px 32px;
+    margin: 0 auto;
+    margin-bottom: 40px;
+}
