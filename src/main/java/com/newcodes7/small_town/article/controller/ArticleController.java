@@ -23,10 +23,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.dto.ArticleResponseDto;
 import com.newcodes7.small_town.article.dto.CorporationDetailDto;
-import com.newcodes7.small_town.article.dto.FeedbackCreateDto;
-import com.newcodes7.small_town.article.dto.FeedbackResponseDto;
 import com.newcodes7.small_town.article.service.ArticleService;
-import com.newcodes7.small_town.article.service.FeedbackService;
 import com.newcodes7.small_town.article.service.LikeService;
 import com.newcodes7.small_town.article.service.UserLikeService;
 import com.newcodes7.small_town.article.service.ViewService;
@@ -55,7 +52,6 @@ public class ArticleController {
     private final UserLikeService userLikeService;
     private final ViewService viewService;
     private final CorporationService corporationService;
-    private final FeedbackService feedbackService;
 
     @GetMapping({"", "/"})
     public String home(
@@ -251,20 +247,6 @@ public class ArticleController {
     //     return ResponseEntity.ok(response);
     // }
     
-    private String getClientIpAddress(HttpServletRequest request) {
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
-            return xForwardedFor.split(",")[0].trim();
-        }
-        
-        String xRealIp = request.getHeader("X-Real-IP");
-        if (xRealIp != null && !xRealIp.isEmpty()) {
-            return xRealIp;
-        }
-        
-        return request.getRemoteAddr();
-    }
-    
     @GetMapping("/about")
     public String about(Model model) {
         long totalArticles = articleService.getTotalArticleCount();
@@ -274,46 +256,6 @@ public class ArticleController {
         model.addAttribute("totalCorporations", totalCorporations);
         
         return "about";
-    }
-    
-    @PostMapping("/api/feedback")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> submitFeedback(
-            @RequestBody FeedbackCreateDto feedbackDto,
-            HttpServletRequest request) {
-        
-        try {
-            // IP 주소와 User-Agent 추출
-            String ipAddress = getClientIpAddress(request);
-            String userAgent = request.getHeader("User-Agent");
-            
-            // 피드백 저장
-            FeedbackResponseDto savedFeedback = feedbackService.createFeedback(feedbackDto, ipAddress, userAgent);
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("status", "success");
-            response.put("message", "피드백이 성공적으로 접수되었습니다.");
-            response.put("feedbackId", savedFeedback.getId());
-            
-            return ResponseEntity.ok(response);
-            
-        } catch (RuntimeException e) {
-            log.error("피드백 접수 중 오류 발생: {}", e.getMessage(), e);
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("status", "error");
-            response.put("message", e.getMessage());
-            
-            return ResponseEntity.badRequest().body(response);
-        } catch (Exception e) {
-            log.error("피드백 접수 중 예상치 못한 오류 발생", e);
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("status", "error");
-            response.put("message", "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
-            
-            return ResponseEntity.internalServerError().body(response);
-        }
     }
     
     @GetMapping("/corporations")

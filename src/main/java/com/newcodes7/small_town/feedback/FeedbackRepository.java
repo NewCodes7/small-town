@@ -1,12 +1,13 @@
-package com.newcodes7.small_town.article.repository;
+package com.newcodes7.small_town.feedback;
 
-import com.newcodes7.small_town.article.entity.Feedback;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
+import com.newcodes7.small_town.feedback.Feedback.FeedbackStatus;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -22,7 +23,19 @@ public interface FeedbackRepository extends JpaRepository<Feedback, Long> {
     
     // 최신순으로 모든 피드백 조회
     Page<Feedback> findAllByOrderByCreatedAtDesc(Pageable pageable);
-    
+
+    @Query("""
+        SELECT f FROM Feedback f
+        WHERE (:status IS NULL OR f.status = :status)
+          AND (:type IS NULL OR f.type = :type)
+        ORDER BY f.createdAt DESC
+    """)
+    Page<Feedback> findFeedbacks(
+        @Param("status") FeedbackStatus status,
+        @Param("type") String type,
+        Pageable pageable
+    );
+
     // 기간별 피드백 조회
     @Query("SELECT f FROM Feedback f WHERE f.createdAt BETWEEN :startDate AND :endDate ORDER BY f.createdAt DESC")
     List<Feedback> findByCreatedAtBetween(@Param("startDate") LocalDateTime startDate, 

@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.entity;
+package com.newcodes7.small_town.feedback;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>피드백 관리</title>
+    <style>
+        .status-badge {
+            padding: 0.3em 0.6em;
+            border-radius: 0.25rem;
+            font-size: 0.85em;
+            font-weight: 600;
+            color: #fff;
+        }
+        .status-PENDING { background-color: #6c757d; }
+        .status-IN_PROGRESS { background-color: #0d6efd; }
+        .status-COMPLETED { background-color: #198754; }
+        .status-REJECTED { background-color: #dc3545; }
+    </style>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container-fluid">
+        <h1 class="h3 mb-4 text-gray-800">피드백 관리</h1>
+
+        <!-- Filter Section -->
+        <div class="card shadow mb-4">
+            <div class="card-body">
+                <form th:action="@{/admin/feedback}" method="get" class="row g-3 align-items-center">
+                    <div class="col-md-4">
+                        <label for="type" class="form-label">유형</label>
+                        <select id="type" name="type" class="form-select">
+                            <option value="">전체</option>
+                            <option value="기능개선" th:selected="${param.type == '기능개선'}">기능 개선 제안</option>
+                            <option value="버그리포트" th:selected="${param.type == '버그리포트'}">버그 리포트</option>
+                            <option value="새기능" th:selected="${param.type == '새기능'}">새로운 기능 요청</option>
+                            <option value="UI/UX" th:selected="${param.type == 'UI/UX'}">UI/UX 개선</option>
+                            <option value="기타" th:selected="${param.type == '기타'}">기타</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="status" class="form-label">상태</label>
+                        <select id="status" name="status" class="form-select">
+                            <option value="">전체</option>
+                            <option th:each="s : ${T(com.newcodes7.small_town.feedback.Feedback.FeedbackStatus).values()}"
+                                    th:value="${s.name()}"
+                                    th:text="${s.description}"
+                                    th:selected="${param.status == s.name()}"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">검색</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Feedback Table -->
+        <div class="card shadow mb-4" style="max-width: 1500px;">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">피드백 목록</h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                        <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>이름</th>
+                            <th>이메일</th>
+                            <th>유형</th>
+                            <th>상태</th>
+                            <th>등록일</th>
+                            <th>메시지</th>
+                            <th>관리</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="feedback : ${feedbacks.content}">
+                            <td th:text="${feedback.id}">1</td>
+                            <td th:text="${feedback.name}">홍길동</td>
+                            <td th:text="${feedback.email}">test@test.com</td>
+                            <td th:text="${feedback.type}">기능개선</td>
+                            <td>
+                                <span class="status-badge" th:classappend="'status-' + ${feedback.status.name()}" th:text="${feedback.status.description}">접수</span>
+                            </td>
+                            <td th:text="${#temporals.format(feedback.createdAt, 'yyyy-MM-dd HH:mm')}">2023-01-01 12:00</td>
+                            <td th:text="${#strings.abbreviate(feedback.message, 50)}">메시지 내용...</td>
+                            <td>
+                                <div class="dropdown">
+                                    <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" th:id="'dropdownMenuButton' + ${feedback.id}" data-bs-toggle="dropdown" aria-expanded="false">
+                                        상태 변경
+                                    </button>
+                                    <ul class="dropdown-menu" th:aria-labelledby="'dropdownMenuButton' + ${feedback.id}">
+                                        <li th:each="s : ${T(com.newcodes7.small_town.feedback.Feedback.FeedbackStatus).values()}">
+                                            <a class="dropdown-item" href="#"
+                                               th:data-feedback-id="${feedback.id}"
+                                               th:data-status="${s.name()}"
+                                               th:data-status-desc="${s.description}"
+                                               th:text="${s.description}"
+                                               onclick="updateStatus(this.getAttribute('data-feedback-id'), this.getAttribute('data-status'), this.getAttribute('data-status-desc'))">
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr th:if="${feedbacks.empty}">
+                            <td colspan="8" class="text-center">피드백이 없습니다.</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <nav th:if="${!feedbacks.empty}" aria-label="Page navigation">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item" th:classappend="${feedbacks.first} ? 'disabled'">
+                            <a class="page-link" th:href="@{/admin/feedback(page=${feedbacks.number - 1}, type=${param.type}, status=${param.status})}">이전</a>
+                        </li>
+                        <li class="page-item" th:each="i : ${#numbers.sequence(0, feedbacks.totalPages - 1)}" th:classappend="${i == feedbacks.number} ? 'active'">
+                            <a class="page-link" th:href="@{/admin/feedback(page=${i}, type=${param.type}, status=${param.status})}" th:text="${i + 1}">1</a>
+                        </li>
+                        <li class="page-item" th:classappend="${feedbacks.last} ? 'disabled'">
+                            <a class="page-link" th:href="@{/admin/feedback(page=${feedbacks.number + 1}, type=${param.type}, status=${param.status})}">다음</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+<div layout:fragment="scripts">
+    <script>
+        function updateStatus(feedbackId, status, statusDesc) {
+            if (!confirm('피드백 상태를 "' + statusDesc + '"(으)로 변경하시겠습니까?')) {
+                return;
+            }
+
+            fetch('/admin/api/feedback/' + feedbackId, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(status)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw new Error(err.message || '상태 변경에 실패했습니다.') });
+                }
+                return response.json();
+            })
+            .then(data => {
+                alert(data.message);
+                window.location.reload();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('오류가 발생했습니다: ' + error.message);
+            });
+        }
+    </script>
+</div>
+</body>
+</html>

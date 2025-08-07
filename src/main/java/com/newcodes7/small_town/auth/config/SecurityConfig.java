@@ -64,7 +64,8 @@ public class SecurityConfig {
                 .requestMatchers("/auth/**").permitAll()
                 .requestMatchers("/", "/home", "/articles/**", "/about", "/corporations", "/corporations/**").permitAll()
                 .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
-                
+                .requestMatchers("/error").permitAll()
+
                 // 글 목록 API는 모든 사용자 허용
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/articles/**").permitAll()
                 
@@ -87,6 +88,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/crawling/**").hasRole("ADMIN")
                 .requestMatchers("/crawling/**").hasRole("ADMIN")
+                .requestMatchers("/actuator/**").hasRole("ADMIN")
                 
                 // 기업 등록/수정/삭제는 ADMIN만 가능
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/corporations/**").hasRole("ADMIN")

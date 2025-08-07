@@ -1,16 +1,14 @@
-package com.newcodes7.small_town.article.service;
-
-import com.newcodes7.small_town.article.dto.FeedbackCreateDto;
-import com.newcodes7.small_town.article.dto.FeedbackResponseDto;
-import com.newcodes7.small_town.article.entity.Feedback;
-import com.newcodes7.small_town.article.repository.FeedbackRepository;
+package com.newcodes7.small_town.feedback;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.newcodes7.small_town.feedback.Feedback.FeedbackStatus;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -138,5 +136,11 @@ public class FeedbackService {
         if (dto.getName() != null && dto.getName().trim().length() > 100) {
             throw new RuntimeException("이름은 100자 이하로 입력해주세요.");
         }
+    }
+
+    public Page<Feedback> getFeedbacks(FeedbackStatus status, String type, 
+                                        int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return feedbackRepository.findFeedbacks(status, type, pageable);
     }
 }

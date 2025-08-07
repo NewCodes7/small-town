@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.dto;
+package com.newcodes7.small_town.feedback;
 
 import lombok.Data;
 

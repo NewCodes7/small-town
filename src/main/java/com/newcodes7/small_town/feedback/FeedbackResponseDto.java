@@ -1,6 +1,5 @@
-package com.newcodes7.small_town.article.dto;
+package com.newcodes7.small_town.feedback;
 
-import com.newcodes7.small_town.article.entity.Feedback;
 import lombok.Data;
 
 import java.time.LocalDateTime;
