@@ -65,6 +65,7 @@ public class SecurityConfig {
                 .requestMatchers("/", "/home", "/articles/**", "/about", "/corporations", "/corporations/**").permitAll()
                 .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
                 .requestMatchers("/error").permitAll()
+                .requestMatchers("/sitemap.xml", "/robots.txt").permitAll()
 
                 // 글 목록 API는 모든 사용자 허용
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/articles/**").permitAll()
