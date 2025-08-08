@@ -4,6 +4,11 @@
       layout:decorate="~{layout/base}">
 <head>
     <title>홈</title>
+    <th:block layout:fragment="meta" th:remove="tag">
+        <meta name="description" content="NewCodes에서 최신 기술 블로그와 IT 소식을 만나보세요. 개발자를 위한 다양한 아티클을 매일 업데이트합니다.">
+        <meta name="keywords" content="홈, 최신 기술, IT 뉴스, 개발자 커뮤니티, 기술 아티클, NewCodes">
+        <meta name="robots" content="index, follow">
+    </th:block>
     <link rel="stylesheet" type="text/css" th:href="@{/css/home.css}">
 </head>
 <body>

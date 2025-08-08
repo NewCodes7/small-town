@@ -3,6 +3,11 @@
       layout:decorate="~{layout/base}">
 <head>
     <title>소개</title>
+    <th:block layout:fragment="meta" th:remove="tag">
+        <meta name="description" content="NewCodes는 개발자들을 위한 기술 블로그 큐레이션 플랫폼입니다. 저희의 목표와 비전에 대해 알아보세요.">
+        <meta name="keywords" content="NewCodes 소개, 기술 블로그 플랫폼, 개발자 커뮤니티, IT 정보, NewCodes 비전">
+        <meta name="robots" content="index, follow">
+    </th:block>
     <link rel="stylesheet" type="text/css" th:href="@{/css/about.css}">
 </head>
 <body>

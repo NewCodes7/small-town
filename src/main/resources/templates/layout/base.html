@@ -13,6 +13,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title th:text="${title != null ? title + ' - NewCodes' : 'NewCodes - 기술 블로그 플랫폼'}">NewCodes</title>
+
+    <!-- SEO Meta Tags -->
+    <th:block th:fragment="meta">
+        <meta name="description" content="NewCodes는 최신 기술 블로그 게시물을 큐레이팅하여 제공하는 플랫폼입니다. 다양한 기술 블로그를 한 곳에서 만나보세요.">
+        <meta name="keywords" content="기술 블로그, 기술 블로그 모음, 기업 기술 블로그, 개발자, IT, 프로그래밍, 소프트웨어 개발, Tech, Blog, NewCodes">
+        <meta name="robots" content="index, follow">
+    </th:block>
     
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">

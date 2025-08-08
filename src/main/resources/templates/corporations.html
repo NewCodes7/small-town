@@ -3,6 +3,11 @@
       layout:decorate="~{layout/base}">
 <head>
     <title>구독 블로그</title>
+    <th:block layout:fragment="meta" th:remove="tag">
+        <meta name="description" content="NewCodes에서 구독하는 국내외 주요 기술 블로그 목록입니다. 관심 있는 기업의 최신 소식을 확인해보세요.">
+        <meta name="keywords" content="구독 블로그, 기술 기업, IT 기업, 블로그 목록, NewCodes, 네이버, 카카오, 구글, 넷플릭스">
+        <meta name="robots" content="index, follow">
+    </th:block>
     <link rel="stylesheet" type="text/css" th:href="@{/css/corporations.css}">
 </head>
 <body>

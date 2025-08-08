@@ -3,6 +3,11 @@
       layout:decorate="~{layout/base}">
 <head>
     <title th:text="${corporation.name + ' - 회사 정보'}">회사 정보</title>
+    <th:block layout:fragment="meta" th:remove="tag">
+        <meta name="description" th:content="${corporation.name}의 최신 기술 블로그 소식을 NewCodes에서 확인하세요. 다양한 아티클과 정보를 제공합니다.">
+        <meta name="keywords" th:content="${corporation.name} + ', 기술 블로그, 채용, IT, 개발자, NewCodes'">
+        <meta name="robots" content="index, follow">
+    </th:block>
     <link rel="stylesheet" type="text/css" th:href="@{/css/corporation-detail.css}">
 </head>
 <body>
