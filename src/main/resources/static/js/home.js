@@ -1,5 +1,5 @@
 function bindArticleEvents() {
-    clickCard();
+    // clickCard();
     likeButton();
     initPagination();
     bindMoreButtonEvents();

@@ -287,51 +287,52 @@
         <div th:if="${isGrouped}" th:fragment="articleWrapper" id="article-grouped-container" class="grouped-view">
             <!-- Grouped Articles Container -->
             <div th:if="${!articles.content.isEmpty()}" class="articles-container">
-                <div th:each="group : ${articles.content}" th:with="firstArticle=${group.articles[0]}, childArticles=${group.articles.size() > 1} ? ${group.articles.subList(1, group.articles.size())} : ${new java.util.ArrayList()}
-">
-                    <div class="article-card" style="position: relative;" th:attr="data-article-id=${firstArticle.id}">
+                <div th:each="group : ${articles.content}" th:with="firstArticle=${group.articles[0]}, childArticles=${group.articles.size() > 1} ? ${group.articles.subList(1, group.articles.size())} : ${new java.util.ArrayList()}">
+                    <div class="article-card" style="position: relative;">
                         <!-- Admin Delete Button will be added by JS -->
 
                         <!-- Article Content (Left Side) -->
-                        <div class="article-content">
-                            <!-- Title -->
-                            <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
-                                <a th:href="${firstArticle.link}" target="_blank" class="text-decoration-none" style="color: inherit;" th:text="${firstArticle.title}"></a>
-                            </h5>
-                            
-                            <!-- Company Info & Stats -->
-                            <div class="d-flex align-items-center flex-wrap">
-                                <div class="d-flex align-items-center me-4">
-                                    <a th:href="@{/corporations/{id}(id=${group.corporation.id})}" class="d-flex align-items-center text-decoration-none company-link">
-                                        <img width="20px;" th:if="${group.corporation.effectiveLogoUrl != null}" th:src="${group.corporation.effectiveLogoUrl}" th:alt="${group.corporation.name}" class="company-logo me-2" style="border-radius: 4px;">
-                                        <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;" th:text="${group.corporation.name}"></span>
-                                    </a>
+                        <div class="first-article" th:attr="data-article-id=${firstArticle.id}">
+                            <div class="article-content">
+                                <!-- Title -->
+                                <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
+                                    <a th:href="${firstArticle.link}" target="_blank" class="text-decoration-none" style="color: inherit;" th:text="${firstArticle.title}"></a>
+                                </h5>
+                                
+                                <!-- Company Info & Stats -->
+                                <div class="d-flex align-items-center flex-wrap">
+                                    <div class="d-flex align-items-center me-4">
+                                        <a th:href="@{/corporations/{id}(id=${group.corporation.id})}" class="d-flex align-items-center text-decoration-none company-link">
+                                            <img width="20px;" th:if="${group.corporation.effectiveLogoUrl != null}" th:src="${group.corporation.effectiveLogoUrl}" th:alt="${group.corporation.name}" class="company-logo me-2" style="border-radius: 4px;">
+                                            <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;" th:text="${group.corporation.name}"></span>
+                                        </a>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-3">
+                                        <small class="text-muted relative-time" th:attr="data-date=${firstArticle.publishedAt}" th:title="${firstArticle.publishedAt}" th:text="${firstArticle.publishedAt}"></small>
+                                    </div>
                                 </div>
-                                <div class="d-flex align-items-center gap-3">
-                                    <small class="text-muted relative-time" th:attr="data-date=${firstArticle.publishedAt}" th:title="${firstArticle.publishedAt}" th:text="${firstArticle.publishedAt}"></small>
+                                
+                                <!-- Tags -->
+                                <div class="mt-auto" th:if="${firstArticle.tags != null and !firstArticle.tags.isEmpty()}">
+                                    <span class="badge tag-badge me-2" th:each="tag : ${firstArticle.tags}" th:text="${tag.keyword}"></span>
                                 </div>
                             </div>
                             
-                            <!-- Tags -->
-                            <div class="mt-auto" th:if="${firstArticle.tags != null and !firstArticle.tags.isEmpty()}">
-                                <span class="badge tag-badge me-2" th:each="tag : ${firstArticle.tags}" th:text="${tag.keyword}"></span>
-                            </div>
-                        </div>
-                        
-                        <!-- Thumbnail Container (Right Side) -->
-                        <div class="article-thumbnail-container">
-                            <img th:if="${firstArticle.thumbnailImage != null && !firstArticle.thumbnailImage.isEmpty()}" th:src="${firstArticle.thumbnailImage}" th:alt="${firstArticle.title}" class="article-thumbnail">
-                            <div th:unless="${firstArticle.thumbnailImage != null && !firstArticle.thumbnailImage.isEmpty()}" class="article-thumbnail default-thumbnail">
-                                <div class="default-thumbnail-content">
-                                    <i class="fas fa-code"></i>
-                                    <div class="thumbnail-pattern"></div>
+                            <!-- Thumbnail Container (Right Side) -->
+                            <div class="article-thumbnail-container">
+                                <img th:if="${firstArticle.thumbnailImage != null && !firstArticle.thumbnailImage.isEmpty()}" th:src="${firstArticle.thumbnailImage}" th:alt="${firstArticle.title}" class="article-thumbnail">
+                                <div th:unless="${firstArticle.thumbnailImage != null && !firstArticle.thumbnailImage.isEmpty()}" class="article-thumbnail default-thumbnail">
+                                    <div class="default-thumbnail-content">
+                                        <i class="fas fa-code"></i>
+                                        <div class="thumbnail-pattern"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Child Container (Bottom Side) -->
                         <div class="child-container" th:if="${!childArticles.isEmpty()}">
-                            <div class="child" th:each="child : ${childArticles}">
+                            <div class="child" th:each="child : ${childArticles}" th:attr="data-article-id=${child.id}">
                                 <h6 class="fw-bold" style="margin: 0;">
                                     <a th:href="${child.link}" target="_blank" class="text-decoration-none" style="color: inherit;" th:text="${child.title}"></a>
                                 </h6>

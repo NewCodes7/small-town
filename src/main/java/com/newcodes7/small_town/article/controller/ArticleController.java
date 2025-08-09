@@ -30,6 +30,7 @@ import com.newcodes7.small_town.article.service.ViewService;
 import com.newcodes7.small_town.auth.entity.User;
 import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
 import com.newcodes7.small_town.corporation.service.CorporationService;
+import com.newcodes7.small_town.global.util.Client;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -192,31 +193,31 @@ public class ArticleController {
     //     return ResponseEntity.ok(response);
     // }
     
-    // @PostMapping("/api/articles/{articleId}/view")
-    // @ResponseBody
-    // public ResponseEntity<Map<String, Object>> incrementViewCount(@PathVariable Long articleId,
-    //                                                             @AuthenticationPrincipal UserDetails userDetails,
-    //                                                             HttpServletRequest request) {
-    //     String ipAddress = getClientIpAddress(request);
-    //     boolean incremented;
+    @PostMapping("/api/articles/{articleId}/view")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> incrementViewCount(@PathVariable Long articleId,
+                                                                @AuthenticationPrincipal UserDetails userDetails,
+                                                                HttpServletRequest request) {
+        String ipAddress = Client.getClientIpAddress(request);
+        boolean incremented;
         
-    //     if (userDetails != null) {
-    //         // 인증된 사용자
-    //         incremented = viewService.incrementViewCount(articleId, userDetails.getUsername(), ipAddress);
-    //     } else {
-    //         // 익명 사용자 (IP 기반)
-    //         incremented = viewService.incrementViewCountByIp(articleId, ipAddress);
-    //     }
+        if (userDetails != null) {
+            // 인증된 사용자
+            incremented = viewService.incrementViewCount(articleId, userDetails.getUsername(), ipAddress);
+        } else {
+            // 익명 사용자 (IP 기반)
+            incremented = viewService.incrementViewCountByIp(articleId, ipAddress);
+        }
         
-    //     long viewCount = viewService.getViewCount(articleId);
+        long viewCount = viewService.getViewCount(articleId);
         
-    //     Map<String, Object> response = new HashMap<>();
-    //     response.put("incremented", incremented);
-    //     response.put("viewCount", viewCount);
-    //     response.put("authenticated", userDetails != null);
+        Map<String, Object> response = new HashMap<>();
+        response.put("incremented", incremented);
+        response.put("viewCount", viewCount);
+        response.put("authenticated", userDetails != null);
         
-    //     return ResponseEntity.ok(response);
-    // }
+        return ResponseEntity.ok(response);
+    }
     
     // @GetMapping("/api/articles/{articleId}/view-status")
     // @ResponseBody
