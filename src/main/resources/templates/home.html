@@ -64,7 +64,6 @@
                                      <div class="article-thumbnail default-thumbnail">
                                         <div class="default-thumbnail-content">
                                             <i class="fas fa-code"></i>
-                                            <span class="thumbnail-text">NewCodes</span>
                                             <div class="thumbnail-pattern"></div>
                                         </div>
                                     </div>
@@ -173,7 +172,7 @@
                             <!-- <button id="latestViewBtn" type="button" class="btn flex-fill text-center btn-primary view-btn">
                                 최신순 나열
                             </button> -->
-                            <button id="groupedViewBtn" type="button" class="btn flex-fill text-center btn-secondary view-btn">
+                            <button id="groupedViewBtn" type="button" class="btn flex-fill text-center btn-primary view-btn">
                                 <i class="fas fa-layer-group"></i>
                                 기업별 묶기
                             </button>
@@ -209,14 +208,10 @@
             <p class="mt-2">글을 불러오는 중...</p>
         </div>
 
-        <!-- Grouped Articles Container -->
-        <div id="article-grouped-container" class="d-none grouped-view">
-            <!-- 기업별 그룹화된 아티클이 여기에 동적으로 추가됩니다. -->
-        </div>
-
-        <div th:fragment="articleWrapper" id="article-list-container">
+        <!-- 리스트 뷰 -->
+        <div th:unless="${isGrouped}" th:fragment="articleWrapper" id="article-list-container">
             <!-- Articles Stack -->
-            <div class="articles-container">
+            <div class="articles-list-container">
                 <div class="article-card" th:attr="data-article-id=${article.id}" th:each="article : ${articles.content}" style="position: relative;">
                     <!-- Admin Delete Button (only shown via JavaScript for admin users) -->
                     
@@ -286,12 +281,81 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- 그룹 뷰 -->
+        <div th:if="${isGrouped}" th:fragment="articleWrapper" id="article-grouped-container" class="grouped-view">
+            <!-- Grouped Articles Container -->
+            <div th:if="${!articles.content.isEmpty()}" class="articles-container">
+                <div th:each="group : ${articles.content}" th:with="firstArticle=${group.articles[0]}, childArticles=${group.articles.size() > 1} ? ${group.articles.subList(1, group.articles.size())} : ${new java.util.ArrayList()}
+">
+                    <div class="article-card" style="position: relative;" th:attr="data-article-id=${firstArticle.id}">
+                        <!-- Admin Delete Button will be added by JS -->
+
+                        <!-- Article Content (Left Side) -->
+                        <div class="article-content">
+                            <!-- Title -->
+                            <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
+                                <a th:href="${firstArticle.link}" target="_blank" class="text-decoration-none" style="color: inherit;" th:text="${firstArticle.title}"></a>
+                            </h5>
+                            
+                            <!-- Company Info & Stats -->
+                            <div class="d-flex align-items-center flex-wrap">
+                                <div class="d-flex align-items-center me-4">
+                                    <a th:href="@{/corporations/{id}(id=${group.corporation.id})}" class="d-flex align-items-center text-decoration-none company-link">
+                                        <img width="20px;" th:if="${group.corporation.effectiveLogoUrl != null}" th:src="${group.corporation.effectiveLogoUrl}" th:alt="${group.corporation.name}" class="company-logo me-2" style="border-radius: 4px;">
+                                        <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;" th:text="${group.corporation.name}"></span>
+                                    </a>
+                                </div>
+                                <div class="d-flex align-items-center gap-3">
+                                    <small class="text-muted relative-time" th:attr="data-date=${firstArticle.publishedAt}" th:title="${firstArticle.publishedAt}" th:text="${firstArticle.publishedAt}"></small>
+                                </div>
+                            </div>
+                            
+                            <!-- Tags -->
+                            <div class="mt-auto" th:if="${firstArticle.tags != null and !firstArticle.tags.isEmpty()}">
+                                <span class="badge tag-badge me-2" th:each="tag : ${firstArticle.tags}" th:text="${tag.keyword}"></span>
+                            </div>
+                        </div>
+                        
+                        <!-- Thumbnail Container (Right Side) -->
+                        <div class="article-thumbnail-container">
+                            <img th:if="${firstArticle.thumbnailImage != null && !firstArticle.thumbnailImage.isEmpty()}" th:src="${firstArticle.thumbnailImage}" th:alt="${firstArticle.title}" class="article-thumbnail">
+                            <div th:unless="${firstArticle.thumbnailImage != null && !firstArticle.thumbnailImage.isEmpty()}" class="article-thumbnail default-thumbnail">
+                                <div class="default-thumbnail-content">
+                                    <i class="fas fa-code"></i>
+                                    <div class="thumbnail-pattern"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Child Container (Bottom Side) -->
+                        <div class="child-container" th:if="${!childArticles.isEmpty()}">
+                            <div class="child" th:each="child : ${childArticles}">
+                                <h6 class="fw-bold" style="margin: 0;">
+                                    <a th:href="${child.link}" target="_blank" class="text-decoration-none" style="color: inherit;" th:text="${child.title}"></a>
+                                </h6>
+                                <span class="child-date d-flex align-items-center flex-wrap">
+                                    <span class="d-flex align-items-center gap-3">
+                                        <small class="text-muted relative-time" th:attr="data-date=${child.publishedAt}" th:title="${child.publishedAt}" th:text="${child.publishedAt}"></small>
+                                    </span>
+                                </span>
+                            </div>
+                            <div class="child more-corporation-articles">
+                                <a th:href="@{/corporations/{id}(id=${group.corporation.id})}" class="me-2 d-flex align-items-center text-decoration-none">
+                                    <span class="fw-bold me-2" style="font-size: 1rem;">더보기</span>    
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <!-- Empty State -->
             <div th:if="${articles.content.isEmpty()}" class="text-center py-5">
                 <div class="hero-section">
                     <i class="fas fa-search fa-4x mb-4" style="color: var(--primary-green); opacity: 0.5;" th:if="${keyword != null && !keyword.isEmpty()}"></i>
-                    <i class="fas fa-4x mb-4" style="color: var(--primary-green); opacity: 0.5;" th:unless="${keyword != null && !keyword.isEmpty()}"></i>
+                    <i class="fas fa-seedling fa-4x mb-4" style="color: var(--primary-green); opacity: 0.5;" th:unless="${keyword != null && !keyword.isEmpty()}"></i>
                     
                     <h4 class="mb-3" style="color: var(--text-dark); font-weight: 700;" th:if="${keyword != null && !keyword.isEmpty()}">
                         '<span th:text="${keyword}"></span>' 검색 결과가 없어요

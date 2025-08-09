@@ -644,8 +644,10 @@
     cursor: pointer;
 }
 
-.child a:hover {
-    color: var(--primary-green);
+.child:hover {
+    a {
+        color: var(--primary-green);
+    }
 }
 
 .child-date {

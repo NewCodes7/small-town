@@ -60,7 +60,7 @@ public class ArticleController {
             @RequestParam(defaultValue = "latest") String sort,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) List<String> regions,
-            @RequestParam(defaultValue = "list") String view,
+            @RequestParam(defaultValue = "grouped") String view,
             Model model) {
         
         Page<ArticleResponseDto> articles = articleService.getArticlesWithFilters(
@@ -98,6 +98,7 @@ public class ArticleController {
         model.addAttribute("hasNext", articles.hasNext());
         model.addAttribute("hasPrevious", articles.hasPrevious());
         model.addAttribute("corporations", corporationsWithLogos);
+        model.addAttribute("isGrouped", view.equals("grouped"));
         // model.addAttribute("popularArticles", popularArticles.getContent());
         
         return "home";

@@ -28,7 +28,7 @@ class ArticleManager {
         this.currentSort = 'latest';
         this.currentKeyword = '';
         this.currentRegions = [];
-        this.currentView = 'list'; // 'list' or 'grouped'
+        this.currentView = 'grouped'; // 'list' or 'grouped'
         this.isLoading = false;
         this.cache = new Map();
         this.debounceTimer = null;
@@ -36,7 +36,7 @@ class ArticleManager {
     }
 
     init() {
-        // this.loadStateFromURL();
+        this.loadStateFromURL();
         this.bindEvents();
         // 초기 로드는 서버에서 렌더링된 상태이므로 생략
         this.bindArticleEvents();
@@ -49,6 +49,7 @@ class ArticleManager {
         this.currentSort = params.get('sort') || 'latest';
         this.currentKeyword = params.get('keyword') || '';
         this.currentRegions = params.getAll('regions') || [];
+        this.currentView = params.get('view') || 'grouped';
         
         // UI 상태 동기화
         this.updateUIFromState();
@@ -86,16 +87,16 @@ class ArticleManager {
         }
 
         // 검색 입력 디바운싱
-        const searchInput = document.getElementById('searchInput');
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => {
-                this.debounceSearch(() => {
-                    this.currentKeyword = e.target.value.trim();
-                    this.currentPage = 0;
-                    this.loadArticles();
-                });
-            });
-        }
+        // const searchInput = document.getElementById('searchInput');
+        // if (searchInput) {
+        //     searchInput.addEventListener('input', (e) => {
+        //         this.debounceSearch(() => {
+        //             this.currentKeyword = e.target.value.trim();
+        //             this.currentPage = 0;
+        //             this.loadArticles();
+        //         });
+        //     });
+        // }
 
         // 정렬 버튼 이벤트 (이벤트 위임 방식)
         const sortButtons = document.querySelectorAll('.sort-btn');
@@ -180,8 +181,8 @@ class ArticleManager {
             groupedViewBtn.classList.toggle('btn-secondary', isGrouped);
 
             // 컨테이너 토글
-            articleListContainer.classList.toggle('d-none', !isGrouped);
-            articleGroupedContainer.classList.toggle('d-none', isGrouped);
+            // articleListContainer.classList.toggle('d-none', !isGrouped);
+            // articleGroupedContainer.classList.toggle('d-none', isGrouped);
 
             this.loadArticles();
         });
@@ -231,28 +232,29 @@ class ArticleManager {
     async loadArticles() {
         if (this.isLoading) return;
 
-        const cacheKey = this.getCacheKey();
-        const cachedResult = this.cache.get(cacheKey);
-        if (cachedResult) {
-            if (this.currentView === 'grouped') {
-                this.renderGroupedArticles(cachedResult.content);
-            } else {
-                this.renderArticles(cachedResult.content);
-            }
-            this.renderPagination(cachedResult);
-            // this.updateURL();
-            // this.updateSortButtons();
-            return;
-        }
+        // const cacheKey = this.getCacheKey();
+        // const cachedResult = this.cache.get(cacheKey);
+        // if (cachedResult) {
+        //     if (this.currentView === 'grouped') {
+        //         this.renderGroupedArticles(cachedResult.content);
+        //     } else {
+        //         this.renderArticles(cachedResult.content);
+        //     }
+        //     this.renderPagination(cachedResult);
+        //     // this.updateURL();
+        //     // this.updateSortButtons();
+        //     return;
+        // }
 
         this.isLoading = true;
         this.showLoadingState();
 
         try {
-            const params = new URLSearchParams({
-                page: this.currentPage,
-                sort: this.currentSort
-            });
+            const params = new URLSearchParams();
+
+            if (this.currentPage != 0) {
+                params.set('page', this.currentPage);
+            }
 
             if (this.currentKeyword) {
                 params.set('keyword', this.currentKeyword);
@@ -264,24 +266,28 @@ class ArticleManager {
 
             if (this.currentView === 'grouped') {
                 params.set('view', 'grouped');
-            }
-
-            const response = await fetch(`/api/articles?${params}`);
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-
-            const data = await response.json();
-
-            // 캐시 저장
-            this.cache.set(cacheKey, data);
-
-            if (this.currentView === 'grouped') {
-                this.renderGroupedArticles(data.content);
             } else {
-                this.renderArticles(data.content);
+                params.set('view', 'list')
             }
-            this.renderPagination(data);
+
+            window.location.href = `?${params}`;
+
+            // const response = await fetch(`/api/articles?${params}`);
+            // if (!response.ok) {
+            //     throw new Error('Network response was not ok');
+            // }
+
+            // const data = await response.json();
+
+            // // 캐시 저장
+            // this.cache.set(cacheKey, data);
+
+            // if (this.currentView === 'grouped') {
+            //     this.renderGroupedArticles(data.content);
+            // } else {
+            //     this.renderArticles(data.content);
+            // }
+            // this.renderPagination(data);
             // this.updateURL();
             // this.updateSortButtons();
 
@@ -316,7 +322,7 @@ class ArticleManager {
     }
 
     renderArticles(articles) {
-        const container = document.querySelector('.articles-container');
+        const container = document.querySelector('.articles-list-container');
         if (!container) return;
 
         if (articles.length === 0) {
@@ -360,7 +366,6 @@ class ArticleManager {
             `<div class="article-thumbnail default-thumbnail">
                 <div class="default-thumbnail-content">
                     <i class="fas fa-code"></i>
-                    <span class="thumbnail-text">NewCodes</span>
                     <div class="thumbnail-pattern"></div>
                 </div>
             </div>`;

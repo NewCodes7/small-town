@@ -122,7 +122,7 @@ body {
     background: linear-gradient(135deg, var(--secondary-green) 0%, rgba(3, 199, 90, 0.1) 100%);
 }
 
-.articles-container {
+.articles-container, .articles-list-container {
     max-width: 800px;
     margin: 0 auto;
 }

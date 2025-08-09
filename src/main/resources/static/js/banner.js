@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     // startAutoSlide();
     
     // 사용자 정보 로드
-    await loadUserInfo();
+    // await loadUserInfo();
     
     // ArticleManager 초기화
     articleManager = new ArticleManager();

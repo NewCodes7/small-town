@@ -2,14 +2,15 @@ function bindArticleEvents() {
     clickCard();
     likeButton();
     initPagination();
+    bindMoreButtonEvents();
 }
 
 // 카드 클릭 시 외부 링크로 이동
 function clickCard() {
     document.querySelectorAll('.article-card').forEach(card => {
         card.addEventListener('click', async function(e) {
-            // 태그나 다른 링크, 좋아요 버튼, 회사 링크, 삭제 버튼을 클릭한 경우가 아니라면
-            if (e.target.tagName !== 'A' && !e.target.closest('a') && !e.target.closest('.badge') && !e.target.closest('.like-button') && !e.target.closest('.company-link') && !e.target.closest('.admin-delete-btn')) {
+            // 태그, 링크, 버튼 등 특정 요소를 클릭한 경우가 아니라면 카드 전체 클릭으로 간주
+            if (e.target.tagName !== 'A' && !e.target.closest('a') && !e.target.closest('.badge') && !e.target.closest('.like-button') && !e.target.closest('.company-link') && !e.target.closest('.admin-delete-btn') && !e.target.closest('.more-corporation-articles')) {
                 const titleLink = this.querySelector('h5 a');
                 const articleId = this.getAttribute('data-article-id');
                 if (titleLink) {
@@ -40,6 +41,16 @@ function clickCard() {
         card.style.cursor = 'pointer';
     });
 };
+
+// '더보기' 버튼 클릭 이벤트
+function bindMoreButtonEvents() {
+    document.querySelectorAll('.more-corporation-articles').forEach(more => {
+        more.addEventListener('click', function(e) {
+            e.preventDefault();
+            window.location.href = more.querySelector('a');
+        })
+    })
+}
 
 // 좋아요 버튼 클릭 이벤트
 function likeButton() {
@@ -95,7 +106,7 @@ function likeButton() {
 // 페이지 로드 후 상대 시간 적용 및 좋아요 상태 로드
 async function initPagination() {
     // 사용자 정보 로드
-    await loadUserInfo();
+    // await loadUserInfo();
     document.querySelectorAll('.relative-time').forEach(element => {
         const dateString = element.getAttribute('data-date');
         if (dateString) {
@@ -485,4 +496,4 @@ document.addEventListener('DOMContentLoaded', function() {
 //             </div>
 //         </div>
 //     `;
-// }  
+// }
