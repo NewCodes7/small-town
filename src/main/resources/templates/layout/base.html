@@ -210,53 +210,53 @@
     
     <script>
         // 페이지 로드 시 인증 상태 확인
-        document.addEventListener('DOMContentLoaded', function() {
-            checkAuthStatus();
-        });
+        // document.addEventListener('DOMContentLoaded', function() {
+        //     checkAuthStatus();
+        // });
         
-        async function checkAuthStatus() {
-            try {
-                const response = await fetch('/api/auth/me', {
-                    method: 'GET',
-                    credentials: 'include'
-                });
+        // async function checkAuthStatus() {
+        //     try {
+        //         const response = await fetch('/api/auth/me', {
+        //             method: 'GET',
+        //             credentials: 'include'
+        //         });
                 
-                const unauthenticatedLoginMenu = document.getElementById('unauthenticatedLoginMenu');
-                const unauthenticatedSignupMenu = document.getElementById('unauthenticatedSignupMenu');
-                const authenticatedMenu = document.getElementById('authenticatedMenu');
-                const userNickname = document.getElementById('userNickname');
-                const adminMenu = document.getElementById('adminMenu');
+        //         const unauthenticatedLoginMenu = document.getElementById('unauthenticatedLoginMenu');
+        //         const unauthenticatedSignupMenu = document.getElementById('unauthenticatedSignupMenu');
+        //         const authenticatedMenu = document.getElementById('authenticatedMenu');
+        //         const userNickname = document.getElementById('userNickname');
+        //         const adminMenu = document.getElementById('adminMenu');
                 
-                if (response.ok) {
-                    // 로그인 상태
-                    const user = await response.json();
-                    userNickname.textContent = user.nickname;
-                    unauthenticatedLoginMenu.style.display = 'none';
-                    unauthenticatedSignupMenu.style.display = 'none';
-                    authenticatedMenu.style.display = 'block';
+        //         if (response.ok) {
+        //             // 로그인 상태
+        //             const user = await response.json();
+        //             userNickname.textContent = user.nickname;
+        //             unauthenticatedLoginMenu.style.display = 'none';
+        //             unauthenticatedSignupMenu.style.display = 'none';
+        //             authenticatedMenu.style.display = 'block';
                     
-                    // ADMIN 역할 확인
-                    if (user.role === 'ADMIN') {
-                        adminMenu.style.display = 'block';
-                    } else {
-                        adminMenu.style.display = 'none';
-                    }
-                } else {
-                    // 비로그인 상태
-                    unauthenticatedLoginMenu.style.display = 'block';
-                    unauthenticatedSignupMenu.style.display = 'block';
-                    authenticatedMenu.style.display = 'none';
-                    adminMenu.style.display = 'none';
-                }
-            } catch (error) {
-                console.error('인증 상태 확인 중 오류:', error);
-                // 오류 시 비로그인 상태로 처리
-                document.getElementById('unauthenticatedLoginMenu').style.display = 'block';
-                document.getElementById('unauthenticatedSignupMenu').style.display = 'block';
-                document.getElementById('authenticatedMenu').style.display = 'none';
-                document.getElementById('adminMenu').style.display = 'none';
-            }
-        }
+        //             // ADMIN 역할 확인
+        //             if (user.role === 'ADMIN') {
+        //                 adminMenu.style.display = 'block';
+        //             } else {
+        //                 adminMenu.style.display = 'none';
+        //             }
+        //         } else {
+        //             // 비로그인 상태
+        //             unauthenticatedLoginMenu.style.display = 'block';
+        //             unauthenticatedSignupMenu.style.display = 'block';
+        //             authenticatedMenu.style.display = 'none';
+        //             adminMenu.style.display = 'none';
+        //         }
+        //     } catch (error) {
+        //         console.error('인증 상태 확인 중 오류:', error);
+        //         // 오류 시 비로그인 상태로 처리
+        //         document.getElementById('unauthenticatedLoginMenu').style.display = 'block';
+        //         document.getElementById('unauthenticatedSignupMenu').style.display = 'block';
+        //         document.getElementById('authenticatedMenu').style.display = 'none';
+        //         document.getElementById('adminMenu').style.display = 'none';
+        //     }
+        // }
         
         async function logout() {
             try {
