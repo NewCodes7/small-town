@@ -596,8 +596,8 @@ class ArticleManager {
         // this.bindLikeButtons();
         
         // 기존 카드 클릭 이벤트 바인딩
-        this.bindCardEvents('.article-card');
-        this.bindCardEvents('.child');
+        // this.bindCardEvents('.article-card');
+        // this.bindCardEvents('.child');
     }
 
     bindLikeButtons() {
@@ -639,41 +639,6 @@ class ArticleManager {
                     console.error('좋아요 처리 중 오류 발생:', error);
                 }
             });
-        });
-    }
-
-    bindCardEvents(cardSelector) {
-        document.querySelectorAll(cardSelector).forEach(card => {
-            card.addEventListener('click', async function(e) {
-                // 태그나 다른 링크, 좋아요 버튼, 회사 링크, 삭제 버튼을 클릭한 경우가 아니라면
-                if (e.target.tagName !== 'A' && !e.target.closest('a') && !e.target.closest('.badge') && !e.target.closest('.like-button') && !e.target.closest('.company-link') && !e.target.closest('.admin-delete-btn')) {
-                    const titleLink = this.querySelector('h5 a') || this.querySelector('h6 a');
-                    const articleId = this.getAttribute('data-article-id');
-                    if (titleLink) {
-                        window.open(titleLink.href, '_blank');
-
-                        // const response = await fetch(`/api/articles/${articleId}/view`, {
-                        //     method: 'POST',
-                        //     headers: {
-                        //         'Content-Type': 'application/json',
-                        //     },
-                        //     credentials: 'same-origin',
-                        //     redirect: 'manual'
-                        // });
-
-                        // if (response.ok) {
-                        //     const data = await response.json();
-
-                        //     if (data.incremented) {
-                        //         const viewCount = this.querySelector('.view-count');
-                        //         viewCount.textContent = data.viewCount;
-                        //     }
-                        // }
-                    }
-                }
-            });
-            
-            card.style.cursor = 'pointer';
         });
     }
 
