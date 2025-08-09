@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.config;
+package com.newcodes7.small_town.global.config;
 
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;

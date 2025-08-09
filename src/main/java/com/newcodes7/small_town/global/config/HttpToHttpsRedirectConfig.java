@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.config;
+package com.newcodes7.small_town.global.config;
 
 import org.apache.catalina.connector.Connector;
 import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
