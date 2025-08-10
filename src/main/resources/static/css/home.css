@@ -654,3 +654,8 @@
     min-width: 55px;
     justify-content: flex-end;
 }
+
+.first-article {
+    width: 100%;
+    display: flex;
+}

@@ -74,6 +74,11 @@ class ArticleManager {
                 checkbox.checked = true;
             }
         });
+
+        // 기업별 묶기 버튼 업데이트
+        const isGrouped = this.currentView === 'grouped';
+        groupedViewBtn.classList.toggle('btn-primary', isGrouped);
+        groupedViewBtn.classList.toggle('btn-secondary', !isGrouped);
     }
 
     bindEvents() {
@@ -153,22 +158,6 @@ class ArticleManager {
 
     initViewBtnToggle() {
         const groupedViewBtn = document.getElementById('groupedViewBtn');
-        const articleListContainer = document.getElementById('article-list-container');
-        const articleGroupedContainer = document.getElementById('article-grouped-container');
-
-        // latestViewBtn.addEventListener('click', () => {
-        //     this.currentView = 'list';
-
-        //     latestViewBtn.classList.add('btn-primary');
-        //     latestViewBtn.classList.remove('btn-secondary');
-        //     groupedViewBtn.classList.add('btn-secondary');
-        //     groupedViewBtn.classList.remove('btn-primary');
-
-        //     articleListContainer.classList.remove('d-none');
-        //     articleGroupedContainer.classList.add('d-none');
-
-        //     this.loadArticles();
-        // });
 
         groupedViewBtn.addEventListener('click', () => {
             const isGrouped = this.currentView === 'grouped';
@@ -179,10 +168,6 @@ class ArticleManager {
             // 버튼 스타일 토글
             groupedViewBtn.classList.toggle('btn-primary', !isGrouped);
             groupedViewBtn.classList.toggle('btn-secondary', isGrouped);
-
-            // 컨테이너 토글
-            // articleListContainer.classList.toggle('d-none', !isGrouped);
-            // articleGroupedContainer.classList.toggle('d-none', isGrouped);
 
             this.loadArticles();
         });
@@ -596,8 +581,44 @@ class ArticleManager {
         // this.bindLikeButtons();
         
         // 기존 카드 클릭 이벤트 바인딩
-        // this.bindCardEvents('.article-card');
+        this.bindCardEvents('.article-card');
         // this.bindCardEvents('.child');
+    }
+
+    bindCardEvents(cardSelector) {
+        document.querySelectorAll(cardSelector).forEach(card => {
+            card.addEventListener('click', (e) => {
+                e.preventDefault();
+
+                if (e.target.closest('.badge') || e.target.closest('.like-button') 
+                    || e.target.closest('.company-link') || e.target.closest('.admin-delete-btn')) {
+                    return;
+                }
+
+                let parent = e.target;
+                while (parent) {
+                    if (parent.classList.contains('first-article') 
+                        || parent.classList.contains('child') 
+                        || parent.classList.contains('article-card')) {
+                        const titleLink = parent.querySelector('h5 a') || parent.querySelector('h6 a');
+                        const articleId = parent.getAttribute('data-article-id');
+                        window.open(titleLink.href, '_blank');
+                        fetch(`/api/articles/${articleId}/view`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            credentials: 'same-origin',
+                            redirect: 'manual'
+                        });
+                        break;
+                    }
+                    parent = parent.parentElement;
+                }
+            });
+            
+            card.style.cursor = 'pointer';
+        });
     }
 
     bindLikeButtons() {
