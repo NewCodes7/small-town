@@ -56,7 +56,7 @@
 
 /* 기본 썸네일 스타일 */
 .default-thumbnail {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #E8FFF2;
     position: relative;
     overflow: hidden;
 }
@@ -97,25 +97,4 @@
         radial-gradient(circle at 80% 80%, rgba(255,255,255,0.1) 0%, transparent 50%),
         radial-gradient(circle at 40% 60%, rgba(255,255,255,0.05) 0%, transparent 50%);
     z-index: 1;
-}
-
-/* 다양한 색상 테마 */
-.default-thumbnail:nth-child(odd) {
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-}
-
-.default-thumbnail:nth-child(even) {
-    background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
-}
-
-.default-thumbnail:nth-child(3n) {
-    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-}
-
-.default-thumbnail:nth-child(4n) {
-    background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
-}
-
-.default-thumbnail:nth-child(5n) {
-    background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
 }

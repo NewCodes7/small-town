@@ -214,6 +214,9 @@
             <div class="articles-list-container">
                 <div class="article-card" th:attr="data-article-id=${article.id}" th:each="article : ${articles.content}" style="position: relative;">
                     <!-- Admin Delete Button (only shown via JavaScript for admin users) -->
+                    <button class="admin-delete-btn d-none" title="글 삭제" th:attr="data-article-id=${article.id}">
+                        <i class="fas fa-trash"></i>
+                    </button>
                     
                     <!-- Article Content (Left Side) -->
                     <div class="article-content">
@@ -288,7 +291,10 @@
             <div th:if="${!articles.content.isEmpty()}" class="articles-container">
                 <div th:each="group : ${articles.content}" th:with="firstArticle=${group.articles[0]}, childArticles=${group.articles.size() > 1} ? ${group.articles.subList(1, group.articles.size())} : ${new java.util.ArrayList()}">
                     <div class="article-card" style="position: relative;">
-                        <!-- Admin Delete Button will be added by JS -->
+                        <!-- Admin Delete Button -->
+                        <button class="admin-delete-btn d-none" title="글 삭제" th:attr="data-article-id=${firstArticle.id}">
+                            <i class="fas fa-trash"></i>
+                        </button>
 
                         <!-- Article Content (Left Side) -->
                         <div class="first-article" th:attr="data-article-id=${firstArticle.id}">
@@ -470,6 +476,7 @@
         <script th:src="@{/js/articleManager.js}"></script>
         <script th:src="@{/js/home.js}"></script>
         <script th:src="@{/js/banner.js}"></script>
+        <script th:src="@{/js/deleteArticle.js}"></script>
     </div>
 </body>
 </html>

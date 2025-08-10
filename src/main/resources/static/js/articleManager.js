@@ -5,23 +5,6 @@ let slideInterval;
 let isHovered = false;
 let manualControl = false;
 
-// UserInfo 관리
-let currentUser = null;
-
-async function loadUserInfo() {
-    try {
-        const response = await fetch('/api/user-info', {
-            credentials: 'same-origin'
-        });
-        if (response.ok) {
-            currentUser = await response.json();
-            console.log('Current user:', currentUser);
-        }
-    } catch (error) {
-        console.error('사용자 정보 로드 실패:', error);
-    }
-}
-
 class ArticleManager {
     constructor() {
         this.currentPage = 0;
@@ -325,97 +308,6 @@ class ArticleManager {
         // this.loadLikeStatuses();
     }
 
-    generateChildArticleHTML(childArticles) {
-        return childArticles.map(child => {
-            return `
-                <div class="child">
-                    <h6 class="fw-bold" style="margin: 0;">
-                        <a href=${child.link} target="_blank" class="text-decoration-none" style="color: inherit;">
-                            ${child.title}
-                        </a>
-                    </h6>
-                    <!-- Company Info & Stats -->
-                    <span class="child-date d-flex align-items-center flex-wrap">
-                        <span class="d-flex align-items-center gap-3">
-                            <small class="text-muted relative-time" data-date="${child.publishedAt}" title="${child.publishedAt}">${child.publishedAt}</small>
-                        </span>
-                    </span>
-                </div>
-            `
-        }).join('');
-    }
-
-    generateArticleHTML(article, childArticles = "") {
-        const thumbnailHTML = article.thumbnailImage ? 
-            `<img src="${article.thumbnailImage}" alt="${article.title}" class="article-thumbnail">` :
-            `<div class="article-thumbnail default-thumbnail">
-                <div class="default-thumbnail-content">
-                    <i class="fas fa-code"></i>
-                    <div class="thumbnail-pattern"></div>
-                </div>
-            </div>`;
-
-        const tagsHTML = article.tags && article.tags.length > 0 ?
-            `<div class="mt-auto">
-                ${article.tags.map(tag => `<span class="badge tag-badge me-2">${tag.keyword}</span>`).join('')}
-            </div>` : '';
-
-        const adminDeleteButton = currentUser && currentUser.isAdmin ?
-            `<button class="admin-delete-btn" onclick="deleteArticle(${article.id})" title="글 삭제">
-                <i class="fas fa-trash"></i>
-            </button>` : '';
-
-        return `
-            <div class="article-card" style="position: relative;" data-article-id=${article.id}>
-                ${adminDeleteButton}
-                <!-- Article Content (Left Side) -->
-                <div class="article-content">
-                    <!-- Title -->
-                    <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
-                        <a href="${article.link}" target="_blank" class="text-decoration-none" style="color: inherit;">
-                            ${article.title}
-                        </a>
-                    </h5>
-                    
-                    <!-- Company Info & Stats -->
-                    <div class="d-flex align-items-center flex-wrap">
-                        <div class="d-flex align-items-center me-4">
-                            <a href="/corporations/${article.corporation.id}" class="d-flex align-items-center text-decoration-none company-link" style="transition: all 0.2s ease;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'">
-                                ${article.corporation.effectiveLogoUrl ? 
-                                    `<img width="20px;" src="${article.corporation.effectiveLogoUrl}" alt="${article.corporation.name}" class="company-logo me-2" style="border-radius: 4px;">` : 
-                                    ''}
-                                <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;">${article.corporation.name}</span>
-                            </a>
-                        </div>
-                        <div class="d-flex align-items-center gap-3">
-                            <small class="text-muted relative-time" data-date="${article.publishedAt}" title="${article.publishedAt}">${article.publishedAt}</small>
-                        </div>
-                    </div>
-                    
-                    <!-- Tags -->
-                    ${tagsHTML}
-                </div>
-                
-                <!-- Thumbnail Container (Right Side) -->
-                <div class="article-thumbnail-container">
-                    ${thumbnailHTML}
-                </div>
-
-                <!-- Child Container (Bottom Side) -->
-                ${childArticles === "" ? "" : `
-                    <div class="child-container">
-                        ${childArticles}
-                        <div class="child more-corporation-articles">
-                            <a href="/corporations/${article.corporation.id}" class="me-2 d-flex align-items-center text-decoration-none">
-                                <span class="fw-bold me-2" style="font-size: 1rem;">더보기</span>    
-                            </a>
-                        </div>
-                    </div>
-                `}
-            </div>
-        `;
-    }
-
     renderPagination(data) {
         const container = document.getElementById('paginationContainer');
         if (!container || data.totalPages <= 1) {
@@ -710,42 +602,6 @@ function handleSortClick(sort) {
         articleManager.handleSortChange(sort);
     } else {
         console.error('ArticleManager not initialized');
-    }
-}
-
-// 글 삭제 함수
-async function deleteArticle(articleId) {
-    if (!currentUser || !currentUser.isAdmin) {
-        alert('관리자 권한이 필요합니다.');
-        return;
-    }
-    
-    if (!confirm('정말로 이 글을 삭제하시겠습니까?')) {
-        return;
-    }
-    
-    try {
-        const response = await fetch(`/api/admin/articles/${articleId}`, {
-            method: 'DELETE',
-            credentials: 'same-origin'
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok) {
-            alert('글이 성공적으로 삭제되었습니다.');
-            // 목록 새로고침
-            if (articleManager) {
-                articleManager.loadArticles();
-            } else {
-                window.location.reload();
-            }
-        } else {
-            alert(data.message || '삭제 중 오류가 발생했습니다.');
-        }
-    } catch (error) {
-        console.error('삭제 요청 중 오류:', error);
-        alert('삭제 요청 중 오류가 발생했습니다.');
     }
 }
 

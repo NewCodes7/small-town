@@ -126,9 +126,6 @@ async function initPagination() {
     // 기본 썸네일 설정
     setupDefaultThumbnails();
     
-    // 관리자 삭제 버튼 표시
-    showAdminDeleteButtons();
-    
     // 모달 로그인 처리
     const loginForm = document.getElementById('loginForm');
     if (loginForm) {
@@ -344,23 +341,6 @@ function positionFloatingLogos() {
         logo.style.animationDuration = (7 + Math.random() * 6) + 's'; // 7-13초
         logo.style.animationDelay = (index * 0.1) + 's';
     });
-}
-
-// 관리자 삭제 버튼 표시 함수
-function showAdminDeleteButtons() {
-    if (currentUser && currentUser.isAdmin) {
-        document.querySelectorAll('.article-card').forEach(card => {
-            if (!card.querySelector('.admin-delete-btn')) {
-                const articleId = card.getAttribute('data-article-id');
-                const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'admin-delete-btn';
-                deleteBtn.onclick = () => deleteArticle(articleId);
-                deleteBtn.title = '글 삭제';
-                deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
-                card.appendChild(deleteBtn);
-            }
-        });
-    }
 }
 
 document.addEventListener('DOMContentLoaded', function() {
