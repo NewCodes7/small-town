@@ -489,9 +489,8 @@ class ArticleManager {
 
                 let parent = e.target;
                 while (parent) {
-                    if (parent.classList.contains('first-article') 
-                        || parent.classList.contains('child') 
-                        || parent.classList.contains('article-card')) {
+                    if (parent.classList.contains('article-card') 
+                        || parent.classList.contains('child')) {
                         const titleLink = parent.querySelector('h5 a') || parent.querySelector('h6 a');
                         const articleId = parent.getAttribute('data-article-id');
                         window.open(titleLink.href, '_blank');
