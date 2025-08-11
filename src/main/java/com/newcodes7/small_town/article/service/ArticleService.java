@@ -92,6 +92,7 @@ public class ArticleService {
                     Collectors.collectingAndThen(
                         Collectors.toList(),
                         list -> list.stream()
+                                    .filter(article -> article.getPublishedAt() != null)
                                     .sorted(Comparator.comparing(Article::getPublishedAt).reversed())
                                     .limit(3)
                                     .collect(Collectors.toList())
