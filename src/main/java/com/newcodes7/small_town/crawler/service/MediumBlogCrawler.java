@@ -301,12 +301,12 @@ public class MediumBlogCrawler implements BlogCrawler {
     }
 
     private LocalDateTime parseDateText(String text) {
-        if (text == null || text.isEmpty()) {
-            return null;
-        }
-        
-        text = text.toLowerCase().trim();
         LocalDateTime now = LocalDateTime.now();
+        if (text == null || text.isEmpty()) {
+            return now;
+        }
+
+        text = text.toLowerCase().trim();
         
         // 미디엄에서 쓰이는 발행일 패턴 (e.g., "3d ago", "2h ago", "5m ago")
         Pattern simplePattern = Pattern.compile("(\\d+)([dhm])\\s*(?:ago)?");
@@ -365,17 +365,17 @@ public class MediumBlogCrawler implements BlogCrawler {
                 
                 if (day < 1 || day > 31) {
                     log.debug("Invalid day: {}", day);
-                    return null;
+                    return now;
                 }
                 
                 return LocalDateTime.of(year, month, day, 0, 0);
             } catch (Exception e) {
                 log.debug("Absolute date parsing failed: {}", text, e);
-                return null;
+                return now;
             }
         }
         
-        return null;
+        return now;
     }
     
     private int getMonthNumber(String monthStr) {
