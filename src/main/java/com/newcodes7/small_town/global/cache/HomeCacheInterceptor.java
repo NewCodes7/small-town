@@ -14,16 +14,13 @@ import java.time.ZoneId;
 import java.util.concurrent.TimeUnit;
 
 @Component
-public class CacheInterceptor implements HandlerInterceptor {
+public class HomeCacheInterceptor implements HandlerInterceptor {
 
     @Override
     public void postHandle(HttpServletRequest request, HttpServletResponse response, Object handler, @Nullable ModelAndView modelAndView) throws Exception {
-        // 현재 시각 (한국 시간 기준)
         ZonedDateTime now = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
-
-        // 다음 날 새벽 5시를 갱신 시점으로 설정
-        ZonedDateTime nextRenewal = now.plusDays(1)
-                                        .withHour(5)
+        ZonedDateTime nextRenewal = now.plusDays(0)
+                                        .withHour(1)
                                         .withMinute(0)
                                         .withSecond(0)
                                         .withNano(0);
