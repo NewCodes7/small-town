@@ -5,13 +5,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-import com.newcodes7.small_town.global.cache.CacheInterceptor;
+import com.newcodes7.small_town.global.cache.HomeCacheInterceptor;
 
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
 
     @Autowired
-    private CacheInterceptor cacheInterceptor;
+    private HomeCacheInterceptor cacheInterceptor;
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
