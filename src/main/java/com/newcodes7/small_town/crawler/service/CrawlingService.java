@@ -3,10 +3,6 @@ package com.newcodes7.small_town.crawler.service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 import org.openqa.selenium.WebDriver;
 import org.springframework.context.ApplicationContext;
@@ -38,13 +34,9 @@ public class CrawlingService {
     private final ApplicationContext applicationContext;
     private final CrawlerProperties crawlerProperties;
     private final RobotsTxtService robotsTxtService;
-    
-    // TODO: 스레드 수 최적화 필요 (현재는 5개)
-    private final ExecutorService executorService = 
-        Executors.newFixedThreadPool(5); 
-    
+
     /**
-     * 모든 기업 블로그 크롤링
+     * 모든 기업 블로그 크롤링 (동기 처리)
      */
     public List<CrawlResult> crawlAllBlogs() {
         if (!crawlerProperties.isEnabled()) {
@@ -55,25 +47,16 @@ public class CrawlingService {
         List<Corporation> corporations = crawlerCorporationRepository.findAllWithBlogLink();
         log.info("크롤링 시작 - 대상 기업: {}개", corporations.size());
         
-        // 비동기로 크롤링 요청 
-        List<CompletableFuture<CrawlResult>> futures = new ArrayList<>();
-        for (Corporation corporation : corporations) {
-            CompletableFuture<CrawlResult> future = CompletableFuture.supplyAsync(() -> {
-                return crawlSingleBlog(corporation.getId());
-            }, executorService);
-            
-            futures.add(future);
-        }
-        
-        // 모든 크롤링 완료 대기
         List<CrawlResult> results = new ArrayList<>();
-        for (CompletableFuture<CrawlResult> future : futures) {
+        
+        // 순차적으로 크롤링 실행
+        for (Corporation corporation : corporations) {
             try {
-                CrawlResult result = future.get(5, TimeUnit.MINUTES); // 동기 블로킹 *최대 5분 대기 
+                CrawlResult result = crawlSingleBlog(corporation.getId());
                 results.add(result);
             } catch (Exception e) {
-                log.error("크롤링 작업 실행 중 오류 발생: {}", e.getMessage(), e);
-                results.add(CrawlResult.failure(null, "크롤링 작업 실행 실패: " + e.getMessage()));
+                log.error("기업 ID {} 크롤링 중 오류 발생: {}", corporation.getId(), e.getMessage(), e);
+                results.add(CrawlResult.failure(corporation, "크롤링 실행 실패: " + e.getMessage()));
             }
         }
         
