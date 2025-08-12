@@ -119,6 +119,12 @@ public class MediumBlogCrawler implements BlogCrawler {
                 try {
                     Article article = parseArticleFromElement(element, corporation, driver);
                     if (article != null) {
+                        if (articles.stream().anyMatch(a -> a.getTitle().equals(article.getTitle()))) {
+                            articles.remove(articles.stream()
+                                                    .filter(a -> a.getTitle().equals(article.getTitle()))
+                                                    .findFirst()
+                                                    .orElse(null));
+                        }
                         articles.add(article);
                     }
                 } catch (Exception e) {
@@ -150,13 +156,13 @@ public class MediumBlogCrawler implements BlogCrawler {
             String link = "";
 
             // 4번째로 나온 a 태그를 선택
-            Element linkElement = element.selectFirst("a");
+            Element linkElement = element.selectFirst("div[role='link']");
             if (linkElement == null) {
                 log.debug("링크 요소를 찾을 수 없습니다.");
                 return null;
             }
             
-            link = linkElement.attr("href");
+            link = linkElement.attr("data-href");
             if (link == null || link.isEmpty()) return null;
             
             if (!link.startsWith("http")) {
@@ -172,6 +178,9 @@ public class MediumBlogCrawler implements BlogCrawler {
             String thumbnailImage = "";
             try {
                 Element imgElement = element.selectFirst("img[class*='mq fi']");
+                if (imgElement == null) {
+                    imgElement = element.selectFirst("img[class*='mi fi']");
+                }
                 String originalUrl = imgElement.attr("src");
                 thumbnailImage = originalUrl.replaceAll("/resize:fill:\\d+:\\d+/", "/");
             } catch (Exception e) {
