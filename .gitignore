@@ -3,3 +3,5 @@ build/
 .gradle
 .vscode
 bin/
+# Docker environment file
+.env
