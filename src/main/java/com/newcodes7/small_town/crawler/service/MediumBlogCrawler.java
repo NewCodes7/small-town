@@ -185,6 +185,12 @@ public class MediumBlogCrawler implements BlogCrawler {
                 if (imgElement == null) {
                     imgElement = element.selectFirst("img[class*='mi fi']");
                 }
+                if (imgElement == null) {
+                    imgElement = element.selectFirst("img[class*='ms fi']");
+                }
+                if (imgElement == null) {
+                    imgElement = element.selectFirst("img[class*='mr fi']");
+                }
                 String originalUrl = imgElement.attr("src");
                 thumbnailImage = originalUrl.replaceAll("/resize:fill:\\d+:\\d+/", "/");
             } catch (Exception e) {
