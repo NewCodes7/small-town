@@ -62,7 +62,7 @@ public class CrawlingController {
     public ResponseEntity<Map<String, Object>> crawlSingleBlog(@PathVariable Long corporationId) {
         try {
             log.info("개별 크롤링 API 호출 - corporationId: {}", corporationId);
-            CrawlResult result = crawlingService.crawlSingleBlog(corporationId);
+            CrawlResult result = crawlingService.crawlSingleBlog(corporationId, null);
             
             if (result.isSuccess()) {
                 return ResponseEntity.ok(Map.of(

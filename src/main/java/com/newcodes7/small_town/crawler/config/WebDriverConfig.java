@@ -7,9 +7,7 @@ import java.util.Map;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Scope;
 
 import io.github.bonigarcia.wdm.WebDriverManager;
 import lombok.RequiredArgsConstructor;
@@ -22,17 +20,13 @@ public class WebDriverConfig {
     
     private final WebDriverProperties webDriverProperties;
     
-    @Bean
-    @Scope("prototype") // 각 요청마다 새로운 WebDriver 인스턴스를 생성(크롤링은 독립적인 브라우저 인스턴스를 사용해야 하기에)
-    public WebDriver webDriver() {
+    public WebDriver createWebDriver() {
         WebDriverManager.chromedriver().setup(); // 크롬 드라이버 자동 다운로드 및 설정
 
         ChromeOptions options = new ChromeOptions();
 
         // GUI 없이 백그라운드에서 실행하도록 설정
-        if (webDriverProperties.isHeadless()) {
-            options.addArguments("--headless");
-        }
+        options.addArguments("--headless");
 
         // 해외 블로그의 경우 한국 시간으로 보기 위해 설정 
         options.addArguments("--timezone=Asia/Seoul");
@@ -79,5 +73,16 @@ public class WebDriverConfig {
         log.info("WebDriver 초기화 완료 - Headless: {}", webDriverProperties.isHeadless());
 
         return driver;
+    }
+
+    public void forceCloseWebDriver(WebDriver driver) {
+        if (driver == null) return;
+        
+        try {
+            driver.quit();
+            log.info("WebDriver 정상 종료 완료");
+        } catch (Exception e) {
+            log.error("WebDriver 정상 종료 실패: {}", e.getMessage());
+        }
     }
 }

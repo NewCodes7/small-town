@@ -9,7 +9,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.newcodes7.small_town.crawler.config.CrawlerProperties;
+import com.newcodes7.small_town.crawler.config.WebDriverConfig;
 import com.newcodes7.small_town.crawler.dto.CrawlResult;
 import com.newcodes7.small_town.crawler.dto.CrawlingStats;
 import com.newcodes7.small_town.crawler.entity.Article;
@@ -32,18 +32,13 @@ public class CrawlingService {
     private final CrawlerCorporationRepository crawlerCorporationRepository;
     private final CrawlerArticleRepository crawlerArticleRepository;
     private final ApplicationContext applicationContext;
-    private final CrawlerProperties crawlerProperties;
     private final RobotsTxtService robotsTxtService;
+    private final WebDriverConfig webDriverConfig;
 
     /**
      * 모든 기업 블로그 크롤링 (동기 처리)
      */
     public List<CrawlResult> crawlAllBlogs() {
-        if (!crawlerProperties.isEnabled()) {
-            log.info("크롤링이 비활성화되어 있습니다.");
-            return new ArrayList<>();
-        }
-        
         List<Corporation> corporations = crawlerCorporationRepository.findAllWithBlogLink();
         log.info("크롤링 시작 - 대상 기업: {}개", corporations.size());
         
@@ -51,12 +46,16 @@ public class CrawlingService {
         
         // 순차적으로 크롤링 실행
         for (Corporation corporation : corporations) {
+            WebDriver driver = null;
             try {
-                CrawlResult result = crawlSingleBlog(corporation.getId());
+                driver = webDriverConfig.createWebDriver();
+                CrawlResult result = crawlSingleBlog(corporation.getId(), driver);
                 results.add(result);
             } catch (Exception e) {
                 log.error("기업 ID {} 크롤링 중 오류 발생: {}", corporation.getId(), e.getMessage(), e);
                 results.add(CrawlResult.failure(corporation, "크롤링 실행 실패: " + e.getMessage()));
+            } finally {
+                webDriverConfig.forceCloseWebDriver(driver);
             }
         }
         
@@ -68,7 +67,7 @@ public class CrawlingService {
      * 특정 기업 블로그 크롤링
      */
     @Transactional
-    public CrawlResult crawlSingleBlog(Long corporationId) {
+    public CrawlResult crawlSingleBlog(Long corporationId, WebDriver driver) {
         Corporation corporation = crawlerCorporationRepository.findByIdAndNotDeleted(corporationId);
         if (corporation == null) {
             throw new CorporationCrawlingException(corporationId);
@@ -78,10 +77,12 @@ public class CrawlingService {
             throw new CorporationCrawlingException(corporationId, "empty or null blog URL");
         }
         
-        WebDriver driver = null;
+        // REFACTOR: WebDriver 생성하고 종료시키는 로직이 crawlAllBlogs와 중복되는 것 해결 
+        boolean isDriverProvided = (driver != null);
+        if (!isDriverProvided) {
+            driver = webDriverConfig.createWebDriver();
+        }
         try {
-            driver = applicationContext.getBean(WebDriver.class);
-            
             // 적절한 크롤러 선택
             BlogCrawler crawler = selectCrawler(corporation.getBlogLink());
             log.info("크롤링 시작 - 기업: {}, 크롤러: {}", corporation.getName(), crawler.getProviderName());
@@ -129,13 +130,8 @@ public class CrawlingService {
             log.error("예상치 못한 크롤링 오류 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
             throw new CrawlerException("CRAWLER_UNEXPECTED_ERROR", "Unexpected error during crawling for corporation: " + corporation.getName(), e) {};
         } finally {
-            if (driver != null) {
-                try {
-                    driver.quit();
-                } catch (Exception e) {
-                    log.warn("WebDriver 종료 중 오류: {}", e.getMessage());
-                    throw new WebDriverException("WebDriver cleanup failed", e);
-                }
+            if (!isDriverProvided) {
+                webDriverConfig.forceCloseWebDriver(driver);
             }
         }
     }
