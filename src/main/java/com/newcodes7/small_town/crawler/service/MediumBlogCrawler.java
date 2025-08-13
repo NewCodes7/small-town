@@ -44,6 +44,7 @@ public class MediumBlogCrawler implements BlogCrawler {
                 && (blogUrl.contains("medium.com") 
                     || blogUrl.contains("netflixtechblog.com") 
                     || blogUrl.contains("yogiyo.co.kr")
+                    || blogUrl.contains("gccompany.co.kr")
                 );
     }
     
@@ -123,6 +124,8 @@ public class MediumBlogCrawler implements BlogCrawler {
                 try {
                     Article article = parseArticleFromElement(element, corporation, driver);
                     if (article != null) {
+                        
+
                         if (articles.stream().anyMatch(a -> a.getTitle().equals(article.getTitle()))) {
                             articles.remove(articles.stream()
                                                     .filter(a -> a.getTitle().equals(article.getTitle()))
