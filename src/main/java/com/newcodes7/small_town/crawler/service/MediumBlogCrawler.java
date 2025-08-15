@@ -98,18 +98,7 @@ public class MediumBlogCrawler implements BlogCrawler {
         
         try {
             driver.get(link);
-            
-            // 페이지 파일로 저장하기
-            String pageSource2 = driver.getPageSource();
-            String filePath = "src/main/resources/medium_page.html";
-            Files.write(Paths.get(filePath), pageSource2.getBytes(StandardCharsets.UTF_8));
-            log.info("Medium 페이지 저장 완료: {}", filePath);
-            // // Bot 감지 체크
-            // while (checkForBotDetection(driver)) {
-            //     log.warn("Bot 감지 페이지 발견, 우회 시도 중...");
-            //     handleBotDetection(driver);
-            // }
-            
+
             // 인간처럼 페이지 행동 시뮬레이션
             simulateHumanBehavior(driver);
 
@@ -124,8 +113,6 @@ public class MediumBlogCrawler implements BlogCrawler {
                 try {
                     Article article = parseArticleFromElement(element, corporation, driver);
                     if (article != null) {
-                        
-
                         if (articles.stream().anyMatch(a -> a.getTitle().equals(article.getTitle()))) {
                             articles.remove(articles.stream()
                                                     .filter(a -> a.getTitle().equals(article.getTitle()))
