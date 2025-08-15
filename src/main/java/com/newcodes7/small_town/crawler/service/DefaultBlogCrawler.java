@@ -219,9 +219,9 @@ public class DefaultBlogCrawler implements BlogCrawler {
                                 .toFormatter(Locale.ENGLISH);
                 LocalDate date = LocalDate.parse(dateText, formatter);
                 publishedAt = date.atStartOfDay();
-            } else if (parsingSelector.getPublishFormat().equals("d MMMM")) {
-                String cleanDateText = publishElement.text(); // "3 August"
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("d MMMM", Locale.ENGLISH);
+            } else if (parsingSelector.getPublishFormat().equals("dd MMM")) {
+                String cleanDateText = publishElement.text(); // "03 Aug"
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM", Locale.ENGLISH);
                 TemporalAccessor temporalAccessor = formatter.parse(cleanDateText);
                 LocalDate date = LocalDate.of(LocalDate.now().getYear(),
                                             temporalAccessor.get(ChronoField.MONTH_OF_YEAR),
