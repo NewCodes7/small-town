@@ -16,6 +16,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -178,7 +180,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
                 imgElement = element.select("img[alt*='thumbnail']").get(1);
             }
             if (parsingSelector.getBaseUrl().contains("nhncloud")){
-                imgSrc = imgElement.attr("style").replaceAll("^url\\(['\"]?(.*?)['\"]?\\)$", "$1");
+                imgSrc = extractCssImgUrl(imgElement.attr("style"));
             } else if (parsingSelector.getBaseUrl().contains("gangnamunni")) {
                 imgSrc = imgElement.attr("srcset");
             } else if (imgElement != null) {
@@ -244,6 +246,17 @@ public class DefaultBlogCrawler implements BlogCrawler {
             e.printStackTrace();
             return null;
         }
+    }
+
+    private static String extractCssImgUrl(String cssBackgroundImage) {
+        // url('...') 또는 url("...") 또는 url(...) 패턴 매칭
+        Pattern pattern = Pattern.compile("url\\(['\"]?([^'\"\\)]+)['\"]?\\)");
+        Matcher matcher = pattern.matcher(cssBackgroundImage);
+        
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return null;
     }
 
     private String extractDateOnly(String dateText) {
