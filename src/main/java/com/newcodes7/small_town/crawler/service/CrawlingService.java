@@ -45,19 +45,17 @@ public class CrawlingService {
         List<CrawlResult> results = new ArrayList<>();
         
         // 순차적으로 크롤링 실행
+        WebDriver driver = webDriverConfig.createWebDriver();
         for (Corporation corporation : corporations) {
-            WebDriver driver = null;
             try {
-                driver = webDriverConfig.createWebDriver();
                 CrawlResult result = crawlSingleBlog(corporation.getId(), driver);
                 results.add(result);
             } catch (Exception e) {
                 log.error("기업 ID {} 크롤링 중 오류 발생: {}", corporation.getId(), e.getMessage(), e);
                 results.add(CrawlResult.failure(corporation, "크롤링 실행 실패: " + e.getMessage()));
-            } finally {
-                webDriverConfig.forceCloseWebDriver(driver);
-            }
+            } 
         }
+        webDriverConfig.forceCloseWebDriver(driver);
         
         log.info("전체 크롤링 완료 - 처리된 기업: {}개", results.size());
         return results;
