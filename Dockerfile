@@ -13,13 +13,18 @@ RUN gradle build -x test --no-daemon
 
 # Stage 2: Runtime
 FROM eclipse-temurin:17-jre-jammy
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y curl wget gnupg     && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -     && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list     && apt-get update     && apt-get install -y google-chrome-stable     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY --from=build /home/gradle/project/build/libs/*.jar app.jar
 
 # 보안을 위해 non-root 사용자 생성
 RUN addgroup --system spring && adduser --system spring --ingroup spring
+
+# WebDriverManager가 chromedriver를 다운로드하고 캐시할 디렉토리 생성 및 권한 설정
+RUN mkdir -p /home/spring/.cache \
+    && chown -R spring:spring /home/spring/.cache
+
 USER spring:spring
 
 EXPOSE 8080
