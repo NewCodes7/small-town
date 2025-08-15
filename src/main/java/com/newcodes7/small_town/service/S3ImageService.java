@@ -13,6 +13,8 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.time.LocalDateTime;
@@ -84,6 +86,9 @@ public class S3ImageService {
         try {
             // 외부 URL에서 이미지 다운로드
             URL url = new URL(imageUrl);
+            // url에 공백 포함된 경우 때문에 인코딩 처리해야 함
+            URI uri = new URI(url.getProtocol(), url.getUserInfo(), url.getHost(), url.getPort(), url.getPath(), url.getQuery(), url.getRef());
+            url = uri.toURL();
             URLConnection connection = url.openConnection();
             connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
             
@@ -134,6 +139,9 @@ public class S3ImageService {
         } catch (IOException e) {
             log.error("이미지 업로드 실패: {}", imageUrl, e);
             return imageUrl; // 업로드 실패 시 원본 URL 반환
+        } catch (URISyntaxException e) {
+            log.error("잘못된 URL 형식: {}", imageUrl, e);
+            return imageUrl; // 잘못된 URL 형식 시 원본 URL 반환
         }
     }
 
