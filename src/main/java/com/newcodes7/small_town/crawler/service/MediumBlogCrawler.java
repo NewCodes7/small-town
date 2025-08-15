@@ -128,9 +128,6 @@ public class MediumBlogCrawler implements BlogCrawler {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw CrawlerTimeoutException.pageLoadTimeout(link, 10);
-        } catch (IOException e) {
-            log.error("Medium 페이지 저장 실패: {}", e.getMessage());
-            throw new CrawlerException("CRAWLER_IO_ERROR", "Failed to save Medium page source for corporation: " + corporation.getName(), e) {};
         }
         
         return articles;
