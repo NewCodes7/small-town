@@ -41,6 +41,34 @@ public class ArticleControllerTest {
 
     @Autowired
     private CorporationRepository corporationRepository;
+    
+    @Test
+    public void 홈페이지_게시글_조회_그룹() throws Exception {
+        //given
+        Corporation corporation1 = ArticleCreator.createCorporation(1L);
+        Corporation corporation2 = ArticleCreator.createCorporation(2L);
+        corporationRepository.save(corporation1);
+        corporationRepository.save(corporation2);
+
+        Article article1 = ArticleCreator.createArticle(1L, corporation1);
+        Article article2 = ArticleCreator.createArticle(2L, corporation1);
+        Article article3 = ArticleCreator.createArticle(3L, corporation1);
+        Article article4 = ArticleCreator.createArticle(1L, corporation2);
+        Article article5 = ArticleCreator.createArticle(2L, corporation2);
+        Article article6 = ArticleCreator.createArticle(3L, corporation2);
+        List<Article> articles = List.of(article1, article2, article3, article4, article5, article6);
+        articleRepository.saveAll(articles);
+
+        //when&then
+        mockMvc.perform(get("/"))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
+            .andExpect(view().name("home"))
+            .andExpect(model().attribute("isGrouped", true))
+            .andExpect(model().attributeExists("articles"))
+            .andExpect(model().attribute("articles", hasProperty("totalElements", equalTo(2L)))) 
+            .andExpect(model().attribute("currentPage", 0));
+    }
 
     @Test
     public void 홈페이지_게시글_조회_리스트() throws Exception {
@@ -51,18 +79,18 @@ public class ArticleControllerTest {
         corporationRepository.save(corporation2);
 
         Article article1 = ArticleCreator.createArticle(1L, corporation1);
-        Article article2 = ArticleCreator.createArticle(1L, corporation1);
-        Article article3 = ArticleCreator.createArticle(1L, corporation2);
-        Article article4 = ArticleCreator.createArticle(1L, corporation2);
+        Article article2 = ArticleCreator.createArticle(2L, corporation1);
+        Article article3 = ArticleCreator.createArticle(3L, corporation2);
+        Article article4 = ArticleCreator.createArticle(4L, corporation2);
         List<Article> articles = List.of(article1, article2, article3, article4);
         articleRepository.saveAll(articles);
 
         //when&then
         mockMvc.perform(get("/").param("view", "list"))
-            .andDo(print())
             .andExpect(status().isOk())
             .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
             .andExpect(view().name("home"))
+            .andExpect(model().attribute("isGrouped", false))
             .andExpect(model().attributeExists("articles"))
             .andExpect(model().attribute("articles", hasProperty("totalElements", equalTo(4L)))) 
             .andExpect(model().attribute("articles", hasProperty("content", hasSize(4)))) 
