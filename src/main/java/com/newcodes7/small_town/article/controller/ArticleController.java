@@ -56,12 +56,12 @@ public class ArticleController {
 
     @GetMapping({"", "/"})
     public String home(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "latest") String sort,
-            @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) List<String> regions,
-            @RequestParam(defaultValue = "grouped") String view,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            @RequestParam(name = "sort", defaultValue = "latest") String sort,
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "regions", required = false) List<String> regions,
+            @RequestParam(name = "view", defaultValue = "grouped") String view,
             Model model) {
         
         Page<ArticleResponseDto> articles = articleService.getArticlesWithFilters(
