@@ -1,8 +1,7 @@
 package com.newcodes7.small_town.article.controller;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasProperty;
-import static org.hamcrest.Matchers.hasSize;
+import static org.assertj.core.api.Assertions.*;
+import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -16,11 +15,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
+import com.newcodes7.small_town.article.dto.GroupedArticlesDto;
 import com.newcodes7.small_town.article.entity.Article;
 import com.newcodes7.small_town.article.entity.Corporation;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
@@ -43,34 +46,6 @@ public class ArticleControllerTest {
     private CorporationRepository corporationRepository;
     
     @Test
-    public void 홈페이지_게시글_조회_그룹() throws Exception {
-        //given
-        Corporation corporation1 = ArticleCreator.createCorporation(1L);
-        Corporation corporation2 = ArticleCreator.createCorporation(2L);
-        corporationRepository.save(corporation1);
-        corporationRepository.save(corporation2);
-
-        Article article1 = ArticleCreator.createArticle(1L, corporation1);
-        Article article2 = ArticleCreator.createArticle(2L, corporation1);
-        Article article3 = ArticleCreator.createArticle(3L, corporation1);
-        Article article4 = ArticleCreator.createArticle(1L, corporation2);
-        Article article5 = ArticleCreator.createArticle(2L, corporation2);
-        Article article6 = ArticleCreator.createArticle(3L, corporation2);
-        List<Article> articles = List.of(article1, article2, article3, article4, article5, article6);
-        articleRepository.saveAll(articles);
-
-        //when&then
-        mockMvc.perform(get("/"))
-            .andExpect(status().isOk())
-            .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
-            .andExpect(view().name("home"))
-            .andExpect(model().attribute("isGrouped", true))
-            .andExpect(model().attributeExists("articles"))
-            .andExpect(model().attribute("articles", hasProperty("totalElements", equalTo(2L)))) 
-            .andExpect(model().attribute("currentPage", 0));
-    }
-
-    @Test
     public void 홈페이지_게시글_조회_리스트() throws Exception {
         //given
         Corporation corporation1 = ArticleCreator.createCorporation(1L);
@@ -86,15 +61,59 @@ public class ArticleControllerTest {
         articleRepository.saveAll(articles);
 
         //when&then
-        mockMvc.perform(get("/").param("view", "list"))
+        MvcResult result = mockMvc.perform(get("/").param("view", "list"))
             .andExpect(status().isOk())
-            .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
             .andExpect(view().name("home"))
-            .andExpect(model().attribute("isGrouped", false))
             .andExpect(model().attributeExists("articles"))
-            .andExpect(model().attribute("articles", hasProperty("totalElements", equalTo(4L)))) 
-            .andExpect(model().attribute("articles", hasProperty("content", hasSize(4)))) 
-            .andExpect(model().attribute("articles", hasProperty("number", equalTo(0)))) 
-            .andExpect(model().attribute("currentPage", 0));
+            .andReturn();
+
+        Page<ArticleListResponseDto> articlesPage = (Page<ArticleListResponseDto>) result.getModelAndView().getModel().get("articles");
+        List<ArticleListResponseDto> contents = articlesPage.getContent();
+        assertThat(contents).hasSize(4);
+
+        for (int i = 0; i < contents.size(); i++) {
+            ArticleListResponseDto dto = contents.get(i);
+            assertThat(dto.getId()).isEqualTo(articles.get(i).getId());
+            assertThat(dto.getTitle()).isEqualTo(articles.get(i).getTitle());
+            assertThat(dto.getCorporation().getId()).isEqualTo(articles.get(i).getCorporation().getId());
+        }
+    }
+
+    @Test
+    public void 홈페이지_게시글_조회_그룹() throws Exception {
+        //given
+        Corporation corporation1 = ArticleCreator.createCorporation(1L);
+        Corporation corporation2 = ArticleCreator.createCorporation(2L);
+        corporationRepository.save(corporation1);
+        corporationRepository.save(corporation2);
+
+        Article article1 = ArticleCreator.createArticle(1L, corporation1);
+        Article article2 = ArticleCreator.createArticle(2L, corporation1);
+        Article article3 = ArticleCreator.createArticle(3L, corporation2);
+        Article article4 = ArticleCreator.createArticle(4L, corporation2);
+        List<Article> articles = List.of(article1, article2, article3, article4);
+        articleRepository.saveAll(articles);
+
+        //when&then
+        MvcResult result = mockMvc.perform(get("/"))
+            .andExpect(status().isOk())
+            .andExpect(view().name("home"))
+            .andExpect(model().attributeExists("articles"))
+            .andReturn();
+
+        Page<GroupedArticlesDto> articlesPage = (Page<GroupedArticlesDto>) result.getModelAndView().getModel().get("articles");
+        List<GroupedArticlesDto> contents = articlesPage.getContent();
+        assertThat(contents).hasSize(2);
+
+        GroupedArticlesDto groupedDto1 = contents.get(0);
+        GroupedArticlesDto groupedDto2 = contents.get(1);
+        assertThat(groupedDto1.getCorporation().getId()).isEqualTo(corporation1.getId());
+        assertThat(groupedDto2.getCorporation().getId()).isEqualTo(corporation2.getId());
+        assertThat(groupedDto1.getArticles()).hasSize(2);
+        assertThat(groupedDto2.getArticles()).hasSize(2);   
+        assertThat(groupedDto1.getArticles().get(0).getId()).isEqualTo(article1.getId());
+        assertThat(groupedDto1.getArticles().get(1).getId()).isEqualTo(article2.getId());
+        assertThat(groupedDto2.getArticles().get(0).getId()).isEqualTo(article3.getId());
+        assertThat(groupedDto2.getArticles().get(1).getId()).isEqualTo(article4.getId());
     }
 }

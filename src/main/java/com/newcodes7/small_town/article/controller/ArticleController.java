@@ -90,14 +90,14 @@ public class ArticleController {
         // log.info("인기글 수: {}", popularArticles.getContent().size());
 
         model.addAttribute("articles", articles);
-        model.addAttribute("currentPage", page);
         model.addAttribute("totalPages", articles.getTotalPages());
         model.addAttribute("totalElements", articles.getTotalElements());
+        model.addAttribute("hasNext", articles.hasNext());
+        model.addAttribute("hasPrevious", articles.hasPrevious());
+        model.addAttribute("currentPage", page);
         model.addAttribute("currentSort", sort);
         model.addAttribute("keyword", keyword);
         model.addAttribute("selectedRegions", regions != null ? regions : new ArrayList<>());
-        model.addAttribute("hasNext", articles.hasNext());
-        model.addAttribute("hasPrevious", articles.hasPrevious());
         model.addAttribute("corporations", corporationsWithLogos);
         model.addAttribute("isGrouped", view.equals("grouped"));
         // model.addAttribute("popularArticles", popularArticles.getContent());
