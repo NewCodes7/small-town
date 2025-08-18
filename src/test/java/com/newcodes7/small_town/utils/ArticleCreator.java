@@ -32,6 +32,21 @@ public class ArticleCreator {
             .build();
     }
 
+    public static Corporation createCorporation(long corporationId, boolean isDomestic) {
+        return Corporation.builder()
+            .name("NewCodes" + corporationId)
+            .homeLink("https://newcodes.net/corporation/" + corporationId)
+            .blogLink("https://newcodes.net/blogs/" + corporationId)
+            .crewLink("https://newcodes.net/crew/" + corporationId)
+            .logoUrl("https://newcodes.net/logo/" + corporationId)
+            .logoFilename("logo_" + corporationId + ".png")
+            .logoS3Url("https://s3.newcodes.net/logo/" + corporationId + ".png")
+            .isDomestic(isDomestic)
+            .createdAt(LocalDateTime.now())
+            .updatedAt(LocalDateTime.now())
+            .build();
+    }
+
     public static Article createArticle(long articleId, Corporation corporation) {
         return Article.builder()
             .title("백엔드 업무일지" + articleId + "편")
