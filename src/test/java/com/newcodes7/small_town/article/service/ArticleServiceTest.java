@@ -40,7 +40,7 @@ public class ArticleServiceTest {
     public void 게시글_리스트_조회() {
         //given
         String view = "list";
-        List<Article> articlesList = ArticleCreator.createArticles(Map.of(1L, 1L, 2L, 1L));
+        List<Article> articlesList = ArticleCreator.createArticlesWithId(List.of(1L, 1L));
         Pageable pageable = PageRequest.of(0, 10);
         Page<Article> articles = new PageImpl<>(articlesList, pageable, articlesList.size());
         when(articleRepository.findArticlesWithFilters(null, null, null, pageable)).thenReturn(articles);
@@ -58,7 +58,7 @@ public class ArticleServiceTest {
         String view = "list";
         String keyword = "1편";
         Pageable pageable = PageRequest.of(0, 10);
-        List<Article> targetArticles = ArticleCreator.createArticles(Map.of(1L, 1L));
+        List<Article> targetArticles = ArticleCreator.createArticlesWithId(List.of(1L));
         Page<Article> expect = new PageImpl<>(targetArticles, pageable, targetArticles.size());
         when(articleRepository.findArticlesWithFilters(keyword, null, null, pageable)).thenReturn(expect);
 
@@ -74,11 +74,11 @@ public class ArticleServiceTest {
         //given
         String view = "list";
         String keyword = "1편";
-        List<String> regions = Arrays.asList("domestic");
+        List<String> regions = List.of("domestic");
         Pageable pageable = PageRequest.of(0, 10);
-        List<Article> articlesList = ArticleCreator.createArticles(Map.of(1L, 1L, 2L, 1L));
+        List<Article> articlesList = ArticleCreator.createArticlesWithId(List.of(1L, 1L));
         Page<Article> expect = new PageImpl<>(articlesList, pageable, articlesList.size());
-        when(articleRepository.findArticlesWithFilters(keyword, Arrays.asList(true), null, pageable)).thenReturn(expect);
+        when(articleRepository.findArticlesWithFilters(keyword, List.of(true), null, pageable)).thenReturn(expect);
 
         //when
         Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, regions, 0, 10, null, view);
@@ -92,11 +92,11 @@ public class ArticleServiceTest {
         //given
         String view = "list";
         String keyword = "1편";
-        List<String> regions = Arrays.asList("overseas");
+        List<String> regions = List.of("overseas");
         Pageable pageable = PageRequest.of(0, 10);
-        List<Article> articlesList = ArticleCreator.createArticles(Map.of(1L, 1L, 2L, 1L));
+        List<Article> articlesList = ArticleCreator.createArticlesWithId(List.of(1L, 1L));
         Page<Article> expect = new PageImpl<>(articlesList, pageable, articlesList.size());
-        when(articleRepository.findArticlesWithFilters(keyword, Arrays.asList(false), null, pageable)).thenReturn(expect);
+        when(articleRepository.findArticlesWithFilters(keyword, List.of(false), null, pageable)).thenReturn(expect);
 
         //when
         Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, regions, 0, 10, null, view);
@@ -110,11 +110,11 @@ public class ArticleServiceTest {
         //given
         String view = "list";
         String keyword = "1편";
-        List<String> regions = Arrays.asList("domestic", "overseas");
+        List<String> regions = List.of("domestic", "overseas");
         Pageable pageable = PageRequest.of(0, 10);
-        List<Article> articlesList = ArticleCreator.createArticles(Map.of(1L, 1L, 2L, 1L));
+        List<Article> articlesList = ArticleCreator.createArticlesWithId(List.of(1L, 1L));
         Page<Article> expect = new PageImpl<>(articlesList, pageable, articlesList.size());
-        when(articleRepository.findArticlesWithFilters(keyword, Arrays.asList(true, false), null, pageable)).thenReturn(expect);
+        when(articleRepository.findArticlesWithFilters(keyword, List.of(true, false), null, pageable)).thenReturn(expect);
 
         //when
         Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, regions, 0, 10, null, view);
@@ -128,11 +128,11 @@ public class ArticleServiceTest {
         //given
         String view = "list";
         String keyword = "1편";
-        List<String> regions = Arrays.asList("domestic");
+        List<String> regions = List.of("domestic");
         Pageable pageable = PageRequest.of(0, 10);
-        List<Article> targetArticles = ArticleCreator.createArticles(Map.of(1L, 1L));
+        List<Article> targetArticles = ArticleCreator.createArticlesWithId(List.of(1L));
         Page<Article> expect = new PageImpl<>(targetArticles, pageable, targetArticles.size());
-        when(articleRepository.findArticlesWithFilters(keyword, Arrays.asList(true), null, pageable)).thenReturn(expect);
+        when(articleRepository.findArticlesWithFilters(keyword, List.of(true), null, pageable)).thenReturn(expect);
 
         //when
         Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, regions, 0, 10, null, view);
@@ -145,23 +145,23 @@ public class ArticleServiceTest {
     public void 게시글_기업별_조회() {
         //given
         String view = "grouped";
-        List<Long> corporationsIdList = Arrays.asList(1L, 2L);
+        List<Long> corporationsIdList = List.of(1L, 2L);
         Pageable pageable = PageRequest.of(0, 10);
         Page<Long> corporationIds = new PageImpl<>(corporationsIdList, pageable, corporationsIdList.size());
-        List<Article> articlesCorp1 = ArticleCreator.createArticles(Map.of(1L, 1L, 2L, 1L));
-        List<Article> articlesCorp2 = ArticleCreator.createArticles(Map.of(3L, 2L, 4L, 2L));
+        List<Article> articlesCorp1 = ArticleCreator.createArticlesWithId(List.of(1L, 1L));
+        List<Article> articlesCorp2 = ArticleCreator.createArticlesWithId(List.of(2L, 2L));
         List<Article> allArticles = new ArrayList<>();
         allArticles.addAll(articlesCorp1);
         allArticles.addAll(articlesCorp2);
         GroupedArticlesDto groupedArticlesDto1 = GroupedArticlesDto.builder()
-            .corporation(new CorporationDto(ArticleCreator.createCorporation(1L)))
+            .corporation(new CorporationDto(ArticleCreator.createCorporationWithId(1L)))
             .articles(articlesCorp1.stream().map(ArticleListResponseDto::new).collect(Collectors.toList()))
             .build();
         GroupedArticlesDto groupedArticlesDto2 = GroupedArticlesDto.builder()
-            .corporation(new CorporationDto(ArticleCreator.createCorporation(2L)))
+            .corporation(new CorporationDto(ArticleCreator.createCorporationWithId(2L)))
             .articles(articlesCorp2.stream().map(ArticleListResponseDto::new).collect(Collectors.toList()))
             .build();
-        List<GroupedArticlesDto> groupedList = Arrays.asList(groupedArticlesDto1, groupedArticlesDto2);
+        List<GroupedArticlesDto> groupedList = List.of(groupedArticlesDto1, groupedArticlesDto2);
         Page<GroupedArticlesDto> expected = new PageImpl<>(groupedList, pageable, groupedList.size());
 
         when(articleRepository.findCorporationIdsWithFilters(null, null, pageable)).thenReturn(corporationIds);

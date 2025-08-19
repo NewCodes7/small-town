@@ -10,11 +10,36 @@ import com.newcodes7.small_town.article.entity.Article;
 import com.newcodes7.small_town.article.entity.Corporation;
 
 public class ArticleCreator {
-    public static List<Article> createArticles(Map<Long, Long> articles) {
-        return articles.entrySet().stream()
-                .map(entry -> createArticle(entry.getKey(), createCorporation(entry.getValue())))
-                .sorted((a, b) -> a.getId().compareTo(b.getId()))
+    private static long articleIdCounter = 0L;
+
+    public static List<Article> createArticlesWithId(List<Long> corporationIds) {
+        return corporationIds.stream()
+                .map(ArticleCreator::createCorporationWithId)
+                .map(ArticleCreator::createArticleWithId)
                 .collect(Collectors.toList());
+    }
+
+    public static List<Article> createArticles(List<Long> corporationIds) {
+        return corporationIds.stream()
+                .map(ArticleCreator::createCorporation)
+                .map(ArticleCreator::createArticle)
+                .collect(Collectors.toList());
+    }
+
+    public static Corporation createCorporationWithId(long corporationId) {
+        return Corporation.builder()
+            .id(corporationId)
+            .name("NewCodes" + corporationId)
+            .homeLink("https://newcodes.net/corporation/" + corporationId)
+            .blogLink("https://newcodes.net/blogs/" + corporationId)
+            .crewLink("https://newcodes.net/crew/" + corporationId)
+            .logoUrl("https://newcodes.net/logo/" + corporationId)
+            .logoFilename("logo_" + corporationId + ".png")
+            .logoS3Url("https://s3.newcodes.net/logo/" + corporationId + ".png")
+            .isDomestic(true)
+            .createdAt(LocalDateTime.now())
+            .updatedAt(LocalDateTime.now())
+            .build();
     }
 
     public static Corporation createCorporation(long corporationId) {
@@ -47,18 +72,38 @@ public class ArticleCreator {
             .build();
     }
 
-    public static Article createArticle(long articleId, Corporation corporation) {
+    public static Article createArticleWithId(Corporation corporation) {
+        articleIdCounter++;
         return Article.builder()
-            .title("백엔드 업무일지" + articleId + "편")
-            .summary("스프링 부트 트러블슈팅을 다뤄봐요~" + articleId)
-            .link("https://newcodes.net/blogs/" + articleId)
+            .id(articleIdCounter)
+            .title("백엔드 업무일지" + articleIdCounter + "편")
+            .summary("스프링 부트 트러블슈팅을 다뤄봐요~" + articleIdCounter)
+            .link("https://newcodes.net/blogs/" + articleIdCounter)
             .viewCount((int) Math.random() * 100)
             .likeCount((int) Math.random() * 100)
-            .thumbnailImage("https://newcodes.net/thumbnail/" + articleId)
+            .thumbnailImage("https://newcodes.net/thumbnail/" + articleIdCounter)
             .readingTime((int) Math.random() * 100)
             .createdAt(LocalDateTime.now())
             .updatedAt(LocalDateTime.now())
-            .publishedAt(LocalDateTime.now().minusHours(articleId))
+            .publishedAt(LocalDateTime.now().minusHours(articleIdCounter))
+            .corporation(corporation)
+            .articleTags(new ArrayList<>())
+            .build();
+    }
+
+    public static Article createArticle(Corporation corporation) {
+        articleIdCounter++;
+        return Article.builder()
+            .title("백엔드 업무일지" + articleIdCounter + "편")
+            .summary("스프링 부트 트러블슈팅을 다뤄봐요~" + articleIdCounter)
+            .link("https://newcodes.net/blogs/" + articleIdCounter)
+            .viewCount((int) Math.random() * 100)
+            .likeCount((int) Math.random() * 100)
+            .thumbnailImage("https://newcodes.net/thumbnail/" + articleIdCounter)
+            .readingTime((int) Math.random() * 100)
+            .createdAt(LocalDateTime.now())
+            .updatedAt(LocalDateTime.now())
+            .publishedAt(LocalDateTime.now().minusHours(articleIdCounter))
             .corporation(corporation)
             .articleTags(new ArrayList<>())
             .build();
