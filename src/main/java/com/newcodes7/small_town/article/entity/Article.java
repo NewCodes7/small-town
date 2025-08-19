@@ -39,10 +39,10 @@ public class Article {
     private String link;
     
     @Column(name = "view_count")
-    private Integer viewCount = 0;
+    private Integer viewCount;
     
     @Column(name = "like_count")
-    private Integer likeCount = 0;
+    private Integer likeCount;
     
     @Column(name = "thumbnail_image")
     private String thumbnailImage;
@@ -71,7 +71,7 @@ public class Article {
     
     @JsonIgnore
     @OneToMany(mappedBy = "article", cascade = CascadeType.ALL)
-    private List<ArticleTag> articleTags = new ArrayList<>();
+    private List<ArticleTag> articleTags;
     
     public void softDelete() {
         this.deletedAt = LocalDateTime.now();

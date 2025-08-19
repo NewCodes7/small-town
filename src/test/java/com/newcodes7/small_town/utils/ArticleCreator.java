@@ -108,4 +108,8 @@ public class ArticleCreator {
             .articleTags(new ArrayList<>())
             .build();
     }
+
+    public static void resetArticleIdCounter() {
+        articleIdCounter = 0L;
+    }
 }

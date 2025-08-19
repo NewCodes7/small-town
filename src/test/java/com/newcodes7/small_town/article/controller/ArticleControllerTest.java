@@ -11,6 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -44,22 +46,36 @@ public class ArticleControllerTest {
 
     @Autowired
     private CorporationRepository corporationRepository;
-    
-    @Test
-    public void 홈페이지_게시글_조회_리스트() throws Exception {
-        //given
-        Corporation corporation1 = ArticleCreator.createCorporation(1L);
-        Corporation corporation2 = ArticleCreator.createCorporation(2L);
+
+    private Corporation corporation1;
+    private Corporation corporation2;
+    private Article article1;
+    private Article article2;
+    private Article article3;
+    private Article article4;
+    private List<Article> articles;
+
+    @BeforeEach
+    public void setUp() {
+        corporationRepository.deleteAll();
+        articleRepository.deleteAll();
+        ArticleCreator.resetArticleIdCounter();
+
+        corporation1 = ArticleCreator.createCorporation(1L, true);
+        corporation2 = ArticleCreator.createCorporation(2L, false);
         corporationRepository.save(corporation1);
         corporationRepository.save(corporation2);
 
-        Article article1 = ArticleCreator.createArticle(1L, corporation1);
-        Article article2 = ArticleCreator.createArticle(2L, corporation1);
-        Article article3 = ArticleCreator.createArticle(3L, corporation2);
-        Article article4 = ArticleCreator.createArticle(4L, corporation2);
-        List<Article> articles = List.of(article1, article2, article3, article4);
+        article1 = ArticleCreator.createArticle(corporation1);
+        article2 = ArticleCreator.createArticle(corporation1);
+        article3 = ArticleCreator.createArticle(corporation2);
+        article4 = ArticleCreator.createArticle(corporation2);
+        articles = List.of(article1, article2, article3, article4);
         articleRepository.saveAll(articles);
+    }
 
+    @Test
+    public void 홈페이지_게시글_조회_리스트() throws Exception {
         //when&then
         MvcResult result = mockMvc.perform(get("/").param("view", "list"))
             .andExpect(status().isOk())
@@ -81,19 +97,6 @@ public class ArticleControllerTest {
 
     @Test
     public void 홈페이지_게시글_조회_그룹() throws Exception {
-        //given
-        Corporation corporation1 = ArticleCreator.createCorporation(1L);
-        Corporation corporation2 = ArticleCreator.createCorporation(2L);
-        corporationRepository.save(corporation1);
-        corporationRepository.save(corporation2);
-
-        Article article1 = ArticleCreator.createArticle(1L, corporation1);
-        Article article2 = ArticleCreator.createArticle(2L, corporation1);
-        Article article3 = ArticleCreator.createArticle(3L, corporation2);
-        Article article4 = ArticleCreator.createArticle(4L, corporation2);
-        List<Article> articles = List.of(article1, article2, article3, article4);
-        articleRepository.saveAll(articles);
-
         //when&then
         MvcResult result = mockMvc.perform(get("/"))
             .andExpect(status().isOk())
@@ -119,19 +122,6 @@ public class ArticleControllerTest {
 
     @Test
     public void 홈페이지_게시글_조회_그룹_검색() throws Exception {
-        //given
-        Corporation corporation1 = ArticleCreator.createCorporation(1L);
-        Corporation corporation2 = ArticleCreator.createCorporation(2L);
-        corporationRepository.save(corporation1);
-        corporationRepository.save(corporation2);
-
-        Article article1 = ArticleCreator.createArticle(1L, corporation1);
-        Article article2 = ArticleCreator.createArticle(2L, corporation1);
-        Article article3 = ArticleCreator.createArticle(3L, corporation2);
-        Article article4 = ArticleCreator.createArticle(4L, corporation2);
-        List<Article> articles = List.of(article1, article2, article3, article4);
-        articleRepository.saveAll(articles);
-
         //when&then
         MvcResult result = mockMvc.perform(get("/").param("keyword", "1"))
             .andExpect(status().isOk())
@@ -152,19 +142,6 @@ public class ArticleControllerTest {
 
     @Test
     public void 홈페이지_게시글_조회_그룹_국내() throws Exception {
-        //given
-        Corporation corporation1 = ArticleCreator.createCorporation(1L, true);
-        Corporation corporation2 = ArticleCreator.createCorporation(2L, false);
-        corporationRepository.save(corporation1);
-        corporationRepository.save(corporation2);
-
-        Article article1 = ArticleCreator.createArticle(1L, corporation1);
-        Article article2 = ArticleCreator.createArticle(2L, corporation1);
-        Article article3 = ArticleCreator.createArticle(3L, corporation2);
-        Article article4 = ArticleCreator.createArticle(4L, corporation2);
-        List<Article> articles = List.of(article1, article2, article3, article4);
-        articleRepository.saveAll(articles);
-
         //when&then
         MvcResult result = mockMvc.perform(get("/").param("regions", "domestic"))
             .andExpect(status().isOk())
@@ -187,19 +164,6 @@ public class ArticleControllerTest {
 
     @Test
     public void 홈페이지_게시글_조회_그룹_해외() throws Exception {
-        //given
-        Corporation corporation1 = ArticleCreator.createCorporation(1L, true);
-        Corporation corporation2 = ArticleCreator.createCorporation(2L, false);
-        corporationRepository.save(corporation1);
-        corporationRepository.save(corporation2);
-
-        Article article1 = ArticleCreator.createArticle(1L, corporation1);
-        Article article2 = ArticleCreator.createArticle(2L, corporation1);
-        Article article3 = ArticleCreator.createArticle(3L, corporation2);
-        Article article4 = ArticleCreator.createArticle(4L, corporation2);
-        List<Article> articles = List.of(article1, article2, article3, article4);
-        articleRepository.saveAll(articles);
-
         //when&then
         MvcResult result = mockMvc.perform(get("/").param("regions", "overseas"))
             .andExpect(status().isOk())
@@ -221,19 +185,6 @@ public class ArticleControllerTest {
 
     @Test
     public void 홈페이지_게시글_조회_그룹_국내_해외() throws Exception {
-        //given
-        Corporation corporation1 = ArticleCreator.createCorporation(1L, true);
-        Corporation corporation2 = ArticleCreator.createCorporation(2L, false);
-        corporationRepository.save(corporation1);
-        corporationRepository.save(corporation2);
-
-        Article article1 = ArticleCreator.createArticle(1L, corporation1);
-        Article article2 = ArticleCreator.createArticle(2L, corporation1);
-        Article article3 = ArticleCreator.createArticle(3L, corporation2);
-        Article article4 = ArticleCreator.createArticle(4L, corporation2);
-        List<Article> articles = List.of(article1, article2, article3, article4);
-        articleRepository.saveAll(articles);
-
         //when&then
         MvcResult result = mockMvc.perform(get("/").param("regions", "overseas").param("regions", "domestic"))
             .andExpect(status().isOk())
@@ -262,19 +213,6 @@ public class ArticleControllerTest {
 
     @Test
     public void 홈페이지_게시글_조회_그룹_국내_검색() throws Exception {
-        //given
-        Corporation corporation1 = ArticleCreator.createCorporation(1L, true);
-        Corporation corporation2 = ArticleCreator.createCorporation(2L, false);
-        corporationRepository.save(corporation1);
-        corporationRepository.save(corporation2);
-
-        Article article1 = ArticleCreator.createArticle(1L, corporation1);
-        Article article2 = ArticleCreator.createArticle(2L, corporation1);
-        Article article3 = ArticleCreator.createArticle(3L, corporation2);
-        Article article4 = ArticleCreator.createArticle(4L, corporation2);
-        List<Article> articles = List.of(article1, article2, article3, article4);
-        articleRepository.saveAll(articles);
-
         //when&then
         MvcResult result = mockMvc.perform(get("/").param("regions", "domestic").param("keyword", "1"))
             .andExpect(status().isOk())

@@ -48,7 +48,7 @@ public class Corporation {
     private String logoS3Url;
     
     @Column(name = "is_domestic", nullable = false)
-    private Boolean isDomestic = true;
+    private Boolean isDomestic;
     
     @CreatedDate
     @Column(name = "created_at")
