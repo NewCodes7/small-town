@@ -107,10 +107,6 @@ public class DefaultBlogCrawler implements BlogCrawler {
             }
             
             String pageSource = driver.getPageSource();
-            Files.writeString(
-                java.nio.file.Paths.get("src/test/resources/toss_blog.html"), 
-                pageSource
-            );
             Document doc = Jsoup.parse(pageSource);
 
             // 다양한 CSS 선택자로 아티클 찾기
