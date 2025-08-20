@@ -184,7 +184,8 @@ public class DefaultBlogCrawler implements BlogCrawler {
             if (parsingSelector.getBaseUrl().contains("toss")) {
                 imgElement = element.select("img[alt*='thumbnail']").get(1);
             }
-            if (parsingSelector.getBaseUrl().contains("nhncloud")){
+            if (parsingSelector.getBaseUrl().contains("nhncloud") 
+            || parsingSelector.getBaseUrl().contains("ktcloud")) {
                 imgSrc = extractCssImgUrl(imgElement.attr("style"));
             } else if (parsingSelector.getBaseUrl().contains("gangnamunni")) {
                 imgSrc = imgElement.attr("srcset");
