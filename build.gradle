@@ -31,7 +31,10 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'jakarta.validation:jakarta.validation-api:3.0.2'
     implementation 'org.hibernate.validator:hibernate-validator:8.0.1.Final'
+
+	// 모니터링
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'de.codecentric:spring-boot-admin-starter-client'
 	
 	// Spring Security & JWT
 	implementation 'org.springframework.boot:spring-boot-starter-security'
@@ -50,7 +53,6 @@ dependencies {
     
     // JSON 파싱
     implementation 'com.fasterxml.jackson.core:jackson-databind'
-
     implementation 'org.jsoup:jsoup:1.17.2'
     
     // RSS/Atom Feed 파싱
@@ -64,8 +66,9 @@ dependencies {
     runtimeOnly 'com.h2database:h2'
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
-	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.assertj:assertj-core'
 }
 
 tasks.named('test') {

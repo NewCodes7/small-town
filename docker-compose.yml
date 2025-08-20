@@ -4,7 +4,7 @@ services:
   backend:
     build: .
     container_name: newcodes-backend
-    restart: unless-stopped  # always 대신 사용 권장
+    restart: unless-stopped  
     environment:
       - DB_URL=${DB_URL}
       - DB_USERNAME=${DB_USERNAME}
@@ -16,6 +16,7 @@ services:
       - CLOUDFRONT_DOMAIN=${CLOUDFRONT_DOMAIN}
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE}
       - SERVER_SSL_ENABLED=false  # Nginx에서 SSL 처리
+      - ADMIN_URL=${ADMIN_URL}
     expose:
       - "8080"  # 외부 노출 없이 내부 네트워크만
     healthcheck:
@@ -24,8 +25,17 @@ services:
       timeout: 10s
       retries: 3
 
+  admin-server:
+    build: ./admin-server
+    container_name: admin-server
+    ports:
+      - "9090:9090"
+    depends_on:
+      backend:
+        condition: service_healthy
+
   nginx:
-    image: nginx:alpine  # 더 가벼운 이미지
+    image: nginx:alpine 
     container_name: newcodes-nginx
     restart: unless-stopped
     ports:
