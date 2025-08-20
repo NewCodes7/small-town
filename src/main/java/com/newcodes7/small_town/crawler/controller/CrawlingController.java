@@ -59,7 +59,7 @@ public class CrawlingController {
      * 특정 기업 블로그 크롤링 실행
      */
     @GetMapping("/corporation/{corporationId}")
-    public ResponseEntity<Map<String, Object>> crawlSingleBlog(@PathVariable Long corporationId) {
+    public ResponseEntity<Map<String, Object>> crawlSingleBlog(@PathVariable("corporationId") Long corporationId) {
         try {
             log.info("개별 크롤링 API 호출 - corporationId: {}", corporationId);
             CrawlResult result = crawlingService.crawlSingleBlog(corporationId, null);

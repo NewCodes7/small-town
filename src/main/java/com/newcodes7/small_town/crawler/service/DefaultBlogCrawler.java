@@ -1,6 +1,7 @@
 package com.newcodes7.small_town.crawler.service;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -80,7 +81,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
     /**
      * HTML 콘텐츠 크롤링 (기존 로직)
      */
-    private List<Article> crawlHtmlContent(WebDriver driver, Corporation corporation) throws CrawlerException {
+    private List<Article> crawlHtmlContent(WebDriver driver, Corporation corporation) throws CrawlerException, IOException {
         List<Article> articles = new ArrayList<>();
         
         try {
@@ -106,6 +107,10 @@ public class DefaultBlogCrawler implements BlogCrawler {
             }
             
             String pageSource = driver.getPageSource();
+            Files.writeString(
+                java.nio.file.Paths.get("src/test/resources/toss_blog.html"), 
+                pageSource
+            );
             Document doc = Jsoup.parse(pageSource);
 
             // 다양한 CSS 선택자로 아티클 찾기
@@ -239,6 +244,8 @@ public class DefaultBlogCrawler implements BlogCrawler {
                     .link(link)
                     .thumbnailImage(thumbnailImage)
                     .publishedAt(publishedAt)
+                    .viewCount(0)
+                    .likeCount(0)
                     .build();
                     
         } catch (Exception e) {

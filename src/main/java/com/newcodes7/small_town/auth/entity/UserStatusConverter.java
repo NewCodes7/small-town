@@ -9,15 +9,15 @@ public class UserStatusConverter implements AttributeConverter<User.UserStatus, 
     @Override
     public String convertToDatabaseColumn(User.UserStatus attribute) {
         if (attribute == null) {
-            return null;
+            return User.UserStatus.ACTIVE.getValue(); 
         }
         return attribute.getValue();
     }
     
     @Override
     public User.UserStatus convertToEntityAttribute(String dbData) {
-        if (dbData == null) {
-            return null;
+        if (dbData == null || dbData.isEmpty()) {
+            return User.UserStatus.ACTIVE; 
         }
         
         for (User.UserStatus status : User.UserStatus.values()) {
@@ -26,6 +26,6 @@ public class UserStatusConverter implements AttributeConverter<User.UserStatus, 
             }
         }
         
-        throw new IllegalArgumentException("Unknown database value: " + dbData);
+        return User.UserStatus.ACTIVE;
     }
 }

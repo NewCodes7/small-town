@@ -195,6 +195,8 @@ public class MediumBlogCrawler implements BlogCrawler {
                     .link(link)
                     .thumbnailImage(thumbnailImage)
                     .publishedAt(publishedAt)
+                    .viewCount(0)
+                    .likeCount(0)
                     .build();
                     
         } catch (Exception e) {

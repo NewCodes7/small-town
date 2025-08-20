@@ -19,6 +19,15 @@ public class ArticleCreator {
                 .collect(Collectors.toList());
     }
 
+    public static List<Article> createArticles(Corporation corporation, int articlesCount) {
+        List<Article> articles = new ArrayList<>();
+        for (int i = 0; i < articlesCount; i++) {
+            articles.add(createArticle(corporation));
+        }
+        return articles;
+    }
+
+    // REFACTOR: 이미 존재하는 corp 객체를 통해 생성하는 걸로 변경 (안 헷갈리게)
     public static List<Article> createArticles(List<Long> corporationIds) {
         return corporationIds.stream()
                 .map(ArticleCreator::createCorporation)
