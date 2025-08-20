@@ -81,8 +81,6 @@ public class CrawlingControllerTest {
         parsingSelectorRepository.deleteAll();
         ArticleCreator.resetArticleIdCounter();
 
-        Role userRole = roleRepository.findByName("USER")
-                .orElseGet(() -> roleRepository.save(Role.builder().name("USER").build()));
         Role adminRole = roleRepository.findByName("ADMIN")
                 .orElseGet(() -> roleRepository.save(Role.builder().name("ADMIN").build()));
 
@@ -139,7 +137,7 @@ public class CrawlingControllerTest {
         articleRepository.saveAll(articles);
         
         //when&then
-        MvcResult result = mockMvc.perform(get("/api/crawling/corporation/{corporationId}", corporation.getId())
+        mockMvc.perform(get("/api/crawling/corporation/{corporationId}", corporation.getId())
                 .cookie(new Cookie("accessToken", accessToken))        
                 .accept(MediaType.APPLICATION_JSON))
                 .andDo(print())

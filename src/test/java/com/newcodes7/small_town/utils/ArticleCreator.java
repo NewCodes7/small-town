@@ -3,7 +3,6 @@ package com.newcodes7.small_town.utils;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import com.newcodes7.small_town.article.entity.Article;
@@ -25,14 +24,6 @@ public class ArticleCreator {
             articles.add(createArticle(corporation));
         }
         return articles;
-    }
-
-    // REFACTOR: 이미 존재하는 corp 객체를 통해 생성하는 걸로 변경 (안 헷갈리게)
-    public static List<Article> createArticles(List<Long> corporationIds) {
-        return corporationIds.stream()
-                .map(ArticleCreator::createCorporation)
-                .map(ArticleCreator::createArticle)
-                .collect(Collectors.toList());
     }
 
     public static Corporation createCorporationWithId(long corporationId) {
