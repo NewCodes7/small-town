@@ -5,7 +5,7 @@ plugins {
 }
 
 jar {
-    archiveFileName = 'app.jar'
+    enabled = false
 }
 
 group = 'com.admin'
