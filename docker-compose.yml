@@ -30,9 +30,6 @@ services:
     container_name: admin-server
     ports:
       - "9090:9090"
-    depends_on:
-      backend:
-        condition: service_healthy
 
   nginx:
     image: nginx:alpine 
