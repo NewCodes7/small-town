@@ -34,7 +34,7 @@ dependencies {
 
 	// 모니터링
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
-	implementation 'de.codecentric:spring-boot-admin-starter-client'
+	implementation 'de.codecentric:spring-boot-admin-starter-client:3.5.2'
 	
 	// Spring Security & JWT
 	implementation 'org.springframework.boot:spring-boot-starter-security'
