@@ -16,7 +16,7 @@ services:
       - CLOUDFRONT_DOMAIN=${CLOUDFRONT_DOMAIN}
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE}
       - SERVER_SSL_ENABLED=false  # Nginx에서 SSL 처리
-      - ADMIN_URL=${ADMIN_URL}
+      - ADMIN_URL=http://admin-server:9090
     expose:
       - "8080"  # 외부 노출 없이 내부 네트워크만
     healthcheck:
