@@ -88,6 +88,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/crawling/**").hasRole("ADMIN")
                 .requestMatchers("/crawling/**").hasRole("ADMIN")
+                .requestMatchers("actuator/**").permitAll() // NginX 단에서 미리 막아뒀고, admin 서버에서는 접근 가능해야 하기에 permitAll
                 
                 // 기업 등록/수정/삭제는 ADMIN만 가능
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/corporations/**").hasRole("ADMIN")
