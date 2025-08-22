@@ -17,6 +17,9 @@ services:
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE}
       - SERVER_SSL_ENABLED=false  # Nginx에서 SSL 처리
       - ADMIN_URL=http://admin-server:9090
+      - ADMIN_NAME=${ADMIN_NAME}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - ROLES=${ROLES}
     expose:
       - "8080"  # 외부 노출 없이 내부 네트워크만
     healthcheck:
@@ -30,6 +33,10 @@ services:
     container_name: admin-server
     ports:
       - "9090:9090"
+    environment:
+      - ADMIN_NAME=${ADMIN_NAME}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - ROLES=${ROLES}
 
   nginx:
     image: nginx:alpine 
