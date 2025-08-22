@@ -88,7 +88,6 @@ public class SecurityConfig {
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/crawling/**").hasRole("ADMIN")
                 .requestMatchers("/crawling/**").hasRole("ADMIN")
-                .requestMatchers("/actuator/**").hasRole("ADMIN")
                 
                 // 기업 등록/수정/삭제는 ADMIN만 가능
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/corporations/**").hasRole("ADMIN")
