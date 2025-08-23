@@ -41,8 +41,7 @@ services:
   prometheus:
     image: prom/prometheus:v2.37.4
     container_name: prometheus
-    ports:
-      - "9090:9090"
+    network_mode: host
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml  
     restart: always
@@ -50,14 +49,11 @@ services:
   grafana:
     image: grafana/grafana:8.3.3
     container_name: grafana
-    ports:
-      - "3000:3000"
+    network_mode: host
     environment:
       - GF_PASSWORD=${ADMIN_PASSWORD}
       - GF_SERVER_ROOT_URL=https://newcodes.net/admin/monitor/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
-    depends_on:
-      - prometheus
     restart: always
 
   node-exporter:
