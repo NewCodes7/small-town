@@ -1,7 +1,7 @@
 package com.newcodes7.small_town.auth.service;
 
 import com.newcodes7.small_town.auth.entity.User;
-import com.newcodes7.small_town.auth.repository.UserRepzository;
+import com.newcodes7.small_town.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
