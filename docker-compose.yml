@@ -51,7 +51,7 @@ services:
     image: grafana/grafana:8.3.3
     container_name: grafana
     ports:
-      - "3000:3000"
+      - "5050:5050"
     environment:
       - GF_PASSWORD=${ADMIN_PASSWORD}
     depends_on:
