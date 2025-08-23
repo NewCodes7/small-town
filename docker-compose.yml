@@ -54,6 +54,8 @@ services:
       - "5050:5050"
     environment:
       - GF_PASSWORD=${ADMIN_PASSWORD}
+      - GF_SERVER_ROOT_URL=https://newcodes.net/admin/monitor/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
     depends_on:
       - prometheus
     restart: always
