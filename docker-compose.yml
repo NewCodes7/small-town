@@ -51,7 +51,7 @@ services:
     image: grafana/grafana:8.3.3
     container_name: grafana
     ports:
-      - "5050:5050"
+      - "3000:3000"
     environment:
       - GF_PASSWORD=${ADMIN_PASSWORD}
       - GF_SERVER_ROOT_URL=https://newcodes.net/admin/monitor/
