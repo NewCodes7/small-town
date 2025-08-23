@@ -38,14 +38,14 @@ services:
   #     - ADMIN_PASSWORD=${ADMIN_PASSWORD}
   #     - ROLES=${ROLES}
 
-    prometheus:
-      image: prom/prometheus:v2.37.4
-      container_name: prometheus
-      ports:
-        - "9090:9090"
-      volumes:
-        - ./prometheus.yml:/etc/prometheus/prometheus.yml  
-      restart: always
+  prometheus:
+    image: prom/prometheus:v2.37.4
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml  
+    restart: always
 
   grafana:
     image: grafana/grafana:8.3.3
