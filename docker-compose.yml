@@ -28,15 +28,35 @@ services:
       timeout: 10s
       retries: 3
 
-  admin-server:
-    build: ./admin-server
-    container_name: admin-server
+  # admin-server:
+  #   build: ./admin-server
+  #   container_name: admin-server
+  #   ports:
+  #     - "9090:9090"
+  #   environment:
+  #     - ADMIN_NAME=${ADMIN_NAME}
+  #     - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+  #     - ROLES=${ROLES}
+
+    prometheus:
+      image: prom/prometheus:v2.37.4
+      container_name: prometheus
+      ports:
+        - "9090:9090"
+      volumes:
+        - ./prometheus.yml:/etc/prometheus/prometheus.yml  
+      restart: always
+
+  grafana:
+    image: grafana/grafana:8.3.3
+    container_name: grafana
     ports:
-      - "9090:9090"
+      - "3000:3000"
     environment:
-      - ADMIN_NAME=${ADMIN_NAME}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-      - ROLES=${ROLES}
+      - GF_PASSWORD=${ADMIN_PASSWORD}
+    depends_on:
+      - prometheus
+    restart: always
 
   nginx:
     image: nginx:alpine 
