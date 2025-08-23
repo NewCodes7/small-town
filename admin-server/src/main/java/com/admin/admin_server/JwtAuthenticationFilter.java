@@ -1,6 +1,5 @@
 package com.newcodes7.small_town.auth.jwt;
 
-import com.newcodes7.small_town.auth.service.CustomUserDetailsService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
