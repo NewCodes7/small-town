@@ -397,16 +397,18 @@
                     <!-- Page Numbers with dynamic range calculation -->
                     <th:block th:with="
                         maxPagesToShow=5,
-                        maxPagesBeforeCurrent=${T(java.lang.Math).floor(maxPagesToShow / 2)},
-                        maxPagesAfterCurrent=${T(java.lang.Math).ceil(maxPagesToShow / 2) - 1},
+                        maxPagesBeforeCurrent=2,
+                        maxPagesAfterCurrent=2,
+                        calculatedStartPage=${currentPage - maxPagesBeforeCurrent},
+                        calculatedEndPage=${currentPage + maxPagesAfterCurrent},
                         startPage=${totalPages <= maxPagesToShow ? 0 : 
-                            (currentPage <= maxPagesBeforeCurrent ? 0 : 
-                                (currentPage + maxPagesAfterCurrent >= totalPages ? totalPages - maxPagesToShow : 
-                                    currentPage - maxPagesBeforeCurrent))},
+                            (calculatedStartPage <= 0 ? 0 : 
+                                (calculatedEndPage >= totalPages ? totalPages - maxPagesToShow : 
+                                    calculatedStartPage))},
                         endPage=${totalPages <= maxPagesToShow ? totalPages - 1 : 
-                            (currentPage <= maxPagesBeforeCurrent ? maxPagesToShow - 1 : 
-                                (currentPage + maxPagesAfterCurrent >= totalPages ? totalPages - 1 : 
-                                    currentPage + maxPagesAfterCurrent))}
+                            (calculatedStartPage <= 0 ? maxPagesToShow - 1 : 
+                                (calculatedEndPage >= totalPages ? totalPages - 1 : 
+                                    calculatedEndPage))}
                     ">
                         <li class="page-item" 
                             th:each="pageNum : ${#numbers.sequence(startPage, endPage)}"
