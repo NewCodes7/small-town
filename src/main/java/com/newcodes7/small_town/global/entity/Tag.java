@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.entity;
+package com.newcodes7.small_town.global.entity;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -14,20 +14,18 @@ import java.time.LocalDateTime;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
-@Table(name = "article_tag")
-public class ArticleTag {
+@Table(name = "tag")
+public class Tag {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "article_id", nullable = false)
-    private Article article;
+    @Column(nullable = false, length = 100, unique = true)
+    private String keyword;
     
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tag_id", nullable = false)
-    private Tag tag;
+    @Column(name = "request_count")
+    private Integer requestCount = 0;
     
     @CreatedDate
     @Column(name = "created_at")
