@@ -1,6 +1,8 @@
 package com.newcodes7.small_town.article.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.newcodes7.small_town.global.entity.ArticleTag;
+
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;

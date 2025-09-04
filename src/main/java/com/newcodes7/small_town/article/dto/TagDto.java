@@ -1,6 +1,7 @@
 package com.newcodes7.small_town.article.dto;
 
-import com.newcodes7.small_town.article.entity.Tag;
+import com.newcodes7.small_town.global.entity.Tag;
+
 import lombok.Getter;
 
 @Getter
