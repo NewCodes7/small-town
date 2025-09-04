@@ -66,4 +66,7 @@ public class Article {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "corporation_id", insertable = false, updatable = false)
     private Corporation corporation;
+
+    @Column(name = "category_id")
+    private Long categoryId;
 }
