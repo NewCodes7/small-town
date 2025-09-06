@@ -1,12 +1,9 @@
 package com.newcodes7.small_town.crawler.service;
 
-import com.newcodes7.small_town.crawler.entity.Article;
-import com.newcodes7.small_town.crawler.entity.Corporation;
-import com.newcodes7.small_town.crawler.exception.*;
-import com.newcodes7.small_town.crawler.service.BlogCrawler;
-import com.newcodes7.small_town.service.S3ImageService;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -14,10 +11,13 @@ import org.jsoup.select.Elements;
 import org.openqa.selenium.WebDriver;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
+import com.newcodes7.small_town.crawler.exception.CrawlerException;
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.service.S3ImageService;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Component
 @RequiredArgsConstructor
@@ -118,7 +118,7 @@ public class TistoryCrawler implements BlogCrawler {
             }
             
             return Article.builder()
-                    .corporationId(corporation.getId())
+                    .corporation(corporation)
                     .title(title)
                     .summary(summary)
                     .link(link)

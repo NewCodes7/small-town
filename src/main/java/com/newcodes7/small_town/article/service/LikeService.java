@@ -1,9 +1,10 @@
 package com.newcodes7.small_town.article.service;
 
-import com.newcodes7.small_town.article.entity.Article;
 import com.newcodes7.small_town.article.entity.Like;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.LikeRepository;
+import com.newcodes7.small_town.global.entity.Article;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

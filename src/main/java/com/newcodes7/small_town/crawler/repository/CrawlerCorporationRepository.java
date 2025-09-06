@@ -1,19 +1,20 @@
 package com.newcodes7.small_town.crawler.repository;
 
-import com.newcodes7.small_town.crawler.entity.Corporation;
+import java.util.List;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
+import com.newcodes7.small_town.global.entity.Corporation;
 
 @Repository
 public interface CrawlerCorporationRepository extends JpaRepository<Corporation, Long> {
 
-    @Query("SELECT c FROM CrawlerCorporation c WHERE c.blogLink IS NOT NULL AND c.blogLink != '' AND c.deletedAt IS NULL")
+    @Query("SELECT c FROM Corporation c WHERE c.blogLink IS NOT NULL AND c.blogLink != '' AND c.deletedAt IS NULL")
     List<Corporation> findAllWithBlogLink();
 
-    @Query("SELECT c FROM CrawlerCorporation c WHERE c.id = :id AND c.deletedAt IS NULL")
+    @Query("SELECT c FROM Corporation c WHERE c.id = :id AND c.deletedAt IS NULL")
     Corporation findByIdAndNotDeleted(@Param("id") Long id);
 }

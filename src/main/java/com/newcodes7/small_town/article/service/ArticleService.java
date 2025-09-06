@@ -2,14 +2,15 @@ package com.newcodes7.small_town.article.service;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.CorporationRepository;
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.Corporation;
+
 import org.springframework.beans.factory.annotation.Qualifier;
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.dto.ArticleResponseDto;
 import com.newcodes7.small_town.article.dto.CorporationDetailDto;
 import com.newcodes7.small_town.article.dto.CorporationDto;
 import com.newcodes7.small_town.article.dto.GroupedArticlesDto;
-import com.newcodes7.small_town.article.entity.Article;
-import com.newcodes7.small_town.article.entity.Corporation;
 import com.newcodes7.small_town.article.exception.CorporationNotFoundException;
 import com.newcodes7.small_town.article.exception.InvalidParameterException;
 import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
@@ -45,14 +46,14 @@ public class ArticleService {
 
     public Page<ArticleResponseDto> getArticlesWithFilters(String keyword, List<String> regions, 
                                                      int page, int size, String sort, String view) {
-        List<Boolean> domesticTypes = null;
+        List<Integer> domesticTypes = null;
         if (regions != null && !regions.isEmpty()) {
             domesticTypes = new ArrayList<>();
             if (regions.contains("domestic")) {
-                domesticTypes.add(true);
+                domesticTypes.add(1);
             }
             if (regions.contains("overseas")) {
-                domesticTypes.add(false);
+                domesticTypes.add(0);
             }
         }
         
@@ -70,7 +71,7 @@ public class ArticleService {
     }
 
     public Page<ArticleResponseDto> getArticlesGroupedByCorporationWithPaging(String keyword, 
-                                                                        List<Boolean> domesticTypes, 
+                                                                        List<Integer> domesticTypes, 
                                                                         int page, int size) {
         // 1. 페이징된 기업 ID 목록 조회
         Pageable pageable = PageRequest.of(page, size);

@@ -1,12 +1,10 @@
 package com.newcodes7.small_town.article.dto;
 
-import com.newcodes7.small_town.article.entity.Article;
-import lombok.Getter;
-
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.stream.Collectors;
+
+import com.newcodes7.small_town.global.entity.Article;
+
+import lombok.Getter;
 
 @Getter
 public class ArticleListResponseDto implements ArticleResponseDto {
@@ -21,7 +19,6 @@ public class ArticleListResponseDto implements ArticleResponseDto {
     private final Integer readingTime;
     private final String publishedAt;
     private final CorporationDto corporation;
-    private final List<TagDto> tags;
     
     public ArticleListResponseDto(Article article) {
         this.id = article.getId();
@@ -35,8 +32,5 @@ public class ArticleListResponseDto implements ArticleResponseDto {
         this.publishedAt = article.getPublishedAt() != null ? 
             article.getPublishedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : null;
         this.corporation = new CorporationDto(article.getCorporation());
-        this.tags = article.getArticleTags().stream()
-            .map(articleTag -> new TagDto(articleTag.getTag()))
-            .collect(Collectors.toList());
     }
 }

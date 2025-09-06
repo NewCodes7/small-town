@@ -1,9 +1,10 @@
 package com.newcodes7.small_town.article.dto;
 
-import com.newcodes7.small_town.article.entity.Corporation;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
+
+import com.newcodes7.small_town.global.entity.Corporation;
 
 @Getter
 public class CorporationDetailDto {

@@ -1,9 +1,5 @@
 package com.newcodes7.small_town.crawler.service;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -21,10 +17,10 @@ import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.springframework.stereotype.Component;
 
-import com.newcodes7.small_town.crawler.entity.Article;
-import com.newcodes7.small_town.crawler.entity.Corporation;
 import com.newcodes7.small_town.crawler.exception.CrawlerException;
 import com.newcodes7.small_town.crawler.exception.CrawlerTimeoutException;
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.service.S3ImageService;
 
 import lombok.RequiredArgsConstructor;
@@ -189,7 +185,7 @@ public class MediumBlogCrawler implements BlogCrawler {
             LocalDateTime publishedAt = parseDateText(timeElement.text().trim());
             
             return Article.builder()
-                    .corporationId(corporation.getId())
+                    .corporation(corporation)
                     .title(title)
                     .summary(summary)
                     .link(link)

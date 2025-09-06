@@ -5,8 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import com.newcodes7.small_town.article.entity.Article;
-import com.newcodes7.small_town.article.entity.Corporation;
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.Corporation;
 
 public class ArticleCreator {
     private static long articleIdCounter = 0L;
@@ -36,7 +36,7 @@ public class ArticleCreator {
             .logoUrl("https://newcodes.net/logo/" + corporationId)
             .logoFilename("logo_" + corporationId + ".png")
             .logoS3Url("https://s3.newcodes.net/logo/" + corporationId + ".png")
-            .isDomestic(true)
+            .isDomestic(1)
             .createdAt(LocalDateTime.now())
             .updatedAt(LocalDateTime.now())
             .build();
@@ -51,13 +51,13 @@ public class ArticleCreator {
             .logoUrl("https://newcodes.net/logo/" + corporationId)
             .logoFilename("logo_" + corporationId + ".png")
             .logoS3Url("https://s3.newcodes.net/logo/" + corporationId + ".png")
-            .isDomestic(true)
+            .isDomestic(1)
             .createdAt(LocalDateTime.now())
             .updatedAt(LocalDateTime.now())
             .build();
     }
 
-    public static Corporation createCorporation(long corporationId, boolean isDomestic) {
+    public static Corporation createCorporation(long corporationId, int isDomestic) {
         return Corporation.builder()
             .name("NewCodes" + corporationId)
             .homeLink("https://newcodes.net/corporation/" + corporationId)

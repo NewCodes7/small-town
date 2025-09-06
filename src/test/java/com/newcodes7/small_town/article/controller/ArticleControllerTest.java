@@ -26,10 +26,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.dto.GroupedArticlesDto;
-import com.newcodes7.small_town.article.entity.Article;
-import com.newcodes7.small_town.article.entity.Corporation;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.CorporationRepository;
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.utils.ArticleCreator;
 
 @TestPropertySource("classpath:application-test.properties")
@@ -61,8 +61,8 @@ public class ArticleControllerTest {
         articleRepository.deleteAll();
         ArticleCreator.resetArticleIdCounter();
 
-        corporation1 = ArticleCreator.createCorporation(1L, true);
-        corporation2 = ArticleCreator.createCorporation(2L, false);
+        corporation1 = ArticleCreator.createCorporation(1L, 1);
+        corporation2 = ArticleCreator.createCorporation(2L, 0);
         corporationRepository.save(corporation1);
         corporationRepository.save(corporation2);
 

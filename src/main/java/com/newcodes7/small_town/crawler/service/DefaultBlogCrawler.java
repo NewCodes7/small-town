@@ -1,7 +1,6 @@
 package com.newcodes7.small_town.crawler.service;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -29,12 +28,12 @@ import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.springframework.stereotype.Component;
 
-import com.newcodes7.small_town.crawler.entity.Article;
-import com.newcodes7.small_town.crawler.entity.Corporation;
 import com.newcodes7.small_town.crawler.entity.ParsingSelector;
 import com.newcodes7.small_town.crawler.exception.CrawlerException;
 import com.newcodes7.small_town.crawler.exception.CrawlerTimeoutException;
 import com.newcodes7.small_town.crawler.repository.ParsingSelectorRepository;
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.service.S3ImageService;
 import com.rometools.rome.feed.synd.SyndEntry;
 import com.rometools.rome.feed.synd.SyndFeed;
@@ -235,7 +234,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
             }
 
             return Article.builder()
-                    .corporationId(corporation.getId())
+                    .corporation(corporation)
                     .title(title)
                     .summary(summary)
                     .link(link)
@@ -453,7 +452,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
         }
         
         return Article.builder()
-                .corporationId(corporation.getId())
+                .corporation(corporation)
                 .title(title.trim())
                 .summary(summary)
                 .link(link)

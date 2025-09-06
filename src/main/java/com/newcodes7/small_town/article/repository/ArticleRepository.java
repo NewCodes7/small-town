@@ -1,6 +1,6 @@
 package com.newcodes7.small_town.article.repository;
 
-import com.newcodes7.small_town.article.entity.Article;
+import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -10,7 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
+import com.newcodes7.small_town.global.entity.Article;
 
 @Repository
 public interface ArticleRepository extends JpaRepository<Article, Long> {
@@ -57,7 +57,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "END DESC, " +
            "a.publishedAt DESC, a.createdAt DESC")
     Page<Article> findArticlesWithFilters(@Param("keyword") String keyword, 
-                                         @Param("domesticTypes") List<Boolean> domesticTypes,
+                                         @Param("domesticTypes") List<Integer> domesticTypes,
                                          @Param("sort") String sort,
                                          Pageable pageable);
 
@@ -75,7 +75,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "END DESC, " +
            "a.publishedAt DESC, a.createdAt DESC")
     List<Article> findArticlesWithFilters(@Param("keyword") String keyword, 
-                                         @Param("domesticTypes") List<Boolean> domesticTypes,
+                                         @Param("domesticTypes") List<Integer> domesticTypes,
                                          @Param("sort") String sort);                       
     
     @Modifying
@@ -105,7 +105,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
               "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
               "AND (:domesticTypes IS NULL OR a.corporation.isDomestic IN :domesticTypes)")
        long countDistinctCorporationsByFilters(@Param("keyword") String keyword, 
-                                          @Param("domesticTypes") List<Boolean> domesticTypes);
+                                          @Param("domesticTypes") List<Integer> domesticTypes);
 
        // 기업별 최신 글을 기준으로 정렬된 기업 ID 목록 조회 (페이징)
        @Query("SELECT a.corporation.id FROM Article a " +
@@ -115,7 +115,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
               "GROUP BY a.corporation.id " +
               "ORDER BY MAX(a.publishedAt) DESC")
        Page<Long> findCorporationIdsWithFilters(@Param("keyword") String keyword,
-                                          @Param("domesticTypes") List<Boolean> domesticTypes,
+                                          @Param("domesticTypes") List<Integer> domesticTypes,
                                           Pageable pageable);
 
        // 특정 기업들의 최신 글 3개씩 조회 (JOIN FETCH 추가)
@@ -130,5 +130,5 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
               "ORDER BY a.corporation.id, a.publishedAt DESC")
        List<Article> findArticlesByCorporations(@Param("corporationIds") List<Long> corporationIds,
                                                  @Param("keyword") String keyword,
-                                                 @Param("domesticTypes") List<Boolean> domesticTypes);
+                                                 @Param("domesticTypes") List<Integer> domesticTypes);
 }

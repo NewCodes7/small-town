@@ -1,11 +1,11 @@
 package com.newcodes7.small_town.article.service;
 
-import com.newcodes7.small_town.article.entity.Article;
 import com.newcodes7.small_town.article.entity.LikeLog;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.LikeLogRepository;
 import com.newcodes7.small_town.auth.entity.User;
 import com.newcodes7.small_town.auth.repository.UserRepository;
+import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
 import com.newcodes7.small_town.article.exception.UserNotFoundException;
 import com.newcodes7.small_town.article.exception.InvalidParameterException;

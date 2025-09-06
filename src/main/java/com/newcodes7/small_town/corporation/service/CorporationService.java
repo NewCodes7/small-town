@@ -1,27 +1,31 @@
 package com.newcodes7.small_town.corporation.service;
 
-import com.newcodes7.small_town.corporation.dto.CorporationCreateDto;
-import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
-import com.newcodes7.small_town.corporation.dto.CorporationUpdateDto;
-import com.newcodes7.small_town.corporation.entity.Corporation;
-import com.newcodes7.small_town.corporation.entity.CorporationIndustry;
-import com.newcodes7.small_town.corporation.entity.Industry;
-import com.newcodes7.small_town.corporation.exception.*;
-import com.newcodes7.small_town.corporation.repository.CorporationRepository;
-import com.newcodes7.small_town.corporation.repository.IndustryRepository;
-import com.newcodes7.small_town.crawler.entity.ParsingSelector;
-import com.newcodes7.small_town.crawler.repository.ParsingSelectorRepository;
+import java.io.IOException;
+import java.util.List;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.util.List;
+import com.newcodes7.small_town.corporation.dto.CorporationCreateDto;
+import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
+import com.newcodes7.small_town.corporation.dto.CorporationUpdateDto;
+import com.newcodes7.small_town.corporation.entity.CorporationIndustry;
+import com.newcodes7.small_town.corporation.entity.Industry;
+import com.newcodes7.small_town.corporation.exception.CorporationNotFoundException;
+import com.newcodes7.small_town.corporation.exception.DuplicateCorporationNameException;
+import com.newcodes7.small_town.corporation.exception.IndustryNotFoundException;
+import com.newcodes7.small_town.corporation.exception.InvalidParameterException;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
+import com.newcodes7.small_town.corporation.repository.IndustryRepository;
+import com.newcodes7.small_town.crawler.entity.ParsingSelector;
+import com.newcodes7.small_town.crawler.repository.ParsingSelectorRepository;
+import com.newcodes7.small_town.global.entity.Corporation;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service

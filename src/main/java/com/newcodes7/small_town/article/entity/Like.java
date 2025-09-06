@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import com.newcodes7.small_town.global.entity.Article;
+
 import java.time.LocalDateTime;
 
 @Entity

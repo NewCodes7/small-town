@@ -1,11 +1,12 @@
 package com.newcodes7.small_town.crawler.service;
 
-import com.newcodes7.small_town.crawler.entity.Article;
-import com.newcodes7.small_town.crawler.entity.Corporation;
-import com.newcodes7.small_town.crawler.exception.CrawlerException;
+import java.util.List;
+
 import org.openqa.selenium.WebDriver;
 
-import java.util.List;
+import com.newcodes7.small_town.crawler.exception.CrawlerException;
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.Corporation;
 
 public interface BlogCrawler {
     boolean canHandle(String blogUrl);

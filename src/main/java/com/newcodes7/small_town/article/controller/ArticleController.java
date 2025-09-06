@@ -30,6 +30,8 @@ import com.newcodes7.small_town.article.service.ViewService;
 import com.newcodes7.small_town.auth.entity.User;
 import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
 import com.newcodes7.small_town.corporation.service.CorporationService;
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.util.Client;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -38,8 +40,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import com.newcodes7.small_town.article.dto.CorporationDto;
 import com.newcodes7.small_town.article.dto.GroupedArticlesDto;
-import com.newcodes7.small_town.article.entity.Article;
-import com.newcodes7.small_town.article.entity.Corporation;
 
 import java.util.stream.Collectors;
 

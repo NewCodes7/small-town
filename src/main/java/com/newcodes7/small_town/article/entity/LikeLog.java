@@ -1,6 +1,8 @@
 package com.newcodes7.small_town.article.entity;
 
 import com.newcodes7.small_town.auth.entity.User;
+import com.newcodes7.small_town.global.entity.Article;
+
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;

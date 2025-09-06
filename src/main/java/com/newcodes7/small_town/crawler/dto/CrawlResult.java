@@ -1,11 +1,12 @@
 package com.newcodes7.small_town.crawler.dto;
 
-import com.newcodes7.small_town.crawler.entity.Article;
-import com.newcodes7.small_town.crawler.entity.Corporation;
-import lombok.Data;
-
 import java.time.LocalDateTime;
 import java.util.List;
+
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.Corporation;
+
+import lombok.Data;
 
 @Data
 public class CrawlResult {

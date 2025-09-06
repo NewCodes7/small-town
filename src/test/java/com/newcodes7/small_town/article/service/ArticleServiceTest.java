@@ -23,8 +23,8 @@ import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.dto.ArticleResponseDto;
 import com.newcodes7.small_town.article.dto.CorporationDto;
 import com.newcodes7.small_town.article.dto.GroupedArticlesDto;
-import com.newcodes7.small_town.article.entity.Article;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.utils.ArticleCreator;
 
 @ExtendWith(MockitoExtension.class)
@@ -78,7 +78,7 @@ public class ArticleServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         List<Article> articlesList = ArticleCreator.createArticlesWithId(List.of(1L, 1L));
         Page<Article> expect = new PageImpl<>(articlesList, pageable, articlesList.size());
-        when(articleRepository.findArticlesWithFilters(keyword, List.of(true), null, pageable)).thenReturn(expect);
+        when(articleRepository.findArticlesWithFilters(keyword, List.of(1), null, pageable)).thenReturn(expect);
 
         //when
         Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, regions, 0, 10, null, view);
@@ -96,7 +96,7 @@ public class ArticleServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         List<Article> articlesList = ArticleCreator.createArticlesWithId(List.of(1L, 1L));
         Page<Article> expect = new PageImpl<>(articlesList, pageable, articlesList.size());
-        when(articleRepository.findArticlesWithFilters(keyword, List.of(false), null, pageable)).thenReturn(expect);
+        when(articleRepository.findArticlesWithFilters(keyword, List.of(0), null, pageable)).thenReturn(expect);
 
         //when
         Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, regions, 0, 10, null, view);
@@ -114,7 +114,7 @@ public class ArticleServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         List<Article> articlesList = ArticleCreator.createArticlesWithId(List.of(1L, 1L));
         Page<Article> expect = new PageImpl<>(articlesList, pageable, articlesList.size());
-        when(articleRepository.findArticlesWithFilters(keyword, List.of(true, false), null, pageable)).thenReturn(expect);
+        when(articleRepository.findArticlesWithFilters(keyword, List.of(1, 0), null, pageable)).thenReturn(expect);
 
         //when
         Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, regions, 0, 10, null, view);
@@ -132,7 +132,7 @@ public class ArticleServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         List<Article> targetArticles = ArticleCreator.createArticlesWithId(List.of(1L));
         Page<Article> expect = new PageImpl<>(targetArticles, pageable, targetArticles.size());
-        when(articleRepository.findArticlesWithFilters(keyword, List.of(true), null, pageable)).thenReturn(expect);
+        when(articleRepository.findArticlesWithFilters(keyword, List.of(1), null, pageable)).thenReturn(expect);
 
         //when
         Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, regions, 0, 10, null, view);

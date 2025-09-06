@@ -1,13 +1,13 @@
 package com.newcodes7.small_town.corporation.dto;
 
-import com.newcodes7.small_town.corporation.entity.Corporation;
-import com.newcodes7.small_town.crawler.entity.ParsingSelector;
-
-import lombok.Data;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import com.newcodes7.small_town.crawler.entity.ParsingSelector;
+import com.newcodes7.small_town.global.entity.Corporation;
+
+import lombok.Data;
 
 @Data
 public class CorporationResponseDto {
@@ -62,7 +62,7 @@ public class CorporationResponseDto {
         dto.setLogoUrl(corporation.getLogoUrl());
         dto.setLogoFilename(corporation.getLogoFilename());
         dto.setLogoS3Url(corporation.getLogoS3Url());
-        dto.setIsDomestic(corporation.getIsDomestic() == 1 ? true : false);
+        dto.setIsDomestic(corporation.getIsDomestic());
         dto.setBaseUrl(parsingSelector.getBaseUrl());
         dto.setArticle(parsingSelector.getArticle());
         dto.setTitle(parsingSelector.getTitle());
@@ -91,7 +91,7 @@ public class CorporationResponseDto {
         dto.setLogoUrl(corporation.getLogoUrl());
         dto.setLogoFilename(corporation.getLogoFilename());
         dto.setLogoS3Url(corporation.getLogoS3Url());
-        dto.setIsDomestic(corporation.getIsDomestic() == 1 ? true : false);
+        dto.setIsDomestic(corporation.getIsDomestic());
         dto.setArticleCount(0L); // Default article count
         dto.setCreatedAt(corporation.getCreatedAt());
         dto.setUpdatedAt(corporation.getUpdatedAt());

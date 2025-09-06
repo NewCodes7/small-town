@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.entity;
+package com.newcodes7.small_town.global.entity;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -6,15 +6,23 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
+
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.newcodes7.small_town.corporation.entity.CorporationIndustry;
+
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
-@Entity(name = "ArticleCorporation")
+@Entity
 @Getter
+@Setter
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -47,9 +55,18 @@ public class Corporation {
     @Column(name = "logo_s3_url")
     private String logoS3Url;
     
-    @Column(name = "is_domestic", nullable = false)
-    private Boolean isDomestic;
-    
+    @Column(name = "is_domestic")
+    private Integer isDomestic;
+
+    @JsonIgnore
+    @OneToMany(mappedBy = "corporation", cascade = CascadeType.ALL)
+    private List<Article> articles;
+        
+    @JsonIgnore
+    @OneToMany(mappedBy = "corporation", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<CorporationIndustry> corporationIndustries = new ArrayList<>();
+
     @CreatedDate
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -74,6 +91,16 @@ public class Corporation {
         return logoUrl; // 기존 URL 방식 fallback
     }
 
+    // 소프트 삭제 메서드
+    public void softDelete() {
+        this.deletedAt = LocalDateTime.now();
+    }
+    
+    // 삭제 여부 확인 메서드
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -85,5 +112,16 @@ public class Corporation {
     @Override
     public int hashCode() {
         return Objects.hash(id); 
+    }
+
+    public boolean containsBlogLink(String keyword) {
+        if (blogLink == null || keyword == null) {
+            return false;
+        }
+        return blogLink.contains(keyword);
+    }
+
+    public boolean getIsDomestic() {
+        return isDomestic == 1 ? true : false;
     }
 }
