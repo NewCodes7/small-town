@@ -17,7 +17,7 @@ public class CrawlingScheduler {
     
     private final CrawlingService crawlingService;
     
-    @Scheduled(cron = "${crawler.schedule.cron}")
+    @Scheduled(cron = "${crawler.schedule.cron}", zone = "Asia/Seoul")
     public void scheduledCrawling() {
         log.info("스케줄된 크롤링 작업 시작");
         
