@@ -1,0 +1,53 @@
+{
+  "format": {
+    "type": "json_schema",
+    "name": "blog_article_extraction",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "checklist": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "summary": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "h3": { "type": "string" },
+              "contents": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            },
+            "required": ["h3", "contents"],
+            "additionalProperties": false
+          }
+        },
+        "category": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "reason": { "type": "string" }
+          },
+          "required": ["name", "reason"],
+          "additionalProperties": false
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "self_check": { "type": "string" }
+      },
+      "required": [
+        "checklist",
+        "summary",
+        "category",
+        "tags",
+        "self_check"
+      ],
+      "additionalProperties": false
+    },
+    "strict": true
+  }
+}
