@@ -2,9 +2,15 @@ package com.newcodes7.small_town.crawler.dto;
 
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 
 @Data
+@Builder
+@AllArgsConstructor
 public class OpenAiResponse {
     private String id;
     private String object;
@@ -13,6 +19,7 @@ public class OpenAiResponse {
     private List<Output> output;
     
     @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Output {
         private String id;
         private String type;
@@ -22,6 +29,7 @@ public class OpenAiResponse {
     }
     
     @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Content {
         private String type;
         private List<String> annotations;
@@ -30,7 +38,7 @@ public class OpenAiResponse {
     }
 
     public String getOnlyResponseText() {
-        return output.get(1).getContent().get(0).getText()
+        return output.get(output.size() - 1).getContent().get(0).getText()
                 .replaceAll("```json\\s*", "")
                 .replaceAll("```\\s*$", "")
                 .trim();

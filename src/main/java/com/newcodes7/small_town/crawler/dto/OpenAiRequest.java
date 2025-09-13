@@ -10,7 +10,8 @@ import lombok.Data;
 @Builder
 public class OpenAiRequest {
     private String model;
-    private String prompt;
+    private Object text;
+    private String input;
     private String instructions;
     private List<Map<String, String>> tools;
 }

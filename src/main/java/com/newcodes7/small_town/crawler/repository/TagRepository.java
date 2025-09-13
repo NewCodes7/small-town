@@ -9,6 +9,6 @@ import com.newcodes7.small_town.global.entity.Tag;
 
 @Repository
 public interface TagRepository extends JpaRepository<Tag, Long> {
-    Optional<Tag> findByName(String name);
-    boolean existsByName(String name);
+    Optional<Tag> findByKeyword(String name);
+    boolean existsByKeyword(String name);
 }

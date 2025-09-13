@@ -2,24 +2,19 @@ package com.newcodes7.small_town.crawler.dto;
 
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.newcodes7.small_town.global.entity.ArticleSummary;
 import com.newcodes7.small_town.global.entity.Category;
 import com.newcodes7.small_town.global.entity.Tag;
 
+import lombok.Builder;
 import lombok.Data;
 
 @Data
+@Builder
 public class ArticleAnalysisResponse {
-    private List<String> checklist;
-    private String summary;
+    private List<ArticleSummary> summaries;
     private String category;
     private List<String> tags;
-    
-    @JsonProperty("reasoning_effort")
-    private String reasoningEffort;
-    
-    @JsonProperty("self_check")
-    private String selfCheck;
 
     public Category toCategoryEntity() {
         return Category.builder()

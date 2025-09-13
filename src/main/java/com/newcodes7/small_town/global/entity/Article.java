@@ -1,7 +1,10 @@
 package com.newcodes7.small_town.global.entity;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
@@ -18,7 +21,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
@@ -83,16 +85,19 @@ public class Article {
     @JoinColumn(name = "corporation_id", nullable = false)
     private Corporation corporation;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.PERSIST)
     @JoinColumn(name = "category_id")
     private Category category;
     
     @JsonIgnore
     @OneToMany(mappedBy = "article", cascade = CascadeType.ALL)
-    private List<ArticleTag> articleTags;
+    @Builder.Default
+    private Set<ArticleTag> articleTags = new HashSet<>();
 
-    @ManyToMany(mappedBy = "article", fetch = FetchType.LAZY)
-    private List<ArticleSummary> summaries;
+    @JsonIgnore
+    @OneToMany(mappedBy = "article", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<ArticleSummary> summaries = new ArrayList<>();
 
     public void softDelete() {
         this.deletedAt = LocalDateTime.now();

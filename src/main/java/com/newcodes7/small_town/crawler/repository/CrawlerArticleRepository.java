@@ -17,6 +17,8 @@ public interface CrawlerArticleRepository extends JpaRepository<Article, Long> {
     
     long countByCorporationId(Long corporationId);
     
+    Optional<Article> findByLink(String link);
+
     Optional<Article> findByLinkAndDeletedAtIsNull(String link);
     
     @Query("SELECT a FROM Article a WHERE a.corporation.id = :corporationId AND a.deletedAt IS NULL ORDER BY a.publishedAt DESC")
