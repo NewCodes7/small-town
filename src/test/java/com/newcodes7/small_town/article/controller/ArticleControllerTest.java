@@ -230,4 +230,24 @@ public class ArticleControllerTest {
         assertThat(groupedDto.getArticles().get(0).getId()).isEqualTo(article1.getId());
         assertThat(groupedDto.getArticles().get(0).getTitle()).isEqualTo(article1.getTitle());
     }
+
+    @Test
+    public void 홈페이지_게시글_조회_그룹_카테고리() throws Exception {
+        //when&then
+        MvcResult result = mockMvc.perform(get("/").param("category", "backend1"))
+            .andExpect(status().isOk())
+            .andExpect(view().name("home"))
+            .andExpect(model().attributeExists("articles"))
+            .andReturn();   
+        
+        Page<GroupedArticlesDto> articlesPage = (Page<GroupedArticlesDto>) result.getModelAndView().getModel().get("articles");
+        List<GroupedArticlesDto> contents = articlesPage.getContent();
+        
+        assertThat(contents).hasSize(1);
+        GroupedArticlesDto groupedDto = contents.get(0);
+        assertThat(groupedDto.getCorporation().getId()).isEqualTo(corporation1.getId());
+        assertThat(groupedDto.getArticles()).hasSize(1);
+        assertThat(groupedDto.getArticles().get(0).getId()).isEqualTo(article1.getId());
+        assertThat(groupedDto.getArticles().get(0).getTitle()).isEqualTo(article1.getTitle());
+    }
 }

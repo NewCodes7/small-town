@@ -4,9 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
@@ -43,10 +41,10 @@ public class ArticleServiceTest {
         List<Article> articlesList = ArticleCreator.createArticlesWithId(List.of(1L, 1L));
         Pageable pageable = PageRequest.of(0, 10);
         Page<Article> articles = new PageImpl<>(articlesList, pageable, articlesList.size());
-        when(articleRepository.findArticlesWithFilters(null, null, null, pageable)).thenReturn(articles);
+        when(articleRepository.findArticlesWithFilters(null, null, null, null, pageable)).thenReturn(articles);
         
         //when
-        Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(null, null, 0, 10, null, view);
+        Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(null, null, 0, 10, null, view, null);
 
         //then
         assertPageEquals(articles, result);
@@ -60,10 +58,10 @@ public class ArticleServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         List<Article> targetArticles = ArticleCreator.createArticlesWithId(List.of(1L));
         Page<Article> expect = new PageImpl<>(targetArticles, pageable, targetArticles.size());
-        when(articleRepository.findArticlesWithFilters(keyword, null, null, pageable)).thenReturn(expect);
+        when(articleRepository.findArticlesWithFilters(keyword, null, null, null, pageable)).thenReturn(expect);
 
         //when
-        Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, null, 0, 10, null, view);
+        Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, null, 0, 10, null, view, null);
 
         //then
         assertPageEquals(expect, result);
@@ -78,10 +76,10 @@ public class ArticleServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         List<Article> articlesList = ArticleCreator.createArticlesWithId(List.of(1L, 1L));
         Page<Article> expect = new PageImpl<>(articlesList, pageable, articlesList.size());
-        when(articleRepository.findArticlesWithFilters(keyword, List.of(1), null, pageable)).thenReturn(expect);
+        when(articleRepository.findArticlesWithFilters(keyword, List.of(1), null, null, pageable)).thenReturn(expect);
 
         //when
-        Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, regions, 0, 10, null, view);
+        Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, regions, 0, 10, null, view, null);
 
         //then
         assertPageEquals(expect, result);
@@ -96,10 +94,10 @@ public class ArticleServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         List<Article> articlesList = ArticleCreator.createArticlesWithId(List.of(1L, 1L));
         Page<Article> expect = new PageImpl<>(articlesList, pageable, articlesList.size());
-        when(articleRepository.findArticlesWithFilters(keyword, List.of(0), null, pageable)).thenReturn(expect);
+        when(articleRepository.findArticlesWithFilters(keyword, List.of(0), null, null, pageable)).thenReturn(expect);
 
         //when
-        Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, regions, 0, 10, null, view);
+        Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, regions, 0, 10, null, view, null);
 
         //then
         assertPageEquals(expect, result);
@@ -114,10 +112,10 @@ public class ArticleServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         List<Article> articlesList = ArticleCreator.createArticlesWithId(List.of(1L, 1L));
         Page<Article> expect = new PageImpl<>(articlesList, pageable, articlesList.size());
-        when(articleRepository.findArticlesWithFilters(keyword, List.of(1, 0), null, pageable)).thenReturn(expect);
+        when(articleRepository.findArticlesWithFilters(keyword, List.of(1, 0), null, null, pageable)).thenReturn(expect);
 
         //when
-        Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, regions, 0, 10, null, view);
+        Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, regions, 0, 10, null, view, null);
 
         //then
         assertPageEquals(expect, result);
@@ -132,10 +130,27 @@ public class ArticleServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         List<Article> targetArticles = ArticleCreator.createArticlesWithId(List.of(1L));
         Page<Article> expect = new PageImpl<>(targetArticles, pageable, targetArticles.size());
-        when(articleRepository.findArticlesWithFilters(keyword, List.of(1), null, pageable)).thenReturn(expect);
+        when(articleRepository.findArticlesWithFilters(keyword, List.of(1), null, null, pageable)).thenReturn(expect);
 
         //when
-        Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, regions, 0, 10, null, view);
+        Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, regions, 0, 10, null, view, null);
+
+        //then
+        assertPageEquals(expect, result);
+    }
+
+    @Test
+    public void 게시글_리스트_조회_카테고리() {
+        //given
+        String view = "list";
+        List<String> category = List.of("backend1");
+        Pageable pageable = PageRequest.of(0, 10);
+        List<Article> targetArticles = ArticleCreator.createArticlesWithId(List.of(1L));
+        Page<Article> expect = new PageImpl<>(targetArticles, pageable, targetArticles.size());
+        when(articleRepository.findArticlesWithFilters(null, null, null, category, pageable)).thenReturn(expect);
+
+        //when
+        Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(null, null, 0, 10, null, view, category);
 
         //then
         assertPageEquals(expect, result);
@@ -165,10 +180,38 @@ public class ArticleServiceTest {
         Page<GroupedArticlesDto> expected = new PageImpl<>(groupedList, pageable, groupedList.size());
 
         when(articleRepository.findCorporationIdsWithFilters(null, null, pageable)).thenReturn(corporationIds);
-        when(articleRepository.findArticlesByCorporations(corporationIds.getContent(), null, null)).thenReturn(allArticles);
+        when(articleRepository.findArticlesByCorporations(corporationIds.getContent(), null, null, null)).thenReturn(allArticles);
 
         //when
-        Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(null, null, 0, 10, null, view);
+        Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(null, null, 0, 10, null, view, null);
+
+        //then
+        assertGroupedEquals(expected, result);
+    }
+
+    @Test
+    public void 게시글_기업별_조회_카테고리() {
+        //given
+        String view = "grouped";
+        List<String> category = List.of("backend1");
+        List<Long> corporationsIdList = List.of(1L);
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Long> corporationIds = new PageImpl<>(corporationsIdList, pageable, corporationsIdList.size());
+        List<Article> articlesCorp1 = ArticleCreator.createArticlesWithId(List.of(1L));
+        List<Article> allArticles = new ArrayList<>();
+        allArticles.addAll(articlesCorp1);
+        GroupedArticlesDto groupedArticlesDto1 = GroupedArticlesDto.builder()
+            .corporation(new CorporationDto(ArticleCreator.createCorporationWithId(1L)))
+            .articles(articlesCorp1.stream().map(ArticleListResponseDto::new).collect(Collectors.toList()))
+            .build();
+        List<GroupedArticlesDto> groupedList = List.of(groupedArticlesDto1);
+        Page<GroupedArticlesDto> expected = new PageImpl<>(groupedList, pageable, groupedList.size());
+
+        when(articleRepository.findCorporationIdsWithFilters(null, null, pageable)).thenReturn(corporationIds);
+        when(articleRepository.findArticlesByCorporations(corporationIds.getContent(), null, null, category)).thenReturn(allArticles);
+
+        //when
+        Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(null, null, 0, 10, null, view, category);
 
         //then
         assertGroupedEquals(expected, result);

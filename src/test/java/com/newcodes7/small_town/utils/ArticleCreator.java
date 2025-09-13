@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.Category;
 import com.newcodes7.small_town.global.entity.Corporation;
 
 public class ArticleCreator {
@@ -83,11 +84,11 @@ public class ArticleCreator {
             .likeCount((int) Math.random() * 100)
             .thumbnailImage("https://newcodes.net/thumbnail/" + articleIdCounter)
             .readingTime((int) Math.random() * 100)
+            .category(Category.builder().name("backend" + articleIdCounter).build())
             .createdAt(LocalDateTime.now())
             .updatedAt(LocalDateTime.now())
             .publishedAt(LocalDateTime.now().minusHours(articleIdCounter))
             .corporation(corporation)
-            .articleTags(new ArrayList<>())
             .build();
     }
 
@@ -101,11 +102,11 @@ public class ArticleCreator {
             .likeCount((int) Math.random() * 100)
             .thumbnailImage("https://newcodes.net/thumbnail/" + articleIdCounter)
             .readingTime((int) Math.random() * 100)
+            .category(Category.builder().name("backend" + articleIdCounter).build())
             .createdAt(LocalDateTime.now())
             .updatedAt(LocalDateTime.now())
             .publishedAt(LocalDateTime.now().minusHours(articleIdCounter))
             .corporation(corporation)
-            .articleTags(new ArrayList<>())
             .build();
     }
 
