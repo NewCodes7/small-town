@@ -1,20 +1,21 @@
 package com.newcodes7.small_town.config;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
+
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+
 import org.mockito.Mockito;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.core.io.ClassPathResource;
 
 import com.newcodes7.small_town.crawler.config.WebDriverConfig;
-
-import java.io.File;
-import java.nio.file.Files;
-
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.withSettings;
 
 @TestConfiguration
 public class TestWebDriverConfig {
@@ -31,10 +32,11 @@ public class TestWebDriverConfig {
             JavascriptExecutor jsExecutor = (JavascriptExecutor) mockWebDriver;
             when(jsExecutor.executeScript(anyString())).thenReturn(100L);
             
-            String htmlContent = Files.readString(
-                new File("src/test/resources/toss_blog.html").toPath(),
-                java.nio.charset.StandardCharsets.UTF_8
-            );
+            ClassPathResource htmlResource = new ClassPathResource("toss_blog.html");
+            String htmlContent;
+            try (InputStream inputStream = htmlResource.getInputStream()) {
+                htmlContent = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+            }
             
             when(mockWebDriver.getPageSource()).thenReturn(htmlContent);
             when(mockConfig.createWebDriver()).thenReturn(mockWebDriver);
