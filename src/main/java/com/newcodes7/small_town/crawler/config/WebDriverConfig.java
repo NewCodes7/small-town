@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.openqa.selenium.PageLoadStrategy;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
@@ -26,7 +27,7 @@ public class WebDriverConfig {
         ChromeOptions options = new ChromeOptions();
 
         // GUI 없이 백그라운드에서 실행하도록 설정
-        options.addArguments("--headless");
+        options.addArguments("--headless=new");
 
         // 해외 블로그의 경우 한국 시간으로 보기 위해 설정 
         options.addArguments("--timezone=Asia/Seoul");
@@ -52,6 +53,8 @@ public class WebDriverConfig {
         options.addArguments("--ignore-certificate-errors");
         options.addArguments("--ignore-ssl-errors");
         options.addArguments("--allow-running-insecure-content");
+
+        options.setPageLoadStrategy(PageLoadStrategy.EAGER);
         
         // 자동화 감지 방지
         options.setExperimentalOption("useAutomationExtension", false);

@@ -50,6 +50,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "WHERE a.deletedAt IS NULL " +
            "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "AND (:domesticTypes IS NULL OR c.isDomestic IN :domesticTypes) " +
+           "AND (:category IS NULL OR a.category.name IN :category) " +
            "ORDER BY " +
            "CASE WHEN :sort = 'popular' THEN " +
            "(COALESCE(a.viewCount, 0) * 0.6 + " +
@@ -59,6 +60,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     Page<Article> findArticlesWithFilters(@Param("keyword") String keyword, 
                                          @Param("domesticTypes") List<Integer> domesticTypes,
                                          @Param("sort") String sort,
+                                         @Param("category") List<String> category,
                                          Pageable pageable);
 
     @Query("SELECT DISTINCT a FROM Article a " +
@@ -88,8 +90,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     
     @Query("SELECT DISTINCT a FROM Article a " +
            "JOIN FETCH a.corporation c " +
-           "LEFT JOIN FETCH a.articleTags at " +
-           "LEFT JOIN FETCH at.tag " +
+           "JOIN FETCH a.category " +
            "WHERE a.deletedAt IS NULL " +
            "AND c.id = :corporationId " +
            "ORDER BY a.publishedAt DESC, a.createdAt DESC")
@@ -127,8 +128,10 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
               "AND a.corporation.id IN :corporationIds " +
               "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
               "AND (:domesticTypes IS NULL OR a.corporation.isDomestic IN :domesticTypes) " +
+              "AND (:category IS NULL OR a.category.name IN :category) " +
               "ORDER BY a.corporation.id, a.publishedAt DESC")
        List<Article> findArticlesByCorporations(@Param("corporationIds") List<Long> corporationIds,
                                                  @Param("keyword") String keyword,
-                                                 @Param("domesticTypes") List<Integer> domesticTypes);
+                                                 @Param("domesticTypes") List<Integer> domesticTypes,
+                                                 @Param("category") List<String> category);
 }

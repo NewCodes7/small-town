@@ -32,6 +32,8 @@ import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
 import com.newcodes7.small_town.corporation.service.CorporationService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.global.entity.Category;
+import com.newcodes7.small_town.crawler.repository.CategoryRepository;
 import com.newcodes7.small_town.global.util.Client;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -53,6 +55,7 @@ public class ArticleController {
     private final UserLikeService userLikeService;
     private final ViewService viewService;
     private final CorporationService corporationService;
+    private final CategoryRepository categoryRepository;
 
     @GetMapping({"", "/"})
     public String home(
@@ -62,6 +65,7 @@ public class ArticleController {
             @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "regions", required = false) List<String> regions,
             @RequestParam(name = "view", defaultValue = "grouped") String view,
+            @RequestParam(name = "category", required = false) List<String> category,
             Model model) {
         
         Page<ArticleResponseDto> articles = articleService.getArticlesWithFilters(
@@ -70,14 +74,14 @@ public class ArticleController {
             page,
             size,
             sort,
-            view
+            view,
+            category
         );
         
         log.info("필터 조건: keyword='{}', regions={}, {}개의 글 조회", keyword, regions, articles.getTotalElements());
 
         // 회사 목록 가져오기 (모든 회사 포함)
         Page<CorporationResponseDto> corporations = corporationService.getAllCorporations(PageRequest.of(0, 50));
-        
         List<CorporationResponseDto> corporationsWithLogos = corporations.getContent().stream()
             // .filter(corp -> corp.getLogoUrl() != null && !corp.getLogoUrl().trim().isEmpty())
             .limit(20) 
@@ -113,7 +117,9 @@ public class ArticleController {
             @RequestParam(defaultValue = "latest") String sort,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) List<String> regions,
-            @RequestParam(defaultValue = "list") String view) {
+            @RequestParam(defaultValue = "list") String view,
+            @RequestParam(name = "category", required = false) List<String> category
+        ) {
         
         Page<ArticleResponseDto> articles = articleService.getArticlesWithFilters(
             keyword != null && !keyword.trim().isEmpty() ? keyword.trim() : null,
@@ -121,7 +127,8 @@ public class ArticleController {
             page,
             size,
             sort,
-            view
+            view,
+            category
         );
         
         Map<String, Object> response = new HashMap<>();
@@ -367,6 +374,13 @@ public class ArticleController {
         }
         
         return ResponseEntity.ok(response);
+    }
+    
+    @GetMapping("/api/categories")
+    @ResponseBody
+    public ResponseEntity<List<Category>> getAllCategories() {
+        List<Category> categories = categoryRepository.findAll();
+        return ResponseEntity.ok(categories);
     }
     
     private boolean isAdmin(UserDetails userDetails) {

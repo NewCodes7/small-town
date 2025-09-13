@@ -45,7 +45,7 @@ public class ArticleService {
     }
 
     public Page<ArticleResponseDto> getArticlesWithFilters(String keyword, List<String> regions, 
-                                                     int page, int size, String sort, String view) {
+                                                     int page, int size, String sort, String view, List<String> category) {
         List<Integer> domesticTypes = null;
         if (regions != null && !regions.isEmpty()) {
             domesticTypes = new ArrayList<>();
@@ -59,12 +59,12 @@ public class ArticleService {
         
         if (view.equals("list")) {
             Pageable pageable = PageRequest.of(page, size);
-            Page<Article> articles = articleRepository.findArticlesWithFilters(keyword, domesticTypes, sort, pageable);
+            Page<Article> articles = articleRepository.findArticlesWithFilters(keyword, domesticTypes, sort, category, pageable);
             return articles.map(ArticleListResponseDto::new);
         }
         
         if (view.equals("grouped")) {
-            return getArticlesGroupedByCorporationWithPaging(keyword, domesticTypes, page, size);
+            return getArticlesGroupedByCorporationWithPaging(keyword, domesticTypes, category, page, size);
         }
 
         return Page.empty();
@@ -72,6 +72,7 @@ public class ArticleService {
 
     public Page<ArticleResponseDto> getArticlesGroupedByCorporationWithPaging(String keyword, 
                                                                         List<Integer> domesticTypes, 
+                                                                        List<String> category,
                                                                         int page, int size) {
         // 1. 페이징된 기업 ID 목록 조회
         Pageable pageable = PageRequest.of(page, size);
@@ -83,7 +84,7 @@ public class ArticleService {
         
         // 2. 기업 ID 목록을 사용하여 해당 기업의 게시글 조회
         List<Article> allArticles = articleRepository.findArticlesByCorporations(
-            corporationIdsPage.getContent(), keyword, domesticTypes);
+            corporationIdsPage.getContent(), keyword, domesticTypes, category);
         
         // 3. 기업별로 3개씩 그룹화
         Map<Corporation, List<Article>> groupedByCorporation = allArticles.stream()

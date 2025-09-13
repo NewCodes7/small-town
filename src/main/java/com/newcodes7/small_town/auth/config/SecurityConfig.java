@@ -68,6 +68,8 @@ public class SecurityConfig {
 
                 // 글 목록 API는 모든 사용자 허용
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/articles/**").permitAll()
+                // 카테고리 목록 조회는 모든 사용자 허용
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/categories").permitAll()
                 
                 // 좋아요 관련 API - 좋아요 토글은 인증 필요, 상태 조회는 모든 사용자 허용
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/articles/*/like").authenticated()

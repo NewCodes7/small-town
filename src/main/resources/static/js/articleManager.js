@@ -59,9 +59,11 @@ class ArticleManager {
         });
 
         // 기업별 묶기 버튼 업데이트
-        const isGrouped = this.currentView === 'grouped';
-        groupedViewBtn.classList.toggle('btn-primary', isGrouped);
-        groupedViewBtn.classList.toggle('btn-secondary', !isGrouped);
+        const groupedViewBtn = document.getElementById('groupedViewBtn');
+        if (groupedViewBtn) {
+            const isGrouped = this.currentView === 'grouped';
+            groupedViewBtn.classList.toggle('active', isGrouped);
+        }
     }
 
     bindEvents() {
@@ -110,12 +112,6 @@ class ArticleManager {
             }
         });
 
-        // 지역 필터 이벤트 (기존 함수 오버라이드)
-        document.querySelectorAll('.region-checkbox').forEach(checkbox => {
-            checkbox.addEventListener('change', () => {
-                this.handleRegionChange();
-            });
-        });
 
         // 페이지네이션 이벤트 (동적 바인딩)
         document.addEventListener('click', (e) => {
@@ -137,22 +133,27 @@ class ArticleManager {
         });
 
         this.initViewBtnToggle();
+        this.initRegionFilters();
     }
 
     initViewBtnToggle() {
         const groupedViewBtn = document.getElementById('groupedViewBtn');
+        if (!groupedViewBtn) return;
 
         groupedViewBtn.addEventListener('click', () => {
             const isGrouped = this.currentView === 'grouped';
-
             // 상태 토글
             this.currentView = isGrouped ? 'list' : 'grouped';
-
-            // 버튼 스타일 토글
-            groupedViewBtn.classList.toggle('btn-primary', !isGrouped);
-            groupedViewBtn.classList.toggle('btn-secondary', isGrouped);
-
             this.loadArticles();
+        });
+    }
+
+    initRegionFilters() {
+        // 지역 필터 체크박스 이벤트
+        document.querySelectorAll('.filter-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                this.handleRegionChange();
+            });
         });
     }
 
@@ -184,7 +185,7 @@ class ArticleManager {
 
     handleRegionChange() {
         const checkedRegions = [];
-        document.querySelectorAll('.region-checkbox:checked').forEach(checkbox => {
+        document.querySelectorAll('.filter-checkbox:checked').forEach(checkbox => {
             checkedRegions.push(checkbox.value);
         });
         this.currentRegions = checkedRegions;
@@ -193,7 +194,9 @@ class ArticleManager {
     }
 
     getCacheKey() {
-        return `${this.currentView}-${this.currentPage}-${this.currentSort}-${this.currentKeyword}-${this.currentRegions.join(',')}`;
+        const currentUrl = new URL(window.location);
+        const currentCategories = currentUrl.searchParams.getAll('category');
+        return `${this.currentView}-${this.currentPage}-${this.currentSort}-${this.currentKeyword}-${this.currentRegions.join(',')}-${currentCategories.join(',')}`;
     }
 
     // 게시글을 로드하는 핵심 함수 
@@ -230,6 +233,13 @@ class ArticleManager {
 
             this.currentRegions.forEach(region => {
                 params.append('regions', region);
+            });
+
+            // 현재 선택된 카테고리 유지
+            const currentUrl = new URL(window.location);
+            const currentCategories = currentUrl.searchParams.getAll('category');
+            currentCategories.forEach(category => {
+                params.append('category', category);
             });
 
             if (this.currentView === 'grouped') {
@@ -377,6 +387,14 @@ class ArticleManager {
         if (this.currentSort !== 'latest') params.set('sort', this.currentSort);
         if (this.currentKeyword) params.set('keyword', this.currentKeyword);
         this.currentRegions.forEach(region => params.append('regions', region));
+        
+        // 현재 선택된 카테고리 유지
+        const currentUrl = new URL(window.location);
+        const currentCategories = currentUrl.searchParams.getAll('category');
+        currentCategories.forEach(category => {
+            params.append('category', category);
+        });
+        
         params.set('view', this.currentView);
 
         const newURL = `${window.location.pathname}?${params.toString()}`;
