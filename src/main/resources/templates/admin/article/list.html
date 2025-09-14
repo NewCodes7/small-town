@@ -30,6 +30,9 @@
             <div class="col-md-10 p-4">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h2>글 관리</h2>
+                    <button class="btn btn-warning" id="translateTitlesBtn">
+                        <i class="fas fa-language me-2"></i>해외 기업 글 제목 번역
+                    </button>
                 </div>
 
                 <!-- 검색 폼 -->
@@ -574,6 +577,46 @@
         document.getElementById('articleCategorySelect').addEventListener('change', function() {
             if (this.value) {
                 document.getElementById('articleCustomCategory').value = '';
+            }
+        });
+
+        // 번역 버튼 클릭
+        document.getElementById('translateTitlesBtn').addEventListener('click', function() {
+            if (confirm('해외 기업의 모든 글 제목을 번역합니다. 이 작업은 시간이 오래 걸릴 수 있습니다. 계속하시겠습니까?')) {
+                const btn = this;
+                const originalText = btn.innerHTML;
+
+                // 버튼 비활성화 및 로딩 표시
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>번역 중...';
+
+                fetch('/admin/articles/translate-titles', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('번역 작업이 시작되었습니다. 로그를 확인해주세요.');
+                        // 5분 후 버튼 재활성화
+                        setTimeout(() => {
+                            btn.disabled = false;
+                            btn.innerHTML = originalText;
+                        }, 300000);
+                    } else {
+                        alert('번역 작업 시작 실패: ' + data.message);
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('번역 작업 시작 중 오류가 발생했습니다.');
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                });
             }
         });
     </script>

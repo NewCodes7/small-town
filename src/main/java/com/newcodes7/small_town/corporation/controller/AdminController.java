@@ -37,15 +37,18 @@ import com.newcodes7.small_town.corporation.service.CorporationService;
 import com.newcodes7.small_town.crawler.repository.ArticleSummaryRepository;
 import com.newcodes7.small_town.crawler.repository.CategoryRepository;
 import com.newcodes7.small_town.crawler.service.CrawlingService;
+import com.newcodes7.small_town.crawler.service.TitleTranslationService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.ArticleSummary;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Controller
 @RequestMapping("/admin")
 @RequiredArgsConstructor
+@Slf4j
 public class AdminController {
     
     private final CorporationService corporationService;
@@ -55,6 +58,7 @@ public class AdminController {
     private final ArticleService articleService;
     private final ArticleRepository articleRepository;
     private final ArticleSummaryRepository articleSummaryRepository;
+    private final TitleTranslationService titleTranslationService;
     
     // 기업 목록 페이지
     @GetMapping("/corporations")
@@ -478,6 +482,66 @@ public class AdminController {
         } catch (Exception e) {
             response.put("success", false);
             response.put("message", "요약 수정 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 해외 기업 글 제목 번역 실행 API
+     */
+    @GetMapping("/articles/translate-titles")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> translateOverseasArticleTitles() {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // 비동기로 실행하여 오래 걸리는 작업이 UI를 블로킹하지 않도록 함
+            new Thread(() -> {
+                try {
+                    titleTranslationService.translateAllOverseasArticleTitles();
+                } catch (Exception e) {
+                    log.error("제목 번역 배치 작업 중 오류 발생", e);
+                }
+            }).start();
+
+            response.put("success", true);
+            response.put("message", "해외 기업 글 제목 번역 작업이 시작되었습니다. 로그를 확인해주세요.");
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "번역 작업 시작 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 특정 기업의 글 제목 번역 API
+     */
+    @GetMapping("/corporations/{corporationId}/translate-titles")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> translateCorporationTitles(@PathVariable Long corporationId) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // 비동기로 실행
+            new Thread(() -> {
+                try {
+                    titleTranslationService.translateCorporationArticleTitles(corporationId);
+                } catch (Exception e) {
+                    log.error("기업 {} 제목 번역 중 오류 발생", corporationId, e);
+                }
+            }).start();
+
+            response.put("success", true);
+            response.put("message", "기업의 글 제목 번역 작업이 시작되었습니다.");
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "번역 작업 시작 중 오류가 발생했습니다: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
     }

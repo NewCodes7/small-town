@@ -49,6 +49,9 @@ public class Article {
     
     @Column(nullable = false, length = 200)
     private String title;
+
+    @Column(name = "translated_title", length = 200)
+    private String translatedTitle;
     
     @Column(columnDefinition = "TEXT")
     private String summary;

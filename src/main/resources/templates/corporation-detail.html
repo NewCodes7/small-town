@@ -110,11 +110,11 @@
 
                     <!-- Title -->
                     <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
-                        <a th:href="${article.link}" 
-                           target="_blank" 
-                           class="text-decoration-none"
+                        <a th:href="${article.link}"
+                           target="_blank"
+                           class="text-decoration-none title-link"
                            style="color: inherit;"
-                           th:text="${article.title}">
+                           th:text="${article.translatedTitle != null && !article.translatedTitle.isEmpty() ? article.translatedTitle : article.title}">
                            Article Title
                         </a>
                     </h5>

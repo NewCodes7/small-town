@@ -145,4 +145,21 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "WHERE a.deletedAt IS NULL " +
            "ORDER BY a.publishedAt DESC")
     Page<Article> findByDeletedAtIsNull(Pageable pageable);
+
+    // 해외 기업의 번역되지 않은 글들 조회 (한국어가 포함되지 않은 제목)
+    @Query("SELECT a FROM Article a " +
+           "JOIN FETCH a.corporation c " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND c.isDomestic = 0 " +
+           "AND (a.translatedTitle IS NULL OR a.translatedTitle = '') " +
+           "ORDER BY a.publishedAt DESC")
+    List<Article> findOverseasArticlesWithoutKoreanTitles();
+
+    // 특정 기업의 글들 조회 (삭제되지 않은)
+    @Query("SELECT a FROM Article a " +
+           "JOIN FETCH a.corporation c " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND c.id = :corporationId " +
+           "ORDER BY a.publishedAt DESC")
+    List<Article> findByCorporationIdAndDeletedAtIsNull(@Param("corporationId") Long corporationId);
 }

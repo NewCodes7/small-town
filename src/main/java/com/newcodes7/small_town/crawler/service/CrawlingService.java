@@ -118,12 +118,16 @@ public class CrawlingService {
             for (Article article : crawledArticles) {
                 if (!crawlerArticleRepository.findByLink(article.getLink()).isPresent()) {
                     crawler.processImageUpload(article, corporation);
-                    ArticleAnalysisResponse openAiResponse = openaiService.sendArticleAnalysis(article); 
+
+                    // article 저장
+                    crawlerArticleRepository.save(article);
+
+                    // 해외 기업의 영어 제목 자동 번역
+                    translateTitleIfNeeded(article, corporation);
+
+                    ArticleAnalysisResponse openAiResponse = openaiService.sendArticleAnalysis(article);
 
                     // TODO: openai 분석 결과 성공 시 저장, 실패 시 롤백 유도
-                    
-                    // article 저장 
-                    crawlerArticleRepository.save(article);
 
                     // 카테고리 저장 (있다면 기존 id 활용)
                     Category category = categoryRepository.findByName(openAiResponse.getCategory())
@@ -353,5 +357,37 @@ public class CrawlingService {
 
         log.info("글 카테고리 수정 완료 - 글 ID: {}, 제목: {}, 카테고리: {}",
             articleId, article.getTitle(), categoryName);
+    }
+
+    /**
+     * 필요한 경우 제목을 번역합니다.
+     * 해외 기업의 영어 제목만 한국어로 번역합니다.
+     */
+    private void translateTitleIfNeeded(Article article, Corporation corporation) {
+        try {
+            // 해외 기업인지 확인 (isDomestic = false)
+            if (!corporation.getIsDomestic()) {
+                String title = article.getTitle();
+
+                // 제목에 한국어가 포함되어 있지 않으면 번역
+                if (title != null && !openaiService.containsKorean(title)) {
+                    log.debug("영어 제목 번역 시도 - 기업: {}, 제목: {}", corporation.getName(), title);
+
+                    String translatedTitle = openaiService.translateTitle(title, corporation.getName());
+
+                    if (translatedTitle != null && !translatedTitle.trim().isEmpty()) {
+                        article.setTranslatedTitle(translatedTitle);
+                        crawlerArticleRepository.save(article);
+
+                        log.info("제목 번역 완료 - 기업: {}, 원본: '{}' → 번역: '{}'",
+                            corporation.getName(), title, translatedTitle);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("제목 번역 중 오류 발생 - 기업: {}, 제목: {}, 오류: {}",
+                corporation.getName(), article.getTitle(), e.getMessage());
+            // 번역 실패는 크롤링을 중단시키지 않음
+        }
     }
 }

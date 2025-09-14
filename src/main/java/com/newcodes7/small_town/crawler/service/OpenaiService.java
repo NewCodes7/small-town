@@ -110,4 +110,68 @@ public class OpenaiService {
         log.info("OpenAI API 호출 성공: {}", response.getStatusCode());
         return analysisResponse;
     }
+
+    /**
+     * 영어 제목을 한국어로 번역
+     */
+    public String translateTitle(String englishTitle, String companyName) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + openaiApiKey);
+            headers.set("Content-Type", "application/json");
+
+            String instructions = String.format(
+                "당신은 기술 블로그 글 제목을 번역하는 전문가입니다. " +
+                "다음 영어 제목을 자연스러운 한국어로 번역해주세요.\n\n" +
+                "번역 규칙:\n" +
+                "1. 기술 용어는 한국 개발자들이 일반적으로 사용하는 형태로 번역\n" +
+                "2. 널리 알려진 영어 기술 용어는 그대로 유지 (예: API, SDK, React)\n" +
+                "3. 자연스럽고 이해하기 쉬운 한국어로 번역\n" +
+                "4. 번역된 제목만 답변하세요 (설명이나 부가 정보 불필요)\n\n" +
+                "회사: %s\n" +
+                "제목: %s\n\n" +
+                "번역:",
+                companyName, englishTitle
+            );
+
+            OpenAiRequest request = OpenAiRequest.builder()
+                    .model(MODEL)
+                    .instructions(instructions)
+                    .input(englishTitle)
+                    .build();
+
+            HttpEntity<OpenAiRequest> entity = new HttpEntity<>(request, headers);
+
+            ResponseEntity<OpenAiResponse> response = restTemplate.exchange(
+                    OPENAI_API_URL,
+                    HttpMethod.POST,
+                    entity,
+                    OpenAiResponse.class
+            );
+
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                log.error("OpenAI 제목 번역 API 호출 실패: {}", response.getStatusCode());
+                return englishTitle; // 실패시 원본 제목 반환
+            }
+
+            String translatedTitle = response.getBody().getOnlyResponseText();
+            log.info("제목 번역 성공: '{}' -> '{}'", englishTitle, translatedTitle);
+
+            return translatedTitle.trim();
+
+        } catch (Exception e) {
+            log.error("제목 번역 중 오류 발생: {}", e.getMessage(), e);
+            return englishTitle; // 오류시 원본 제목 반환
+        }
+    }
+
+    /**
+     * 텍스트에 한국어가 포함되어 있는지 확인
+     */
+    public boolean containsKorean(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+        return text.matches(".*[가-힣].*");
+    }
 }

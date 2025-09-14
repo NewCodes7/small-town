@@ -74,7 +74,8 @@
                             <div class="article-content">
                                 <div class="article-top">
                                     <div class="article-badge">🔥 인기글</div>
-                                    <h2 class="article-title" th:text="${article.title}">Article Title</h2>
+                                    <h2 class="article-title title-link"
+                                        th:text="${article.translatedTitle != null && !article.translatedTitle.isEmpty() ? article.translatedTitle : article.title}">Article Title</h2>
                                 </div>
                                 <div class="article-info">
                                     <div class="article-company">
@@ -683,11 +684,11 @@
                     <div class="article-content">
                         <!-- Title -->
                         <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
-                            <a th:href="${article.link}" 
-                            target="_blank" 
-                            class="text-decoration-none"
+                            <a th:href="${article.link}"
+                            target="_blank"
+                            class="text-decoration-none title-link"
                             style="color: inherit;"
-                            th:text="${article.title}">
+                            th:text="${article.translatedTitle != null && !article.translatedTitle.isEmpty() ? article.translatedTitle : article.title}">
                             Article Title
                             </a>
                         </h5>
@@ -754,7 +755,9 @@
                         <div class="article-content">
                             <!-- Title -->
                             <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
-                                <a th:href="${firstArticle.link}" target="_blank" class="text-decoration-none" style="color: inherit;" th:text="${firstArticle.title}"></a>
+                                <a th:href="${firstArticle.link}" target="_blank"
+                                class="text-decoration-none title-link" style="color: inherit;"
+                                th:text="${firstArticle.translatedTitle != null && !firstArticle.translatedTitle.isEmpty() ? firstArticle.translatedTitle : firstArticle.title}"></a>
                             </h5>
                             
                             <!-- Company Info & Stats -->
@@ -786,7 +789,9 @@
                         <div class="child-container" th:if="${!childArticles.isEmpty()}">
                             <div class="child" th:each="child : ${childArticles}" th:attr="data-article-id=${child.id}">
                                 <h6 class="fw-bold" style="margin: 0;">
-                                    <a th:href="${child.link}" target="_blank" class="text-decoration-none" style="color: inherit;" th:text="${child.title}"></a>
+                                    <a th:href="${child.link}" target="_blank"
+                                    class="text-decoration-none title-link" style="color: inherit;"
+                                    th:text="${child.translatedTitle != null && !child.translatedTitle.isEmpty() ? child.translatedTitle : child.title}"></a>
                                 </h6>
                                 <span class="child-date d-flex align-items-center flex-wrap">
                                     <span class="d-flex align-items-center gap-3">
@@ -890,6 +895,9 @@
             </nav>
         </div>
 
+        <!-- Translated Title Styles -->
+        <style>
+        </style>
 
         <!-- 플로팅 로그인 모달 -->
         <div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">

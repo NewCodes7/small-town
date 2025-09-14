@@ -1,3 +1,4 @@
+
 package com.newcodes7.small_town.crawler.dto;
 
 import java.util.List;
