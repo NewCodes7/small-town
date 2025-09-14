@@ -21,6 +21,7 @@ import com.newcodes7.small_town.crawler.exception.CrawlerException;
 import com.newcodes7.small_town.crawler.exception.CrawlerTimeoutException;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.global.util.TimeUtil;
 import com.newcodes7.small_town.service.S3ImageService;
 
 import lombok.RequiredArgsConstructor;
@@ -305,7 +306,7 @@ public class MediumBlogCrawler implements BlogCrawler {
     }
 
     private LocalDateTime parseDateText(String text) {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = TimeUtil.nowInSeoul();
         if (text == null || text.isEmpty()) {
             return now;
         }
@@ -372,7 +373,7 @@ public class MediumBlogCrawler implements BlogCrawler {
                     return now;
                 }
                 
-                return LocalDateTime.of(year, month, day, 0, 0);
+                return TimeUtil.dateWithSeoulTime(year, month, day);
             } catch (Exception e) {
                 log.debug("Absolute date parsing failed: {}", text, e);
                 return now;

@@ -34,6 +34,7 @@ import com.newcodes7.small_town.crawler.exception.CrawlerTimeoutException;
 import com.newcodes7.small_town.crawler.repository.ParsingSelectorRepository;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.global.util.TimeUtil;
 import com.newcodes7.small_town.service.S3ImageService;
 import com.rometools.rome.feed.synd.SyndEntry;
 import com.rometools.rome.feed.synd.SyndFeed;
@@ -203,7 +204,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
                 || parsingSelector.getPublishFormat().equals("yyyy.M.dd")
                 || parsingSelector.getPublishFormat().equals("yyyy-MM-dd")) {
                 String cleanDateText = extractDateOnly(publishElement.text());
-                publishedAt = parseDate(cleanDateText).atStartOfDay();
+                publishedAt = TimeUtil.dateWithSeoulTime(parseDate(cleanDateText));
             } else if (parsingSelector.getPublishFormat().equals("ISO8601")) {
                 String datetime = publishElement.attr("datetime");
                 ZonedDateTime zonedDateTime = ZonedDateTime.parse(datetime);
@@ -219,7 +220,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
                                 .appendPattern("[MMMM d, yyyy][MMM d, yyyy]") // 풀네임 or 축약형 모두 지원
                                 .toFormatter(Locale.ENGLISH);
                 LocalDate date = LocalDate.parse(dateText, formatter);
-                publishedAt = date.atStartOfDay();
+                publishedAt = TimeUtil.dateWithSeoulTime(date);
             } else if (parsingSelector.getPublishFormat().trim().equals("dd MMM")) {
                 String cleanDateText = publishElement.text(); // "03 Aug"
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM", Locale.ENGLISH);
@@ -227,10 +228,10 @@ public class DefaultBlogCrawler implements BlogCrawler {
                 LocalDate date = LocalDate.of(LocalDate.now().getYear(),
                                             temporalAccessor.get(ChronoField.MONTH_OF_YEAR),
                                             temporalAccessor.get(ChronoField.DAY_OF_MONTH));
-                publishedAt = date.atStartOfDay();
+                publishedAt = TimeUtil.dateWithSeoulTime(date);
             } else {
                 String cleanDateText = extractDateOnly(publishElement.text());
-                publishedAt = parseDate(cleanDateText).atStartOfDay();
+                publishedAt = TimeUtil.dateWithSeoulTime(parseDate(cleanDateText));
             }
 
             return Article.builder()
