@@ -1,13 +1,12 @@
 package com.newcodes7.small_town.crawler.service;
 
 import java.io.IOException;
-import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -45,18 +44,22 @@ public class OpenaiService {
         HttpHeaders headers = new HttpHeaders();
         headers.set("Authorization", "Bearer " + openaiApiKey);
         headers.set("Content-Type", "application/json");
-
+        
         ObjectMapper mapper = new ObjectMapper();
+
         Object textObject = mapper.readValue(
-            new ClassPathResource("articleAnalysisExtraction.txt").getFile(),
+            getClass().getResourceAsStream("/articleAnalysisExtraction.txt"), 
             Object.class
+        );
+
+        String instructions = new String(
+            getClass().getResourceAsStream("/articleAnalysisInstruction.txt").readAllBytes(),
+            StandardCharsets.UTF_8
         );
 
         OpenAiRequest request = OpenAiRequest.builder()
                 .model(MODEL)
-                .instructions(Files.readString(
-                    new ClassPathResource("articleAnalysisInstruction.txt").getFile().toPath()
-                )) 
+                .instructions(instructions)
                 .text(textObject)
                 .input("제목: " + article.getTitle() + "\n 링크: " + article.getLink())
                 .tools(List.of(Map.of("type", "web_search")))
