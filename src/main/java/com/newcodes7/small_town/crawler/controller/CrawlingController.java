@@ -101,4 +101,26 @@ public class CrawlingController {
             throw e;
         }
     }
+
+    /**
+     * 기존 글들에 대한 AI 분석 실행
+     */
+    @GetMapping("/analyze-existing")
+    public ResponseEntity<Map<String, Object>> analyzeExistingArticles() {
+        try {
+            log.info("기존 글 AI 분석 API 호출");
+            Map<String, Object> result = crawlingService.analyzeExistingArticles();
+
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            log.error("기존 글 AI 분석 API 오류", e);
+            return ResponseEntity.badRequest()
+                    .body(Map.of(
+                        "success", false,
+                        "message", "기존 글 AI 분석 중 오류가 발생했습니다: " + e.getMessage(),
+                        "error", e.getClass().getSimpleName()
+                    ));
+        }
+    }
 }

@@ -2,7 +2,9 @@ package com.newcodes7.small_town.crawler.service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -205,19 +207,151 @@ public class CrawlingService {
      */
     public CrawlingStats getCrawlingStats() {
         LocalDateTime since = LocalDateTime.now().minusDays(1);
-        
+
         List<Corporation> allCorporations = crawlerCorporationRepository.findAllWithBlogLink();
         long totalCorporations = allCorporations.size();
-        
+
         long totalNewArticles = 0;
         for (Corporation corp : allCorporations) {
             totalNewArticles += crawlerArticleRepository.countNewArticlesByCorporation(corp.getId(), since);
         }
-        
+
         return CrawlingStats.builder()
                 .totalCorporations(totalCorporations)
                 .totalNewArticles(totalNewArticles)
                 .lastCrawledAt(LocalDateTime.now())
                 .build();
+    }
+
+    /**
+     * 기존 글들에 대한 AI 분석 실행
+     */
+    public Map<String, Object> analyzeExistingArticles() {
+        Map<String, Object> result = new HashMap<>();
+
+        // AI 분석이 완료되지 않은 글들 조회
+        List<Article> unanalyzedArticles = crawlerArticleRepository.findUnanalyzedArticles();
+
+        log.info("AI 분석 대상 글 수: {}개", unanalyzedArticles.size());
+        result.put("totalUnanalyzedArticles", unanalyzedArticles.size());
+
+        if (unanalyzedArticles.isEmpty()) {
+            result.put("success", true);
+            result.put("message", "분석이 필요한 글이 없습니다.");
+            result.put("processedCount", 0);
+            result.put("successCount", 0);
+            result.put("failureCount", 0);
+            return result;
+        }
+
+        int processedCount = 0;
+        int successCount = 0;
+        int failureCount = 0;
+        List<String> errors = new ArrayList<>();
+
+        // 순차적으로 AI 분석 진행
+        for (Article article : unanalyzedArticles) {
+            processedCount++;
+            log.info("AI 분석 진행 중: {} / {} - {}", processedCount, unanalyzedArticles.size(), article.getTitle());
+
+            try {
+                analyzeSingleArticle(article);
+                successCount++;
+                log.info("AI 분석 완료: {}", article.getTitle());
+            } catch (Exception e) {
+                failureCount++;
+                String errorMsg = String.format("글 ID %d (%s) 분석 실패: %s",
+                    article.getId(), article.getTitle(), e.getMessage());
+                errors.add(errorMsg);
+                log.error(errorMsg, e);
+            }
+        }
+
+        result.put("success", true);
+        result.put("message", String.format("AI 분석 완료. 성공: %d개, 실패: %d개", successCount, failureCount));
+        result.put("processedCount", processedCount);
+        result.put("successCount", successCount);
+        result.put("failureCount", failureCount);
+
+        if (!errors.isEmpty()) {
+            result.put("errors", errors);
+        }
+
+        log.info("기존 글 AI 분석 완료 - 처리: {}개, 성공: {}개, 실패: {}개",
+            processedCount, successCount, failureCount);
+
+        return result;
+    }
+
+    /**
+     * 개별 글에 대한 AI 분석 (개별 트랜잭션)
+     */
+    @Transactional
+    public void analyzeSingleArticle(Article article) throws Exception {
+        // OpenAI로 분석 요청
+        ArticleAnalysisResponse openAiResponse = openaiService.sendArticleAnalysis(article);
+
+        // 카테고리 저장 (기존 카테고리가 있다면 재사용)
+        Category category = categoryRepository.findByName(openAiResponse.getCategory())
+                            .orElseGet(() -> categoryRepository.save(openAiResponse.toCategoryEntity()));
+        article.setCategory(category);
+
+        // 태그 저장 및 ArticleTag 연결
+        Set<Tag> tags = openAiResponse.toTagEntities().stream()
+                .map(tag -> tagRepository.findByKeyword(tag.getKeyword())
+                        .orElseGet(() -> tagRepository.save(tag))
+                    )
+                .collect(Collectors.toSet());
+
+        // 기존 태그 관계 삭제 후 새로 추가
+        Set<ArticleTag> articleTags = tags.stream()
+                .map(tag -> ArticleTag.builder()
+                        .article(article)
+                        .tag(tag)
+                        .build())
+                .collect(Collectors.toSet());
+        articleTagRepository.saveAll(articleTags);
+
+        // 요약 정보 저장
+        article.getSummaries().clear();
+        article.getSummaries().addAll(openAiResponse.getSummaries().stream()
+                .map(summary -> {
+                    summary.setArticle(article);
+                    return summary;
+                })
+                .toList());
+
+        // 변경사항 저장
+        crawlerArticleRepository.save(article);
+    }
+
+    /**
+     * 글 카테고리 수정
+     */
+    @Transactional
+    public void updateArticleCategory(Long articleId, String categoryName) {
+        // 글 조회
+        Article article = crawlerArticleRepository.findById(articleId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 글입니다. ID: " + articleId));
+
+        if (article.isDeleted()) {
+            throw new IllegalArgumentException("삭제된 글입니다. ID: " + articleId);
+        }
+
+        // 카테고리 조회 또는 생성
+        Category category = categoryRepository.findByName(categoryName)
+                .orElseGet(() -> {
+                    Category newCategory = Category.builder()
+                            .name(categoryName)
+                            .build();
+                    return categoryRepository.save(newCategory);
+                });
+
+        // 글에 카테고리 설정 및 저장
+        article.setCategory(category);
+        crawlerArticleRepository.save(article);
+
+        log.info("글 카테고리 수정 완료 - 글 ID: {}, 제목: {}, 카테고리: {}",
+            articleId, article.getTitle(), categoryName);
     }
 }
