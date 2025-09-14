@@ -807,40 +807,54 @@
         <!-- Pagination Container -->
         <div id="paginationContainer" class="mt-5">
             <!-- 동적으로 생성되는 페이지네이션 -->
-            <nav th:if="${totalPages > 1}">
+            <nav th:if="${totalPages > 0}">
                 <ul class="pagination justify-content-center">
                     <!-- Previous Button -->
-                    <li class="page-item" th:class="${!hasPrevious} ? 'page-item disabled' : 'page-item'">
+                    <li class="page-item" th:class="${currentPage == 0} ? 'page-item disabled' : 'page-item'">
                         <a class="page-link" href="#" th:attr="data-page=${currentPage - 1}">
                             <i class="fas fa-chevron-left me-1"></i>이전
                         </a>
                     </li>
-                    
-                    <!-- Page Numbers with dynamic range calculation -->
+
+                    <!-- Page Numbers - Always show max 5 pages -->
                     <th:block th:with="
                         maxPagesToShow=5,
-                        maxPagesBeforeCurrent=2,
-                        maxPagesAfterCurrent=2,
-                        calculatedStartPage=${currentPage - maxPagesBeforeCurrent},
-                        calculatedEndPage=${currentPage + maxPagesAfterCurrent},
-                        startPage=${totalPages <= maxPagesToShow ? 0 : 
-                            (calculatedStartPage <= 0 ? 0 : 
-                                (calculatedEndPage >= totalPages ? totalPages - maxPagesToShow : 
-                                    calculatedStartPage))},
-                        endPage=${totalPages <= maxPagesToShow ? totalPages - 1 : 
-                            (calculatedStartPage <= 0 ? maxPagesToShow - 1 : 
-                                (calculatedEndPage >= totalPages ? totalPages - 1 : 
-                                    calculatedEndPage))}
+                        halfRange=2,
+                        startPage=${totalPages <= maxPagesToShow ? 0 :
+                                   (currentPage <= halfRange ? 0 :
+                                       (currentPage >= totalPages - halfRange - 1 ? totalPages - maxPagesToShow :
+                                           currentPage - halfRange))},
+                        endPage=${totalPages <= maxPagesToShow ? totalPages - 1 :
+                                 (currentPage <= halfRange ? maxPagesToShow - 1 :
+                                     (currentPage >= totalPages - halfRange - 1 ? totalPages - 1 :
+                                         currentPage + halfRange))}
                     ">
-                        <li class="page-item" 
+                        <!-- Show first page if there's a gap -->
+                        <li class="page-item" th:if="${startPage > 0}">
+                            <a class="page-link" href="#" th:attr="data-page=0">1</a>
+                        </li>
+                        <li class="page-item disabled" th:if="${startPage > 1}">
+                            <span class="page-link">...</span>
+                        </li>
+
+                        <!-- Main page numbers -->
+                        <li class="page-item"
                             th:each="pageNum : ${#numbers.sequence(startPage, endPage)}"
                             th:class="${pageNum == currentPage} ? 'page-item active' : 'page-item'">
                             <a class="page-link" href="#" th:attr="data-page=${pageNum}" th:text="${pageNum + 1}">1</a>
                         </li>
+
+                        <!-- Show last page if there's a gap -->
+                        <li class="page-item disabled" th:if="${endPage < totalPages - 2}">
+                            <span class="page-link">...</span>
+                        </li>
+                        <li class="page-item" th:if="${endPage < totalPages - 1}">
+                            <a class="page-link" href="#" th:attr="data-page=${totalPages - 1}" th:text="${totalPages}">Last</a>
+                        </li>
                     </th:block>
-                    
+
                     <!-- Next Button -->
-                    <li class="page-item" th:class="${!hasNext} ? 'page-item disabled' : 'page-item'">
+                    <li class="page-item" th:class="${currentPage >= totalPages - 1} ? 'page-item disabled' : 'page-item'">
                         <a class="page-link" href="#" th:attr="data-page=${currentPage + 1}">
                             다음<i class="fas fa-chevron-right ms-1"></i>
                         </a>
@@ -848,7 +862,8 @@
                 </ul>
             </nav>
         </div>
-        
+
+
         <!-- 플로팅 로그인 모달 -->
         <div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
