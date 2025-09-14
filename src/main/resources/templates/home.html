@@ -392,6 +392,8 @@
                 padding: 8px;
                 margin-top: 8px;
                 min-width: 200px;
+                max-height: 335px;
+                overflow-y: auto;
             }
 
             .modern-dropdown .dropdown-item {
@@ -405,6 +407,31 @@
             .modern-dropdown .dropdown-item:hover {
                 background: var(--secondary-green);
                 color: var(--primary-green);
+            }
+
+            /* Custom scrollbar for category dropdown */
+            .modern-dropdown::-webkit-scrollbar {
+                width: 6px;
+            }
+
+            .modern-dropdown::-webkit-scrollbar-track {
+                background: #f1f5f9;
+                border-radius: 8px;
+            }
+
+            .modern-dropdown::-webkit-scrollbar-thumb {
+                background: #cbd5e1;
+                border-radius: 8px;
+            }
+
+            .modern-dropdown::-webkit-scrollbar-thumb:hover {
+                background: var(--primary-green);
+            }
+
+            /* Firefox scrollbar */
+            .modern-dropdown {
+                scrollbar-width: thin;
+                scrollbar-color: #cbd5e1 #f1f5f9;
             }
 
             .view-controls {
