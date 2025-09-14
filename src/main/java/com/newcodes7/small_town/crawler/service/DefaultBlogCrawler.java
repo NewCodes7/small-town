@@ -215,6 +215,19 @@ public class DefaultBlogCrawler implements BlogCrawler {
                 || parsingSelector.getPublishFormat().equals("MMM dd, yyyy")) {
                 String dateText = publishElement.text().split("/")[0].trim();
                 dateText = dateText.replaceAll("[^a-zA-Z0-9\\s,]", "");
+                // 비표준 월 축약형을 표준 형태로 정규화
+                dateText = dateText.replaceAll("(?i)\\bJANUARY\\b", "JAN")
+                                  .replaceAll("(?i)\\bFEBRUARY\\b", "FEB")
+                                  .replaceAll("(?i)\\bMARCH\\b", "MAR")
+                                  .replaceAll("(?i)\\bAPRIL\\b", "APR")
+                                  .replaceAll("(?i)\\bJUNE\\b", "JUN")
+                                  .replaceAll("(?i)\\bJULY\\b", "JUL")
+                                  .replaceAll("(?i)\\bAUGUST\\b", "AUG")
+                                  .replaceAll("(?i)\\bSEPTEMBER\\b", "SEP")
+                                  .replaceAll("(?i)\\bSEPT\\b", "SEP")
+                                  .replaceAll("(?i)\\bOCTOBER\\b", "OCT")
+                                  .replaceAll("(?i)\\bNOVEMBER\\b", "NOV")
+                                  .replaceAll("(?i)\\bDECEMBER\\b", "DEC");
                 DateTimeFormatter formatter = new DateTimeFormatterBuilder()
                                 .parseCaseInsensitive() 
                                 .appendPattern("[MMMM d, yyyy][MMM d, yyyy]") // 풀네임 or 축약형 모두 지원
