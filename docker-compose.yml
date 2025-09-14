@@ -20,6 +20,10 @@ services:
       - ADMIN_NAME=${ADMIN_NAME}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - ROLES=${ROLES}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_ORG_ID=${OPENAI_ORG_ID}
+      - OPENAI_MY_PROJECT_ID=${OPENAI_MY_PROJECT_ID}
+      - OPENAI_WEBHOOK_SECRET=${OPENAI_WEBHOOK_SECRET}
     expose:
       - "8080"  # 외부 노출 없이 내부 네트워크만
     healthcheck:
@@ -27,16 +31,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-
-  # admin-server:
-  #   build: ./admin-server
-  #   container_name: admin-server
-  #   ports:
-  #     - "9090:9090"
-  #   environment:
-  #     - ADMIN_NAME=${ADMIN_NAME}
-  #     - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-  #     - ROLES=${ROLES}
 
   prometheus:
     image: prom/prometheus:v2.37.4
