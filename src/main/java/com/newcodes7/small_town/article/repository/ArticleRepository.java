@@ -39,7 +39,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "LEFT JOIN FETCH a.articleTags at " +
            "LEFT JOIN FETCH at.tag " +
            "WHERE a.deletedAt IS NULL " +
-           "AND LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "AND (LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "ORDER BY a.publishedAt DESC, a.createdAt DESC")
     Page<Article> findArticlesByTitleContaining(@Param("keyword") String keyword, Pageable pageable);
     
@@ -48,7 +48,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "LEFT JOIN FETCH a.articleTags at " +
            "LEFT JOIN FETCH at.tag " +
            "WHERE a.deletedAt IS NULL " +
-           "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "AND (:domesticTypes IS NULL OR c.isDomestic IN :domesticTypes) " +
            "AND (:category IS NULL OR a.category.name IN :category) " +
            "ORDER BY " +
@@ -68,7 +68,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "LEFT JOIN FETCH a.articleTags at " +
            "LEFT JOIN FETCH at.tag " +
            "WHERE a.deletedAt IS NULL " +
-           "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "AND (:domesticTypes IS NULL OR c.isDomestic IN :domesticTypes) " +
            "ORDER BY " +
            "CASE WHEN :sort = 'popular' THEN " +
@@ -103,7 +103,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
        // 조건에 맞는 기업 수 조회 (삭제된 글 제외)
        @Query("SELECT COUNT(DISTINCT a.corporation) FROM Article a " +
               "WHERE a.deletedAt IS NULL " +
-              "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+              "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
               "AND (:domesticTypes IS NULL OR a.corporation.isDomestic IN :domesticTypes)")
        long countDistinctCorporationsByFilters(@Param("keyword") String keyword, 
                                           @Param("domesticTypes") List<Integer> domesticTypes);
@@ -111,7 +111,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
        // 기업별 최신 글을 기준으로 정렬된 기업 ID 목록 조회 (페이징)
        @Query("SELECT a.corporation.id FROM Article a " +
               "WHERE a.deletedAt IS NULL " +
-              "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+              "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
               "AND (:domesticTypes IS NULL OR a.corporation.isDomestic IN :domesticTypes) " +
               "GROUP BY a.corporation.id " +
               "ORDER BY MAX(a.publishedAt) DESC")
@@ -126,7 +126,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
               "LEFT JOIN FETCH at.tag " +
               "WHERE a.deletedAt IS NULL " +
               "AND a.corporation.id IN :corporationIds " +
-              "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+              "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
               "AND (:domesticTypes IS NULL OR a.corporation.isDomestic IN :domesticTypes) " +
               "AND (:category IS NULL OR a.category.name IN :category) " +
               "ORDER BY a.corporation.id, a.publishedAt DESC")
