@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>글 관리 - Small Town Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- 사이드바 -->
+            <div class="col-md-2 bg-dark p-3">
+                <h4 class="text-white mb-4">Small Town Admin</h4>
+                <nav class="nav flex-column">
+                    <a class="nav-link text-light" href="/admin/corporations">
+                        <i class="fas fa-building me-2"></i>기업 관리
+                    </a>
+                    <a class="nav-link text-warning" href="/admin/articles">
+                        <i class="fas fa-newspaper me-2"></i>글 관리
+                    </a>
+                    <a class="nav-link text-light" href="/admin/feedback">
+                        <i class="fas fa-comments me-2"></i>피드백 관리
+                    </a>
+                </nav>
+            </div>
+
+            <!-- 메인 컨텐츠 -->
+            <div class="col-md-10 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2>글 관리</h2>
+                </div>
+
+                <!-- 검색 폼 -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <form method="get" class="d-flex">
+                            <input type="text" class="form-control me-2" name="search"
+                                   th:value="${search}" placeholder="제목으로 검색...">
+                            <button class="btn btn-outline-primary" type="submit">
+                                <i class="fas fa-search"></i>
+                            </button>
+                            <a href="/admin/articles" class="btn btn-outline-secondary ms-2">전체</a>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- 성공/에러 메시지 -->
+                <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+                    <span th:text="${successMessage}"></span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <span th:text="${errorMessage}"></span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+
+                <!-- 글 목록 테이블 -->
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>제목</th>
+                                        <th>기업</th>
+                                        <th>카테고리</th>
+                                        <th>요약</th>
+                                        <th>발행일</th>
+                                        <th>조회수</th>
+                                        <th>좋아요</th>
+                                        <th>액션</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="article : ${articles.content}">
+                                        <td th:text="${article.id}"></td>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <img th:if="${article.thumbnailImage}" th:src="${article.thumbnailImage}"
+                                                     class="me-2" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;" />
+                                                <div>
+                                                    <a th:href="${article.link}" target="_blank"
+                                                       class="text-decoration-none fw-bold" th:text="${article.title}">
+                                                    </a>
+                                                    <br>
+                                                    <small class="text-muted" th:text="${article.link}"></small>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td th:text="${article.corporation.name}"></td>
+                                        <td>
+                                            <span class="badge bg-secondary category-badge"
+                                                  th:text="${article.category != null ? article.category.name : '미분류'}"
+                                                  th:data-article-id="${article.id}"
+                                                  style="cursor: pointer;">
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div th:if="${article.summaries != null && !article.summaries.empty}">
+                                                <div th:each="summary, iterStat : ${article.summaries}"
+                                                     th:if="${iterStat.index < 2}" class="mb-1">
+                                                    <span th:if="${summary.contentType == 'h3'}"
+                                                          class="badge bg-info me-1">제목</span>
+                                                    <span th:if="${summary.contentType == 'li'}"
+                                                          class="badge bg-success me-1">항목</span>
+                                                    <small th:text="${summary.content}" class="text-muted"></small>
+                                                </div>
+                                                <small th:if="${article.summaries.size() > 2}"
+                                                       class="text-muted">...외 [[${article.summaries.size() - 2}]]개</small>
+                                            </div>
+                                            <span th:if="${article.summaries == null || article.summaries.empty}"
+                                                  class="text-muted">요약 없음</span>
+                                        </td>
+                                        <td th:text="${#temporals.format(article.publishedAt, 'yyyy-MM-dd HH:mm')}"></td>
+                                        <td th:text="${article.viewCount ?: 0}"></td>
+                                        <td th:text="${article.likeCount ?: 0}"></td>
+                                        <td>
+                                            <div class="btn-group" role="group">
+                                                <button class="btn btn-sm btn-primary edit-article-btn"
+                                                        th:data-article-id="${article.id}">
+                                                    <i class="fas fa-edit"></i> 편집
+                                                </button>
+                                                <button class="btn btn-sm btn-success edit-summaries-btn"
+                                                        th:data-article-id="${article.id}">
+                                                    <i class="fas fa-list"></i> 요약
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr th:if="${articles.empty}">
+                                        <td colspan="9" class="text-center text-muted">등록된 글이 없습니다.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 페이지네이션 -->
+                        <nav th:if="${articles.totalPages > 1}">
+                            <ul class="pagination justify-content-center">
+                                <li class="page-item" th:classappend="${articles.first} ? 'disabled'">
+                                    <a class="page-link"
+                                       th:href="@{/admin/articles(page=${articles.number - 1}, search=${search})}">이전</a>
+                                </li>
+
+                                <li class="page-item"
+                                    th:each="page : ${#numbers.sequence(0, articles.totalPages - 1)}"
+                                    th:classappend="${page == articles.number} ? 'active'">
+                                    <a class="page-link"
+                                       th:href="@{/admin/articles(page=${page}, search=${search})}"
+                                       th:text="${page + 1}"></a>
+                                </li>
+
+                                <li class="page-item" th:classappend="${articles.last} ? 'disabled'">
+                                    <a class="page-link"
+                                       th:href="@{/admin/articles(page=${articles.number + 1}, search=${search})}">다음</a>
+                                </li>
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 글 편집 모달 -->
+    <div class="modal fade" id="editArticleModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">글 정보 편집</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editArticleForm">
+                        <div class="mb-3">
+                            <label for="articleTitle" class="form-label">제목</label>
+                            <input type="text" class="form-control" id="articleTitle" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="articleLink" class="form-label">링크</label>
+                            <input type="url" class="form-control" id="articleLink" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="articleThumbnail" class="form-label">썸네일 URL</label>
+                            <input type="url" class="form-control" id="articleThumbnail">
+                            <div class="mt-2" id="thumbnailPreview"></div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="articleCategorySelect" class="form-label">카테고리</label>
+                            <div class="d-flex gap-2">
+                                <select class="form-select" id="articleCategorySelect">
+                                    <option value="">카테고리를 선택하세요</option>
+                                    <option th:each="category : ${categories}"
+                                            th:value="${category.name}"
+                                            th:text="${category.name}">
+                                    </option>
+                                </select>
+                                <input type="text" class="form-control" id="articleCustomCategory"
+                                       placeholder="새 카테고리">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="button" class="btn btn-primary" id="saveArticleBtn">저장</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 요약 관리 모달 -->
+    <div class="modal fade" id="editSummariesModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">요약 관리</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-success" id="addSummaryBtn">
+                            <i class="fas fa-plus"></i> 요약 추가
+                        </button>
+                    </div>
+                    <div id="summariesContainer">
+                        <!-- 동적으로 생성되는 요약 항목들 -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="button" class="btn btn-primary" id="saveSummariesBtn">저장</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 카테고리 수정 모달 -->
+    <div class="modal fade" id="editCategoryModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">카테고리 수정</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editCategoryForm">
+                        <div class="mb-3">
+                            <label for="categorySelect" class="form-label">카테고리 선택</label>
+                            <select class="form-select" id="categorySelect" required>
+                                <option value="">카테고리를 선택하세요</option>
+                                <option th:each="category : ${categories}"
+                                        th:value="${category.name}"
+                                        th:text="${category.name}">
+                                </option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="customCategory" class="form-label">또는 새 카테고리 입력</label>
+                            <input type="text" class="form-control" id="customCategory"
+                                   placeholder="새 카테고리명을 입력하세요">
+                            <small class="form-text text-muted">새 카테고리를 입력하면 자동으로 생성됩니다.</small>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="button" class="btn btn-primary" id="saveCategoryBtn">저장</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentArticleId = null;
+        let currentArticleData = null;
+
+        // 글 편집 버튼 클릭
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('edit-article-btn') || e.target.closest('.edit-article-btn')) {
+                const btn = e.target.classList.contains('edit-article-btn') ? e.target : e.target.closest('.edit-article-btn');
+                currentArticleId = btn.dataset.articleId;
+
+                // 현재 글 정보 로드
+                loadArticleForEdit(currentArticleId);
+            }
+
+            if (e.target.classList.contains('edit-summaries-btn') || e.target.closest('.edit-summaries-btn')) {
+                const btn = e.target.classList.contains('edit-summaries-btn') ? e.target : e.target.closest('.edit-summaries-btn');
+                currentArticleId = btn.dataset.articleId;
+
+                // 요약 정보 로드
+                loadSummariesForEdit(currentArticleId);
+            }
+
+            if (e.target.classList.contains('edit-category-btn') || e.target.closest('.edit-category-btn')) {
+                const btn = e.target.classList.contains('edit-category-btn') ? e.target : e.target.closest('.edit-category-btn');
+                currentArticleId = btn.dataset.articleId;
+                const currentCategory = btn.dataset.currentCategory;
+
+                // 현재 카테고리 선택
+                const categorySelect = document.getElementById('categorySelect');
+                categorySelect.value = currentCategory || '';
+
+                // 커스텀 입력 초기화
+                document.getElementById('customCategory').value = '';
+
+                // 모달 표시
+                const modal = new bootstrap.Modal(document.getElementById('editCategoryModal'));
+                modal.show();
+            }
+        });
+
+        // 글 정보 로드
+        function loadArticleForEdit(articleId) {
+            fetch(`/admin/articles/${articleId}/detail`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        currentArticleData = data.article;
+
+                        // 폼에 데이터 채우기
+                        document.getElementById('articleTitle').value = data.article.title || '';
+                        document.getElementById('articleLink').value = data.article.link || '';
+                        document.getElementById('articleThumbnail').value = data.article.thumbnailImage || '';
+                        document.getElementById('articleCategorySelect').value =
+                            data.article.category ? data.article.category.name : '';
+
+                        // 썸네일 미리보기
+                        updateThumbnailPreview(data.article.thumbnailImage);
+
+                        // 모달 표시
+                        const modal = new bootstrap.Modal(document.getElementById('editArticleModal'));
+                        modal.show();
+                    } else {
+                        alert('글 정보 로드 실패: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('글 정보 로드 중 오류가 발생했습니다.');
+                });
+        }
+
+        // 요약 정보 로드
+        function loadSummariesForEdit(articleId) {
+            fetch(`/admin/articles/${articleId}/summaries`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const container = document.getElementById('summariesContainer');
+                        container.innerHTML = '';
+
+                        // 기존 요약들 표시
+                        data.summaries.forEach((summary, index) => {
+                            addSummaryItem(summary, index);
+                        });
+
+                        // 모달 표시
+                        const modal = new bootstrap.Modal(document.getElementById('editSummariesModal'));
+                        modal.show();
+                    } else {
+                        alert('요약 정보 로드 실패: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('요약 정보 로드 중 오류가 발생했습니다.');
+                });
+        }
+
+        // 요약 항목 추가
+        function addSummaryItem(summary = null, index = null) {
+            const container = document.getElementById('summariesContainer');
+            const summaryIndex = index !== null ? index : container.children.length;
+
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = 'mb-3 p-3 border rounded';
+            summaryDiv.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0">요약 ${summaryIndex + 1}</h6>
+                    <button type="button" class="btn btn-sm btn-danger remove-summary-btn">
+                        <i class="fas fa-trash"></i> 삭제
+                    </button>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">타입</label>
+                    <select class="form-select summary-type">
+                        <option value="h3" ${summary && summary.contentType === 'h3' ? 'selected' : ''}>제목 (H3)</option>
+                        <option value="li" ${summary && summary.contentType === 'li' ? 'selected' : ''}>항목 (LI)</option>
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">내용</label>
+                    <textarea class="form-control summary-content" rows="2" maxlength="500"
+                              placeholder="요약 내용을 입력하세요 (최대 500자)">${summary ? summary.content : ''}</textarea>
+                </div>
+                <input type="hidden" class="summary-id" value="${summary ? summary.id : ''}">
+            `;
+
+            container.appendChild(summaryDiv);
+        }
+
+        // 요약 항목 삭제
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('remove-summary-btn') || e.target.closest('.remove-summary-btn')) {
+                const summaryDiv = e.target.closest('.mb-3.p-3.border.rounded');
+                summaryDiv.remove();
+            }
+        });
+
+        // 요약 추가 버튼
+        document.getElementById('addSummaryBtn').addEventListener('click', function() {
+            addSummaryItem();
+        });
+
+        // 썸네일 미리보기 업데이트
+        function updateThumbnailPreview(url) {
+            const preview = document.getElementById('thumbnailPreview');
+            if (url && url.trim()) {
+                preview.innerHTML = `<img src="${url}" style="max-width: 200px; max-height: 100px; object-fit: cover; border-radius: 4px;" />`;
+            } else {
+                preview.innerHTML = '';
+            }
+        }
+
+        // 썸네일 URL 변경 시 미리보기 업데이트
+        document.getElementById('articleThumbnail').addEventListener('input', function() {
+            updateThumbnailPreview(this.value);
+        });
+
+        // 글 정보 저장
+        document.getElementById('saveArticleBtn').addEventListener('click', function() {
+            const title = document.getElementById('articleTitle').value.trim();
+            const link = document.getElementById('articleLink').value.trim();
+            const thumbnailUrl = document.getElementById('articleThumbnail').value.trim();
+            const categoryName = document.getElementById('articleCustomCategory').value.trim() ||
+                               document.getElementById('articleCategorySelect').value;
+
+            if (!title || !link) {
+                alert('제목과 링크는 필수 입력 항목입니다.');
+                return;
+            }
+
+            const requestData = {
+                title: title,
+                link: link,
+                thumbnailUrl: thumbnailUrl || null,
+                categoryName: categoryName || null
+            };
+
+            fetch(`/admin/articles/${currentArticleId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('글 정보 수정 실패: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('글 정보 수정 중 오류가 발생했습니다.');
+            });
+        });
+
+        // 요약 저장
+        document.getElementById('saveSummariesBtn').addEventListener('click', function() {
+            const summaryItems = document.querySelectorAll('#summariesContainer > div');
+            const summaries = [];
+
+            summaryItems.forEach(item => {
+                const id = item.querySelector('.summary-id').value;
+                const contentType = item.querySelector('.summary-type').value;
+                const content = item.querySelector('.summary-content').value.trim();
+
+                if (content) {
+                    summaries.push({
+                        id: id || null,
+                        contentType: contentType,
+                        content: content
+                    });
+                }
+            });
+
+            fetch(`/admin/articles/${currentArticleId}/summaries`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({summaries: summaries})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('요약 수정 실패: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('요약 수정 중 오류가 발생했습니다.');
+            });
+        });
+
+        // 카테고리 저장
+        document.getElementById('saveCategoryBtn').addEventListener('click', function() {
+            const categorySelect = document.getElementById('categorySelect');
+            const customCategory = document.getElementById('customCategory');
+
+            let categoryName = customCategory.value.trim() || categorySelect.value;
+
+            if (!categoryName) {
+                alert('카테고리를 선택하거나 입력해주세요.');
+                return;
+            }
+
+            // API 호출
+            fetch(`/admin/articles/${currentArticleId}/category`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    categoryName: categoryName
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 성공 시 페이지 새로고침
+                    location.reload();
+                } else {
+                    alert('카테고리 수정 실패: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('카테고리 수정 중 오류가 발생했습니다.');
+            });
+        });
+
+        // 커스텀 카테고리 입력 시 셀렉트 초기화
+        document.getElementById('customCategory').addEventListener('input', function() {
+            if (this.value.trim()) {
+                document.getElementById('categorySelect').value = '';
+            }
+        });
+
+        document.getElementById('articleCustomCategory').addEventListener('input', function() {
+            if (this.value.trim()) {
+                document.getElementById('articleCategorySelect').value = '';
+            }
+        });
+
+        // 셀렉트 선택 시 커스텀 입력 초기화
+        document.getElementById('categorySelect').addEventListener('change', function() {
+            if (this.value) {
+                document.getElementById('customCategory').value = '';
+            }
+        });
+
+        document.getElementById('articleCategorySelect').addEventListener('change', function() {
+            if (this.value) {
+                document.getElementById('articleCustomCategory').value = '';
+            }
+        });
+    </script>
+</body>
+</html>

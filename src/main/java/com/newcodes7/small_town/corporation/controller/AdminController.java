@@ -1,9 +1,16 @@
 package com.newcodes7.small_town.corporation.controller;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -11,17 +18,27 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.article.service.ArticleService;
 import com.newcodes7.small_town.corporation.dto.CorporationCreateDto;
 import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
 import com.newcodes7.small_town.corporation.dto.CorporationUpdateDto;
 import com.newcodes7.small_town.corporation.exception.CorporationException;
 import com.newcodes7.small_town.corporation.repository.IndustryRepository;
 import com.newcodes7.small_town.corporation.service.CorporationService;
+import com.newcodes7.small_town.crawler.repository.ArticleSummaryRepository;
+import com.newcodes7.small_town.crawler.repository.CategoryRepository;
+import com.newcodes7.small_town.crawler.service.CrawlingService;
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.ArticleSummary;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +50,11 @@ public class AdminController {
     
     private final CorporationService corporationService;
     private final IndustryRepository industryRepository;
+    private final CrawlingService crawlingService;
+    private final CategoryRepository categoryRepository;
+    private final ArticleService articleService;
+    private final ArticleRepository articleRepository;
+    private final ArticleSummaryRepository articleSummaryRepository;
     
     // 기업 목록 페이지
     @GetMapping("/corporations")
@@ -164,5 +186,299 @@ public class AdminController {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
         }
         return "redirect:/admin/corporations";
+    }
+
+    // 글 목록 페이지
+    @GetMapping("/articles")
+    public String articleList(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String search,
+            Model model) {
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("publishedAt").descending());
+        Page<Article> articles;
+
+        if (search != null && !search.trim().isEmpty()) {
+            articles = articleRepository.findByTitleContainingIgnoreCaseAndDeletedAtIsNull(search, pageable);
+            model.addAttribute("search", search);
+        } else {
+            articles = articleRepository.findByDeletedAtIsNull(pageable);
+        }
+
+        model.addAttribute("articles", articles);
+        model.addAttribute("categories", categoryRepository.findAll());
+        return "admin/article/list";
+    }
+
+    /**
+     * 글 카테고리 수정 API
+     */
+    @PutMapping("/articles/{articleId}/category")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> updateArticleCategory(
+            @PathVariable Long articleId,
+            @RequestBody Map<String, String> request) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            String categoryName = request.get("categoryName");
+
+            if (categoryName == null || categoryName.trim().isEmpty()) {
+                response.put("success", false);
+                response.put("message", "카테고리 이름이 필요합니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            crawlingService.updateArticleCategory(articleId, categoryName.trim());
+
+            response.put("success", true);
+            response.put("message", "카테고리가 성공적으로 수정되었습니다.");
+            response.put("articleId", articleId);
+            response.put("categoryName", categoryName.trim());
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "카테고리 수정 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 사용 가능한 카테고리 목록 조회 API
+     */
+    @GetMapping("/categories")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getCategories() {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            response.put("success", true);
+            response.put("categories", categoryRepository.findAll());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "카테고리 목록 조회 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 글 상세 정보 조회 API
+     */
+    @GetMapping("/articles/{articleId}/detail")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getArticleDetail(@PathVariable Long articleId) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            Optional<Article> articleOpt = articleRepository.findById(articleId);
+            if (articleOpt.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "글을 찾을 수 없습니다.");
+                return ResponseEntity.notFound().build();
+            }
+
+            Article article = articleOpt.get();
+
+            // DTO로 변환하여 직렬화 문제 해결
+            Map<String, Object> articleData = new HashMap<>();
+            articleData.put("id", article.getId());
+            articleData.put("title", article.getTitle());
+            articleData.put("link", article.getLink());
+            articleData.put("thumbnailImage", article.getThumbnailImage());
+            articleData.put("summary", article.getSummary());
+            articleData.put("viewCount", article.getViewCount());
+            articleData.put("likeCount", article.getLikeCount());
+            articleData.put("publishedAt", article.getPublishedAt());
+
+            if (article.getCategory() != null) {
+                Map<String, Object> categoryData = new HashMap<>();
+                categoryData.put("id", article.getCategory().getId());
+                categoryData.put("name", article.getCategory().getName());
+                articleData.put("category", categoryData);
+            }
+
+            response.put("success", true);
+            response.put("article", articleData);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "글 정보 조회 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 글 기본 정보 수정 API
+     */
+    @PutMapping("/articles/{articleId}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> updateArticle(
+            @PathVariable Long articleId,
+            @RequestBody Map<String, Object> request) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            Optional<Article> articleOpt = articleRepository.findById(articleId);
+            if (articleOpt.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "글을 찾을 수 없습니다.");
+                return ResponseEntity.notFound().build();
+            }
+
+            Article article = articleOpt.get();
+
+            // 제목, 링크, 썸네일 수정
+            String title = (String) request.get("title");
+            String link = (String) request.get("link");
+            String thumbnailUrl = (String) request.get("thumbnailUrl");
+            String categoryName = (String) request.get("categoryName");
+
+            if (title != null && !title.trim().isEmpty()) {
+                article.setTitle(title.trim());
+            }
+
+            if (link != null && !link.trim().isEmpty()) {
+                article.setLink(link.trim());
+            }
+
+            if (thumbnailUrl != null) {
+                article.setThumbnailImage(thumbnailUrl.trim().isEmpty() ? null : thumbnailUrl.trim());
+            }
+
+            // 카테고리 수정 (기존 로직 재사용)
+            if (categoryName != null && !categoryName.trim().isEmpty()) {
+                crawlingService.updateArticleCategory(articleId, categoryName.trim());
+            }
+
+            articleRepository.save(article);
+
+            response.put("success", true);
+            response.put("message", "글 정보가 성공적으로 수정되었습니다.");
+            response.put("articleId", articleId);
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "글 정보 수정 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 글 요약 목록 조회 API
+     */
+    @GetMapping("/articles/{articleId}/summaries")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getArticleSummaries(@PathVariable Long articleId) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            Optional<Article> articleOpt = articleRepository.findById(articleId);
+            if (articleOpt.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "글을 찾을 수 없습니다.");
+                return ResponseEntity.notFound().build();
+            }
+
+            List<ArticleSummary> summaries = articleSummaryRepository.findByArticleIdAndDeletedAtIsNullOrderByCreatedAt(articleId);
+
+            // DTO로 변환하여 직렬화 문제 해결
+            List<Map<String, Object>> summaryDataList = new ArrayList<>();
+            for (ArticleSummary summary : summaries) {
+                Map<String, Object> summaryData = new HashMap<>();
+                summaryData.put("id", summary.getId());
+                summaryData.put("contentType", summary.getContentType());
+                summaryData.put("content", summary.getContent());
+                summaryData.put("createdAt", summary.getCreatedAt());
+                summaryData.put("updatedAt", summary.getUpdatedAt());
+                summaryDataList.add(summaryData);
+            }
+
+            response.put("success", true);
+            response.put("summaries", summaryDataList);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "요약 정보 조회 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 글 요약 수정 API
+     */
+    @PutMapping("/articles/{articleId}/summaries")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> updateArticleSummaries(
+            @PathVariable Long articleId,
+            @RequestBody Map<String, Object> request) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            Optional<Article> articleOpt = articleRepository.findById(articleId);
+            if (articleOpt.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "글을 찾을 수 없습니다.");
+                return ResponseEntity.notFound().build();
+            }
+
+            Article article = articleOpt.get();
+
+            // 기존 요약들을 soft delete
+            List<ArticleSummary> existingSummaries = articleSummaryRepository.findByArticleIdAndDeletedAtIsNullOrderByCreatedAt(articleId);
+            for (ArticleSummary summary : existingSummaries) {
+                summary.setDeletedAt(java.time.LocalDateTime.now());
+            }
+            articleSummaryRepository.saveAll(existingSummaries);
+
+            // 새로운 요약들 저장
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> summariesData = (List<Map<String, Object>>) request.get("summaries");
+
+            List<ArticleSummary> newSummaries = new ArrayList<>();
+            for (Map<String, Object> summaryData : summariesData) {
+                String contentType = (String) summaryData.get("contentType");
+                String content = (String) summaryData.get("content");
+
+                if (content != null && !content.trim().isEmpty()) {
+                    ArticleSummary summary = ArticleSummary.builder()
+                            .article(article)
+                            .contentType(contentType != null ? contentType : "li")
+                            .content(content.trim())
+                            .build();
+                    newSummaries.add(summary);
+                }
+            }
+
+            articleSummaryRepository.saveAll(newSummaries);
+
+            response.put("success", true);
+            response.put("message", "요약이 성공적으로 수정되었습니다.");
+            response.put("articleId", articleId);
+            response.put("summaryCount", newSummaries.size());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "요약 수정 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
     }
 }

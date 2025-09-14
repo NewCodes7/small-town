@@ -134,4 +134,15 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
                                                  @Param("keyword") String keyword,
                                                  @Param("domesticTypes") List<Integer> domesticTypes,
                                                  @Param("category") List<String> category);
+
+    // 관리자용 글 검색 (제목 기준)
+    Page<Article> findByTitleContainingIgnoreCaseAndDeletedAtIsNull(String title, Pageable pageable);
+
+    // 관리자용 전체 글 조회 (삭제되지 않은)
+    @Query("SELECT a FROM Article a " +
+           "JOIN FETCH a.corporation c " +
+           "LEFT JOIN FETCH a.category " +
+           "WHERE a.deletedAt IS NULL " +
+           "ORDER BY a.publishedAt DESC")
+    Page<Article> findByDeletedAtIsNull(Pageable pageable);
 }
