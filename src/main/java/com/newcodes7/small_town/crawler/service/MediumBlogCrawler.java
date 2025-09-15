@@ -1,5 +1,8 @@
 package com.newcodes7.small_town.crawler.service;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -90,7 +93,7 @@ public class MediumBlogCrawler implements BlogCrawler {
         return articles;
     }
     
-    private List<Article> crawlHtmlWithInfiniteScroll(WebDriver driver, Corporation corporation, String link) throws CrawlerException {
+    private List<Article> crawlHtmlWithInfiniteScroll(WebDriver driver, Corporation corporation, String link) throws CrawlerException, IOException {
         List<Article> articles = new ArrayList<>();
         
         try {
@@ -181,9 +184,23 @@ public class MediumBlogCrawler implements BlogCrawler {
                 log.debug("썸네일 이미지 찾기 실패: {}", e.getMessage());
             }
             
-            // 발행일 찾기
-            Element timeElement = element.selectFirst("span[class*='y ez']");
-            LocalDateTime publishedAt = parseDateText(timeElement.text().trim());
+            // 발행일 찾기 - "Added" 텍스트 다음 요소 찾기
+            Element timeElement = null;
+
+            // 방법 1: "Added"를 포함하는 요소의 다음 형제 요소
+            Element addedElement = element.selectFirst(":contains(Added)");
+            if (addedElement != null) {
+                timeElement = addedElement.nextElementSibling();
+            }
+
+            LocalDateTime publishedAt;
+            if (timeElement != null) {
+                publishedAt = parseDateText(timeElement.text().trim());
+                log.debug("시간 요소 발견: {}", timeElement.text().trim());
+            } else {
+                log.debug("시간 요소를 찾을 수 없어 현재 시간으로 설정합니다.");
+                publishedAt = TimeUtil.nowInSeoul();
+            }
             
             return Article.builder()
                     .corporation(corporation)
