@@ -137,12 +137,6 @@
                         </div>
                     </div>
                     
-                    <!-- Tags -->
-                    <div class="mt-auto" th:if="${!article.tags.isEmpty()}">
-                        <span class="badge tag-badge me-2" 
-                              th:each="tag : ${article.tags}"
-                              th:text="${tag.keyword}">Tag</span>
-                    </div>
                 </div>
                 
                 <!-- Thumbnail Container (Right Side) -->
