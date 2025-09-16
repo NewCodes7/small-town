@@ -32,8 +32,17 @@ class ArticleManager {
         this.currentSort = params.get('sort') || 'latest';
         this.currentKeyword = params.get('keyword') || '';
         this.currentRegions = params.getAll('regions') || [];
-        this.currentView = params.get('view') || 'grouped';
-        
+
+        // 키워드나 카테고리가 있으면 자동으로 리스트 뷰로 설정
+        const hasKeyword = this.currentKeyword && this.currentKeyword.trim() !== '';
+        const hasCategories = params.getAll('category').length > 0;
+
+        if (hasKeyword || hasCategories) {
+            this.currentView = 'list';
+        } else {
+            this.currentView = params.get('view') || 'grouped';
+        }
+
         // UI 상태 동기화
         this.updateUIFromState();
     }
@@ -167,6 +176,12 @@ class ArticleManager {
         if (searchInput) {
             this.currentKeyword = searchInput.value.trim();
             this.currentPage = 0;
+
+            // 키워드 검색 시 리스트 뷰로 자동 전환
+            if (this.currentKeyword && this.currentKeyword.length > 0) {
+                this.currentView = 'list';
+            }
+
             this.loadArticles();
         }
     }
@@ -242,10 +257,14 @@ class ArticleManager {
                 params.append('category', category);
             });
 
-            if (this.currentView === 'grouped') {
+            // 키워드나 카테고리가 있으면 자동으로 리스트 뷰로 전환
+            if (this.currentKeyword || currentCategories.length > 0) {
+                this.currentView = 'list';
+                params.set('view', 'list');
+            } else if (this.currentView === 'grouped') {
                 params.set('view', 'grouped');
             } else {
-                params.set('view', 'list')
+                params.set('view', 'list');
             }
 
             window.location.href = `?${params}`;

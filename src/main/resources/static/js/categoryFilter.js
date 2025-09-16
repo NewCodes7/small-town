@@ -185,10 +185,10 @@ class CategoryFilterManager {
     // URL 파라미터 업데이트
     updateUrlParams() {
         const url = new URL(window.location);
-        
+
         // 기존 카테고리 파라미터 제거
         url.searchParams.delete('category');
-        
+
         // 선택된 카테고리 추가
         if (this.selectedCategories.size > 0) {
             this.selectedCategories.forEach(categoryId => {
@@ -197,11 +197,14 @@ class CategoryFilterManager {
                     url.searchParams.append('category', category.name);
                 }
             });
+
+            // 카테고리가 선택되면 리스트 뷰로 강제 전환
+            url.searchParams.set('view', 'list');
         }
-        
+
         // 페이지는 0으로 리셋
         url.searchParams.set('page', '0');
-        
+
         // URL 저장 (새로고침을 위해 history에는 저장하지 않음)
         this.pendingUrl = url.toString();
     }
