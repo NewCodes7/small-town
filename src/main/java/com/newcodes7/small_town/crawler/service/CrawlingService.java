@@ -116,7 +116,7 @@ public class CrawlingService {
             // 중복 제거 및 저장
             List<Article> newArticles = new ArrayList<>();
             for (Article article : crawledArticles) {
-                if (!crawlerArticleRepository.findFirstByLink(article.getLink()).isPresent()) {
+                if (!crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(article.getLink()).isPresent()) {
                     crawler.processImageUpload(article, corporation);
 
                     // article 저장
