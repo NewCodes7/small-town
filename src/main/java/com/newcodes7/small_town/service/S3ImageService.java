@@ -13,10 +13,10 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.net.URLConnection;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
@@ -89,8 +89,20 @@ public class S3ImageService {
             // url에 공백 포함된 경우 때문에 인코딩 처리해야 함
             URI uri = new URI(url.getProtocol(), url.getUserInfo(), url.getHost(), url.getPort(), url.getPath(), url.getQuery(), url.getRef());
             url = uri.toURL();
-            URLConnection connection = url.openConnection();
-            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(10000); // 10초
+            connection.setReadTimeout(30000); // 30초
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
+
+            // 티스토리/카카오 이미지인 경우 추가 헤더 설정
+            if (imageUrl.contains("daumcdn.net") || imageUrl.contains("kakaocdn.net") || imageUrl.contains("tistory.com")) {
+                connection.setRequestProperty("Referer", "https://tistory.com/");
+                connection.setRequestProperty("Accept", "image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8");
+                connection.setRequestProperty("Accept-Language", "ko-KR,ko;q=0.9,en;q=0.8");
+                connection.setRequestProperty("Cache-Control", "no-cache");
+                log.debug("티스토리 이미지 요청에 특수 헤더 추가: {}", imageUrl);
+            }
             
             byte[] imageData;
             try (InputStream inputStream = connection.getInputStream()) {
@@ -137,7 +149,12 @@ public class S3ImageService {
             return resultUrl;
 
         } catch (IOException e) {
-            log.error("이미지 업로드 실패: {}", imageUrl, e);
+            // 티스토리/카카오 이미지 403 에러는 예상되는 상황이므로 warn 레벨로 로그
+            if (imageUrl.contains("daumcdn.net") || imageUrl.contains("kakaocdn.net") || imageUrl.contains("tistory.com")) {
+                log.warn("티스토리 이미지 접근 제한으로 업로드 실패 (원본 URL 사용): {}", imageUrl);
+            } else {
+                log.error("이미지 업로드 실패: {}", imageUrl, e);
+            }
             return imageUrl; // 업로드 실패 시 원본 URL 반환
         } catch (URISyntaxException e) {
             log.error("잘못된 URL 형식: {}", imageUrl, e);
