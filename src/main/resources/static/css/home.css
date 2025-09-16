@@ -14,12 +14,22 @@
     animation: float 8s ease-in-out infinite;
     opacity: 0.7;
     transition: opacity 0.3s ease;
+    pointer-events: auto;
 }
 
 .floating-logo:hover {
     opacity: 1;
     transform: scale(1.1);
-    pointer-events: auto;
+}
+
+.floating-logo-link {
+    display: block;
+    text-decoration: none;
+    transition: transform 0.3s ease;
+}
+
+.floating-logo-link:hover .logo-image {
+    transform: scale(1.05);
 }
 
 .logo-image {
@@ -222,6 +232,19 @@
 .company-name {
     font-weight: 600;
     color: var(--primary-green);
+}
+
+.company-link {
+    transition: all 0.3s ease;
+}
+
+.company-link:hover {
+    transform: translateY(-1px);
+}
+
+.company-link:hover .company-name {
+    color: var(--primary-green-dark);
+}
     font-size: 1rem;
 }
 

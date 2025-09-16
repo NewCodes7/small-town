@@ -40,11 +40,14 @@
                     <!-- Floating Company Logos -->
                     <div class="floating-logos-container">
                         <div class="floating-logo" th:each="corporation, iterStat : ${corporations}">
-                            <img th:if="${corporation.effectiveLogoUrl != null}" 
-                                 th:src="${corporation.effectiveLogoUrl}" 
-                                 th:alt="${corporation.name}"
-                                 th:title="${corporation.name}"
-                                 class="logo-image">
+                            <a th:href="@{/corporations/{id}(id=${corporation.id})}"
+                               class="floating-logo-link">
+                                <img th:if="${corporation.effectiveLogoUrl != null}"
+                                     th:src="${corporation.effectiveLogoUrl}"
+                                     th:alt="${corporation.name}"
+                                     th:title="${corporation.name}"
+                                     class="logo-image">
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -79,12 +82,15 @@
                                 </div>
                                 <div class="article-info">
                                     <div class="article-company">
-                                        <img th:if="${article.corporation.effectiveLogoUrl != null and !article.corporation.effectiveLogoUrl.isEmpty()}" 
-                                             th:src="${article.corporation.effectiveLogoUrl}" 
-                                             th:alt="${article.corporation.name}"
-                                             th:title="${article.corporation.name}"
-                                             class="company-logo">
-                                        <span class="company-name" th:text="${article.corporation.name}">Company</span>
+                                        <a th:href="@{/corporations/{id}(id=${article.corporation.id})}"
+                                           class="d-flex align-items-center text-decoration-none company-link">
+                                            <img th:if="${article.corporation.effectiveLogoUrl != null and !article.corporation.effectiveLogoUrl.isEmpty()}"
+                                                 th:src="${article.corporation.effectiveLogoUrl}"
+                                                 th:alt="${article.corporation.name}"
+                                                 th:title="${article.corporation.name}"
+                                                 class="company-logo">
+                                            <span class="company-name" th:text="${article.corporation.name}">Company</span>
+                                        </a>
                                     </div>
                                     <div class="article-metrics">
                                         <span class="publish-date relative-time" 

@@ -498,12 +498,13 @@ class ArticleManager {
     bindCardEvents(cardSelector) {
         document.querySelectorAll(cardSelector).forEach(card => {
             card.addEventListener('click', (e) => {
-                e.preventDefault();
-
-                if (e.target.closest('.badge') || e.target.closest('.like-button') 
+                // 기업 링크, 배지, 좋아요 버튼, 삭제 버튼을 클릭한 경우는 기본 동작 허용
+                if (e.target.closest('.badge') || e.target.closest('.like-button')
                     || e.target.closest('.company-link') || e.target.closest('.admin-delete-btn')) {
-                    return;
+                    return; // 기본 동작 허용 (링크 이동 등)
                 }
+
+                e.preventDefault();
 
                 let parent = e.target;
                 while (parent) {
