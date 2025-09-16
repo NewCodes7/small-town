@@ -50,7 +50,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "WHERE a.deletedAt IS NULL " +
            "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "AND (:domesticTypes IS NULL OR c.isDomestic IN :domesticTypes) " +
-           "AND (:category IS NULL OR a.category.name IN :category) " +
+           "AND (:category IS NULL OR (a.category IS NOT NULL AND a.category.name IN :category)) " +
            "ORDER BY " +
            "CASE WHEN :sort = 'popular' THEN " +
            "(COALESCE(a.viewCount, 0) * 0.6 + " +
@@ -128,7 +128,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
               "AND a.corporation.id IN :corporationIds " +
               "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
               "AND (:domesticTypes IS NULL OR a.corporation.isDomestic IN :domesticTypes) " +
-              "AND (:category IS NULL OR a.category.name IN :category) " +
+              "AND (:category IS NULL OR (a.category IS NOT NULL AND a.category.name IN :category)) " +
               "ORDER BY a.corporation.id, a.publishedAt DESC")
        List<Article> findArticlesByCorporations(@Param("corporationIds") List<Long> corporationIds,
                                                  @Param("keyword") String keyword,
