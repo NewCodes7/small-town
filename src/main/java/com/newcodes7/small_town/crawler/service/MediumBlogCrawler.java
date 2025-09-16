@@ -175,19 +175,28 @@ public class MediumBlogCrawler implements BlogCrawler {
                 log.debug("썸네일 이미지 찾기 실패: {}", e.getMessage());
             }
             
-            // 발행일 찾기 - "Added" 텍스트 다음 요소 찾기
-            Element timeElement = null;
+            // 발행일 찾기 - "Added" 텍스트를 포함하는 요소에서 시간 추출
+            LocalDateTime publishedAt;
+            String timeText = null;
 
-            // "Added"를 포함하는 요소의 다음 형제 요소
+            // "Added"를 포함하는 요소 찾기
             Element addedElement = element.selectFirst(":contains(Added)");
             if (addedElement != null) {
-                timeElement = addedElement.nextElementSibling();
+                String fullText = addedElement.text(); // "Added 3d ago"
+                log.debug("Added 요소 발견: {}", fullText);
+
+                // "Added " 부분을 제거하고 시간 부분만 추출
+                Pattern addedPattern = Pattern.compile("Added\\s+(.+)");
+                Matcher addedMatcher = addedPattern.matcher(fullText);
+                if (addedMatcher.find()) {
+                    timeText = addedMatcher.group(1); // "3d ago"
+                    log.debug("추출된 시간 텍스트: {}", timeText);
+                }
             }
 
-            LocalDateTime publishedAt;
-            if (timeElement != null) {
-                publishedAt = parseDateText(timeElement.text().trim());
-                log.debug("시간 요소 발견: {}", timeElement.text().trim());
+            if (timeText != null) {
+                publishedAt = parseDateText(timeText.trim());
+                log.debug("파싱된 발행일: {}", publishedAt);
             } else {
                 log.debug("시간 요소를 찾을 수 없어 현재 시간으로 설정합니다.");
                 publishedAt = TimeUtil.nowInSeoul();
