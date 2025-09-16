@@ -479,7 +479,6 @@ class ArticleManager {
                         <p class="text-muted mb-4">
                             ${isSearch ? '다른 키워드로 검색하거나 전체 글 목록을 확인해보세요.' : '새로운 기술 블로그 글이 곧 업데이트될 예정입니다.'}
                         </p>
-                        ${isSearch ? '' : '<a href="/admin/corporations" class="btn btn-primary"><i class="fas fa-plus me-2"></i>기업 추가하기</a>'}
                     </div>
                 </div>
             `;
