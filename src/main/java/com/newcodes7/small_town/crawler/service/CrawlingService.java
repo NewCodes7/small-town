@@ -150,7 +150,8 @@ public class CrawlingService {
                     );
 
                     // summary 저장
-                    article.setSummaries(openAiResponse.getSummaries().stream()
+                    article.getSummaries().clear();
+                    article.getSummaries().addAll(openAiResponse.getSummaries().stream()
                             .map(summary -> {
                                 summary.setArticle(article);
                                 return summary;
