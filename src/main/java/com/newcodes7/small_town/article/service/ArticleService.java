@@ -29,6 +29,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -185,5 +186,33 @@ public class ArticleService {
         
         article.softDelete();
         articleRepository.save(article);
+    }
+
+    /**
+     * 글 발행일 수정
+     */
+    @Transactional
+    public boolean updateArticlePublishDate(Long articleId, LocalDateTime publishedAt) {
+        if (articleId == null || articleId <= 0) {
+            throw new InvalidParameterException("articleId", articleId, "유효하지 않은 게시글 ID입니다");
+        }
+
+        if (publishedAt == null) {
+            throw new InvalidParameterException("publishedAt", publishedAt, "발행일이 필요합니다");
+        }
+
+        Optional<Article> articleOptional = articleRepository.findById(articleId);
+        if (articleOptional.isEmpty()) {
+            return false;
+        }
+
+        Article article = articleOptional.get();
+        if (article.getDeletedAt() != null) {
+            throw new InvalidParameterException("articleId", articleId, "삭제된 게시글은 수정할 수 없습니다");
+        }
+
+        article.setPublishedAt(publishedAt);
+        articleRepository.save(article);
+        return true;
     }
 }
