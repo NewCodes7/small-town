@@ -168,16 +168,7 @@ public class MediumBlogCrawler implements BlogCrawler {
             
             String thumbnailImage = "";
             try {
-                Element imgElement = element.selectFirst("img[class*='mq fi']");
-                if (imgElement == null) {
-                    imgElement = element.selectFirst("img[class*='mi fi']");
-                }
-                if (imgElement == null) {
-                    imgElement = element.selectFirst("img[class*='ms fi']");
-                }
-                if (imgElement == null) {
-                    imgElement = element.selectFirst("img[class*='mr fi']");
-                }
+                Element imgElement = element.select("img").get(1);
                 String originalUrl = imgElement.attr("src");
                 thumbnailImage = originalUrl.replaceAll("/resize:fill:\\d+:\\d+/", "/");
             } catch (Exception e) {
@@ -187,7 +178,7 @@ public class MediumBlogCrawler implements BlogCrawler {
             // 발행일 찾기 - "Added" 텍스트 다음 요소 찾기
             Element timeElement = null;
 
-            // 방법 1: "Added"를 포함하는 요소의 다음 형제 요소
+            // "Added"를 포함하는 요소의 다음 형제 요소
             Element addedElement = element.selectFirst(":contains(Added)");
             if (addedElement != null) {
                 timeElement = addedElement.nextElementSibling();
