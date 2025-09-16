@@ -30,9 +30,17 @@
             <div class="col-md-10 p-4">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h2>글 관리</h2>
-                    <button class="btn btn-warning" id="translateTitlesBtn">
-                        <i class="fas fa-language me-2"></i>해외 기업 글 제목 번역
-                    </button>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" id="crawlAllBtn">
+                            <i class="fas fa-spider me-2"></i>전체 크롤링
+                        </button>
+                        <button class="btn btn-info" id="analyzeArticlesBtn">
+                            <i class="fas fa-brain me-2"></i>전체 AI 분석
+                        </button>
+                        <button class="btn btn-warning" id="translateTitlesBtn">
+                            <i class="fas fa-language me-2"></i>전체 제목 번역
+                        </button>
+                    </div>
                 </div>
 
                 <!-- 검색 폼 -->
@@ -130,6 +138,11 @@
                                                         th:data-article-id="${article.id}">
                                                     <i class="fas fa-list"></i> 요약
                                                 </button>
+                                                <button class="btn btn-sm btn-danger delete-article-btn"
+                                                        th:data-article-id="${article.id}"
+                                                        th:data-article-title="${article.title}">
+                                                    <i class="fas fa-trash"></i> 삭제
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -143,22 +156,68 @@
                         <!-- 페이지네이션 -->
                         <nav th:if="${articles.totalPages > 1}">
                             <ul class="pagination justify-content-center">
+                                <!-- 첫 페이지로 -->
+                                <li class="page-item" th:classappend="${articles.first} ? 'disabled'">
+                                    <a class="page-link" th:href="@{/admin/articles(page=0, search=${search})}">
+                                        <i class="fas fa-angle-double-left"></i>
+                                    </a>
+                                </li>
+
+                                <!-- 이전 페이지 -->
                                 <li class="page-item" th:classappend="${articles.first} ? 'disabled'">
                                     <a class="page-link"
-                                       th:href="@{/admin/articles(page=${articles.number - 1}, search=${search})}">이전</a>
+                                       th:href="@{/admin/articles(page=${articles.number - 1}, search=${search})}">
+                                        <i class="fas fa-angle-left"></i>
+                                    </a>
                                 </li>
 
-                                <li class="page-item"
-                                    th:each="page : ${#numbers.sequence(0, articles.totalPages - 1)}"
-                                    th:classappend="${page == articles.number} ? 'active'">
-                                    <a class="page-link"
-                                       th:href="@{/admin/articles(page=${page}, search=${search})}"
-                                       th:text="${page + 1}"></a>
-                                </li>
+                                <!-- 페이지 번호들 (최대 5개만 표시) -->
+                                <th:block th:with="
+                                    startPage=${articles.number > 2 ? articles.number - 2 : 0},
+                                    endPage=${articles.number + 2 < articles.totalPages - 1 ? articles.number + 2 : articles.totalPages - 1}
+                                ">
+                                    <!-- 첫 페이지가 범위에 없으면 표시 -->
+                                    <li class="page-item" th:if="${startPage > 0}">
+                                        <a class="page-link" th:href="@{/admin/articles(page=0, search=${search})}">1</a>
+                                    </li>
+                                    <li class="page-item disabled" th:if="${startPage > 1}">
+                                        <span class="page-link">...</span>
+                                    </li>
 
+                                    <!-- 현재 페이지 주변의 페이지들 -->
+                                    <li class="page-item"
+                                        th:each="page : ${#numbers.sequence(startPage, endPage)}"
+                                        th:classappend="${page == articles.number} ? 'active'">
+                                        <a class="page-link"
+                                           th:href="@{/admin/articles(page=${page}, search=${search})}"
+                                           th:text="${page + 1}"></a>
+                                    </li>
+
+                                    <!-- 마지막 페이지가 범위에 없으면 표시 -->
+                                    <li class="page-item disabled" th:if="${endPage < articles.totalPages - 2}">
+                                        <span class="page-link">...</span>
+                                    </li>
+                                    <li class="page-item" th:if="${endPage < articles.totalPages - 1}">
+                                        <a class="page-link"
+                                           th:href="@{/admin/articles(page=${articles.totalPages - 1}, search=${search})}"
+                                           th:text="${articles.totalPages}"></a>
+                                    </li>
+                                </th:block>
+
+                                <!-- 다음 페이지 -->
                                 <li class="page-item" th:classappend="${articles.last} ? 'disabled'">
                                     <a class="page-link"
-                                       th:href="@{/admin/articles(page=${articles.number + 1}, search=${search})}">다음</a>
+                                       th:href="@{/admin/articles(page=${articles.number + 1}, search=${search})}">
+                                        <i class="fas fa-angle-right"></i>
+                                    </a>
+                                </li>
+
+                                <!-- 마지막 페이지로 -->
+                                <li class="page-item" th:classappend="${articles.last} ? 'disabled'">
+                                    <a class="page-link"
+                                       th:href="@{/admin/articles(page=${articles.totalPages - 1}, search=${search})}">
+                                        <i class="fas fa-angle-double-right"></i>
+                                    </a>
                                 </li>
                             </ul>
                         </nav>
@@ -315,6 +374,16 @@
                 // 모달 표시
                 const modal = new bootstrap.Modal(document.getElementById('editCategoryModal'));
                 modal.show();
+            }
+
+            if (e.target.classList.contains('delete-article-btn') || e.target.closest('.delete-article-btn')) {
+                const btn = e.target.classList.contains('delete-article-btn') ? e.target : e.target.closest('.delete-article-btn');
+                const articleId = btn.dataset.articleId;
+                const articleTitle = btn.dataset.articleTitle;
+
+                if (confirm(`정말로 "${articleTitle}" 글을 삭제하시겠습니까?\n\n삭제된 글은 복구할 수 없습니다.`)) {
+                    deleteArticle(articleId);
+                }
             }
         });
 
@@ -577,6 +646,95 @@
         document.getElementById('articleCategorySelect').addEventListener('change', function() {
             if (this.value) {
                 document.getElementById('articleCustomCategory').value = '';
+            }
+        });
+
+        // 글 삭제 함수
+        function deleteArticle(articleId) {
+            fetch(`/api/admin/articles/${articleId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('글 삭제 실패: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('글 삭제 중 오류가 발생했습니다.');
+            });
+        }
+
+        // 전체 크롤링 버튼 클릭
+        document.getElementById('crawlAllBtn').addEventListener('click', function() {
+            if (confirm('모든 기업 블로그를 크롤링합니다. 이 작업은 시간이 오래 걸릴 수 있습니다. 계속하시겠습니까?')) {
+                const btn = this;
+                const originalText = btn.innerHTML;
+
+                // 버튼 비활성화 및 로딩 표시
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>크롤링 중...';
+
+                fetch('/api/crawling/all', {
+                    method: 'GET'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`크롤링이 완료되었습니다.\n총 ${data.totalCorporations}개 기업 중 ${data.successCount}개 성공\n신규 글: ${data.totalNewArticles}개`);
+                        location.reload();
+                    } else {
+                        alert('크롤링 실패: ' + (data.message || '알 수 없는 오류'));
+                    }
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('크롤링 중 오류가 발생했습니다.');
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                });
+            }
+        });
+
+        // AI 분석 버튼 클릭
+        document.getElementById('analyzeArticlesBtn').addEventListener('click', function() {
+            if (confirm('분석되지 않은 모든 글에 대해 OpenAI 분석을 실행합니다. 이 작업은 시간이 오래 걸릴 수 있습니다. 계속하시겠습니까?')) {
+                const btn = this;
+                const originalText = btn.innerHTML;
+
+                // 버튼 비활성화 및 로딩 표시
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>분석 중...';
+
+                fetch('/api/crawling/analyze-existing', {
+                    method: 'GET'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`AI 분석이 완료되었습니다.\n분석된 글: ${data.analyzedCount || 0}개`);
+                        location.reload();
+                    } else {
+                        alert('AI 분석 실패: ' + (data.message || '알 수 없는 오류'));
+                    }
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('AI 분석 중 오류가 발생했습니다.');
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                });
             }
         });
 
