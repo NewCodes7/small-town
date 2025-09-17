@@ -61,7 +61,7 @@ health_check() {
 # nginx 설정 업데이트
 update_nginx_upstream() {
     local active_server=$1
-    local nginx_config="/workspaces/small-town/nginx/default.conf"
+    local nginx_config="nginx/default.conf"
 
     log "nginx 업스트림 설정 업데이트: $active_server로 전환"
 
