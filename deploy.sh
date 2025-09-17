@@ -98,6 +98,10 @@ cleanup_old_container() {
 
 # 메인 배포 함수
 deploy() {
+    log "=== git 변경 내용 가져오기 ==="
+    sudo git restore nginx/default.conf
+    git pull origin main
+
     log "=== Blue-Green 무중단 배포 시작 ==="
 
     # 현재 활성 서버 확인
