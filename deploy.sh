@@ -25,8 +25,9 @@ error() {
 
 # 현재 활성 서버 확인
 get_active_server() {
-    if docker ps --format "table {{.Names}}" | grep -q "backend-blue"; then
-        if [ "$(docker inspect --format='{{.State.Health.Status}}' backend-blue 2>/dev/null)" = "healthy" ]; then
+    if docker ps --format "table {{.Names}}" | grep -q "newcodes-backend-blue"; then
+        container_ip=$(docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' newcodes-backend-blue 2>/dev/null)
+        if [ -n "$container_ip" ] && curl -f -s http://$container_ip:8080/actuator/health >/dev/null 2>&1; then
             echo "blue"
         else
             echo "green"
@@ -45,7 +46,10 @@ health_check() {
     log "헬스체크 시작: $container_name"
 
     while [ $attempt -le $max_attempts ]; do
-        if [ "$(docker inspect --format='{{.State.Health.Status}}' $container_name 2>/dev/null)" = "healthy" ]; then
+        # 컨테이너 IP 주소 가져오기
+        container_ip=$(docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $container_name 2>/dev/null)
+
+        if [ -n "$container_ip" ] && curl -f -s http://$container_ip:8080/actuator/health >/dev/null 2>&1; then
             log "헬스체크 성공: $container_name (${attempt}/${max_attempts})"
             return 0
         fi
@@ -67,12 +71,12 @@ update_nginx_upstream() {
 
     if [ "$active_server" = "blue" ]; then
         # Blue로 전환
-        sed -i 's/# server backend-blue:8080/server backend-blue:8080/g' $nginx_config
-        sed -i 's/server backend-green:8080/# server backend-green:8080/g' $nginx_config
+        sed -i 's/# server newcodes-backend-blue:8080/server newcodes-backend-blue:8080/g' $nginx_config
+        sed -i 's/server newcodes-backend-green:8080/# server newcodes-backend-green:8080/g' $nginx_config
     else
         # Green으로 전환
-        sed -i 's/# server backend-green:8080/server backend-green:8080/g' $nginx_config
-        sed -i 's/server backend-blue:8080/# server backend-blue:8080/g' $nginx_config
+        sed -i 's/# server newcodes-backend-green:8080/server newcodes-backend-green:8080/g' $nginx_config
+        sed -i 's/server newcodes-backend-blue:8080/# server newcodes-backend-blue:8080/g' $nginx_config
     fi
 
     # nginx 설정 리로드
@@ -100,12 +104,12 @@ deploy() {
 
     if [ "$CURRENT_ACTIVE" = "blue" ]; then
         NEW_ACTIVE="green"
-        NEW_CONTAINER="backend-green"
-        OLD_CONTAINER="backend-blue"
+        NEW_CONTAINER="newcodes-backend-green"
+        OLD_CONTAINER="newcodes-backend-blue"
     else
         NEW_ACTIVE="blue"
-        NEW_CONTAINER="backend-blue"
-        OLD_CONTAINER="backend-green"
+        NEW_CONTAINER="newcodes-backend-blue"
+        OLD_CONTAINER="newcodes-backend-green"
     fi
 
     log "현재 활성 서버: $CURRENT_ACTIVE"
@@ -113,13 +117,13 @@ deploy() {
 
     # 1. 새 컨테이너 빌드 및 시작
     log "새 애플리케이션 이미지 빌드"
-    docker compose build backend-$NEW_ACTIVE
+    docker compose build newcodes-backend-$NEW_ACTIVE
 
     log "새 컨테이너 시작: $NEW_CONTAINER"
     if [ "$NEW_ACTIVE" = "green" ]; then
-        docker compose --profile green up -d backend-green
+        docker compose --profile green up -d newcodes-backend-green
     else
-        docker compose up -d backend-blue
+        docker compose up -d newcodes-backend-blue
     fi
 
     # 2. 헬스체크 대기
@@ -128,18 +132,7 @@ deploy() {
     # 3. nginx 업스트림 전환
     update_nginx_upstream $NEW_ACTIVE
 
-    # 4. 잠시 대기 후 검증
-    log "트래픽 전환 완료, 5초 대기 후 검증"
-    sleep 5
-
-    # 5. 새 서버로 간단한 헬스체크
-    if curl -f http://localhost/actuator/health >/dev/null 2>&1; then
-        log "배포 검증 성공"
-    else
-        error "배포 검증 실패, 롤백이 필요할 수 있습니다"
-    fi
-
-    # 6. 이전 컨테이너 정리 (옵션)
+    # 4. 이전 컨테이너 정리 (옵션)
     read -p "이전 컨테이너($OLD_CONTAINER)를 제거하시겠습니까? (y/N): " -r
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         cleanup_old_container $OLD_CONTAINER
@@ -167,8 +160,8 @@ rollback() {
     log "롤백 대상: $ROLLBACK_TO"
 
     # 이전 컨테이너가 실행 중인지 확인
-    if ! docker ps --format "table {{.Names}}" | grep -q "backend-$ROLLBACK_TO"; then
-        error "롤백할 컨테이너(backend-$ROLLBACK_TO)가 실행 중이지 않습니다"
+    if ! docker ps --format "table {{.Names}}" | grep -q "newcodes-backend-$ROLLBACK_TO"; then
+        error "롤백할 컨테이너(newcodes-backend-$ROLLBACK_TO)가 실행 중이지 않습니다"
     fi
 
     # nginx 업스트림 전환
@@ -195,7 +188,12 @@ status() {
     echo "헬스체크 상태:"
     for container in "newcodes-backend-blue" "newcodes-backend-green"; do
         if docker ps --format "table {{.Names}}" | grep -q "$container"; then
-            health_status=$(docker inspect --format='{{.State.Health.Status}}' $container 2>/dev/null || echo "unknown")
+            container_ip=$(docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $container 2>/dev/null)
+            if [ -n "$container_ip" ] && curl -f -s http://$container_ip:8080/actuator/health >/dev/null 2>&1; then
+                health_status="healthy"
+            else
+                health_status="unhealthy"
+            fi
             echo "$container: $health_status"
         else
             echo "$container: not running"
