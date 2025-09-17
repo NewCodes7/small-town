@@ -680,13 +680,9 @@
         <div th:unless="${isGrouped}" th:fragment="articleWrapper" id="article-list-container">
             <!-- Articles Stack -->
             <div class="articles-list-container">
-                <div class="article-card" th:attr="data-article-id=${article.id}" th:each="article : ${articles.content}" style="position: relative;">
-                    <!-- Admin Delete Button (only shown via JavaScript for admin users) -->
-                    <button class="admin-delete-btn d-none" title="글 삭제" th:attr="data-article-id=${article.id}">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                    
-                    <!-- Article Content (Left Side) -->
+                <div class="article-card-wrapper" th:each="article : ${articles.content}">
+                    <div class="article-card" th:attr="data-article-id=${article.id}">
+                        <!-- Article Content (Left Side) -->
                     <div class="article-content">
                         <!-- Title -->
                         <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
@@ -742,6 +738,20 @@
                             </div>
                         </div>
                     </div>
+                    </div>
+
+                    <!-- Admin Control Panel (separate from article) -->
+                    <div class="admin-control-panel d-none">
+                        <button class="admin-edit-btn" title="글 편집" th:attr="data-article-id=${article.id}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="admin-summary-btn" title="요약 관리" th:attr="data-article-id=${article.id}">
+                            <i class="fas fa-list"></i>
+                        </button>
+                        <button class="admin-delete-btn" title="글 삭제" th:attr="data-article-id=${article.id},data-article-title=${article.title}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -750,12 +760,8 @@
         <div th:if="${isGrouped}" th:fragment="articleWrapper" id="article-grouped-container" class="grouped-view">
             <!-- Grouped Articles Container -->
             <div th:if="${!articles.content.isEmpty()}" class="articles-container">
-                <div th:each="group : ${articles.content}" th:with="firstArticle=${group.articles[0]}, childArticles=${group.articles.size() > 1} ? ${group.articles.subList(1, group.articles.size())} : ${new java.util.ArrayList()}">
-                    <div class="article-card" style="position: relative;" th:attr="data-article-id=${firstArticle.id}">
-                        <!-- Admin Delete Button -->
-                        <button class="admin-delete-btn d-none" title="글 삭제" th:attr="data-article-id=${firstArticle.id}">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                <div class="article-card-wrapper" th:each="group : ${articles.content}" th:with="firstArticle=${group.articles[0]}, childArticles=${group.articles.size() > 1} ? ${group.articles.subList(1, group.articles.size())} : ${new java.util.ArrayList()}">
+                    <div class="article-card" th:attr="data-article-id=${firstArticle.id}">
 
                         <!-- Article Content (Left Side) -->
                         <div class="article-content">
@@ -811,6 +817,19 @@
                                 </a>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- Admin Control Panel (separate from article) -->
+                    <div class="admin-control-panel d-none">
+                        <button class="admin-edit-btn" title="글 편집" th:attr="data-article-id=${firstArticle.id}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="admin-summary-btn" title="요약 관리" th:attr="data-article-id=${firstArticle.id}">
+                            <i class="fas fa-list"></i>
+                        </button>
+                        <button class="admin-delete-btn" title="글 삭제" th:attr="data-article-id=${firstArticle.id},data-article-title=${firstArticle.title}">
+                            <i class="fas fa-trash"></i>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -897,9 +916,188 @@
             </nav>
         </div>
 
-        <!-- Translated Title Styles -->
+        <!-- Admin Control Panel Styles -->
         <style>
+            .article-card-wrapper {
+                display: flex;
+                align-items: flex-start;
+                gap: 15px;
+                margin-bottom: 30px;
+            }
+
+            .article-card-wrapper .article-card {
+                flex: 1;
+                margin-bottom: 0;
+            }
+
+            .admin-control-panel {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                flex-shrink: 0;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+                pointer-events: none;
+                padding-top: 8px;
+            }
+
+            .admin-control-panel.d-none {
+                display: none;
+            }
+
+            .admin-control-panel:not(.d-none) {
+                pointer-events: auto;
+            }
+
+            .article-card-wrapper:hover .admin-control-panel:not(.d-none) {
+                opacity: 1;
+            }
+
+            .admin-edit-btn,
+            .admin-summary-btn,
+            .admin-delete-btn {
+                width: 28px;
+                height: 28px;
+                border: none;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                font-size: 11px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+                pointer-events: auto; /* 버튼 자체는 클릭 가능 */
+                position: relative;
+                z-index: 11; /* 상위 요소보다 높은 z-index */
+                flex-shrink: 0; /* 버튼 크기 고정 */
+            }
+
+            .admin-edit-btn {
+                background: var(--primary-green);
+                color: white;
+            }
+
+            .admin-edit-btn:hover {
+                background: var(--primary-green-dark);
+                transform: scale(1.1);
+            }
+
+            .admin-summary-btn {
+                background: #17a2b8;
+                color: white;
+            }
+
+            .admin-summary-btn:hover {
+                background: #138496;
+                transform: scale(1.1);
+            }
+
+            .admin-delete-btn {
+                background: #dc3545;
+                color: white;
+            }
+
+            .admin-delete-btn:hover {
+                background: #c82333;
+                transform: scale(1.1);
+            }
+
+            /* 모바일 대응 */
+            @media (max-width: 768px) {
+                .article-card-wrapper {
+                    flex-direction: column;
+                    gap: 10px;
+                    align-items: stretch;
+                }
+
+                .admin-control-panel:not(.d-none) {
+                    flex-direction: row;
+                    justify-content: center;
+                    opacity: 0.9;
+                    gap: 8px;
+                    padding-top: 0;
+                }
+
+                .admin-edit-btn,
+                .admin-summary-btn,
+                .admin-delete-btn {
+                    width: 32px;
+                    height: 32px;
+                    font-size: 12px;
+                }
+            }
         </style>
+
+        <!-- 관리자 전용 글 편집 모달 -->
+        <div class="modal fade" id="editArticleModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">글 정보 편집</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="editArticleForm">
+                            <div class="mb-3">
+                                <label for="articleTitle" class="form-label">제목</label>
+                                <input type="text" class="form-control" id="articleTitle" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="articleLink" class="form-label">링크</label>
+                                <input type="url" class="form-control" id="articleLink" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="articleThumbnail" class="form-label">썸네일 URL</label>
+                                <input type="url" class="form-control" id="articleThumbnail">
+                                <div class="mt-2" id="thumbnailPreview"></div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="articleCategorySelect" class="form-label">카테고리</label>
+                                <div class="d-flex gap-2">
+                                    <select class="form-select" id="articleCategorySelect">
+                                        <option value="">카테고리를 선택하세요</option>
+                                        <!-- 카테고리 목록은 JavaScript로 동적 로드 -->
+                                    </select>
+                                    <input type="text" class="form-control" id="articleCustomCategory"
+                                           placeholder="새 카테고리">
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                        <button type="button" class="btn btn-primary" id="saveArticleBtn">저장</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 관리자 전용 요약 관리 모달 -->
+        <div class="modal fade" id="editSummariesModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">요약 관리</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <button type="button" class="btn btn-success" id="addSummaryBtn">
+                                <i class="fas fa-plus"></i> 요약 추가
+                            </button>
+                        </div>
+                        <div id="summariesContainer">
+                            <!-- 동적으로 생성되는 요약 항목들 -->
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                        <button type="button" class="btn btn-primary" id="saveSummariesBtn">저장</button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- 플로팅 로그인 모달 -->
         <div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
@@ -964,8 +1162,8 @@
         <script th:src="@{/js/articleManager.js}"></script>
         <script th:src="@{/js/home.js}"></script>
         <script th:src="@{/js/banner.js}"></script>
-        <script th:src="@{/js/deleteArticle.js}"></script>
         <script th:src="@{/js/categoryFilter.js}"></script>
+        <script th:src="@{/js/adminControls.js}"></script>
     </div>
 </body>
 </html>
