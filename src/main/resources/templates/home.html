@@ -421,6 +421,45 @@
                 width: 6px;
             }
 
+            /* Category option styling */
+            .category-option {
+                transition: all 0.2s ease;
+            }
+
+            .category-option:hover {
+                transform: translateX(4px);
+            }
+
+            /* Active category option - make icon white */
+            .category-option.active i {
+                color: white !important;
+            }
+
+            /* Category block improvements */
+            .category-block {
+                border-radius: 20px;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                transition: all 0.3s ease;
+                border: none;
+            }
+
+            .category-block:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            }
+
+            .category-block .btn-close {
+                background: rgba(255, 255, 255, 0.3);
+                opacity: 0.8;
+                transition: all 0.2s ease;
+            }
+
+            .category-block .btn-close:hover {
+                background: rgba(255, 255, 255, 0.5);
+                opacity: 1;
+                transform: scale(1.1);
+            }
+
             .modern-dropdown::-webkit-scrollbar-track {
                 background: #f1f5f9;
                 border-radius: 8px;
@@ -577,20 +616,19 @@
                 align-items: center;
                 gap: 4px;
                 padding: 6px 10px;
-                background: linear-gradient(135deg, var(--primary-green) 0%, #059669 100%);
                 border: none;
                 border-radius: 16px;
                 color: white;
                 font-size: 13px;
                 font-weight: 500;
-                box-shadow: 0 2px 6px rgba(34, 197, 94, 0.25);
+                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
                 animation: slideInScale 0.2s ease-out;
                 transition: all 0.2s ease;
             }
 
             .selected-categories-inline .category-block:hover {
                 transform: translateY(-1px);
-                box-shadow: 0 3px 8px rgba(34, 197, 94, 0.35);
+                box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
             }
 
             .selected-categories-inline .category-block i {

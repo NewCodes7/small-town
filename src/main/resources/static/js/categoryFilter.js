@@ -3,7 +3,55 @@ class CategoryFilterManager {
     constructor() {
         this.selectedCategories = new Set();
         this.allCategories = [];
+        this.categoryGroups = this.initCategoryGroups();
         this.init();
+    }
+
+    // 카테고리 그룹 정의
+    initCategoryGroups() {
+        return {
+            frontend: {
+                name: 'Frontend',
+                color: '#3B82F6', // 파란색
+                icon: 'fas fa-laptop-code',
+                categories: ['frontend', 'mobile', 'ui/ux']
+            },
+            backend: {
+                name: 'Backend & Infra',
+                color: '#10B981', // 초록색
+                icon: 'fas fa-server',
+                categories: ['backend', 'database', 'infra', 'devops', 'testing']
+            },
+            data: {
+                name: 'Data & AI',
+                color: '#8B5CF6', // 보라색
+                icon: 'fas fa-brain',
+                categories: ['ai', 'data', 'security']
+            },
+            culture: {
+                name: 'Culture & Tools',
+                color: '#F59E0B', // 주황색
+                icon: 'fas fa-users',
+                categories: ['culture', 'career', 'tools']
+            }
+        };
+    }
+
+    // 카테고리가 속한 그룹 찾기
+    getCategoryGroup(categoryName) {
+        for (const [groupKey, group] of Object.entries(this.categoryGroups)) {
+            if (group.categories.some(cat => categoryName.toLowerCase().includes(cat.toLowerCase()))) {
+                return { key: groupKey, ...group };
+            }
+        }
+        // 기본 그룹
+        return {
+            key: 'default',
+            name: 'Other',
+            color: '#6B7280',
+            icon: 'fas fa-tag',
+            categories: []
+        };
     }
 
     async init() {
@@ -27,22 +75,79 @@ class CategoryFilterManager {
         }
     }
 
-    // 카테고리 드롭다운 렌더링
+    // 카테고리 드롭다운 렌더링 (그룹별)
     renderCategoryDropdown() {
         const dropdownMenu = document.getElementById('categoryDropdownMenu');
         if (!dropdownMenu) return;
 
         dropdownMenu.innerHTML = '';
 
+        // 카테고리를 그룹별로 분류하고 정의된 순서대로 정렬
+        const groupedCategories = {};
         this.allCategories.forEach(category => {
-            const li = document.createElement('li');
-            li.innerHTML = `
-                <a class="dropdown-item category-option" href="#" data-category-id="${category.id}" data-category-name="${category.name}">
-                    <i class="fas fa-tag me-2"></i>
-                    ${category.name}
-                </a>
-            `;
-            dropdownMenu.appendChild(li);
+            const group = this.getCategoryGroup(category.name);
+            if (!groupedCategories[group.key]) {
+                groupedCategories[group.key] = {
+                    group: group,
+                    categories: []
+                };
+            }
+            groupedCategories[group.key].categories.push(category);
+        });
+
+        // 각 그룹 내에서 정의된 순서대로 정렬
+        Object.keys(groupedCategories).forEach(groupKey => {
+            const groupData = groupedCategories[groupKey];
+            const definedOrder = groupData.group.categories;
+
+            groupData.categories.sort((a, b) => {
+                const aIndex = definedOrder.findIndex(cat =>
+                    a.name.toLowerCase().includes(cat.toLowerCase()));
+                const bIndex = definedOrder.findIndex(cat =>
+                    b.name.toLowerCase().includes(cat.toLowerCase()));
+
+                // 정의된 순서가 있으면 그 순서를 따르고, 없으면 알파벳 순
+                if (aIndex !== -1 && bIndex !== -1) {
+                    return aIndex - bIndex;
+                } else if (aIndex !== -1) {
+                    return -1;
+                } else if (bIndex !== -1) {
+                    return 1;
+                } else {
+                    return a.name.localeCompare(b.name);
+                }
+            });
+        });
+
+        // 그룹 순서 정의
+        const groupOrder = ['frontend', 'backend', 'data', 'culture', 'default'];
+
+        groupOrder.forEach((groupKey, groupIndex) => {
+            const groupData = groupedCategories[groupKey];
+            if (!groupData || groupData.categories.length === 0) return;
+
+            // 그룹 구분선 (첫 번째 그룹이 아닌 경우)
+            if (groupIndex > 0) {
+                const divider = document.createElement('li');
+                divider.innerHTML = '<hr class="dropdown-divider">';
+                dropdownMenu.appendChild(divider);
+            }
+
+            // 그룹 내 카테고리들
+            groupData.categories.forEach(category => {
+                const group = this.getCategoryGroup(category.name);
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <a class="dropdown-item category-option" href="#"
+                       data-category-id="${category.id}"
+                       data-category-name="${category.name}"
+                       data-group-color="${group.color}">
+                        <i class="${group.icon} me-2" style="color: ${group.color};"></i>
+                        ${category.name}
+                    </a>
+                `;
+                dropdownMenu.appendChild(li);
+            });
         });
     }
 
@@ -125,20 +230,23 @@ class CategoryFilterManager {
         });
     }
 
-    // 카테고리 블록 생성
+    // 카테고리 블록 생성 (그룹 색상 적용)
     createCategoryBlock(categoryId, categoryName) {
+        const group = this.getCategoryGroup(categoryName);
         const block = document.createElement('span');
         block.className = 'category-block';
-        
+        block.style.backgroundColor = group.color;
+        block.style.color = 'white';
+
         block.innerHTML = `
-            <i class="fas fa-tag"></i>
+            <i class="${group.icon}"></i>
             <span>${categoryName}</span>
-            <button type="button" class="btn-close remove-category-btn" 
+            <button type="button" class="btn-close remove-category-btn"
                     data-category-id="${categoryId}"
                     aria-label="카테고리 제거">
             </button>
         `;
-        
+
         return block;
     }
 
@@ -147,9 +255,11 @@ class CategoryFilterManager {
         const options = document.querySelectorAll('.category-option');
         options.forEach(option => {
             const categoryId = option.dataset.categoryId;
+            const groupColor = option.dataset.groupColor;
+
             if (this.selectedCategories.has(categoryId)) {
                 option.classList.add('active');
-                option.style.backgroundColor = 'var(--primary-green)';
+                option.style.backgroundColor = groupColor;
                 option.style.color = 'white';
             } else {
                 option.classList.remove('active');
