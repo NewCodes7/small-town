@@ -1,9 +1,9 @@
 services:
-  backend:
+  backend-blue:
     build: .
-    container_name: newcodes-backend
-    restart: unless-stopped  
-    environment:
+    container_name: newcodes-backend-blue
+    restart: unless-stopped
+    environment: &backend-env
       - DB_URL=${DB_URL}
       - DB_USERNAME=${DB_USERNAME}
       - DB_PASSWORD=${DB_PASSWORD}
@@ -23,15 +23,39 @@ services:
       - OPENAI_MY_PROJECT_ID=${OPENAI_MY_PROJECT_ID}
       - OPENAI_WEBHOOK_SECRET=${OPENAI_WEBHOOK_SECRET}
     expose:
-      - "8080"  # 외부 노출 없이 내부 네트워크만
+      - "8080"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-      interval: 30s
-      timeout: 10s
+      interval: 10s
+      timeout: 5s
       retries: 3
+      start_period: 60s
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
+    networks:
+      - app-network
+
+  backend-green:
+    build: .
+    container_name: newcodes-backend-green
+    restart: unless-stopped
+    environment: *backend-env
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    networks:
+      - app-network
+    profiles:
+      - green
 
   prometheus:
     image: prom/prometheus:v2.37.4
@@ -86,8 +110,10 @@ services:
       - ./certbot/conf:/etc/letsencrypt:ro
       - ./certbot/www:/var/www/certbot:ro
     depends_on:
-      backend:
+      backend-blue:
         condition: service_healthy
+    networks:
+      - app-network
 
   certbot:
     image: certbot/certbot
@@ -97,3 +123,7 @@ services:
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot --webroot-path=/var/www/certbot --deploy-hook \"sudo docker exec newcodes-nginx nginx -s reload\"; sleep 12h & wait $${!}; done;'"
     depends_on:
       - nginx
+
+networks:
+  app-network:
+    driver: bridge
