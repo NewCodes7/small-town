@@ -8,6 +8,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
@@ -23,6 +24,7 @@ public class CrawlingScheduler {
         
         try {
             List<CrawlResult> results = crawlingService.crawlAllBlogs();
+            Map<String, Object> aiResults = crawlingService.analyzeExistingArticles();
             
             long successCount = results.stream()
                     .filter(CrawlResult::isSuccess)
