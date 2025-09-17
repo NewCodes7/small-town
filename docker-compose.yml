@@ -1,5 +1,5 @@
 services:
-  backend-blue:
+  newcodes-backend-blue:
     build: .
     container_name: newcodes-backend-blue
     restart: unless-stopped
@@ -36,7 +36,7 @@ services:
     networks:
       - app-network
 
-  backend-green:
+  newcodes-backend-green:
     build: .
     container_name: newcodes-backend-green
     restart: unless-stopped
@@ -110,7 +110,7 @@ services:
       - ./certbot/conf:/etc/letsencrypt:ro
       - ./certbot/www:/var/www/certbot:ro
     depends_on:
-      backend-blue:
+      newcodes-backend-blue:
         condition: service_healthy
     networks:
       - app-network
