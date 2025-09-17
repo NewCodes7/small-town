@@ -80,8 +80,9 @@ update_nginx_upstream() {
     fi
 
     # nginx 설정 리로드
-    docker exec newcodes-nginx nginx -t && docker exec newcodes-nginx nginx -s reload
-    log "nginx 설정 리로드 완료"
+    # docker exec newcodes-nginx nginx -t && docker exec newcodes-nginx nginx -s reload
+    docker restart newcodes-nginx && docker exec newcodes-nginx nginx -t
+    log "nginx 재시작 완료"
 }
 
 # 이전 버전 컨테이너 정리
