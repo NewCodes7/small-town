@@ -25,8 +25,8 @@ error() {
 
 # 현재 활성 서버 확인
 get_active_server() {
-    if docker ps --format "table {{.Names}}" | grep -q "newcodes-backend-blue"; then
-        if [ "$(docker inspect --format='{{.State.Health.Status}}' newcodes-backend-blue 2>/dev/null)" = "healthy" ]; then
+    if docker ps --format "table {{.Names}}" | grep -q "backend-blue"; then
+        if [ "$(docker inspect --format='{{.State.Health.Status}}' backend-blue 2>/dev/null)" = "healthy" ]; then
             echo "blue"
         else
             echo "green"
@@ -67,12 +67,12 @@ update_nginx_upstream() {
 
     if [ "$active_server" = "blue" ]; then
         # Blue로 전환
-        sed -i 's/# server newcodes-backend-blue:8080/server newcodes-backend-blue:8080/g' $nginx_config
-        sed -i 's/server newcodes-backend-green:8080/# server newcodes-backend-green:8080/g' $nginx_config
+        sed -i 's/# server backend-blue:8080/server backend-blue:8080/g' $nginx_config
+        sed -i 's/server backend-green:8080/# server backend-green:8080/g' $nginx_config
     else
         # Green으로 전환
-        sed -i 's/# server newcodes-backend-green:8080/server newcodes-backend-green:8080/g' $nginx_config
-        sed -i 's/server newcodes-backend-blue:8080/# server newcodes-backend-blue:8080/g' $nginx_config
+        sed -i 's/# server backend-green:8080/server backend-green:8080/g' $nginx_config
+        sed -i 's/server backend-blue:8080/# server backend-blue:8080/g' $nginx_config
     fi
 
     # nginx 설정 리로드
@@ -100,12 +100,12 @@ deploy() {
 
     if [ "$CURRENT_ACTIVE" = "blue" ]; then
         NEW_ACTIVE="green"
-        NEW_CONTAINER="newcodes-backend-green"
-        OLD_CONTAINER="newcodes-backend-blue"
+        NEW_CONTAINER="backend-green"
+        OLD_CONTAINER="backend-blue"
     else
         NEW_ACTIVE="blue"
-        NEW_CONTAINER="newcodes-backend-blue"
-        OLD_CONTAINER="newcodes-backend-green"
+        NEW_CONTAINER="backend-blue"
+        OLD_CONTAINER="backend-green"
     fi
 
     log "현재 활성 서버: $CURRENT_ACTIVE"
@@ -167,8 +167,8 @@ rollback() {
     log "롤백 대상: $ROLLBACK_TO"
 
     # 이전 컨테이너가 실행 중인지 확인
-    if ! docker ps --format "table {{.Names}}" | grep -q "newcodes-backend-$ROLLBACK_TO"; then
-        error "롤백할 컨테이너(newcodes-backend-$ROLLBACK_TO)가 실행 중이지 않습니다"
+    if ! docker ps --format "table {{.Names}}" | grep -q "backend-$ROLLBACK_TO"; then
+        error "롤백할 컨테이너(backend-$ROLLBACK_TO)가 실행 중이지 않습니다"
     fi
 
     # nginx 업스트림 전환
