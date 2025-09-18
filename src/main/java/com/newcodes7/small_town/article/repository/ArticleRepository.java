@@ -45,12 +45,13 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     
     @Query("SELECT DISTINCT a FROM Article a " +
            "JOIN FETCH a.corporation c " +
+           "LEFT JOIN FETCH a.category cat " +
            "LEFT JOIN FETCH a.articleTags at " +
            "LEFT JOIN FETCH at.tag " +
            "WHERE a.deletedAt IS NULL " +
            "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "AND (:domesticTypes IS NULL OR c.isDomestic IN :domesticTypes) " +
-           "AND (:category IS NULL OR (a.category IS NOT NULL AND a.category.name IN :category)) " +
+           "AND (:category IS NULL OR cat.name IN :category) " +
            "ORDER BY " +
            "CASE WHEN :sort = 'popular' THEN " +
            "(COALESCE(a.viewCount, 0) * 0.6 + " +
@@ -65,6 +66,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
 
     @Query("SELECT DISTINCT a FROM Article a " +
            "JOIN FETCH a.corporation c " +
+           "LEFT JOIN FETCH a.category cat " +
            "LEFT JOIN FETCH a.articleTags at " +
            "LEFT JOIN FETCH at.tag " +
            "WHERE a.deletedAt IS NULL " +
@@ -122,13 +124,14 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
        // 특정 기업들의 최신 글 3개씩 조회 (JOIN FETCH 추가)
        @Query("SELECT DISTINCT a FROM Article a " +
               "JOIN FETCH a.corporation c " +
+              "LEFT JOIN FETCH a.category cat " +
               "LEFT JOIN FETCH a.articleTags at " +
               "LEFT JOIN FETCH at.tag " +
               "WHERE a.deletedAt IS NULL " +
               "AND a.corporation.id IN :corporationIds " +
               "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
               "AND (:domesticTypes IS NULL OR a.corporation.isDomestic IN :domesticTypes) " +
-              "AND (:category IS NULL OR (a.category IS NOT NULL AND a.category.name IN :category)) " +
+              "AND (:category IS NULL OR cat.name IN :category) " +
               "ORDER BY a.corporation.id, a.publishedAt DESC")
        List<Article> findArticlesByCorporations(@Param("corporationIds") List<Long> corporationIds,
                                                  @Param("keyword") String keyword,
