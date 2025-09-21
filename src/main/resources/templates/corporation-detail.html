@@ -197,7 +197,7 @@
                                    (currentPage >= totalPages - halfRange - 1 ? totalPages - maxPagesToShow :
                                        currentPage - halfRange))},
                     endPage=${totalPages <= 1 ? 0 :
-                             (totalPages <= maxPagesToShow ? totalPages - 2 :
+                             (totalPages <= maxPagesToShow ? totalPages - 1 :
                                  (currentPage <= halfRange ? maxPagesToShow - 1 :
                                      (currentPage >= totalPages - halfRange - 1 ? totalPages - 2 :
                                          currentPage + halfRange)))}

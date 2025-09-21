@@ -354,7 +354,9 @@ class ArticleManager {
         const pagesAfterCurrent = 2;
 
         startPage = Math.max(0, currentPage - pagesBeforeCurrent);
-        endPage = totalPages <= 1 ? 0 : Math.min(totalPages - 2, currentPage + pagesAfterCurrent); // 마지막 페이지 제외
+        endPage = totalPages <= 1 ? 0 :
+                 totalPages <= maxPagesToShow ? totalPages - 1 :
+                 Math.min(totalPages - 2, currentPage + pagesAfterCurrent); // 마지막 페이지 제외
 
         // 5개 페이지를 유지하되 마지막 페이지는 절대 포함하지 않음
         if (endPage - startPage + 1 < maxPagesToShow && endPage < totalPages - 2) {
