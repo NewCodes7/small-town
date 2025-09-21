@@ -17,72 +17,132 @@
     pointer-events: auto;
 }
 
-/* 고정된 위치 설정 - nth-child로 각 로고의 위치 지정 */
+/* 고정된 위치 설정 - 20개 로고를 위한 위치 지정 */
 .floating-logo:nth-child(1) {
-    top: 15%;
-    left: 10%;
+    top: 12%;
+    left: 8%;
     animation-delay: 0s;
 }
 
 .floating-logo:nth-child(2) {
-    top: 25%;
-    right: 15%;
-    animation-delay: -2s;
-}
-
-.floating-logo:nth-child(3) {
-    top: 45%;
-    left: 8%;
-    animation-delay: -4s;
-}
-
-.floating-logo:nth-child(4) {
-    top: 35%;
-    right: 8%;
-    animation-delay: -6s;
-}
-
-.floating-logo:nth-child(5) {
-    top: 65%;
-    left: 20%;
+    top: 18%;
+    right: 12%;
     animation-delay: -1s;
 }
 
-.floating-logo:nth-child(6) {
-    top: 55%;
-    right: 25%;
+.floating-logo:nth-child(3) {
+    top: 28%;
+    left: 15%;
+    animation-delay: -2s;
+}
+
+.floating-logo:nth-child(4) {
+    top: 25%;
+    right: 6%;
     animation-delay: -3s;
 }
 
-.floating-logo:nth-child(7) {
-    top: 75%;
-    left: 12%;
+.floating-logo:nth-child(5) {
+    top: 38%;
+    left: 5%;
+    animation-delay: -4s;
+}
+
+.floating-logo:nth-child(6) {
+    top: 35%;
+    right: 20%;
     animation-delay: -5s;
 }
 
+.floating-logo:nth-child(7) {
+    top: 48%;
+    left: 22%;
+    animation-delay: -6s;
+}
+
 .floating-logo:nth-child(8) {
-    top: 70%;
-    right: 12%;
+    top: 45%;
+    right: 8%;
     animation-delay: -7s;
 }
 
 .floating-logo:nth-child(9) {
-    top: 20%;
-    left: 25%;
+    top: 58%;
+    left: 10%;
     animation-delay: -1.5s;
 }
 
 .floating-logo:nth-child(10) {
-    top: 80%;
-    right: 20%;
+    top: 55%;
+    right: 25%;
+    animation-delay: -2.5s;
+}
+
+.floating-logo:nth-child(11) {
+    top: 68%;
+    left: 18%;
     animation-delay: -3.5s;
 }
 
-/* 추가 로고들을 위한 기본 위치 패턴 */
-.floating-logo:nth-child(n+11) {
-    top: calc(20% + (var(--logo-index, 0) * 15%));
-    left: calc(15% + (var(--logo-index, 0) * 20%));
-    animation-delay: calc(var(--logo-index, 0) * -0.8s);
+.floating-logo:nth-child(12) {
+    top: 65%;
+    right: 10%;
+    animation-delay: -4.5s;
+}
+
+.floating-logo:nth-child(13) {
+    top: 78%;
+    left: 7%;
+    animation-delay: -5.5s;
+}
+
+.floating-logo:nth-child(14) {
+    top: 75%;
+    right: 18%;
+    animation-delay: -6.5s;
+}
+
+.floating-logo:nth-child(15) {
+    top: 88%;
+    left: 25%;
+    animation-delay: -7.5s;
+}
+
+.floating-logo:nth-child(16) {
+    top: 85%;
+    right: 5%;
+    animation-delay: -0.5s;
+}
+
+.floating-logo:nth-child(17) {
+    top: 15%;
+    left: 35%;
+    animation-delay: -1.2s;
+}
+
+.floating-logo:nth-child(18) {
+    top: 42%;
+    right: 35%;
+    animation-delay: -2.2s;
+}
+
+.floating-logo:nth-child(19) {
+    top: 72%;
+    left: 32%;
+    animation-delay: -3.2s;
+}
+
+.floating-logo:nth-child(20) {
+    top: 32%;
+    right: 32%;
+    animation-delay: -4.2s;
+}
+
+/* 20개 초과 시 기본 패턴 */
+.floating-logo:nth-child(n+21) {
+    top: calc(15% + ((var(--logo-index, 0) - 20) * 12%));
+    left: calc(10% + ((var(--logo-index, 0) - 20) * 18%));
+    animation-delay: calc((var(--logo-index, 0) - 20) * -0.8s);
 }
 
 .floating-logo:hover {
@@ -431,56 +491,107 @@
         height: 35px;
     }
 
-    /* 모바일에서 로고 위치 조정 */
+    /* 모바일에서 20개 로고 위치 조정 - 아래 영역까지 활용 */
     .floating-logo:nth-child(1) {
-        top: 18%;
-        left: 8%;
+        top: 8%;
+        left: 5%;
     }
 
     .floating-logo:nth-child(2) {
-        top: 28%;
-        right: 12%;
+        top: 12%;
+        right: 8%;
     }
 
     .floating-logo:nth-child(3) {
-        top: 48%;
-        left: 6%;
+        top: 18%;
+        left: 15%;
     }
 
     .floating-logo:nth-child(4) {
-        top: 38%;
-        right: 6%;
+        top: 16%;
+        right: 20%;
     }
 
     .floating-logo:nth-child(5) {
-        top: 68%;
-        left: 18%;
+        top: 24%;
+        left: 3%;
     }
 
     .floating-logo:nth-child(6) {
-        top: 58%;
-        right: 22%;
+        top: 26%;
+        right: 3%;
     }
 
     .floating-logo:nth-child(7) {
-        top: 78%;
-        left: 10%;
+        top: 32%;
+        left: 18%;
     }
 
     .floating-logo:nth-child(8) {
-        top: 73%;
-        right: 10%;
+        top: 30%;
+        right: 15%;
     }
 
     .floating-logo:nth-child(9) {
-        top: 23%;
-        left: 22%;
+        top: 38%;
+        left: 8%;
     }
 
     .floating-logo:nth-child(10) {
-        top: 83%;
+        top: 36%;
+        right: 25%;
+    }
+
+    .floating-logo:nth-child(11) {
+        top: 52%;
+        left: 22%;
+    }
+
+    .floating-logo:nth-child(12) {
+        top: 50%;
+        right: 5%;
+    }
+
+    .floating-logo:nth-child(13) {
+        top: 58%;
+        left: 6%;
+    }
+
+    .floating-logo:nth-child(14) {
+        top: 56%;
         right: 18%;
     }
+
+    .floating-logo:nth-child(15) {
+        top: 68%;
+        left: 15%;
+    }
+
+    .floating-logo:nth-child(16) {
+        top: 66%;
+        right: 8%;
+    }
+
+    .floating-logo:nth-child(17) {
+        top: 74%;
+        left: 3%;
+    }
+
+    .floating-logo:nth-child(18) {
+        top: 72%;
+        right: 22%;
+    }
+
+    .floating-logo:nth-child(19) {
+        top: 84%;
+        left: 12%;
+    }
+
+    .floating-logo:nth-child(20) {
+        top: 88%;
+        right: 12%;
+    }
+
     .hero-content {
         padding: 15px;
         max-width: 100%;
