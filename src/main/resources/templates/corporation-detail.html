@@ -196,19 +196,13 @@
                                (currentPage <= halfRange ? 0 :
                                    (currentPage >= totalPages - halfRange - 1 ? totalPages - maxPagesToShow :
                                        currentPage - halfRange))},
-                    endPage=${totalPages <= maxPagesToShow ? totalPages - 1 :
-                             (currentPage <= halfRange ? maxPagesToShow - 1 :
-                                 (currentPage >= totalPages - halfRange - 1 ? totalPages - 1 :
-                                     currentPage + halfRange))}
+                    endPage=${totalPages <= 1 ? 0 :
+                             (totalPages <= maxPagesToShow ? totalPages - 2 :
+                                 (currentPage <= halfRange ? maxPagesToShow - 1 :
+                                     (currentPage >= totalPages - halfRange - 1 ? totalPages - 2 :
+                                         currentPage + halfRange)))}
                 ">
-                    <!-- Show first page if there's a gap -->
-                    <li class="page-item" th:if="${startPage > 0}">
-                        <a class="page-link"
-                           th:href="@{/corporations/{corporationId}(corporationId=${corporation.id}, page=0)}">1</a>
-                    </li>
-                    <li class="page-item disabled" th:if="${startPage > 1}">
-                        <span class="page-link">...</span>
-                    </li>
+                    <!-- 첫 번째 페이지와 생략 기호 제거 -->
 
                     <!-- Main page numbers -->
                     <li class="page-item"
@@ -219,15 +213,7 @@
                            th:text="${pageNum + 1}">1</a>
                     </li>
 
-                    <!-- Show last page if there's a gap -->
-                    <li class="page-item disabled" th:if="${endPage < totalPages - 2}">
-                        <span class="page-link">...</span>
-                    </li>
-                    <li class="page-item" th:if="${endPage < totalPages - 1}">
-                        <a class="page-link"
-                           th:href="@{/corporations/{corporationId}(corporationId=${corporation.id}, page=${totalPages - 1})}"
-                           th:text="${totalPages}">Last</a>
-                    </li>
+                    <!-- 마지막 페이지 표시 제거 -->
                 </th:block>
 
                 <!-- Next Button -->

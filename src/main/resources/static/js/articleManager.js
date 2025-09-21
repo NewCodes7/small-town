@@ -349,24 +349,19 @@ class ArticleManager {
         const maxPagesToShow = 5;
         let startPage, endPage;
 
-        if (totalPages <= maxPagesToShow) {
-            // 전체 페이지 수가 5개 이하일 경우
-            startPage = 0;
-            endPage = totalPages - 1;
-        } else {
-            // 전체 페이지 수가 5개 초과일 경우
-            const maxPagesBeforeCurrent = Math.floor(maxPagesToShow / 2);
-            const maxPagesAfterCurrent = Math.ceil(maxPagesToShow / 2) - 1;
+        // 현재 페이지를 중심으로 앞뒤 2개씩 총 5개 페이지 표시 (마지막 페이지 제외)
+        const pagesBeforeCurrent = 2;
+        const pagesAfterCurrent = 2;
 
-            if (currentPage <= maxPagesBeforeCurrent) {
-                startPage = 0;
-                endPage = maxPagesToShow - 1;
-            } else if (currentPage + maxPagesAfterCurrent >= totalPages) {
-                startPage = totalPages - maxPagesToShow;
-                endPage = totalPages - 1;
+        startPage = Math.max(0, currentPage - pagesBeforeCurrent);
+        endPage = totalPages <= 1 ? 0 : Math.min(totalPages - 2, currentPage + pagesAfterCurrent); // 마지막 페이지 제외
+
+        // 5개 페이지를 유지하되 마지막 페이지는 절대 포함하지 않음
+        if (endPage - startPage + 1 < maxPagesToShow && endPage < totalPages - 2) {
+            if (startPage === 0) {
+                endPage = Math.min(totalPages - 2, startPage + maxPagesToShow - 1);
             } else {
-                startPage = currentPage - maxPagesBeforeCurrent;
-                endPage = currentPage + maxPagesAfterCurrent;
+                startPage = Math.max(0, endPage - maxPagesToShow + 1);
             }
         }
 
