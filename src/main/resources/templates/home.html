@@ -588,6 +588,197 @@
                     height: 44px;
                 }
             }
+
+            @media (max-width: 350px) {
+                .search-input::placeholder {
+                    color: transparent;
+                }
+
+                .search-input-container {
+                    padding: 1px;
+                }
+
+                .search-icon,
+                .search-submit-btn {
+                    width: 36px;
+                    height: 36px;
+                    font-size: 12px;
+                }
+            }
+
+            @media (max-width: 320px) {
+                .search-filter-container {
+                    padding: 16px 12px;
+                }
+
+                .search-input-container {
+                    padding: 1px;
+                    border-radius: 45px;
+                }
+
+                .search-icon,
+                .search-submit-btn {
+                    width: 32px;
+                    height: 32px;
+                    font-size: 11px;
+                }
+
+                .search-input {
+                    padding: 12px 0;
+                    font-size: 14px;
+                }
+            }
+
+            /* 페이징 기본 스타일 */
+            .pagination {
+                flex-wrap: wrap;
+                gap: 4px;
+                justify-content: center;
+            }
+
+            .pagination .page-item {
+                margin: 0 2px;
+            }
+
+            .pagination .page-link {
+                border-radius: 8px;
+                border: 1px solid #dee2e6;
+                color: #6c757d;
+                padding: 10px 14px;
+                font-size: 15px;
+                transition: all 0.2s ease;
+                text-decoration: none;
+                display: flex;
+                align-items: center;
+                min-width: 44px;
+                min-height: 44px;
+                justify-content: center;
+                font-weight: 500;
+            }
+
+            .pagination .page-link:hover {
+                background-color: var(--secondary-green);
+                border-color: var(--primary-green);
+                color: var(--primary-green);
+                transform: translateY(-1px);
+            }
+
+            .pagination .page-item.active .page-link {
+                background-color: var(--primary-green);
+                border-color: var(--primary-green);
+                color: white;
+            }
+
+            .pagination .page-item.disabled .page-link {
+                color: #6c757d;
+                background-color: #f8f9fa;
+                border-color: #dee2e6;
+                cursor: not-allowed;
+            }
+
+            .pagination .page-item.disabled .page-link:hover {
+                transform: none;
+                background-color: #f8f9fa;
+                border-color: #dee2e6;
+                color: #6c757d;
+            }
+
+            /* 태블릿 대응 */
+            @media (max-width: 768px) {
+                .pagination {
+                    gap: 3px;
+                }
+
+                .pagination .page-link {
+                    padding: 8px 12px;
+                    font-size: 14px;
+                    min-width: 40px;
+                    min-height: 40px;
+                }
+
+                .pagination .page-item {
+                    margin: 0 1px;
+                }
+            }
+
+            /* 모바일 대응 */
+            @media (max-width: 480px) {
+                .pagination {
+                    gap: 2px;
+                    margin: 0 auto;
+                    max-width: 100%;
+                    overflow-x: auto;
+                    padding: 12px 0;
+                }
+
+                .pagination .page-link {
+                    padding: 10px 8px;
+                    font-size: 14px;
+                    min-width: 42px;
+                    min-height: 42px;
+                    font-weight: 600;
+                }
+
+                .pagination .page-item {
+                    margin: 0;
+                    flex-shrink: 0;
+                }
+
+                /* 모바일에서 중간 페이지 번호 일부 숨기기 (3개만 표시) */
+                .pagination .page-number:not(.active)[data-page-index]:not([data-page-index="0"]):not([data-page-index="1"]):not([data-page-index="2"]) {
+                    display: none;
+                }
+            }
+
+            @media (max-width: 400px) {
+                .pagination-text {
+                    display: none;
+                }
+
+                .pagination .page-link i {
+                    margin: 0 !important;
+                }
+
+                .pagination .page-link {
+                    padding: 8px 6px;
+                    min-width: 38px;
+                    min-height: 38px;
+                    font-size: 13px;
+                    font-weight: 600;
+                }
+
+                /* 400px 이하에서는 현재 페이지와 앞뒤 1개씩만 표시 */
+                .pagination .page-number:not(.active)[data-page-index]:not([data-page-index="0"]):not([data-page-index="1"]) {
+                    display: none;
+                }
+            }
+
+            /* 매우 작은 화면 */
+            @media (max-width: 350px) {
+                .pagination {
+                    justify-content: space-between;
+                    padding: 8px 4px;
+                    gap: 4px;
+                }
+
+                .pagination .page-link {
+                    padding: 6px 4px;
+                    min-width: 36px;
+                    min-height: 36px;
+                    font-size: 12px;
+                    font-weight: 600;
+                }
+
+                /* 350px 이하에서는 현재 페이지만 표시 */
+                .pagination .page-number:not(.active) {
+                    display: none;
+                }
+
+                /* 생략 기호(...) 숨기기 */
+                .pagination .page-item.disabled {
+                    display: none;
+                }
+            }
         </style>
         
 
@@ -903,11 +1094,11 @@
                     <!-- Previous Button -->
                     <li class="page-item" th:class="${currentPage == 0} ? 'page-item disabled' : 'page-item'">
                         <a class="page-link" href="#" th:attr="data-page=${currentPage - 1}">
-                            <i class="fas fa-chevron-left me-1"></i>이전
+                            <i class="fas fa-chevron-left me-1"></i><span class="pagination-text">이전</span>
                         </a>
                     </li>
 
-                    <!-- Page Numbers - Always show max 5 pages -->
+                    <!-- Page Numbers - Responsive page count -->
                     <th:block th:with="
                         maxPagesToShow=5,
                         halfRange=2,
@@ -929,9 +1120,10 @@
                         </li>
 
                         <!-- Main page numbers -->
-                        <li class="page-item"
-                            th:each="pageNum : ${#numbers.sequence(startPage, endPage)}"
-                            th:class="${pageNum == currentPage} ? 'page-item active' : 'page-item'">
+                        <li class="page-item page-number"
+                            th:each="pageNum, iterStat : ${#numbers.sequence(startPage, endPage)}"
+                            th:class="${pageNum == currentPage} ? 'page-item active page-number' : 'page-item page-number'"
+                            th:attr="data-page-index=${iterStat.index}">
                             <a class="page-link" href="#" th:attr="data-page=${pageNum}" th:text="${pageNum + 1}">1</a>
                         </li>
 
@@ -947,7 +1139,7 @@
                     <!-- Next Button -->
                     <li class="page-item" th:class="${currentPage >= totalPages - 1} ? 'page-item disabled' : 'page-item'">
                         <a class="page-link" href="#" th:attr="data-page=${currentPage + 1}">
-                            다음<i class="fas fa-chevron-right ms-1"></i>
+                            <span class="pagination-text">다음</span><i class="fas fa-chevron-right ms-1"></i>
                         </a>
                     </li>
                 </ul>

@@ -1,13 +1,67 @@
 document.addEventListener('DOMContentLoaded', async function() {
     // totalSlides = document.querySelectorAll('.banner-slide').length;
     // startAutoSlide();
-    
+
     // 사용자 정보 로드
     // await loadUserInfo();
-    
+
     // ArticleManager 초기화
     articleManager = new ArticleManager();
+
+    // Floating logos 위치 고정 초기화
+    initializeFloatingLogos();
 });
+
+// Floating logos 위치를 고정하는 함수
+function initializeFloatingLogos() {
+    const floatingLogos = document.querySelectorAll('.floating-logo');
+
+    // 각 로고에 고정된 위치 속성 추가
+    floatingLogos.forEach((logo, index) => {
+        // CSS에서 설정된 위치를 JavaScript로도 확인하여 유지
+        logo.style.position = 'absolute';
+
+        // 로고 인덱스를 데이터 속성으로 저장
+        logo.setAttribute('data-logo-index', index + 1);
+    });
+
+    // 윈도우 리사이즈 이벤트 리스너 추가
+    let resizeTimeout;
+    window.addEventListener('resize', function() {
+        // 리사이즈 이벤트가 완료된 후 100ms 뒤에 실행 (성능 최적화)
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(function() {
+            maintainFloatingLogosPosition();
+        }, 100);
+    });
+}
+
+// 화면 크기 변경 시 floating logos 위치 유지
+function maintainFloatingLogosPosition() {
+    const floatingLogos = document.querySelectorAll('.floating-logo');
+
+    floatingLogos.forEach((logo) => {
+        // CSS에서 이미 정의된 위치를 그대로 유지
+        // 추가적인 위치 조정이 필요한 경우에만 JavaScript로 처리
+
+        // 로고가 컨테이너 밖으로 나가지 않도록 보장
+        const container = logo.closest('.floating-logos-container');
+        if (container) {
+            const containerRect = container.getBoundingClientRect();
+            const logoRect = logo.getBoundingClientRect();
+
+            // 컨테이너 경계를 벗어나는 경우 위치 조정
+            if (logoRect.right > containerRect.right) {
+                logo.style.right = '5%';
+                logo.style.left = 'auto';
+            }
+            if (logoRect.left < containerRect.left) {
+                logo.style.left = '5%';
+                logo.style.right = 'auto';
+            }
+        }
+    });
+}
 
 function startAutoSlide() {
     if (slideInterval) {

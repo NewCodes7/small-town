@@ -120,8 +120,7 @@ async function initPagination() {
     // 좋아요 상태 로드
     // loadLikeStatuses();
     
-    // 떠다니는 로고 위치 설정
-    positionFloatingLogos();
+    // 떠다니는 로고는 CSS에서 위치가 고정되므로 JavaScript 설정 불필요
     
     // 기본 썸네일 설정
     setupDefaultThumbnails();
@@ -169,10 +168,7 @@ async function initPagination() {
         });
     }
     
-    // 윈도우 리사이즈 시 위치 재조정
-    window.addEventListener('resize', function() {
-        setTimeout(positionFloatingLogos, 100);
-    });
+    // 윈도우 리사이즈 시 CSS 미디어 쿼리가 자동으로 처리하므로 JavaScript 처리 불필요
 }
 
 // 로그인 모달 표시 함수
@@ -308,40 +304,7 @@ function setupDefaultThumbnails() {
     });
 }
 
-// 랜덤 위치 배정 함수 (겹침 방지)
-function positionFloatingLogos() {
-    const container = document.querySelector('.floating-logos-container');
-    if (!container) return;
-    
-    const logos = container.querySelectorAll('.floating-logo');
-    const positions = [];
-    const logoSize = 80; // 로고 크기 + 여백
-    
-    logos.forEach((logo, index) => {
-        let position;
-        let attempts = 0;
-        const maxAttempts = 50;
-        
-        do {
-            position = {
-                left: Math.random() * (container.offsetWidth - logoSize),
-                top: Math.random() * (container.offsetHeight - logoSize)
-            };
-            attempts++;
-        } while (attempts < maxAttempts && positions.some(pos => 
-            Math.abs(pos.left - position.left) < logoSize && 
-            Math.abs(pos.top - position.top) < logoSize
-        ));
-        
-        positions.push(position);
-        
-        // 위치 및 애니메이션 설정
-        logo.style.left = position.left + 'px';
-        logo.style.top = position.top + 'px';
-        logo.style.animationDuration = (7 + Math.random() * 6) + 's'; // 7-13초
-        logo.style.animationDelay = (index * 0.1) + 's';
-    });
-}
+// positionFloatingLogos 함수 제거됨 - CSS에서 고정 위치 사용
 
 document.addEventListener('DOMContentLoaded', function() {
     bindArticleEvents();

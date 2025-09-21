@@ -17,6 +17,74 @@
     pointer-events: auto;
 }
 
+/* 고정된 위치 설정 - nth-child로 각 로고의 위치 지정 */
+.floating-logo:nth-child(1) {
+    top: 15%;
+    left: 10%;
+    animation-delay: 0s;
+}
+
+.floating-logo:nth-child(2) {
+    top: 25%;
+    right: 15%;
+    animation-delay: -2s;
+}
+
+.floating-logo:nth-child(3) {
+    top: 45%;
+    left: 8%;
+    animation-delay: -4s;
+}
+
+.floating-logo:nth-child(4) {
+    top: 35%;
+    right: 8%;
+    animation-delay: -6s;
+}
+
+.floating-logo:nth-child(5) {
+    top: 65%;
+    left: 20%;
+    animation-delay: -1s;
+}
+
+.floating-logo:nth-child(6) {
+    top: 55%;
+    right: 25%;
+    animation-delay: -3s;
+}
+
+.floating-logo:nth-child(7) {
+    top: 75%;
+    left: 12%;
+    animation-delay: -5s;
+}
+
+.floating-logo:nth-child(8) {
+    top: 70%;
+    right: 12%;
+    animation-delay: -7s;
+}
+
+.floating-logo:nth-child(9) {
+    top: 20%;
+    left: 25%;
+    animation-delay: -1.5s;
+}
+
+.floating-logo:nth-child(10) {
+    top: 80%;
+    right: 20%;
+    animation-delay: -3.5s;
+}
+
+/* 추가 로고들을 위한 기본 위치 패턴 */
+.floating-logo:nth-child(n+11) {
+    top: calc(20% + (var(--logo-index, 0) * 15%));
+    left: calc(15% + (var(--logo-index, 0) * 20%));
+    animation-delay: calc(var(--logo-index, 0) * -0.8s);
+}
+
 .floating-logo:hover {
     opacity: 1;
     transform: scale(1.1);
@@ -359,8 +427,59 @@
         height: 289px;
     }
     .logo-image {
-        width: 45px;
-        height: 45px;
+        width: 35px;
+        height: 35px;
+    }
+
+    /* 모바일에서 로고 위치 조정 */
+    .floating-logo:nth-child(1) {
+        top: 18%;
+        left: 8%;
+    }
+
+    .floating-logo:nth-child(2) {
+        top: 28%;
+        right: 12%;
+    }
+
+    .floating-logo:nth-child(3) {
+        top: 48%;
+        left: 6%;
+    }
+
+    .floating-logo:nth-child(4) {
+        top: 38%;
+        right: 6%;
+    }
+
+    .floating-logo:nth-child(5) {
+        top: 68%;
+        left: 18%;
+    }
+
+    .floating-logo:nth-child(6) {
+        top: 58%;
+        right: 22%;
+    }
+
+    .floating-logo:nth-child(7) {
+        top: 78%;
+        left: 10%;
+    }
+
+    .floating-logo:nth-child(8) {
+        top: 73%;
+        right: 10%;
+    }
+
+    .floating-logo:nth-child(9) {
+        top: 23%;
+        left: 22%;
+    }
+
+    .floating-logo:nth-child(10) {
+        top: 83%;
+        right: 18%;
     }
     .hero-content {
         padding: 15px;
