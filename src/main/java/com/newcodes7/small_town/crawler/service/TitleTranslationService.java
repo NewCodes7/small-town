@@ -38,15 +38,11 @@ public class TitleTranslationService {
         for (Article article : overseasArticles) {
             try {
                 // 이미 번역된 제목이 있으면 스킵
-                if (article.getTranslatedTitle() != null && !article.getTranslatedTitle().isEmpty()) {
+                if (article.getTranslatedTitle() != null 
+                    && !article.getTranslatedTitle().isEmpty() 
+                    && openaiService.containsKorean(article.getTranslatedTitle())
+                ) {
                     log.debug("이미 번역된 제목 존재, 스킵: {}", article.getTitle());
-                    skippedCount++;
-                    continue;
-                }
-
-                // 제목에 한국어가 포함되어 있으면 스킵
-                if (openaiService.containsKorean(article.getTitle())) {
-                    log.debug("한국어 포함 제목, 스킵: {}", article.getTitle());
                     skippedCount++;
                     continue;
                 }
@@ -56,6 +52,12 @@ public class TitleTranslationService {
                     article.getTitle(),
                     article.getCorporation().getName()
                 );
+
+                if (!openaiService.containsKorean(translatedTitle)) {
+                    log.warn("번역된 제목에 한국어가 포함되어 있지 않음, 스킵: {} -> {}", article.getTitle(), translatedTitle);
+                    skippedCount++;
+                    continue;
+                }
 
                 // 번역된 제목 저장
                 article.setTranslatedTitle(translatedTitle);
