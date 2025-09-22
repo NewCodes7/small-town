@@ -27,6 +27,6 @@ public interface CrawlerArticleRepository extends JpaRepository<Article, Long> {
     @Query("SELECT COUNT(a) FROM Article a WHERE a.corporation.id = :corporationId AND a.createdAt >= :since")
     Long countNewArticlesByCorporation(@Param("corporationId") Long corporationId, @Param("since") LocalDateTime since);
 
-    @Query("SELECT a FROM Article a WHERE a.deletedAt IS NULL AND (a.category IS NULL OR a.summaries IS EMPTY) ORDER BY a.createdAt ASC")
+    @Query("SELECT a FROM Article a WHERE a.deletedAt IS NULL AND (a.category IS NULL) ORDER BY a.createdAt ASC")
     List<Article> findUnanalyzedArticles();
 }
