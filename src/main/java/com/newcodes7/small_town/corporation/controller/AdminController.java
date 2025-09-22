@@ -296,6 +296,7 @@ public class AdminController {
             Map<String, Object> articleData = new HashMap<>();
             articleData.put("id", article.getId());
             articleData.put("title", article.getTitle());
+            articleData.put("translatedTitle", article.getTranslatedTitle());
             articleData.put("link", article.getLink());
             articleData.put("thumbnailImage", article.getThumbnailImage());
             articleData.put("summary", article.getSummary());
@@ -341,14 +342,19 @@ public class AdminController {
 
             Article article = articleOpt.get();
 
-            // 제목, 링크, 썸네일 수정
+            // 제목, 번역된 제목, 링크, 썸네일 수정
             String title = (String) request.get("title");
+            String translatedTitle = (String) request.get("translatedTitle");
             String link = (String) request.get("link");
             String thumbnailUrl = (String) request.get("thumbnailUrl");
             String categoryName = (String) request.get("categoryName");
 
             if (title != null && !title.trim().isEmpty()) {
                 article.setTitle(title.trim());
+            }
+
+            if (translatedTitle != null) {
+                article.setTranslatedTitle(translatedTitle.trim().isEmpty() ? null : translatedTitle.trim());
             }
 
             if (link != null && !link.trim().isEmpty()) {
@@ -542,6 +548,53 @@ public class AdminController {
         } catch (Exception e) {
             response.put("success", false);
             response.put("message", "번역 작업 시작 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 글 번역된 제목 수정 API
+     */
+    @PutMapping("/articles/{articleId}/translated-title")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> updateArticleTranslatedTitle(
+            @PathVariable Long articleId,
+            @RequestBody Map<String, String> request) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            Optional<Article> articleOpt = articleRepository.findById(articleId);
+            if (articleOpt.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "글을 찾을 수 없습니다.");
+                return ResponseEntity.notFound().build();
+            }
+
+            Article article = articleOpt.get();
+            String translatedTitle = request.get("translatedTitle");
+
+            if (translatedTitle == null) {
+                response.put("success", false);
+                response.put("message", "번역된 제목이 필요합니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // 빈 문자열도 허용 (번역된 제목 삭제)
+            article.setTranslatedTitle(translatedTitle.trim().isEmpty() ? null : translatedTitle.trim());
+            articleRepository.save(article);
+
+            response.put("success", true);
+            response.put("message", "번역된 제목이 성공적으로 수정되었습니다.");
+            response.put("articleId", articleId);
+            response.put("translatedTitle", article.getTranslatedTitle());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("번역된 제목 수정 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "번역된 제목 수정 중 오류가 발생했습니다: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
     }
