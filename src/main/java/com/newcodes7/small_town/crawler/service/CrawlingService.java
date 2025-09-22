@@ -55,22 +55,37 @@ public class CrawlingService {
     public List<CrawlResult> crawlAllBlogs() {
         List<Corporation> corporations = crawlerCorporationRepository.findAllWithBlogLink();
         log.info("크롤링 시작 - 대상 기업: {}개", corporations.size());
-        
+
         List<CrawlResult> results = new ArrayList<>();
-        
-        // 순차적으로 크롤링 실행
-        WebDriver driver = webDriverConfig.createWebDriver();
+
+        // 기업별로 WebDriver를 새로 생성하여 메모리 누적 방지
         for (Corporation corporation : corporations) {
+            WebDriver driver = null;
             try {
+                driver = webDriverConfig.createWebDriver();
                 CrawlResult result = crawlSingleBlog(corporation.getId(), driver);
                 results.add(result);
+
+                log.info("기업 크롤링 완료 - {}: {} 진행", corporation.getName(),
+                    results.size() + "/" + corporations.size());
+
             } catch (Exception e) {
                 log.error("기업 ID {} 크롤링 중 오류 발생: {}", corporation.getId(), e.getMessage(), e);
                 results.add(CrawlResult.failure(corporation, "크롤링 실행 실패: " + e.getMessage()));
-            } 
+            } finally {
+                if (driver != null) {
+                    webDriverConfig.forceCloseWebDriver(driver);
+                    // 메모리 정리를 위한 대기 시간
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        log.warn("메모리 정리 대기 중 인터럽트 발생");
+                    }
+                }
+            }
         }
-        webDriverConfig.forceCloseWebDriver(driver);        
-        
+
         log.info("전체 크롤링 완료 - 처리된 기업: {}개", results.size());
         return results;
     }
