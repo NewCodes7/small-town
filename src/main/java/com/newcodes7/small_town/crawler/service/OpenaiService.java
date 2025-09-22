@@ -61,8 +61,8 @@ public class OpenaiService {
                 .model(MODEL)
                 .instructions(instructions)
                 .text(textObject)
-                .input("제목: " + article.getTitle() + "\n 링크: " + article.getLink())
-                .tools(List.of(Map.of("type", "web_search")))
+                .input("제목: " + article.getTitle())
+                // .tools(List.of(Map.of("type", "web_search")))
                 .build();
 
         HttpEntity<OpenAiRequest> entity = new HttpEntity<>(request, headers);

@@ -149,29 +149,29 @@ public class CrawlingService {
                                         .orElseGet(() -> categoryRepository.save(openAiResponse.toCategoryEntity()));
                     article.setCategory(category);
 
-                    // Tag 저장 + ArticleTag 저장
-                    Set<Tag> tags = openAiResponse.toTagEntities().stream()
-                            .map(tag -> tagRepository.findByKeyword(tag.getKeyword())
-                                    .orElseGet(() -> tagRepository.save(tag))
-                                )
-                            .collect(Collectors.toSet());
-                    article.setArticleTags(
-                        tags.stream()
-                            .map(tag -> ArticleTag.builder()
-                                    .article(article)
-                                    .tag(tag)
-                                    .build())
-                            .collect(Collectors.toSet())
-                    );
+                    // // Tag 저장 + ArticleTag 저장
+                    // Set<Tag> tags = openAiResponse.toTagEntities().stream()
+                    //         .map(tag -> tagRepository.findByKeyword(tag.getKeyword())
+                    //                 .orElseGet(() -> tagRepository.save(tag))
+                    //             )
+                    //         .collect(Collectors.toSet());
+                    // article.setArticleTags(
+                    //     tags.stream()
+                    //         .map(tag -> ArticleTag.builder()
+                    //                 .article(article)
+                    //                 .tag(tag)
+                    //                 .build())
+                    //         .collect(Collectors.toSet())
+                    // );
 
-                    // summary 저장
-                    article.getSummaries().clear();
-                    article.getSummaries().addAll(openAiResponse.getSummaries().stream()
-                            .map(summary -> {
-                                summary.setArticle(article);
-                                return summary;
-                            })
-                            .toList());
+                    // // summary 저장
+                    // article.getSummaries().clear();
+                    // article.getSummaries().addAll(openAiResponse.getSummaries().stream()
+                    //         .map(summary -> {
+                    //             summary.setArticle(article);
+                    //             return summary;
+                    //         })
+                    //         .toList());
 
                     newArticles.add(article);
                 } else {
