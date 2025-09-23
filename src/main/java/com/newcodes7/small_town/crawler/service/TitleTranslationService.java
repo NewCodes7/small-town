@@ -47,6 +47,13 @@ public class TitleTranslationService {
                     continue;
                 }
 
+                // 원본 제목에 한국어가 포함되어 있으면 스킵
+                if (openaiService.containsKorean(article.getTitle())) {
+                    log.debug("원본 제목에 한국어 포함, 스킵: {}", article.getTitle());
+                    skippedCount++;
+                    continue;
+                }
+
                 // OpenAI로 제목 번역
                 String translatedTitle = openaiService.translateTitle(
                     article.getTitle(),
