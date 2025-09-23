@@ -154,7 +154,6 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "JOIN FETCH a.corporation c " +
            "WHERE a.deletedAt IS NULL " +
            "AND c.isDomestic = 0 " +
-           "AND (a.translatedTitle IS NULL OR a.translatedTitle = '') " +
            "ORDER BY a.publishedAt DESC")
     List<Article> findOverseasArticlesWithoutKoreanTitles();
 
