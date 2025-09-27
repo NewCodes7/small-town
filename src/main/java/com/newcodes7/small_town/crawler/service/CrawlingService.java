@@ -148,6 +148,7 @@ public class CrawlingService {
                     Category category = categoryRepository.findByName(openAiResponse.getCategory())
                                         .orElseGet(() -> categoryRepository.save(openAiResponse.toCategoryEntity()));
                     article.setCategory(category);
+                    crawlerArticleRepository.save(article);
 
                     // // Tag 저장 + ArticleTag 저장
                     // Set<Tag> tags = openAiResponse.toTagEntities().stream()
@@ -316,30 +317,30 @@ public class CrawlingService {
                             .orElseGet(() -> categoryRepository.save(openAiResponse.toCategoryEntity()));
         article.setCategory(category);
 
-        // 태그 저장 및 ArticleTag 연결
-        Set<Tag> tags = openAiResponse.toTagEntities().stream()
-                .map(tag -> tagRepository.findByKeyword(tag.getKeyword())
-                        .orElseGet(() -> tagRepository.save(tag))
-                    )
-                .collect(Collectors.toSet());
+        // // 태그 저장 및 ArticleTag 연결
+        // Set<Tag> tags = openAiResponse.toTagEntities().stream()
+        //         .map(tag -> tagRepository.findByKeyword(tag.getKeyword())
+        //                 .orElseGet(() -> tagRepository.save(tag))
+        //             )
+        //         .collect(Collectors.toSet());
 
-        // 기존 태그 관계 삭제 후 새로 추가
-        Set<ArticleTag> articleTags = tags.stream()
-                .map(tag -> ArticleTag.builder()
-                        .article(article)
-                        .tag(tag)
-                        .build())
-                .collect(Collectors.toSet());
-        articleTagRepository.saveAll(articleTags);
+        // // 기존 태그 관계 삭제 후 새로 추가
+        // Set<ArticleTag> articleTags = tags.stream()
+        //         .map(tag -> ArticleTag.builder()
+        //                 .article(article)
+        //                 .tag(tag)
+        //                 .build())
+        //         .collect(Collectors.toSet());
+        // articleTagRepository.saveAll(articleTags);
 
-        // 요약 정보 저장
-        article.getSummaries().clear();
-        article.getSummaries().addAll(openAiResponse.getSummaries().stream()
-                .map(summary -> {
-                    summary.setArticle(article);
-                    return summary;
-                })
-                .toList());
+        // // 요약 정보 저장
+        // article.getSummaries().clear();
+        // article.getSummaries().addAll(openAiResponse.getSummaries().stream()
+        //         .map(summary -> {
+        //             summary.setArticle(article);
+        //             return summary;
+        //         })
+        //         .toList());
 
         // 변경사항 저장
         crawlerArticleRepository.save(article);
