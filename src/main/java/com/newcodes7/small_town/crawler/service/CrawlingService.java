@@ -167,7 +167,7 @@ public class CrawlingService {
     }
 
     /**
-     * 개별 Article 저장 및 AI 분석 
+     * 개별 Article 저장 및 AI 분석
      */
     @Transactional
     private void saveArticleWithAnalysis(Article article, Corporation corporation, BlogCrawler crawler) throws IOException {
@@ -180,12 +180,17 @@ public class CrawlingService {
         // 해외 기업의 영어 제목 자동 번역
         translateTitleIfNeeded(article, corporation);
 
-        // OpenAI 분석 및 카테고리 저장
-        ArticleAnalysisResponse openAiResponse = openaiService.sendArticleAnalysis(article);
-        Category category = categoryRepository.findByName(openAiResponse.getCategory())
-                            .orElseGet(() -> categoryRepository.save(openAiResponse.toCategoryEntity()));
-        article.setCategory(category);
-        crawlerArticleRepository.save(article);
+        // OpenAI 분석 및 카테고리 저장 (실패 시 article은 유지)
+        try {
+            ArticleAnalysisResponse openAiResponse = openaiService.sendArticleAnalysis(article);
+            Category category = categoryRepository.findByName(openAiResponse.getCategory())
+                                .orElseGet(() -> categoryRepository.save(openAiResponse.toCategoryEntity()));
+            article.setCategory(category);
+            crawlerArticleRepository.save(article);
+            log.debug("OpenAI 분석 완료 - Article: {}, Category: {}", article.getTitle(), category.getName());
+        } catch (Exception e) {
+            log.warn("OpenAI 분석 실패 - Article: {}, 오류: {}", article.getTitle(), e.getMessage());
+        }
     }
     
     /**
