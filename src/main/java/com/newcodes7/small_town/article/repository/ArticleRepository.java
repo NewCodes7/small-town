@@ -72,15 +72,10 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "WHERE a.deletedAt IS NULL " +
            "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "AND (:domesticTypes IS NULL OR c.isDomestic IN :domesticTypes) " +
-           "ORDER BY " +
-           "CASE WHEN :sort = 'popular' THEN " +
-           "(COALESCE(a.viewCount, 0) * 0.6 + " +
-           " COALESCE(a.likeCount, 0) * 0.3) " +
-           "END DESC, " +
-           "a.publishedAt DESC, a.createdAt DESC")
+           "AND (:category IS NULL OR cat.name IN :category)")
     List<Article> findArticlesWithFilters(@Param("keyword") String keyword, 
                                          @Param("domesticTypes") List<Integer> domesticTypes,
-                                         @Param("sort") String sort);                       
+                                         @Param("category") List<String> category);                       
     
     @Modifying
     @Query("UPDATE Article a SET a.likeCount = :likeCount WHERE a.id = :articleId")

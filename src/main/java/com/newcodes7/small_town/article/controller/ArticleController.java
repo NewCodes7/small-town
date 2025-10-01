@@ -87,7 +87,6 @@ public class ArticleController {
         // 회사 목록 가져오기 (모든 회사 포함)
         Page<CorporationResponseDto> corporations = corporationService.getAllCorporations(PageRequest.of(0, 50));
         List<CorporationResponseDto> corporationsWithLogos = corporations.getContent().stream()
-            // .filter(corp -> corp.getLogoUrl() != null && !corp.getLogoUrl().trim().isEmpty())
             .limit(20) 
             .toList();
         

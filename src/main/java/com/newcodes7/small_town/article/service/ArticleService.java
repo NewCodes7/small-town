@@ -75,19 +75,10 @@ public class ArticleService {
                                                                         List<Integer> domesticTypes, 
                                                                         List<String> category,
                                                                         int page, int size) {
-        // 1. 페이징된 기업 ID 목록 조회
-        Pageable pageable = PageRequest.of(page, size);
-        Page<Long> corporationIdsPage = articleRepository.findCorporationIdsWithFilters(keyword, domesticTypes, pageable);
+        // 1. 모든 게시글 조회
+        List<Article> allArticles = articleRepository.findArticlesWithFilters(keyword, domesticTypes, category);
         
-        if (corporationIdsPage.isEmpty()) {
-            return Page.empty();
-        }
-        
-        // 2. 기업 ID 목록을 사용하여 해당 기업의 게시글 조회
-        List<Article> allArticles = articleRepository.findArticlesByCorporations(
-            corporationIdsPage.getContent(), keyword, domesticTypes, category);
-        
-        // 3. 기업별로 3개씩 그룹화
+        // 2. 기업별로 3개씩 그룹화
         Map<Corporation, List<Article>> groupedByCorporation = allArticles.stream()
                 .collect(Collectors.groupingBy(Article::getCorporation,
                     LinkedHashMap::new,
@@ -101,7 +92,7 @@ public class ArticleService {
                     )
                 ));
         
-        // 4. 기업을 최신 글 순으로 정렬 
+        // 3. 기업을 최신 글 순으로 정렬 
         List<GroupedArticlesDto> groupedList = groupedByCorporation.entrySet().stream()
                 .sorted((entry1, entry2) -> {
                     // 각 그룹의 첫 번째 글(최신 글)로 비교
@@ -117,13 +108,14 @@ public class ArticleService {
                 ))
                 .collect(Collectors.toList());
         
-        // 5. Page로 변환
+        // 4. Page로 변환
+        Pageable pageable = PageRequest.of(page, size);
         return new PageImpl<>(
             groupedList.stream()
                     .map(dto -> (ArticleResponseDto) dto)
                     .collect(Collectors.toList()),
             pageable,
-            corporationIdsPage.getTotalElements()
+            groupedByCorporation.size()
         );
     }
     
