@@ -1,5 +1,6 @@
 package com.newcodes7.small_town.crawler.service;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -11,6 +12,7 @@ import java.util.stream.Collectors;
 import org.openqa.selenium.WebDriver;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.crawler.config.WebDriverConfig;
@@ -91,74 +93,25 @@ public class CrawlingService {
     }
     
     /**
-     * 특정 기업 블로그 크롤링
+     * 특정 기업 블로그 크롤링 (WebDriver 관리 + 예외 처리)
      */
-    @Transactional
     public CrawlResult crawlSingleBlog(Long corporationId, WebDriver driver) {
         Corporation corporation = crawlerCorporationRepository.findByIdAndNotDeleted(corporationId);
         if (corporation == null) {
             throw new CorporationCrawlingException(corporationId);
         }
-        
+
         if (corporation.getBlogLink() == null || corporation.getBlogLink().trim().isEmpty()) {
             throw new CorporationCrawlingException(corporationId, "empty or null blog URL");
         }
-        
+
         boolean isDriverProvided = (driver != null);
         if (!isDriverProvided) {
             driver = webDriverConfig.createWebDriver();
         }
+
         try {
-            // 적절한 크롤러 선택
-            BlogCrawler crawler = selectCrawler(corporation.getBlogLink());
-            log.info("크롤링 시작 - 기업: {}, 크롤러: {}", corporation.getName(), crawler.getProviderName());
-            
-            // robots.txt 확인 및 크롤링 실행
-            String baseUrl = crawler.extractBaseUrl(corporation.getBlogLink());
-            log.info("robots.txt 확인 - 기업: {}, 블로그URL: {}, 베이스URL: {}", corporation.getName(), corporation.getBlogLink(), baseUrl);
-            
-            boolean isAllowed = robotsTxtService.isPathAllowed(baseUrl, "/");
-            log.info("robots.txt 확인 결과 - 기업: {}, 허용 여부: {}", corporation.getName(), isAllowed);
-            
-            if (!isAllowed) {
-                log.warn("robots.txt에 의해 크롤링이 금지됨 - 기업: {}, 블로그URL: {}, 베이스URL: {}", corporation.getName(), corporation.getBlogLink(), baseUrl);
-                return CrawlResult.failure(corporation, "robots.txt에 의해 크롤링 금지됨");
-            }
-            
-            log.info("robots.txt 확인 완료 - 크롤링 허용됨");
-            List<Article> crawledArticles = crawler.crawlWithRobotsCheck(driver, corporation, robotsTxtService);
-            
-            // 중복 제거 및 저장
-            List<Article> newArticles = new ArrayList<>();
-            for (Article article : crawledArticles) {
-                if (!crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(article.getLink()).isPresent()) {
-                    crawler.processImageUpload(article, corporation);
-
-                    // article 저장
-                    crawlerArticleRepository.save(article);
-
-                    // 해외 기업의 영어 제목 자동 번역
-                    translateTitleIfNeeded(article, corporation);
-
-                    ArticleAnalysisResponse openAiResponse = openaiService.sendArticleAnalysis(article);
-
-                    // 카테고리 저장 (있다면 기존 id 활용)
-                    Category category = categoryRepository.findByName(openAiResponse.getCategory())
-                                        .orElseGet(() -> categoryRepository.save(openAiResponse.toCategoryEntity()));
-                    article.setCategory(category);
-                    crawlerArticleRepository.save(article);
-
-                    newArticles.add(article);
-                } else {
-                    log.debug("중복 게시글 스킵: {}", article.getLink());
-                }
-            }
-
-            int newArticlesCount = newArticles.size();
-            log.info("크롤링 완료 - 기업: {}, 전체: {}개, 신규: {}개", 
-                corporation.getName(), crawledArticles.size(), newArticlesCount);
-            
-            return CrawlResult.success(corporation, newArticles, newArticlesCount);
+            return crawlAndSaveArticles(corporation, driver);
         } catch (CrawlerException e) {
             log.error("크롤링 실패 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
             throw e;
@@ -170,6 +123,69 @@ public class CrawlingService {
                 webDriverConfig.forceCloseWebDriver(driver);
             }
         }
+    }
+
+    /**
+     * 크롤링 및 Article들 저장
+     */
+    private CrawlResult crawlAndSaveArticles(Corporation corporation, WebDriver driver) throws IOException {
+        // 적절한 크롤러 선택
+        BlogCrawler crawler = selectCrawler(corporation.getBlogLink());
+        log.info("크롤링 시작 - 기업: {}, 크롤러: {}", corporation.getName(), crawler.getProviderName());
+
+        // robots.txt 확인 및 크롤링 실행
+        String baseUrl = crawler.extractBaseUrl(corporation.getBlogLink());
+        log.info("robots.txt 확인 - 기업: {}, 블로그URL: {}, 베이스URL: {}", corporation.getName(), corporation.getBlogLink(), baseUrl);
+
+        boolean isAllowed = robotsTxtService.isPathAllowed(baseUrl, "/");
+        log.info("robots.txt 확인 결과 - 기업: {}, 허용 여부: {}", corporation.getName(), isAllowed);
+
+        if (!isAllowed) {
+            log.warn("robots.txt에 의해 크롤링이 금지됨 - 기업: {}, 블로그URL: {}, 베이스URL: {}", corporation.getName(), corporation.getBlogLink(), baseUrl);
+            return CrawlResult.failure(corporation, "robots.txt에 의해 크롤링 금지됨");
+        }
+
+        log.info("robots.txt 확인 완료 - 크롤링 허용됨");
+        List<Article> crawledArticles = crawler.crawlWithRobotsCheck(driver, corporation, robotsTxtService);
+
+        // 중복 제거 및 저장
+        List<Article> newArticles = new ArrayList<>();
+        for (Article article : crawledArticles) {
+            if (!crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(article.getLink()).isPresent()) {
+                saveArticleWithAnalysis(article, corporation, crawler);
+                newArticles.add(article);
+            } else {
+                log.debug("중복 게시글 스킵: {}", article.getLink());
+            }
+        }
+
+        int newArticlesCount = newArticles.size();
+        log.info("크롤링 완료 - 기업: {}, 전체: {}개, 신규: {}개",
+            corporation.getName(), crawledArticles.size(), newArticlesCount);
+
+        return CrawlResult.success(corporation, newArticles, newArticlesCount);
+    }
+
+    /**
+     * 개별 Article 저장 및 AI 분석 
+     */
+    @Transactional
+    private void saveArticleWithAnalysis(Article article, Corporation corporation, BlogCrawler crawler) throws IOException {
+        // 이미지 업로드 처리
+        crawler.processImageUpload(article, corporation);
+
+        // article 저장
+        crawlerArticleRepository.save(article);
+
+        // 해외 기업의 영어 제목 자동 번역
+        translateTitleIfNeeded(article, corporation);
+
+        // OpenAI 분석 및 카테고리 저장
+        ArticleAnalysisResponse openAiResponse = openaiService.sendArticleAnalysis(article);
+        Category category = categoryRepository.findByName(openAiResponse.getCategory())
+                            .orElseGet(() -> categoryRepository.save(openAiResponse.toCategoryEntity()));
+        article.setCategory(category);
+        crawlerArticleRepository.save(article);
     }
     
     /**
