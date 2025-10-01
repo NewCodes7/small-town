@@ -180,6 +180,15 @@ public class CrawlingControllerTest {
                 .andExpect(jsonPath("$.newArticles", is(20)))
                 .andExpect(jsonPath("$.totalArticles", is(20)))
                 .andReturn();
+        articleRepository.findByCorporationId(corporation.getId(), PageRequest.of(0, 10))
+            .getContent()
+            .forEach(article -> {
+                assertThat(article.getTitle()).isNotEmpty();
+                assertThat(article.getLink()).isNotEmpty();
+                assertThat(article.getThumbnailImage()).isNotEmpty();
+                assertThat(article.getPublishedAt()).isNotNull();
+                assertThat(article.getCategory()).isNotNull();
+            });
     }
 
     @Test
@@ -200,15 +209,6 @@ public class CrawlingControllerTest {
             assertThat(article.getTitle()).isNotEmpty();
             assertThat(article.getLink()).isNotEmpty();
             assertThat(article.getCategory().getName()).isNotEmpty();
-            // assertThat(article.getSummaries()).isNotEmpty();
-            // assertThat(article.getArticleTags()).isNotEmpty();
-            // article.getSummaries().forEach(summary -> {
-            //     assertThat(summary.getContentType()).isIn("h3", "li");
-            //     assertThat(summary.getContent()).isNotEmpty();
-            // });
-            // article.getArticleTags().forEach(tag -> {
-            //     assertThat(tag.getTag().getKeyword()).isNotEmpty();
-            // });
         }
     }
 

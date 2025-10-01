@@ -129,123 +129,21 @@ public class DefaultBlogCrawler implements BlogCrawler {
         return articles;
     }
 
-    
+
     /**
-     * HTML 요소에서 Article 파싱 (기존 로직 유지)
+     * HTML 요소에서 Article 파싱
      */
     private Article parseArticle(Element element, Corporation corporation) {
         try {
-            // 제목 찾기
-            Element titleElement = element.selectFirst(parsingSelector.getTitle());
-            if (titleElement == null) return null;
-            String title = titleElement.text().trim();
-            if (title.isEmpty()) return null;
-            
-            // 링크 찾기
-            Element linkElement = element.selectFirst(parsingSelector.getLink()); // 대부분 a[href]
-            String link = linkElement.attr("href");
-            if (link.isEmpty()) return null;
-            
-            // 상대 경로를 절대 경로로 변환
-            if (!link.startsWith("http")) {
-                if (link.startsWith("/")) {
-                    String baseUrl = parsingSelector.getBaseUrl();
-                    if (baseUrl.endsWith("/")) {
-                        baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
-                    }
-                    link = baseUrl + link;
-                } else {
-                    return null;
-                }
-            }
+            String title = parseTitle(element);
+            if (title == null) return null;
 
-            // 요약 찾기 (아직 비즈니스 요구사항 상 요약은 사용하지 않음)
-            String summary = "";
-            Element summaryElement = element.selectFirst(
-                ".summary, .excerpt, .description, .content, p, " +
-                "[class*='summary'], [class*='excerpt'], [class*='desc']"
-            );
-            if (summaryElement != null) {
-                summary = summaryElement.text().trim();
-                if (summary.length() > 200) {
-                    summary = summary.substring(0, 200) + "...";
-                }
-            }
-            
-            // 썸네일 이미지 URL 찾기 (업로드는 processImageUpload에서 수행)
-            String thumbnailImage = "";
-            Element imgElement = element.selectFirst(parsingSelector.getThumbnail());
-            String imgSrc = "";
-            // 토스 블로그는 Next.js로 이루어져 있어 noscript에 있는 img를 가져와야 함 
-            if (parsingSelector.getBaseUrl().contains("toss")) {
-                imgElement = element.select("img[alt*='thumbnail']").get(1);
-            }
-            if (parsingSelector.getBaseUrl().contains("nhncloud") 
-            || parsingSelector.getBaseUrl().contains("ktcloud")) {
-                imgSrc = extractCssImgUrl(imgElement.attr("style"));
-            } else if (parsingSelector.getBaseUrl().contains("gangnamunni")) {
-                imgSrc = imgElement.attr("srcset");
-            } else if (imgElement != null) {
-                imgSrc = imgElement.attr("src");
-            }
-            if (imgElement != null) {
-                // 상대 경로를 절대 경로로 변환
-                if (!imgSrc.startsWith("http")) {
-                    imgSrc = resolveImageUrl(imgSrc, corporation.getBlogLink());
-                }
-                // 원본 이미지 URL 저장 (S3 업로드는 나중에 수행)
-                thumbnailImage = imgSrc;
-            }
+            String link = parseLink(element);
+            if (link == null) return null;
 
-            // 발행일 찾기
-            Element publishElement = element.selectFirst(parsingSelector.getPublish());
-            LocalDateTime publishedAt;
-            if (parsingSelector.getPublishFormat().equals("yyyy.MM.dd") 
-                || parsingSelector.getPublishFormat().equals("yyyy.M.dd")
-                || parsingSelector.getPublishFormat().equals("yyyy-MM-dd")) {
-                String cleanDateText = extractDateOnly(publishElement.text());
-                publishedAt = TimeUtil.dateWithSeoulTime(parseDate(cleanDateText));
-            } else if (parsingSelector.getPublishFormat().equals("ISO8601")) {
-                String datetime = publishElement.attr("datetime");
-                ZonedDateTime zonedDateTime = ZonedDateTime.parse(datetime);
-                publishedAt = zonedDateTime.toLocalDateTime();
-            } else if (parsingSelector.getPublishFormat().equals("MMM d, yyyy")
-                || parsingSelector.getPublishFormat().equals("MMMM d, yyyy")
-                || parsingSelector.getPublishFormat().equals("MMMM dd, yyyy")
-                || parsingSelector.getPublishFormat().equals("MMM dd, yyyy")) {
-                String dateText = publishElement.text().split("/")[0].trim();
-                dateText = dateText.replaceAll("[^a-zA-Z0-9\\s,]", "");
-                // 비표준 월 축약형을 표준 형태로 정규화
-                dateText = dateText.replaceAll("(?i)\\bJANUARY\\b", "JAN")
-                                  .replaceAll("(?i)\\bFEBRUARY\\b", "FEB")
-                                  .replaceAll("(?i)\\bMARCH\\b", "MAR")
-                                  .replaceAll("(?i)\\bAPRIL\\b", "APR")
-                                  .replaceAll("(?i)\\bJUNE\\b", "JUN")
-                                  .replaceAll("(?i)\\bJULY\\b", "JUL")
-                                  .replaceAll("(?i)\\bAUGUST\\b", "AUG")
-                                  .replaceAll("(?i)\\bSEPTEMBER\\b", "SEP")
-                                  .replaceAll("(?i)\\bSEPT\\b", "SEP")
-                                  .replaceAll("(?i)\\bOCTOBER\\b", "OCT")
-                                  .replaceAll("(?i)\\bNOVEMBER\\b", "NOV")
-                                  .replaceAll("(?i)\\bDECEMBER\\b", "DEC");
-                DateTimeFormatter formatter = new DateTimeFormatterBuilder()
-                                .parseCaseInsensitive() 
-                                .appendPattern("[MMMM d, yyyy][MMM d, yyyy]") // 풀네임 or 축약형 모두 지원
-                                .toFormatter(Locale.ENGLISH);
-                LocalDate date = LocalDate.parse(dateText, formatter);
-                publishedAt = TimeUtil.dateWithSeoulTime(date);
-            } else if (parsingSelector.getPublishFormat().trim().equals("dd MMM")) {
-                String cleanDateText = publishElement.text(); // "03 Aug"
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM", Locale.ENGLISH);
-                TemporalAccessor temporalAccessor = formatter.parse(cleanDateText);
-                LocalDate date = LocalDate.of(LocalDate.now().getYear(),
-                                            temporalAccessor.get(ChronoField.MONTH_OF_YEAR),
-                                            temporalAccessor.get(ChronoField.DAY_OF_MONTH));
-                publishedAt = TimeUtil.dateWithSeoulTime(date);
-            } else {
-                String cleanDateText = extractDateOnly(publishElement.text());
-                publishedAt = TimeUtil.dateWithSeoulTime(parseDate(cleanDateText));
-            }
+            String summary = parseSummary(element);
+            String thumbnailImage = parseThumbnailImage(element, corporation);
+            LocalDateTime publishedAt = parsePublishedDate(element);
 
             return Article.builder()
                     .corporation(corporation)
@@ -257,12 +155,204 @@ public class DefaultBlogCrawler implements BlogCrawler {
                     .viewCount(0)
                     .likeCount(0)
                     .build();
-                    
+
         } catch (Exception e) {
             log.warn("기본 크롤러 아티클 파싱 오류: {}", e.getMessage());
             e.printStackTrace();
             return null;
         }
+    }
+
+    /**
+     * 제목 파싱
+     */
+    private String parseTitle(Element element) {
+        Element titleElement = element.selectFirst(parsingSelector.getTitle());
+        if (titleElement == null) return null;
+        String title = titleElement.text().trim();
+        return title.isEmpty() ? null : title;
+    }
+
+    /**
+     * 링크 파싱 및 절대 경로 변환
+     */
+    private String parseLink(Element element) {
+        Element linkElement = element.selectFirst(parsingSelector.getLink());
+        if (linkElement == null) return null;
+
+        String link = linkElement.attr("href");
+        if (link.isEmpty()) return null;
+
+        // 상대 경로를 절대 경로로 변환
+        if (!link.startsWith("http")) {
+            if (link.startsWith("/")) {
+                String baseUrl = parsingSelector.getBaseUrl();
+                if (baseUrl.endsWith("/")) {
+                    baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+                }
+                link = baseUrl + link;
+            } else {
+                return null;
+            }
+        }
+
+        return link;
+    }
+
+    /**
+     * 요약 파싱
+     */
+    private String parseSummary(Element element) {
+        Element summaryElement = element.selectFirst(
+            ".summary, .excerpt, .description, .content, p, " +
+            "[class*='summary'], [class*='excerpt'], [class*='desc']"
+        );
+
+        if (summaryElement == null) return "";
+
+        String summary = summaryElement.text().trim();
+        if (summary.length() > 200) {
+            summary = summary.substring(0, 200) + "...";
+        }
+
+        return summary;
+    }
+
+    /**
+     * 썸네일 이미지 URL 파싱
+     */
+    private String parseThumbnailImage(Element element, Corporation corporation) {
+        Element imgElement = element.selectFirst(parsingSelector.getThumbnail());
+        if (imgElement == null) return "";
+
+        String imgSrc = extractImageSrc(imgElement);
+        if (imgSrc == null || imgSrc.isEmpty()) return "";
+
+        // 상대 경로를 절대 경로로 변환
+        if (!imgSrc.startsWith("http")) {
+            imgSrc = resolveImageUrl(imgSrc, corporation.getBlogLink());
+        }
+
+        return imgSrc;
+    }
+
+    /**
+     * 이미지 소스 추출 (사이트별 특수 처리)
+     */
+    private String extractImageSrc(Element imgElement) {
+        String baseUrl = parsingSelector.getBaseUrl();
+
+        // 토스 블로그: Next.js 특수 처리
+        if (baseUrl.contains("toss")) {
+            Elements imgElements = imgElement.parent().select("img[alt*='thumbnail']");
+            if (imgElements.size() > 1) {
+                imgElement = imgElements.get(1);
+            }
+        }
+
+        // NHN Cloud, KT Cloud: CSS background-image
+        if (baseUrl.contains("nhncloud") || baseUrl.contains("ktcloud")) {
+            return extractCssImgUrl(imgElement.attr("style"));
+        }
+
+        // 강남언니: srcset 속성
+        if (baseUrl.contains("gangnamunni")) {
+            return imgElement.attr("srcset");
+        }
+
+        // 일반적인 경우: src 속성
+        return imgElement.attr("src");
+    }
+
+    /**
+     * 발행일 파싱
+     */
+    private LocalDateTime parsePublishedDate(Element element) {
+        Element publishElement = element.selectFirst(parsingSelector.getPublish());
+        String publishFormat = parsingSelector.getPublishFormat();
+
+        if (publishFormat.equals("yyyy.MM.dd")
+            || publishFormat.equals("yyyy.M.dd")
+            || publishFormat.equals("yyyy-MM-dd")) {
+            return parseKoreanDateFormat(publishElement);
+        } else if (publishFormat.equals("ISO8601")) {
+            return parseISO8601Format(publishElement);
+        } else if (publishFormat.equals("MMM d, yyyy")
+            || publishFormat.equals("MMMM d, yyyy")
+            || publishFormat.equals("MMMM dd, yyyy")
+            || publishFormat.equals("MMM dd, yyyy")) {
+            return parseEnglishDateFormat(publishElement);
+        } else if (publishFormat.trim().equals("dd MMM")) {
+            return parseShortEnglishDateFormat(publishElement);
+        } else {
+            return parseKoreanDateFormat(publishElement);
+        }
+    }
+
+    /**
+     * 한국 날짜 형식 파싱 (yyyy.MM.dd)
+     */
+    private LocalDateTime parseKoreanDateFormat(Element publishElement) {
+        String cleanDateText = extractDateOnly(publishElement.text());
+        return TimeUtil.dateWithSeoulTime(parseDate(cleanDateText));
+    }
+
+    /**
+     * ISO8601 형식 파싱
+     */
+    private LocalDateTime parseISO8601Format(Element publishElement) {
+        String datetime = publishElement.attr("datetime");
+        ZonedDateTime zonedDateTime = ZonedDateTime.parse(datetime);
+        return zonedDateTime.toLocalDateTime();
+    }
+
+    /**
+     * 영어 날짜 형식 파싱 (MMM d, yyyy)
+     */
+    private LocalDateTime parseEnglishDateFormat(Element publishElement) {
+        String dateText = publishElement.text().split("/")[0].trim();
+        dateText = dateText.replaceAll("[^a-zA-Z0-9\\s,]", "");
+
+        // 비표준 월 축약형을 표준 형태로 정규화
+        dateText = normalizeEnglishMonths(dateText);
+
+        DateTimeFormatter formatter = new DateTimeFormatterBuilder()
+                        .parseCaseInsensitive()
+                        .appendPattern("[MMMM d, yyyy][MMM d, yyyy]")
+                        .toFormatter(Locale.ENGLISH);
+        LocalDate date = LocalDate.parse(dateText, formatter);
+        return TimeUtil.dateWithSeoulTime(date);
+    }
+
+    /**
+     * 짧은 영어 날짜 형식 파싱 (dd MMM)
+     */
+    private LocalDateTime parseShortEnglishDateFormat(Element publishElement) {
+        String cleanDateText = publishElement.text();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM", Locale.ENGLISH);
+        TemporalAccessor temporalAccessor = formatter.parse(cleanDateText);
+        LocalDate date = LocalDate.of(LocalDate.now().getYear(),
+                                    temporalAccessor.get(ChronoField.MONTH_OF_YEAR),
+                                    temporalAccessor.get(ChronoField.DAY_OF_MONTH));
+        return TimeUtil.dateWithSeoulTime(date);
+    }
+
+    /**
+     * 영어 월 이름 정규화
+     */
+    private String normalizeEnglishMonths(String dateText) {
+        return dateText.replaceAll("(?i)\\bJANUARY\\b", "JAN")
+                      .replaceAll("(?i)\\bFEBRUARY\\b", "FEB")
+                      .replaceAll("(?i)\\bMARCH\\b", "MAR")
+                      .replaceAll("(?i)\\bAPRIL\\b", "APR")
+                      .replaceAll("(?i)\\bJUNE\\b", "JUN")
+                      .replaceAll("(?i)\\bJULY\\b", "JUL")
+                      .replaceAll("(?i)\\bAUGUST\\b", "AUG")
+                      .replaceAll("(?i)\\bSEPTEMBER\\b", "SEP")
+                      .replaceAll("(?i)\\bSEPT\\b", "SEP")
+                      .replaceAll("(?i)\\bOCTOBER\\b", "OCT")
+                      .replaceAll("(?i)\\bNOVEMBER\\b", "NOV")
+                      .replaceAll("(?i)\\bDECEMBER\\b", "DEC");
     }
 
     private static String extractCssImgUrl(String cssBackgroundImage) {
