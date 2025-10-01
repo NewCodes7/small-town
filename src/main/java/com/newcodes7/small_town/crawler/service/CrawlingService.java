@@ -142,37 +142,11 @@ public class CrawlingService {
 
                     ArticleAnalysisResponse openAiResponse = openaiService.sendArticleAnalysis(article);
 
-                    // TODO: openai 분석 결과 성공 시 저장, 실패 시 롤백 유도
-
                     // 카테고리 저장 (있다면 기존 id 활용)
                     Category category = categoryRepository.findByName(openAiResponse.getCategory())
                                         .orElseGet(() -> categoryRepository.save(openAiResponse.toCategoryEntity()));
                     article.setCategory(category);
                     crawlerArticleRepository.save(article);
-
-                    // // Tag 저장 + ArticleTag 저장
-                    // Set<Tag> tags = openAiResponse.toTagEntities().stream()
-                    //         .map(tag -> tagRepository.findByKeyword(tag.getKeyword())
-                    //                 .orElseGet(() -> tagRepository.save(tag))
-                    //             )
-                    //         .collect(Collectors.toSet());
-                    // article.setArticleTags(
-                    //     tags.stream()
-                    //         .map(tag -> ArticleTag.builder()
-                    //                 .article(article)
-                    //                 .tag(tag)
-                    //                 .build())
-                    //         .collect(Collectors.toSet())
-                    // );
-
-                    // // summary 저장
-                    // article.getSummaries().clear();
-                    // article.getSummaries().addAll(openAiResponse.getSummaries().stream()
-                    //         .map(summary -> {
-                    //             summary.setArticle(article);
-                    //             return summary;
-                    //         })
-                    //         .toList());
 
                     newArticles.add(article);
                 } else {
@@ -185,8 +159,6 @@ public class CrawlingService {
                 corporation.getName(), crawledArticles.size(), newArticlesCount);
             
             return CrawlResult.success(corporation, newArticles, newArticlesCount);
-            
-            // TODO: catch 있어도 롤백 되나? 
         } catch (CrawlerException e) {
             log.error("크롤링 실패 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
             throw e;
@@ -316,31 +288,6 @@ public class CrawlingService {
         Category category = categoryRepository.findByName(openAiResponse.getCategory())
                             .orElseGet(() -> categoryRepository.save(openAiResponse.toCategoryEntity()));
         article.setCategory(category);
-
-        // // 태그 저장 및 ArticleTag 연결
-        // Set<Tag> tags = openAiResponse.toTagEntities().stream()
-        //         .map(tag -> tagRepository.findByKeyword(tag.getKeyword())
-        //                 .orElseGet(() -> tagRepository.save(tag))
-        //             )
-        //         .collect(Collectors.toSet());
-
-        // // 기존 태그 관계 삭제 후 새로 추가
-        // Set<ArticleTag> articleTags = tags.stream()
-        //         .map(tag -> ArticleTag.builder()
-        //                 .article(article)
-        //                 .tag(tag)
-        //                 .build())
-        //         .collect(Collectors.toSet());
-        // articleTagRepository.saveAll(articleTags);
-
-        // // 요약 정보 저장
-        // article.getSummaries().clear();
-        // article.getSummaries().addAll(openAiResponse.getSummaries().stream()
-        //         .map(summary -> {
-        //             summary.setArticle(article);
-        //             return summary;
-        //         })
-        //         .toList());
 
         // 변경사항 저장
         crawlerArticleRepository.save(article);
