@@ -22,6 +22,7 @@ import jakarta.persistence.ForeignKey;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -40,7 +41,12 @@ import lombok.Setter;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @EntityListeners(AuditingEntityListener.class)
-@Table(name = "article")
+@Table(name = "article",
+    indexes = {
+        @Index(name = "idx_article_corp_published", 
+               columnList = "corporation_id, published_at DESC, deleted_at")
+    }
+)
 public class Article {
     
     @Id

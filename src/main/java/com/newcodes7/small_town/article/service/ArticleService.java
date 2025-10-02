@@ -15,7 +15,6 @@ import com.newcodes7.small_town.article.exception.CorporationNotFoundException;
 import com.newcodes7.small_town.article.exception.InvalidParameterException;
 import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -25,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,35 +69,38 @@ public class ArticleService {
         return Page.empty();
     }
 
-    public Page<ArticleResponseDto> getArticlesGroupedByCorporationWithPaging(String keyword, 
-                                                                        List<Integer> domesticTypes, 
+    public Page<ArticleResponseDto> getArticlesGroupedByCorporationWithPaging(String keyword,
+                                                                        List<Integer> domesticTypes,
                                                                         List<String> category,
                                                                         int page, int size) {
-        // 1. 모든 게시글 조회
-        List<Article> allArticles = articleRepository.findArticlesWithFilters(keyword, domesticTypes, category);
-        
-        // 2. 기업별로 3개씩 그룹화
-        Map<Corporation, List<Article>> groupedByCorporation = allArticles.stream()
+        // 1. 기업별 최신 글 3개씩 조회 (size+1개 조회하여 hasNext 판단)
+        int offset = page * size;
+        List<Article> articles = articleRepository.findTop3ArticlesGroupedByCorporation(
+            keyword,
+            domesticTypes != null ? domesticTypes : new ArrayList<>(),
+            domesticTypes != null ? domesticTypes.size() : 0,
+            category != null ? category : new ArrayList<>(),
+            category != null ? category.size() : 0,
+            offset,
+            size + 1
+        );
+
+        // 2. 기업별로 그룹화
+        Map<Corporation, List<Article>> groupedByCorporation = articles.stream()
                 .collect(Collectors.groupingBy(Article::getCorporation,
                     LinkedHashMap::new,
-                    Collectors.collectingAndThen(
-                        Collectors.toList(),
-                        list -> list.stream()
-                                    .filter(article -> article.getPublishedAt() != null)
-                                    .sorted(Comparator.comparing(Article::getPublishedAt).reversed())
-                                    .limit(3)
-                                    .collect(Collectors.toList())
-                    )
+                    Collectors.toList()
                 ));
-        
-        // 3. 기업을 최신 글 순으로 정렬 
-        List<GroupedArticlesDto> groupedList = groupedByCorporation.entrySet().stream()
-                .sorted((entry1, entry2) -> {
-                    // 각 그룹의 첫 번째 글(최신 글)로 비교
-                    LocalDateTime latest1 = entry1.getValue().get(0).getPublishedAt();
-                    LocalDateTime latest2 = entry2.getValue().get(0).getPublishedAt();
-                    return latest2.compareTo(latest1);
-                })
+
+        // 3. hasNext 판단 및 실제 데이터 추출
+        boolean hasNext = groupedByCorporation.size() > size;
+        List<Map.Entry<Corporation, List<Article>>> entries = new ArrayList<>(groupedByCorporation.entrySet());
+        if (hasNext) {
+            entries = entries.subList(0, size);
+        }
+
+        // 4. GroupedArticlesDto로 변환
+        List<GroupedArticlesDto> groupedList = entries.stream()
                 .map(entry -> new GroupedArticlesDto(
                         new CorporationDto(entry.getKey()),
                         entry.getValue().stream()
@@ -107,15 +108,15 @@ public class ArticleService {
                                 .collect(Collectors.toList())
                 ))
                 .collect(Collectors.toList());
-        
-        // 4. Page로 변환
+
+        // 5. Page로 변환 (total은 정확하지 않지만 hasNext 정보는 정확)
         Pageable pageable = PageRequest.of(page, size);
         return new PageImpl<>(
             groupedList.stream()
                     .map(dto -> (ArticleResponseDto) dto)
                     .collect(Collectors.toList()),
             pageable,
-            groupedByCorporation.size()
+            offset + groupedList.size() + (hasNext ? 1 : 0)
         );
     }
     

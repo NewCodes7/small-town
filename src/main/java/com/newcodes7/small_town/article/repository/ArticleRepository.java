@@ -116,22 +116,36 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
                                           @Param("domesticTypes") List<Integer> domesticTypes,
                                           Pageable pageable);
 
-       // 특정 기업들의 최신 글 3개씩 조회 (JOIN FETCH 추가)
-       @Query("SELECT DISTINCT a FROM Article a " +
-              "JOIN FETCH a.corporation c " +
-              "LEFT JOIN FETCH a.category cat " +
-              "LEFT JOIN FETCH a.articleTags at " +
-              "LEFT JOIN FETCH at.tag " +
-              "WHERE a.deletedAt IS NULL " +
-              "AND a.corporation.id IN :corporationIds " +
-              "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
-              "AND (:domesticTypes IS NULL OR a.corporation.isDomestic IN :domesticTypes) " +
-              "AND (:category IS NULL OR cat.name IN :category) " +
-              "ORDER BY a.corporation.id, a.publishedAt DESC")
-       List<Article> findArticlesByCorporations(@Param("corporationIds") List<Long> corporationIds,
-                                                 @Param("keyword") String keyword,
-                                                 @Param("domesticTypes") List<Integer> domesticTypes,
-                                                 @Param("category") List<String> category);
+       // 기업별 최신 글 3개씩 조회 (Window Function 사용, 페이징 지원)
+       @Query(value = "SELECT ranked.* FROM ( " +
+              "    SELECT a.*, " +
+              "           ROW_NUMBER() OVER (PARTITION BY a.corporation_id ORDER BY a.published_at DESC) as rn " +
+              "    FROM article a " +
+              "    JOIN corporation c ON a.corporation_id = c.id " +
+              "    LEFT JOIN category cat ON a.category_id = cat.id " +
+              "    WHERE a.deleted_at IS NULL " +
+              "    AND (COALESCE(:keyword, '') = '' OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translated_title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+              "    AND (COALESCE(:domesticTypesSize, 0) = 0 OR c.is_domestic IN (:domesticTypes)) " +
+              "    AND (COALESCE(:categorySize, 0) = 0 OR cat.name IN (:category)) " +
+              ") ranked " +
+              "JOIN ( " +
+              "    SELECT corporation_id, MAX(published_at) as latest_published_at " +
+              "    FROM article " +
+              "    WHERE deleted_at IS NULL " +
+              "    GROUP BY corporation_id " +
+              "    ORDER BY latest_published_at DESC " +
+              "    LIMIT :limit OFFSET :offset " +
+              ") corp_page ON ranked.corporation_id = corp_page.corporation_id " +
+              "WHERE ranked.rn <= 3 " +
+              "ORDER BY corp_page.latest_published_at DESC, ranked.published_at DESC",
+              nativeQuery = true)
+       List<Article> findTop3ArticlesGroupedByCorporation(@Param("keyword") String keyword,
+                                                           @Param("domesticTypes") List<Integer> domesticTypes,
+                                                           @Param("domesticTypesSize") int domesticTypesSize,
+                                                           @Param("category") List<String> category,
+                                                           @Param("categorySize") int categorySize,
+                                                           @Param("offset") int offset,
+                                                           @Param("limit") int limit);
 
     // 관리자용 글 검색 (제목 기준)
     Page<Article> findByTitleContainingIgnoreCaseAndDeletedAtIsNull(String title, Pageable pageable);
