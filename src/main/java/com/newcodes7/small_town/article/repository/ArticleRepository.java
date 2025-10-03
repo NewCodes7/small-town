@@ -129,10 +129,15 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
               "    AND (COALESCE(:categorySize, 0) = 0 OR cat.name IN (:category)) " +
               ") ranked " +
               "JOIN ( " +
-              "    SELECT corporation_id, MAX(published_at) as latest_published_at " +
-              "    FROM article " +
-              "    WHERE deleted_at IS NULL " +
-              "    GROUP BY corporation_id " +
+              "    SELECT a2.corporation_id, MAX(a2.published_at) as latest_published_at " +
+              "    FROM article a2 " +
+              "    JOIN corporation c2 ON a2.corporation_id = c2.id " +
+              "    LEFT JOIN category cat2 ON a2.category_id = cat2.id " +
+              "    WHERE a2.deleted_at IS NULL " +
+              "    AND (COALESCE(:keyword, '') = '' OR LOWER(a2.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a2.translated_title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+              "    AND (COALESCE(:domesticTypesSize, 0) = 0 OR c2.is_domestic IN (:domesticTypes)) " +
+              "    AND (COALESCE(:categorySize, 0) = 0 OR cat2.name IN (:category)) " +
+              "    GROUP BY a2.corporation_id " +
               "    ORDER BY latest_published_at DESC " +
               "    LIMIT :limit OFFSET :offset " +
               ") corp_page ON ranked.corporation_id = corp_page.corporation_id " +
