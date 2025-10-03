@@ -106,6 +106,87 @@ public class ArticleControllerTest {
     }
 
     @Test
+    public void 홈페이지_게시글_조회_리스트_검색() throws Exception {
+        //when&then
+        MvcResult result = mockMvc.perform(get("/").param("view", "list").param("keyword", "100"))
+            .andExpect(status().isOk())
+            .andExpect(view().name("home"))
+            .andExpect(model().attributeExists("articles"))
+            .andReturn();
+
+        Page<ArticleListResponseDto> articlesPage = (Page<ArticleListResponseDto>) result.getModelAndView().getModel().get("articles");
+        List<ArticleListResponseDto> contents = articlesPage.getContent();
+
+        assertThat(contents).hasSize(1);
+        assertThat(contents.get(0).getId()).isEqualTo(articles.get(100).getId());
+        assertThat(contents.get(0).getTitle()).isEqualTo(articles.get(100).getTitle());
+        assertThat(contents.get(0).getCorporation().getId()).isEqualTo(corporations.get(20).getId());
+    }
+
+    @Test
+    public void 홈페이지_게시글_조회_리스트_국내() throws Exception {
+        //when&then
+        MvcResult result = mockMvc.perform(get("/").param("view", "list").param("regions", "domestic"))
+            .andExpect(status().isOk())
+            .andExpect(view().name("home"))
+            .andExpect(model().attributeExists("articles"))
+            .andReturn();
+
+        Page<ArticleListResponseDto> articlesPage = (Page<ArticleListResponseDto>) result.getModelAndView().getModel().get("articles");
+        List<ArticleListResponseDto> contents = articlesPage.getContent();
+        assertThat(contents).hasSize(DEFAULT_PAGE_SIZE);
+
+        for (int i = 0; i < contents.size(); i++) {
+            ArticleListResponseDto dto = contents.get(i);
+            Article article = articles.get(i * 2 + 1);
+            assertThat(dto.getId()).isEqualTo(article.getId());
+            assertThat(dto.getTitle()).isEqualTo(article.getTitle());
+            assertThat(dto.getCorporation().getId()).isEqualTo(article.getCorporation().getId());
+        }
+    }
+
+    @Test
+    public void 홈페이지_게시글_조회_리스트_해외() throws Exception {
+        //when&then
+        MvcResult result = mockMvc.perform(get("/").param("view", "list").param("regions", "overseas"))
+            .andExpect(status().isOk())
+            .andExpect(view().name("home"))
+            .andExpect(model().attributeExists("articles"))
+            .andReturn();
+
+        Page<ArticleListResponseDto> articlesPage = (Page<ArticleListResponseDto>) result.getModelAndView().getModel().get("articles");
+        List<ArticleListResponseDto> contents = articlesPage.getContent();
+        assertThat(contents).hasSize(DEFAULT_PAGE_SIZE);
+
+        for (int i = 0; i < contents.size(); i++) {
+            ArticleListResponseDto dto = contents.get(i);
+            Article article = articles.get(i * 2);
+            assertThat(dto.getId()).isEqualTo(article.getId());
+            assertThat(dto.getTitle()).isEqualTo(article.getTitle());
+            assertThat(dto.getCorporation().getId()).isEqualTo(article.getCorporation().getId());
+        }
+    }
+
+    @Test
+    public void 홈페이지_게시글_조회_리스트_카테고리() throws Exception {
+        //when&then
+        MvcResult result = mockMvc.perform(get("/").param("view", "list").param("category", "backend0"))
+            .andExpect(status().isOk())
+            .andExpect(view().name("home"))
+            .andExpect(model().attributeExists("articles"))
+            .andReturn();
+
+        Page<ArticleListResponseDto> articlesPage = (Page<ArticleListResponseDto>) result.getModelAndView().getModel().get("articles");
+        List<ArticleListResponseDto> contents = articlesPage.getContent();
+        assertThat(contents).hasSize(1);
+
+        ArticleListResponseDto dto = contents.get(0);
+        assertThat(dto.getId()).isEqualTo(articles.get(0).getId());
+        assertThat(dto.getTitle()).isEqualTo(articles.get(0).getTitle());
+        assertThat(dto.getCorporation().getId()).isEqualTo(corporations.get(0).getId());
+    }
+
+    @Test
     public void 홈페이지_게시글_조회_그룹() throws Exception {
         //when&then
         MvcResult result = mockMvc.perform(get("/"))
