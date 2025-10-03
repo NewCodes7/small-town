@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeAll;
@@ -47,12 +48,12 @@ public class ArticleControllerTest {
     @Autowired
     private CorporationRepository corporationRepository;
 
+    private static final int ARTICLE_TOTAL_COUNT = 24;
+    private static final int GROUP_ARTILCE_COUNT = 3;
+    private static final int DEFAULT_PAGE_SIZE = 10;
+
     private Corporation corporation1;
     private Corporation corporation2;
-    private Article article1;
-    private Article article2;
-    private Article article3;
-    private Article article4;
     private List<Article> articles;
 
     @BeforeEach
@@ -66,11 +67,11 @@ public class ArticleControllerTest {
         corporationRepository.save(corporation1);
         corporationRepository.save(corporation2);
 
-        article1 = ArticleCreator.createArticle(corporation1);
-        article2 = ArticleCreator.createArticle(corporation1);
-        article3 = ArticleCreator.createArticle(corporation2);
-        article4 = ArticleCreator.createArticle(corporation2);
-        articles = List.of(article1, article2, article3, article4);
+        articles = new ArrayList<>();
+        for (int i = 0; i < ARTICLE_TOTAL_COUNT; i++) {
+            Corporation corp = (i % 2 == 0) ? corporation1 : corporation2;
+            articles.add(ArticleCreator.createArticle(corp));
+        }
         articleRepository.saveAll(articles);
     }
 
@@ -85,7 +86,7 @@ public class ArticleControllerTest {
 
         Page<ArticleListResponseDto> articlesPage = (Page<ArticleListResponseDto>) result.getModelAndView().getModel().get("articles");
         List<ArticleListResponseDto> contents = articlesPage.getContent();
-        assertThat(contents).hasSize(4);
+        assertThat(contents).hasSize(DEFAULT_PAGE_SIZE);
 
         for (int i = 0; i < contents.size(); i++) {
             ArticleListResponseDto dto = contents.get(i);
@@ -106,24 +107,26 @@ public class ArticleControllerTest {
 
         Page<GroupedArticlesDto> articlesPage = (Page<GroupedArticlesDto>) result.getModelAndView().getModel().get("articles");
         List<GroupedArticlesDto> contents = articlesPage.getContent();
-        assertThat(contents).hasSize(2);
-
         GroupedArticlesDto groupedDto1 = contents.get(0);
-        GroupedArticlesDto groupedDto2 = contents.get(1);
+        GroupedArticlesDto groupedDto2 = contents.get(1);   
+
+        assertThat(contents).hasSize(2);
         assertThat(groupedDto1.getCorporation().getId()).isEqualTo(corporation1.getId());
         assertThat(groupedDto2.getCorporation().getId()).isEqualTo(corporation2.getId());
-        assertThat(groupedDto1.getArticles()).hasSize(2);
-        assertThat(groupedDto2.getArticles()).hasSize(2);   
-        assertThat(groupedDto1.getArticles().get(0).getId()).isEqualTo(article1.getId());
-        assertThat(groupedDto1.getArticles().get(1).getId()).isEqualTo(article2.getId());
-        assertThat(groupedDto2.getArticles().get(0).getId()).isEqualTo(article3.getId());
-        assertThat(groupedDto2.getArticles().get(1).getId()).isEqualTo(article4.getId());
+        assertThat(groupedDto1.getArticles()).hasSize(GROUP_ARTILCE_COUNT);
+        assertThat(groupedDto2.getArticles()).hasSize(GROUP_ARTILCE_COUNT);
+        for (int i = 0; i < groupedDto1.getArticles().size(); i++) {
+            ArticleListResponseDto dto = groupedDto1.getArticles().get(i);
+            assertThat(dto.getId()).isEqualTo(articles.get(i * 2).getId());
+            assertThat(dto.getTitle()).isEqualTo(articles.get(i * 2).getTitle());
+            assertThat(dto.getCorporation().getId()).isEqualTo(articles.get(i * 2).getCorporation().getId());
+        }
     }
 
     @Test
     public void 홈페이지_게시글_조회_그룹_검색() throws Exception {
         //when&then
-        MvcResult result = mockMvc.perform(get("/").param("keyword", "1"))
+        MvcResult result = mockMvc.perform(get("/").param("keyword", "10"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
@@ -131,13 +134,33 @@ public class ArticleControllerTest {
 
         Page<GroupedArticlesDto> articlesPage = (Page<GroupedArticlesDto>) result.getModelAndView().getModel().get("articles");
         List<GroupedArticlesDto> contents = articlesPage.getContent();
+        GroupedArticlesDto groupedDto = contents.get(0);
 
         assertThat(contents).hasSize(1);
-        GroupedArticlesDto groupedDto = contents.get(0);
         assertThat(groupedDto.getCorporation().getId()).isEqualTo(corporation1.getId());
         assertThat(groupedDto.getArticles()).hasSize(1);
-        assertThat(groupedDto.getArticles().get(0).getId()).isEqualTo(article1.getId());
-        assertThat(groupedDto.getArticles().get(0).getTitle()).isEqualTo(article1.getTitle());
+        assertThat(groupedDto.getArticles().get(0).getId()).isEqualTo(articles.get(10).getId());
+        assertThat(groupedDto.getArticles().get(0).getTitle()).isEqualTo(articles.get(10).getTitle());
+    }
+
+    @Test
+    public void 홈페이지_게시글_조회_그룹_검색2() throws Exception {
+        //when&then
+        MvcResult result = mockMvc.perform(get("/").param("keyword", "11"))
+            .andExpect(status().isOk())
+            .andExpect(view().name("home"))
+            .andExpect(model().attributeExists("articles"))
+            .andReturn();
+
+        Page<GroupedArticlesDto> articlesPage = (Page<GroupedArticlesDto>) result.getModelAndView().getModel().get("articles");
+        List<GroupedArticlesDto> contents = articlesPage.getContent();
+        GroupedArticlesDto groupedDto = contents.get(0);
+
+        assertThat(contents).hasSize(1);
+        assertThat(groupedDto.getCorporation().getId()).isEqualTo(corporation2.getId());
+        assertThat(groupedDto.getArticles()).hasSize(1);
+        assertThat(groupedDto.getArticles().get(0).getId()).isEqualTo(articles.get(11).getId());
+        assertThat(groupedDto.getArticles().get(0).getTitle()).isEqualTo(articles.get(11).getTitle());
     }
 
     @Test
@@ -151,15 +174,17 @@ public class ArticleControllerTest {
 
         Page<GroupedArticlesDto> articlesPage = (Page<GroupedArticlesDto>) result.getModelAndView().getModel().get("articles");
         List<GroupedArticlesDto> contents = articlesPage.getContent();
+        GroupedArticlesDto groupedDto = contents.get(0);
         
         assertThat(contents).hasSize(1);
-        GroupedArticlesDto groupedDto = contents.get(0);
         assertThat(groupedDto.getCorporation().getId()).isEqualTo(corporation1.getId());
-        assertThat(groupedDto.getArticles()).hasSize(2);
-        assertThat(groupedDto.getArticles().get(0).getId()).isEqualTo(article1.getId());
-        assertThat(groupedDto.getArticles().get(1).getId()).isEqualTo(article2.getId());
-        assertThat(groupedDto.getArticles().get(0).getTitle()).isEqualTo(article1.getTitle());
-        assertThat(groupedDto.getArticles().get(1).getTitle()).isEqualTo(article2.getTitle());
+        assertThat(groupedDto.getArticles()).hasSize(GROUP_ARTILCE_COUNT);
+        for (int i = 0; i < groupedDto.getArticles().size(); i++) {
+            ArticleListResponseDto dto = groupedDto.getArticles().get(i);
+            assertThat(dto.getId()).isEqualTo(articles.get(i * 2).getId());
+            assertThat(dto.getTitle()).isEqualTo(articles.get(i * 2).getTitle());
+            assertThat(dto.getCorporation().getId()).isEqualTo(articles.get(i * 2).getCorporation().getId());
+        }
     }
 
     @Test
@@ -173,14 +198,17 @@ public class ArticleControllerTest {
         
         Page<GroupedArticlesDto> articlesPage = (Page<GroupedArticlesDto>) result.getModelAndView().getModel().get("articles");
         List<GroupedArticlesDto> contents = articlesPage.getContent();
-        assertThat(contents).hasSize(1);
         GroupedArticlesDto groupedDto = contents.get(0);
+
+        assertThat(contents).hasSize(1);
         assertThat(groupedDto.getCorporation().getId()).isEqualTo(corporation2.getId());
-        assertThat(groupedDto.getArticles()).hasSize(2);
-        assertThat(groupedDto.getArticles().get(0).getId()).isEqualTo(article3.getId());
-        assertThat(groupedDto.getArticles().get(1).getId()).isEqualTo(article4.getId());
-        assertThat(groupedDto.getArticles().get(0).getTitle()).isEqualTo(article3.getTitle());
-        assertThat(groupedDto.getArticles().get(1).getTitle()).isEqualTo(article4.getTitle());
+        assertThat(groupedDto.getArticles()).hasSize(GROUP_ARTILCE_COUNT);
+        for (int i = 0; i < groupedDto.getArticles().size(); i++) {
+            ArticleListResponseDto dto = groupedDto.getArticles().get(i);
+            assertThat(dto.getId()).isEqualTo(articles.get(i * 2 + 1).getId());
+            assertThat(dto.getTitle()).isEqualTo(articles.get(i * 2 + 1).getTitle());
+            assertThat(dto.getCorporation().getId()).isEqualTo(articles.get(i * 2 + 1).getCorporation().getId());
+        }
     }
 
     @Test
@@ -194,27 +222,32 @@ public class ArticleControllerTest {
         
         Page<GroupedArticlesDto> articlesPage = (Page<GroupedArticlesDto>) result.getModelAndView().getModel().get("articles");
         List<GroupedArticlesDto> contents = articlesPage.getContent();
-        assertThat(contents).hasSize(2);
         GroupedArticlesDto groupedDto = contents.get(0);
+
+        assertThat(contents).hasSize(2);
         assertThat(groupedDto.getCorporation().getId()).isEqualTo(corporation1.getId());
-        assertThat(groupedDto.getArticles()).hasSize(2);
-        assertThat(groupedDto.getArticles().get(0).getId()).isEqualTo(article1.getId());
-        assertThat(groupedDto.getArticles().get(1).getId()).isEqualTo(article2.getId());
-        assertThat(groupedDto.getArticles().get(0).getTitle()).isEqualTo(article1.getTitle());
-        assertThat(groupedDto.getArticles().get(1).getTitle()).isEqualTo(article2.getTitle());
+        assertThat(groupedDto.getArticles()).hasSize(GROUP_ARTILCE_COUNT);
+        for (int i = 0; i < groupedDto.getArticles().size(); i++) {
+            ArticleListResponseDto dto = groupedDto.getArticles().get(i);
+            assertThat(dto.getId()).isEqualTo(articles.get(i * 2).getId());
+            assertThat(dto.getTitle()).isEqualTo(articles.get(i * 2).getTitle());
+            assertThat(dto.getCorporation().getId()).isEqualTo(articles.get(i * 2).getCorporation().getId());
+        }
         groupedDto = contents.get(1);
         assertThat(groupedDto.getCorporation().getId()).isEqualTo(corporation2.getId());
-        assertThat(groupedDto.getArticles()).hasSize(2);
-        assertThat(groupedDto.getArticles().get(0).getId()).isEqualTo(article3.getId());
-        assertThat(groupedDto.getArticles().get(1).getId()).isEqualTo(article4.getId());
-        assertThat(groupedDto.getArticles().get(0).getTitle()).isEqualTo(article3.getTitle());
-        assertThat(groupedDto.getArticles().get(1).getTitle()).isEqualTo(article4.getTitle());
+        assertThat(groupedDto.getArticles()).hasSize(GROUP_ARTILCE_COUNT);
+        for (int i = 0; i < groupedDto.getArticles().size(); i++) {
+            ArticleListResponseDto dto = groupedDto.getArticles().get(i);
+            assertThat(dto.getId()).isEqualTo(articles.get(i * 2 + 1).getId());
+            assertThat(dto.getTitle()).isEqualTo(articles.get(i * 2 + 1).getTitle());
+            assertThat(dto.getCorporation().getId()).isEqualTo(articles.get(i * 2 + 1).getCorporation().getId());
+        }
     }
 
     @Test
     public void 홈페이지_게시글_조회_그룹_국내_검색() throws Exception {
         //when&then
-        MvcResult result = mockMvc.perform(get("/").param("regions", "domestic").param("keyword", "1"))
+        MvcResult result = mockMvc.perform(get("/").param("regions", "domestic").param("keyword", "10"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
@@ -222,19 +255,19 @@ public class ArticleControllerTest {
         
         Page<GroupedArticlesDto> articlesPage = (Page<GroupedArticlesDto>) result.getModelAndView().getModel().get("articles");
         List<GroupedArticlesDto> contents = articlesPage.getContent();
+        GroupedArticlesDto groupedDto = contents.get(0);
         
         assertThat(contents).hasSize(1);
-        GroupedArticlesDto groupedDto = contents.get(0);
         assertThat(groupedDto.getCorporation().getId()).isEqualTo(corporation1.getId());
         assertThat(groupedDto.getArticles()).hasSize(1);
-        assertThat(groupedDto.getArticles().get(0).getId()).isEqualTo(article1.getId());
-        assertThat(groupedDto.getArticles().get(0).getTitle()).isEqualTo(article1.getTitle());
+        assertThat(groupedDto.getArticles().get(0).getId()).isEqualTo(articles.get(10).getId());
+        assertThat(groupedDto.getArticles().get(0).getTitle()).isEqualTo(articles.get(10).getTitle());
     }
 
     @Test
     public void 홈페이지_게시글_조회_그룹_카테고리() throws Exception {
         //when&then
-        MvcResult result = mockMvc.perform(get("/").param("category", "backend1"))
+        MvcResult result = mockMvc.perform(get("/").param("category", "backend0"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
@@ -242,12 +275,12 @@ public class ArticleControllerTest {
         
         Page<GroupedArticlesDto> articlesPage = (Page<GroupedArticlesDto>) result.getModelAndView().getModel().get("articles");
         List<GroupedArticlesDto> contents = articlesPage.getContent();
+        GroupedArticlesDto groupedDto = contents.get(0);
         
         assertThat(contents).hasSize(1);
-        GroupedArticlesDto groupedDto = contents.get(0);
         assertThat(groupedDto.getCorporation().getId()).isEqualTo(corporation1.getId());
         assertThat(groupedDto.getArticles()).hasSize(1);
-        assertThat(groupedDto.getArticles().get(0).getId()).isEqualTo(article1.getId());
-        assertThat(groupedDto.getArticles().get(0).getTitle()).isEqualTo(article1.getTitle());
+        assertThat(groupedDto.getArticles().get(0).getId()).isEqualTo(articles.get(0).getId());
+        assertThat(groupedDto.getArticles().get(0).getTitle()).isEqualTo(articles.get(0).getTitle());
     }
 }
