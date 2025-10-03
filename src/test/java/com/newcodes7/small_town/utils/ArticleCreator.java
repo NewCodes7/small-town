@@ -10,7 +10,7 @@ import com.newcodes7.small_town.global.entity.Category;
 import com.newcodes7.small_town.global.entity.Corporation;
 
 public class ArticleCreator {
-    private static long articleIdCounter = 0L;
+    private static long articleIdCounter = -1L;
 
     public static List<Article> createArticlesWithId(List<Long> corporationIds) {
         return corporationIds.stream()
@@ -111,6 +111,6 @@ public class ArticleCreator {
     }
 
     public static void resetArticleIdCounter() {
-        articleIdCounter = 0L;
+        articleIdCounter = -1L;
     }
 }
