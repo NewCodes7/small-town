@@ -15,6 +15,9 @@ import com.newcodes7.small_town.article.exception.CorporationNotFoundException;
 import com.newcodes7.small_town.article.exception.InvalidParameterException;
 import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
 
+
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -43,7 +46,10 @@ public class ArticleService {
         this.corporationRepository = corporationRepository;
     }
 
-    public Page<ArticleResponseDto> getArticlesWithFilters(String keyword, List<String> regions, 
+    @Cacheable(value = "corporationArticles",
+               key = "'filters-' + #keyword + '-' + #regions + '-' + #page + '-' + #size + '-' + #sort + '-' + #view + '-' + #category",
+               condition = "#keyword == null")
+    public Page<ArticleResponseDto> getArticlesWithFilters(String keyword, List<String> regions,
                                                      int page, int size, String sort, String view, List<String> category) {
         List<Integer> domesticTypes = null;
         if (regions != null && !regions.isEmpty()) {
@@ -55,13 +61,13 @@ public class ArticleService {
                 domesticTypes.add(0);
             }
         }
-        
+
         if (view.equals("list")) {
             Pageable pageable = PageRequest.of(page, size);
             Page<Article> articles = articleRepository.findArticlesWithFilters(keyword, domesticTypes, sort, category, pageable);
             return articles.map(ArticleListResponseDto::new);
         }
-        
+
         if (view.equals("grouped")) {
             return getArticlesGroupedByCorporationWithPaging(keyword, domesticTypes, category, page, size);
         }
@@ -165,18 +171,19 @@ public class ArticleService {
     }
     
     @Transactional
+    @CacheEvict(value = "corporationArticles", allEntries = true)
     public void deleteArticle(Long articleId) {
         if (articleId == null || articleId <= 0) {
             throw new InvalidParameterException("articleId", articleId, "유효하지 않은 게시글 ID입니다");
         }
-        
+
         Article article = articleRepository.findById(articleId)
             .orElseThrow(() -> new ArticleNotFoundException(articleId));
-        
+
         if (article.getDeletedAt() != null) {
             throw new InvalidParameterException("articleId", articleId, "이미 삭제된 게시글입니다");
         }
-        
+
         article.softDelete();
         articleRepository.save(article);
     }
@@ -185,6 +192,7 @@ public class ArticleService {
      * 글 발행일 수정
      */
     @Transactional
+    @CacheEvict(value = "corporationArticles", allEntries = true)
     public boolean updateArticlePublishDate(Long articleId, LocalDateTime publishedAt) {
         if (articleId == null || articleId <= 0) {
             throw new InvalidParameterException("articleId", articleId, "유효하지 않은 게시글 ID입니다");

@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.openqa.selenium.WebDriver;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -170,7 +171,8 @@ public class CrawlingService {
      * 개별 Article 저장 및 AI 분석
      */
     @Transactional
-    private void saveArticleWithAnalysis(Article article, Corporation corporation, BlogCrawler crawler) throws IOException {
+    @CacheEvict(value = "corporationArticles", allEntries = true)
+    public void saveArticleWithAnalysis(Article article, Corporation corporation, BlogCrawler crawler) throws IOException {
         // 이미지 업로드 처리
         crawler.processImageUpload(article, corporation);
 
@@ -301,6 +303,7 @@ public class CrawlingService {
      * 개별 글에 대한 AI 분석 (개별 트랜잭션)
      */
     @Transactional
+    @CacheEvict(value = "corporationArticles", allEntries = true)
     public void analyzeSingleArticle(Article article) throws Exception {
         // OpenAI로 분석 요청
         ArticleAnalysisResponse openAiResponse = openaiService.sendArticleAnalysis(article);
@@ -318,6 +321,7 @@ public class CrawlingService {
      * 글 카테고리 수정
      */
     @Transactional
+    @CacheEvict(value = "corporationArticles", allEntries = true)
     public void updateArticleCategory(Long articleId, String categoryName) {
         // 글 조회
         Article article = crawlerArticleRepository.findById(articleId)

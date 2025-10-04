@@ -3,6 +3,7 @@ package com.newcodes7.small_town.corporation.service;
 import java.io.IOException;
 import java.util.List;
 
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -117,6 +118,7 @@ public class CorporationService {
     }
     
     @Transactional
+    @CacheEvict(value = "corporationArticles", allEntries = true)
     public CorporationResponseDto updateCorporation(Long id, CorporationUpdateDto dto) {
         if (id == null || id <= 0) {
             throw new InvalidParameterException("id", id);
@@ -175,6 +177,7 @@ public class CorporationService {
     }
     
     @Transactional
+    @CacheEvict(value = "corporationArticles", allEntries = true)
     public void deleteCorporation(Long id) {
         if (id == null || id <= 0) {
             throw new InvalidParameterException("id", id);
@@ -273,6 +276,7 @@ public class CorporationService {
      * 파일 업로드와 함께 회사 정보를 업데이트합니다.
      */
     @Transactional
+    @CacheEvict(value = "corporationArticles", allEntries = true)
     public CorporationResponseDto updateCorporationWithLogo(Long id, CorporationUpdateDto dto, MultipartFile logoFile) throws IOException {
         if (id == null || id <= 0) {
             throw new InvalidParameterException("id", id);

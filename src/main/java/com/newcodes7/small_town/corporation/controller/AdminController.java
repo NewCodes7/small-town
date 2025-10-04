@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -326,6 +327,7 @@ public class AdminController {
      */
     @PutMapping("/articles/{articleId}")
     @ResponseBody
+    @CacheEvict(value = "corporationArticles", allEntries = true)
     public ResponseEntity<Map<String, Object>> updateArticle(
             @PathVariable Long articleId,
             @RequestBody Map<String, Object> request) {
@@ -434,6 +436,7 @@ public class AdminController {
      */
     @PutMapping("/articles/{articleId}/summaries")
     @ResponseBody
+    @CacheEvict(value = "corporationArticles", allEntries = true)
     public ResponseEntity<Map<String, Object>> updateArticleSummaries(
             @PathVariable Long articleId,
             @RequestBody Map<String, Object> request) {
@@ -557,6 +560,7 @@ public class AdminController {
      */
     @PutMapping("/articles/{articleId}/translated-title")
     @ResponseBody
+    @CacheEvict(value = "corporationArticles", allEntries = true)
     public ResponseEntity<Map<String, Object>> updateArticleTranslatedTitle(
             @PathVariable Long articleId,
             @RequestBody Map<String, String> request) {
