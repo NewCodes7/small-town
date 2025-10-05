@@ -180,7 +180,7 @@ public class ArticleServiceTest {
         List<GroupedArticlesDto> groupedList = List.of(groupedArticlesDto1, groupedArticlesDto2);
         Page<GroupedArticlesDto> expected = new PageImpl<>(groupedList, pageable, groupedList.size());
 
-        when(articleRepository.findTop3ArticlesGroupedByCorporation(null, new ArrayList<>(), 0, new ArrayList<>(), 0, 0, 11)).thenReturn(allArticles);
+        when(articleRepository.findTop3ArticlesGroupedByCorporation(null, new ArrayList<>(), 0, new ArrayList<>(), 0, 0, 10)).thenReturn(allArticles);
 
         //when
         Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(null, null, 0, 10, null, view, null);
@@ -207,7 +207,7 @@ public class ArticleServiceTest {
         List<GroupedArticlesDto> groupedList = List.of(groupedArticlesDto1);
         Page<GroupedArticlesDto> expected = new PageImpl<>(groupedList, pageable, groupedList.size());
 
-        when(articleRepository.findTop3ArticlesGroupedByCorporation(null, new ArrayList<>(), 0, Arrays.asList("backend1"), 1, 0, 11)).thenReturn(allArticles);
+        when(articleRepository.findTop3ArticlesGroupedByCorporation(null, new ArrayList<>(), 0, Arrays.asList("backend1"), 1, 0, 10)).thenReturn(allArticles);
 
         //when
         Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(null, null, 0, 10, null, view, category);

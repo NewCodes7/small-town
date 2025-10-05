@@ -99,11 +99,16 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
 
        // 조건에 맞는 기업 수 조회 (삭제된 글 제외)
        @Query("SELECT COUNT(DISTINCT a.corporation) FROM Article a " +
+              "LEFT JOIN a.category cat " +
               "WHERE a.deletedAt IS NULL " +
               "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
-              "AND (:domesticTypes IS NULL OR a.corporation.isDomestic IN :domesticTypes)")
-       long countDistinctCorporationsByFilters(@Param("keyword") String keyword, 
-                                          @Param("domesticTypes") List<Integer> domesticTypes);
+              "AND (:domesticTypesSize = 0 OR a.corporation.isDomestic IN :domesticTypes) " +
+              "AND (:categorySize = 0 OR cat.name IN :category)")
+       long countDistinctCorporationsByFilters(@Param("keyword") String keyword,
+                                          @Param("domesticTypes") List<Integer> domesticTypes,
+                                          @Param("domesticTypesSize") int domesticTypesSize,
+                                          @Param("category") List<String> category,
+                                          @Param("categorySize") int categorySize);
 
        // 기업별 최신 글을 기준으로 정렬된 기업 ID 목록 조회 (페이징)
        @Query("SELECT a.corporation.id FROM Article a " +

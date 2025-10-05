@@ -79,7 +79,16 @@ public class ArticleService {
                                                                         List<Integer> domesticTypes,
                                                                         List<String> category,
                                                                         int page, int size) {
-        // 1. 기업별 최신 글 3개씩 조회 (size+1개 조회하여 hasNext 판단)
+        // 1. 전체 기업 개수 조회
+        long totalCorporations = articleRepository.countDistinctCorporationsByFilters(
+            keyword,
+            domesticTypes != null ? domesticTypes : new ArrayList<>(),
+            domesticTypes != null ? domesticTypes.size() : 0,
+            category != null ? category : new ArrayList<>(),
+            category != null ? category.size() : 0
+        );
+
+        // 2. 기업별 최신 글 3개씩 조회
         int offset = page * size;
         List<Article> articles = articleRepository.findTop3ArticlesGroupedByCorporation(
             keyword,
@@ -88,25 +97,18 @@ public class ArticleService {
             category != null ? category : new ArrayList<>(),
             category != null ? category.size() : 0,
             offset,
-            size + 1
+            size
         );
 
-        // 2. 기업별로 그룹화
+        // 3. 기업별로 그룹화
         Map<Corporation, List<Article>> groupedByCorporation = articles.stream()
                 .collect(Collectors.groupingBy(Article::getCorporation,
                     LinkedHashMap::new,
                     Collectors.toList()
                 ));
 
-        // 3. hasNext 판단 및 실제 데이터 추출
-        boolean hasNext = groupedByCorporation.size() > size;
-        List<Map.Entry<Corporation, List<Article>>> entries = new ArrayList<>(groupedByCorporation.entrySet());
-        if (hasNext) {
-            entries = entries.subList(0, size);
-        }
-
         // 4. GroupedArticlesDto로 변환
-        List<GroupedArticlesDto> groupedList = entries.stream()
+        List<GroupedArticlesDto> groupedList = groupedByCorporation.entrySet().stream()
                 .map(entry -> new GroupedArticlesDto(
                         new CorporationDto(entry.getKey()),
                         entry.getValue().stream()
@@ -115,14 +117,14 @@ public class ArticleService {
                 ))
                 .collect(Collectors.toList());
 
-        // 5. Page로 변환 (total은 정확하지 않지만 hasNext 정보는 정확)
+        // 5. Page로 변환 (정확한 total count 사용)
         Pageable pageable = PageRequest.of(page, size);
         return new PageImpl<>(
             groupedList.stream()
                     .map(dto -> (ArticleResponseDto) dto)
                     .collect(Collectors.toList()),
             pageable,
-            offset + groupedList.size() + (hasNext ? 1 : 0)
+            totalCorporations
         );
     }
     
