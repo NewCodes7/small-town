@@ -74,12 +74,12 @@ public class ArticleController {
         
         Page<ArticleResponseDto> articles = articleService.getArticlesWithFilters(
             keyword != null && !keyword.trim().isEmpty() ? keyword.trim() : null,
-            regions,
+            regions == null ? null : regions.stream().sorted().toList(),
             page,
             size,
             sort,
             view,
-            category
+            category == null ? null : category.stream().sorted().toList()
         );
         
         log.info("필터 조건: keyword='{}', regions={}, {}개의 글 조회", keyword, regions, articles.getTotalElements());
