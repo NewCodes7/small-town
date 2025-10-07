@@ -121,41 +121,38 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
                                           @Param("domesticTypes") List<Integer> domesticTypes,
                                           Pageable pageable);
 
-       // 기업별 최신 글 3개씩 조회 (Window Function 사용, 페이징 지원)
-       @Query(value = "SELECT ranked.* FROM ( " +
-              "    SELECT a.*, " +
+       @Query(value = "WITH filtered_articles AS ( " +
+              "    SELECT a.*, c.is_domestic, cat.name as category_name, " +
               "           ROW_NUMBER() OVER (PARTITION BY a.corporation_id ORDER BY a.published_at DESC) as rn " +
               "    FROM article a " +
               "    JOIN corporation c ON a.corporation_id = c.id " +
               "    LEFT JOIN category cat ON a.category_id = cat.id " +
               "    WHERE a.deleted_at IS NULL " +
-              "    AND (COALESCE(:keyword, '') = '' OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translated_title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+              "    AND (COALESCE(:keyword, '') = '' OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+              "         OR LOWER(a.translated_title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
               "    AND (COALESCE(:domesticTypesSize, 0) = 0 OR c.is_domestic IN (:domesticTypes)) " +
               "    AND (COALESCE(:categorySize, 0) = 0 OR cat.name IN (:category)) " +
-              ") ranked " +
-              "JOIN ( " +
-              "    SELECT a2.corporation_id, MAX(a2.published_at) as latest_published_at " +
-              "    FROM article a2 " +
-              "    JOIN corporation c2 ON a2.corporation_id = c2.id " +
-              "    LEFT JOIN category cat2 ON a2.category_id = cat2.id " +
-              "    WHERE a2.deleted_at IS NULL " +
-              "    AND (COALESCE(:keyword, '') = '' OR LOWER(a2.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a2.translated_title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
-              "    AND (COALESCE(:domesticTypesSize, 0) = 0 OR c2.is_domestic IN (:domesticTypes)) " +
-              "    AND (COALESCE(:categorySize, 0) = 0 OR cat2.name IN (:category)) " +
-              "    GROUP BY a2.corporation_id " +
+              "), " +
+              "latest_corps AS ( " +
+              "    SELECT corporation_id, MAX(published_at) as latest_published_at " +
+              "    FROM filtered_articles " +
+              "    GROUP BY corporation_id " +
               "    ORDER BY latest_published_at DESC " +
               "    LIMIT :limit OFFSET :offset " +
-              ") corp_page ON ranked.corporation_id = corp_page.corporation_id " +
-              "WHERE ranked.rn <= 3 " +
-              "ORDER BY corp_page.latest_published_at DESC, ranked.published_at DESC",
+              ") " +
+              "SELECT fa.* " +
+              "FROM filtered_articles fa " +
+              "JOIN latest_corps lc ON fa.corporation_id = lc.corporation_id " +
+              "WHERE fa.rn <= 3 " +
+              "ORDER BY lc.latest_published_at DESC, fa.published_at DESC",
               nativeQuery = true)
        List<Article> findTop3ArticlesGroupedByCorporation(@Param("keyword") String keyword,
-                                                           @Param("domesticTypes") List<Integer> domesticTypes,
-                                                           @Param("domesticTypesSize") int domesticTypesSize,
-                                                           @Param("category") List<String> category,
-                                                           @Param("categorySize") int categorySize,
-                                                           @Param("offset") int offset,
-                                                           @Param("limit") int limit);
+                                                        @Param("domesticTypes") List<Integer> domesticTypes,
+                                                        @Param("domesticTypesSize") int domesticTypesSize,
+                                                        @Param("category") List<String> category,
+                                                        @Param("categorySize") int categorySize,
+                                                        @Param("offset") int offset,
+                                                        @Param("limit") int limit);
 
     // 관리자용 글 검색 (제목 기준)
     Page<Article> findByTitleContainingIgnoreCaseAndDeletedAtIsNull(String title, Pageable pageable);
