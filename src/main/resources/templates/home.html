@@ -189,7 +189,24 @@
                                     <i class="fas fa-chevron-down dropdown-arrow"></i>
                                 </button>
                                 <ul class="dropdown-menu modern-dropdown" aria-labelledby="categoryDropdown" id="categoryDropdownMenu">
-                                    <!-- 카테고리 목록이 여기에 동적으로 추가됩니다 -->
+                                    <!-- Thymeleaf로 카테고리 목록 렌더링 -->
+                                    <th:block th:each="category, iterStat : ${categories}">
+                                        <!-- 그룹 구분선 추가 -->
+                                        <li th:if="${iterStat.index > 0 and
+                                            (#strings.equalsIgnoreCase(category.name, 'Backend') or
+                                             #strings.equalsIgnoreCase(category.name, 'AI') or
+                                             #strings.equalsIgnoreCase(category.name, 'Culture'))}">
+                                            <hr class="dropdown-divider">
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item category-option" href="#"
+                                               th:attr="data-category-id=${category.id},
+                                                       data-category-name=${category.name}">
+                                                <i class="me-2"></i>
+                                                <span th:text="${category.name}">Category Name</span>
+                                            </a>
+                                        </li>
+                                    </th:block>
                                 </ul>
                             </div>
                         </div>

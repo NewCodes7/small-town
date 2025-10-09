@@ -92,7 +92,10 @@ public class ArticleController {
         
         // 인기글 5개 가져오기 (배너용)
         // Page<ArticleListResponseDto> popularArticles = articleService.getArticleList(0, 5, "popular");
-        
+
+        // 카테고리 목록 가져오기
+        List<Category> categories = categoryRepository.findAll();
+
         log.info("로고가 있는 회사 수: {}", corporationsWithLogos.size());
         // log.info("인기글 수: {}", popularArticles.getContent().size());
 
@@ -107,6 +110,7 @@ public class ArticleController {
         model.addAttribute("selectedRegions", regions != null ? regions : new ArrayList<>());
         model.addAttribute("corporations", corporationsWithLogos);
         model.addAttribute("isGrouped", view.equals("grouped"));
+        model.addAttribute("categories", categories);
         // model.addAttribute("popularArticles", popularArticles.getContent());
         
         return "home";

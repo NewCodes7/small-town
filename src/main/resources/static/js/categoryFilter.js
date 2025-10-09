@@ -54,57 +54,63 @@ class CategoryFilterManager {
         };
     }
 
-    async init() {
-        await this.loadCategories();
+    init() {
+        this.loadCategoriesFromDOM();
         this.bindEvents();
         this.loadFromUrlParams();
     }
 
-    // 카테고리 목록 로드
-    async loadCategories() {
-        try {
-            const response = await fetch('/api/categories');
-            if (response.ok) {
-                this.allCategories = await response.json();
-                this.renderCategoryDropdown();
-            } else {
-                console.error('카테고리 로드 실패:', response.status);
-            }
-        } catch (error) {
-            console.error('카테고리 로드 중 오류:', error);
-        }
-    }
-
-    // 카테고리 드롭다운 렌더링 (그룹별)
-    renderCategoryDropdown() {
+    // DOM에서 카테고리 목록 로드 (Thymeleaf로 렌더링된 카테고리 사용)
+    loadCategoriesFromDOM() {
         const dropdownMenu = document.getElementById('categoryDropdownMenu');
         if (!dropdownMenu) return;
 
-        dropdownMenu.innerHTML = '';
+        // DOM에서 카테고리 정보 추출
+        const categoryOptions = dropdownMenu.querySelectorAll('.category-option');
+        this.allCategories = Array.from(categoryOptions).map(option => ({
+            id: option.dataset.categoryId,
+            name: option.dataset.categoryName
+        }));
 
-        // 카테고리를 그룹별로 분류하고 정의된 순서대로 정렬
-        const groupedCategories = {};
-        this.allCategories.forEach(category => {
-            const group = this.getCategoryGroup(category.name);
-            if (!groupedCategories[group.key]) {
-                groupedCategories[group.key] = {
-                    group: group,
-                    categories: []
-                };
-            }
-            groupedCategories[group.key].categories.push(category);
+        // 카테고리를 그룹별로 분류하고 정렬
+        const groupedItems = this.groupAndSortCategories(categoryOptions);
+
+        // 드롭다운 메뉴 다시 렌더링
+        this.renderSortedCategories(dropdownMenu, groupedItems);
+    }
+
+    // 카테고리를 그룹별로 분류하고 정렬
+    groupAndSortCategories(categoryOptions) {
+        const grouped = {
+            frontend: [],
+            backend: [],
+            data: [],
+            culture: [],
+            default: []
+        };
+
+        // 카테고리를 그룹별로 분류
+        Array.from(categoryOptions).forEach(option => {
+            const li = option.closest('li');
+            const categoryName = option.dataset.categoryName;
+            const group = this.getCategoryGroup(categoryName);
+
+            grouped[group.key].push(li);
         });
 
         // 각 그룹 내에서 정의된 순서대로 정렬
-        Object.keys(groupedCategories).forEach(groupKey => {
-            const groupData = groupedCategories[groupKey];
-            const definedOrder = groupData.group.categories;
+        Object.keys(grouped).forEach(groupKey => {
+            const group = this.categoryGroups[groupKey] || { categories: [] };
+            const definedOrder = group.categories;
 
-            groupData.categories.sort((a, b) => {
+            grouped[groupKey].sort((a, b) => {
+                const aName = a.querySelector('.category-option').dataset.categoryName;
+                const bName = b.querySelector('.category-option').dataset.categoryName;
+
                 const aIndex = definedOrder.findIndex(cat =>
-                    a.name.toLowerCase().includes(cat.toLowerCase()));
+                    aName.toLowerCase().includes(cat.toLowerCase()));
                 const bIndex = definedOrder.findIndex(cat =>
-                    b.name.toLowerCase().includes(cat.toLowerCase()));
+                    bName.toLowerCase().includes(cat.toLowerCase()));
 
                 // 정의된 순서가 있으면 그 순서를 따르고, 없으면 알파벳 순
                 if (aIndex !== -1 && bIndex !== -1) {
@@ -114,17 +120,25 @@ class CategoryFilterManager {
                 } else if (bIndex !== -1) {
                     return 1;
                 } else {
-                    return a.name.localeCompare(b.name);
+                    return aName.localeCompare(bName);
                 }
             });
         });
+
+        return grouped;
+    }
+
+    // 정렬된 카테고리로 드롭다운 다시 렌더링
+    renderSortedCategories(dropdownMenu, groupedItems) {
+        // 기존 내용 제거
+        dropdownMenu.innerHTML = '';
 
         // 그룹 순서 정의
         const groupOrder = ['frontend', 'backend', 'data', 'culture', 'default'];
 
         groupOrder.forEach((groupKey, groupIndex) => {
-            const groupData = groupedCategories[groupKey];
-            if (!groupData || groupData.categories.length === 0) return;
+            const items = groupedItems[groupKey];
+            if (!items || items.length === 0) return;
 
             // 그룹 구분선 (첫 번째 그룹이 아닌 경우)
             if (groupIndex > 0) {
@@ -133,19 +147,22 @@ class CategoryFilterManager {
                 dropdownMenu.appendChild(divider);
             }
 
-            // 그룹 내 카테고리들
-            groupData.categories.forEach(category => {
-                const group = this.getCategoryGroup(category.name);
-                const li = document.createElement('li');
-                li.innerHTML = `
-                    <a class="dropdown-item category-option" href="#"
-                       data-category-id="${category.id}"
-                       data-category-name="${category.name}"
-                       data-group-color="${group.color}">
-                        <i class="${group.icon} me-2" style="color: ${group.color};"></i>
-                        ${category.name}
-                    </a>
-                `;
+            // 그룹 내 카테고리들 추가
+            items.forEach(li => {
+                const option = li.querySelector('.category-option');
+                const categoryName = option.dataset.categoryName;
+                const group = this.getCategoryGroup(categoryName);
+                const icon = option.querySelector('i');
+
+                // data-group-color 속성 설정 (기존 코드와 호환성 유지)
+                option.dataset.groupColor = group.color;
+
+                // 아이콘 클래스 설정
+                if (icon) {
+                    icon.className = `${group.icon} me-2`;
+                    icon.style.color = group.color;
+                }
+
                 dropdownMenu.appendChild(li);
             });
         });
