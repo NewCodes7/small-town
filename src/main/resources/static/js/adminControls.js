@@ -9,7 +9,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // 사용자 정보 확인 및 관리자 컨트롤 표시
 function checkUserAndShowAdminControls() {
-    console.log('관리자 컨트롤 확인 시작...');
     fetch('/api/user-info')
         .then(response => response.json())
         .then(data => {
@@ -330,12 +329,9 @@ function saveSummaries() {
 function deleteArticle(articleId) {
     // 유효성 검사
     if (!articleId) {
-        console.error('articleId가 제공되지 않았습니다.');
         alert('글 ID가 올바르지 않습니다.');
         return;
     }
-
-    console.log('글 삭제 요청:', articleId);
 
     fetch(`/api/admin/articles/${articleId}`, {
         method: 'DELETE',
@@ -350,7 +346,6 @@ function deleteArticle(articleId) {
         return response.json();
     })
     .then(data => {
-        console.log('삭제 응답:', data);
         if (data.status === 'success') {
             alert(data.message);
             location.reload();

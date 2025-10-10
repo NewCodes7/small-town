@@ -99,14 +99,11 @@ class ArticleManager {
 
         // 정렬 버튼 이벤트 (이벤트 위임 방식)
         const sortButtons = document.querySelectorAll('.sort-btn');
-        console.log('Found sort buttons:', sortButtons.length);
         // 직접 바인딩 시도
         sortButtons.forEach(btn => {
-            console.log('Binding sort button:', btn.dataset.sort, btn);
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log('Sort button clicked:', btn.dataset.sort);
                 this.handleSortChange(btn.dataset.sort);
             });
         });
@@ -116,7 +113,6 @@ class ArticleManager {
                 e.preventDefault();
                 const sortBtn = e.target.classList.contains('sort-btn') ? e.target : e.target.closest('.sort-btn');
                 const sort = sortBtn.dataset.sort;
-                console.log('Sort button clicked via delegation:', sort);
                 this.handleSortChange(sort);
             }
         });
@@ -187,7 +183,6 @@ class ArticleManager {
     }
 
     handleSortChange(sort) {
-        console.log('handleSortChange called with:', sort, 'current:', this.currentSort);
         if (this.currentSort !== sort) {
             this.currentSort = sort;
             this.currentPage = 0;
@@ -418,8 +413,6 @@ class ArticleManager {
     }
 
     updateSortButtons() {
-        console.log('Updating sort buttons, currentSort:', this.currentSort);
-        
         // data-sort 속성으로 버튼 찾기 (클래스가 동적으로 변경되므로)
         const latestBtn = document.querySelector('[data-sort="latest"]');
         const popularBtn = document.querySelector('[data-sort="popular"]');
@@ -429,7 +422,6 @@ class ArticleManager {
             // 기존 클래스 제거 후 새로 설정
             latestBtn.classList.remove('btn-primary', 'btn-secondary');
             latestBtn.classList.add(isLatestActive ? 'btn-primary' : 'btn-secondary');
-            console.log('Latest button updated:', isLatestActive);
         }
         
         if (popularBtn) {
@@ -437,7 +429,6 @@ class ArticleManager {
             // 기존 클래스 제거 후 새로 설정
             popularBtn.classList.remove('btn-primary', 'btn-secondary');
             popularBtn.classList.add(isPopularActive ? 'btn-primary' : 'btn-secondary');
-            console.log('Popular button updated:', isPopularActive);
         }
     }
 
@@ -630,7 +621,6 @@ let articleManager;
 
 // 글로벌 함수들
 function handleSortClick(sort) {
-    console.log('Global sort click:', sort);
     if (articleManager) {
         articleManager.handleSortChange(sort);
     } else {

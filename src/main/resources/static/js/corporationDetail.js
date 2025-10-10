@@ -16,18 +16,14 @@ document.querySelectorAll('.article-card').forEach(card => {
 
 // 로그인 모달 표시 함수
 function showLoginPopup() {
-    console.log('showLoginPopup 함수 호출됨');
     const modalElement = document.getElementById('loginModal');
-    console.log('모달 엘리먼트:', modalElement);
     
     if (modalElement) {
         // Bootstrap이 로드되었는지 확인
         if (typeof bootstrap !== 'undefined') {
-            console.log('Bootstrap 사용하여 모달 표시');
             const loginModal = new bootstrap.Modal(modalElement);
             loginModal.show();
         } else {
-            console.log('Bootstrap이 없어서 수동으로 모달 표시');
             // Bootstrap이 없으면 수동으로 모달 표시
             modalElement.style.display = 'block';
             modalElement.classList.add('show');

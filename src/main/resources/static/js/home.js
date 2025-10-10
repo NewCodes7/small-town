@@ -55,16 +55,13 @@ function bindMoreButtonEvents() {
 // 좋아요 버튼 클릭 이벤트
 function likeButton() {
     document.querySelectorAll('.like-button').forEach(btn => {
-        console.log('좋아요 버튼 이벤트 리스너 추가:', btn);
         btn.addEventListener('click', async function(e) {
-            console.log('좋아요 버튼 클릭됨');
             e.preventDefault();
             e.stopPropagation();
             
             const articleId = this.getAttribute('data-article-id');
             const likeIcon = this.querySelector('.like-icon');
             const likeCount = this.querySelector('.like-count');
-            console.log('articleId:', articleId);
             
             try {
                 const response = await fetch(`/api/articles/${articleId}/like`, {
@@ -78,7 +75,6 @@ function likeButton() {
                 
                 if (response.status === 401 || response.status === 0) {
                     // 인증되지 않은 사용자 (401) 또는 수동 리다이렉트로 인한 opaque response (0)
-                    console.log('401 응답 받음, 로그인 모달 표시');
                     showLoginPopup();
                     return;
                 }
@@ -173,18 +169,14 @@ async function initPagination() {
 
 // 로그인 모달 표시 함수
 function showLoginPopup() {
-    console.log('showLoginPopup 함수 호출됨');
     const modalElement = document.getElementById('loginModal');
-    console.log('모달 엘리먼트:', modalElement);
     
     if (modalElement) {
         // Bootstrap이 로드되었는지 확인
         if (typeof bootstrap !== 'undefined') {
-            console.log('Bootstrap 사용하여 모달 표시');
             const loginModal = new bootstrap.Modal(modalElement);
             loginModal.show();
         } else {
-            console.log('Bootstrap이 없어서 수동으로 모달 표시');
             // Bootstrap이 없으면 수동으로 모달 표시
             modalElement.style.display = 'block';
             modalElement.classList.add('show');
