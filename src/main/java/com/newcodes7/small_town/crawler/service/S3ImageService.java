@@ -142,6 +142,33 @@ public class S3ImageService {
     }
 
     /**
+     * 이미지 바이트 배열을 JPEG 형식으로 변환합니다.
+     *
+     * @param imageData 원본 이미지 바이트 배열
+     * @return JPEG 형식의 이미지 바이트 배열
+     * @throws IOException 이미지 변환 실패 시
+     */
+    private byte[] convertToJPEG(byte[] imageData) throws IOException {
+        try {
+            // scrimage로 이미지 로드
+            ImmutableImage image = ImmutableImage.loader().fromBytes(imageData);
+
+            // JPEG로 변환
+            byte[] jpegData = image.bytes(com.sksamuel.scrimage.nio.JpegWriter.Default.withCompression(80));
+
+            log.debug("이미지 JPEG 변환 완료 - 원본 크기: {}bytes, 변환 후: {}bytes",
+                    imageData.length,
+                    jpegData.length);
+
+            return jpegData;
+        } catch (Exception e) {
+            log.warn("JPEG 변환 실패, 원본 이미지 사용: {}", e.getMessage());
+            // JPEG 변환 실패 시 원본 반환
+            return imageData;
+        }
+    }
+
+    /**
      * 바이트 배열로부터 이미지를 S3에 업로드합니다.
      *
      * @param imageData 이미지 바이트 배열
@@ -240,6 +267,57 @@ public class S3ImageService {
         } catch (Exception e) {
             log.error("바이트 배열 PNG 이미지 업로드 실패: {}", s3Key, e);
             throw new RuntimeException("PNG 이미지 업로드 실패", e);
+        }
+    }
+
+    /**
+     * 바이트 배열로부터 이미지를 JPEG 형식으로 S3에 업로드합니다.
+     *
+     * @param imageData 이미지 바이트 배열
+     * @param s3Key S3 키
+     * @return 업로드된 이미지 URL
+     */
+    public String uploadImageAsJPEG(byte[] imageData, String s3Key) {
+        try {
+            // JPEG로 변환
+            byte[] processedImageData = convertToJPEG(imageData);
+
+            // S3 키를 JPEG 확장자로 변경
+            String jpegS3Key = changeExtensionToJPEG(s3Key);
+
+            // S3에 업로드
+            ObjectMetadata metadata = new ObjectMetadata();
+            metadata.setContentLength(processedImageData.length);
+            metadata.setContentType("image/jpeg");
+            metadata.setCacheControl("max-age=31536000"); // 1년 캐시
+
+            PutObjectRequest putObjectRequest = new PutObjectRequest(
+                    bucketName,
+                    jpegS3Key,
+                    new ByteArrayInputStream(processedImageData),
+                    metadata
+            );
+
+            amazonS3.putObject(putObjectRequest);
+
+            // CloudFront 사용 가능하면 CloudFront URL, 아니면 직접 S3 URL
+            String resultUrl;
+            if (cloudfrontDomain != null && !cloudfrontDomain.trim().isEmpty()) {
+                // 운영환경: CloudFront URL 사용
+                resultUrl = cloudfrontDomain + "/" + jpegS3Key;
+                log.info("이미지 JPEG 업로드 완료 (CloudFront): {}", resultUrl);
+            } else {
+                // 개발환경: 직접 S3 URL 사용
+                resultUrl = String.format("https://%s.s3.%s.amazonaws.com/%s",
+                    bucketName, region, jpegS3Key);
+                log.info("이미지 JPEG 업로드 완료 (직접 S3): {}", resultUrl);
+            }
+
+            return resultUrl;
+
+        } catch (Exception e) {
+            log.error("바이트 배열 JPEG 이미지 업로드 실패: {}", s3Key, e);
+            throw new RuntimeException("JPEG 이미지 업로드 실패", e);
         }
     }
     
@@ -344,6 +422,19 @@ public class S3ImageService {
             return s3Key.substring(0, s3Key.lastIndexOf(".")) + ".png";
         }
         return s3Key + ".png";
+    }
+
+    /**
+     * S3 키의 확장자를 jpg로 변경합니다.
+     *
+     * @param s3Key 원본 S3 키
+     * @return jpg 확장자로 변경된 S3 키
+     */
+    private String changeExtensionToJPEG(String s3Key) {
+        if (s3Key.contains(".")) {
+            return s3Key.substring(0, s3Key.lastIndexOf(".")) + ".jpg";
+        }
+        return s3Key + ".jpg";
     }
 
     private String generateS3Key(String corporationName, String fileExtension) {

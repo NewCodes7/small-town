@@ -672,4 +672,58 @@ public class AdminController {
             return ResponseEntity.internalServerError().body(response);
         }
     }
+
+    /**
+     * 모든 게시글 썸네일 이미지를 JPEG로 마이그레이션 API
+     */
+    @GetMapping("/images/migrate-thumbnails-to-jpeg")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> migrateAllThumbnailsToJPEG() {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // 비동기로 실행하여 오래 걸리는 작업이 UI를 블로킹하지 않도록 함
+            new Thread(() -> {
+                try {
+                    imageMigrationService.migrateAllThumbnailsToJPEG();
+                } catch (Exception e) {
+                    log.error("썸네일 이미지 JPEG 마이그레이션 중 오류 발생", e);
+                }
+            }).start();
+
+            response.put("success", true);
+            response.put("message", "썸네일 이미지 JPEG 마이그레이션 작업이 시작되었습니다. 로그를 확인해주세요.");
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "마이그레이션 작업 시작 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 특정 게시글 썸네일 이미지를 JPEG로 마이그레이션 API
+     */
+    @GetMapping("/articles/{articleId}/migrate-thumbnail-to-jpeg")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> migrateThumbnailToJPEG(@PathVariable Long articleId) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            String result = imageMigrationService.migrateThumbnailToJPEG(articleId);
+
+            response.put("success", true);
+            response.put("message", result);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("썸네일 이미지 JPEG 마이그레이션 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "마이그레이션 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
 }
