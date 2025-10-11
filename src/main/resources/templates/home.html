@@ -58,9 +58,11 @@
                         <div class="popular-article-banner">
                             <!-- Article Thumbnail -->
                             <div class="article-thumbnail">
-                                <img th:if="${article.thumbnailImage != null and !article.thumbnailImage.isEmpty()}" 
-                                     th:src="${article.thumbnailImage}" 
+                                <img th:if="${article.thumbnailImage != null and !article.thumbnailImage.isEmpty()}"
+                                     th:src="${article.thumbnailImage}"
                                      th:alt="${article.title}"
+                                     width="300"
+                                     height="155"
                                      class="thumbnail-image">
                                 <div th:unless="${article.thumbnailImage != null and !article.thumbnailImage.isEmpty()}" 
                                      class="default-thumbnail">
@@ -961,9 +963,11 @@
                     
                     <!-- Thumbnail Container (Right Side) -->
                     <div class="article-thumbnail-container">
-                        <img th:if="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}" 
-                            th:src="${article.thumbnailImage}" 
+                        <img th:if="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}"
+                            th:src="${article.thumbnailImage}"
                             th:alt="${article.title}"
+                            width="300"
+                            height="155"
                             class="article-thumbnail">
                         <div th:unless="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}" 
                             class="article-thumbnail default-thumbnail">
@@ -1023,7 +1027,12 @@
                         
                         <!-- Thumbnail Container (Right Side) -->
                         <div class="article-thumbnail-container">
-                            <img th:if="${firstArticle.thumbnailImage != null && !firstArticle.thumbnailImage.isEmpty()}" th:src="${firstArticle.thumbnailImage}" th:alt="${firstArticle.title}" class="article-thumbnail">
+                            <img th:if="${firstArticle.thumbnailImage != null && !firstArticle.thumbnailImage.isEmpty()}"
+                                th:src="${firstArticle.thumbnailImage}"
+                                th:alt="${firstArticle.title}"
+                                width="300"
+                                height="155"
+                                class="article-thumbnail">
                             <div th:unless="${firstArticle.thumbnailImage != null && !firstArticle.thumbnailImage.isEmpty()}" class="article-thumbnail default-thumbnail">
                                 <div class="default-thumbnail-content">
                                     <i class="fas fa-code"></i>
