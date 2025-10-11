@@ -3,8 +3,8 @@ package com.newcodes7.small_town.crawler.service;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
-import com.amazonaws.HttpMethod;
+import com.sksamuel.scrimage.ImmutableImage;
+import com.sksamuel.scrimage.webp.WebpWriter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,25 +37,108 @@ public class S3ImageService {
     @Value("${cloud.aws.region.static}")
     private String region;
 
+    @Value("${s3.image.webp.quality:80}")
+    private int webpQuality;
+
+    /**
+     * S3에서 이미지를 다운로드합니다.
+     *
+     * @param s3Url S3 URL (CloudFront 또는 S3 직접 URL)
+     * @return 이미지 바이트 배열
+     * @throws IOException 다운로드 실패 시
+     */
+    public byte[] downloadImageFromS3(String s3Url) throws IOException {
+        try {
+            // S3 키 추출
+            String s3Key = extractS3KeyFromUrl(s3Url);
+
+            // S3에서 객체 다운로드
+            var s3Object = amazonS3.getObject(bucketName, s3Key);
+            try (InputStream inputStream = s3Object.getObjectContent()) {
+                return inputStream.readAllBytes();
+            }
+        } catch (Exception e) {
+            log.error("S3 이미지 다운로드 실패: {}", s3Url, e);
+            throw new IOException("S3 이미지 다운로드 실패: " + s3Url, e);
+        }
+    }
+
+    /**
+     * S3 URL에서 S3 키를 추출합니다.
+     *
+     * @param s3Url S3 URL
+     * @return S3 키
+     */
+    private String extractS3KeyFromUrl(String s3Url) {
+        // CloudFront URL: https://cloudfront.domain/path/to/image.jpg
+        if (cloudfrontDomain != null && !cloudfrontDomain.trim().isEmpty()
+                && s3Url.startsWith(cloudfrontDomain)) {
+            return s3Url.substring(cloudfrontDomain.length() + 1);
+        }
+
+        // S3 직접 URL: https://bucket.s3.region.amazonaws.com/path/to/image.jpg
+        if (s3Url.contains(".s3.") && s3Url.contains(".amazonaws.com/")) {
+            int keyStartIndex = s3Url.indexOf(".amazonaws.com/") + ".amazonaws.com/".length();
+            return s3Url.substring(keyStartIndex);
+        }
+
+        throw new IllegalArgumentException("유효하지 않은 S3 URL: " + s3Url);
+    }
+
+    /**
+     * 이미지 바이트 배열을 WebP 형식으로 변환합니다.
+     *
+     * @param imageData 원본 이미지 바이트 배열
+     * @return WebP 형식의 이미지 바이트 배열
+     * @throws IOException 이미지 변환 실패 시
+     */
+    private byte[] convertToWebP(byte[] imageData) throws IOException {
+        try {
+            // scrimage로 이미지 로드
+            ImmutableImage image = ImmutableImage.loader().fromBytes(imageData);
+
+            // WebP로 변환 (quality 설정: 0-100, 기본값 80)
+            WebpWriter writer = WebpWriter.DEFAULT.withQ(webpQuality);
+            byte[] webpData = image.bytes(writer);
+
+            log.debug("이미지 WebP 변환 완료 - 원본 크기: {}bytes, 변환 후: {}bytes, 압축률: {}%",
+                    imageData.length,
+                    webpData.length,
+                    String.format("%.2f", (1 - (double)webpData.length / imageData.length) * 100));
+
+            return webpData;
+        } catch (Exception e) {
+            log.warn("WebP 변환 실패, 원본 이미지 사용: {}", e.getMessage());
+            // WebP 변환 실패 시 원본 반환
+            return imageData;
+        }
+    }
+
     /**
      * 바이트 배열로부터 이미지를 S3에 업로드합니다.
-     * 
+     *
      * @param imageData 이미지 바이트 배열
      * @param s3Key S3 키
      * @return 업로드된 이미지 URL
      */
     public String uploadImageFromBytes(byte[] imageData, String s3Key) {
         try {
+            // WebP로 변환
+            byte[] processedImageData = convertToWebP(imageData);
+
+            // S3 키를 WebP 확장자로 변경
+            String webpS3Key = changeExtensionToWebP(s3Key);
+
             // S3에 업로드
             ObjectMetadata metadata = new ObjectMetadata();
-            metadata.setContentLength(imageData.length);
-            metadata.setContentType(getContentTypeFromKey(s3Key));
+            metadata.setContentLength(processedImageData.length);
+            metadata.setContentType("image/webp");
             metadata.setCacheControl("max-age=31536000"); // 1년 캐시
 
             PutObjectRequest putObjectRequest = new PutObjectRequest(
                     bucketName,
-                    s3Key,
-                    new ByteArrayInputStream(imageData),
+                    webpS3Key,
+                    new ByteArrayInputStream(processedImageData),
                     metadata
             );
 
@@ -65,15 +148,15 @@ public class S3ImageService {
             String resultUrl;
             if (cloudfrontDomain != null && !cloudfrontDomain.trim().isEmpty()) {
                 // 운영환경: CloudFront URL 사용
-                resultUrl = cloudfrontDomain + "/" + s3Key;
+                resultUrl = cloudfrontDomain + "/" + webpS3Key;
                 log.info("이미지 업로드 완료 (CloudFront): {}", resultUrl);
             } else {
                 // 개발환경: 직접 S3 URL 사용
-                resultUrl = String.format("https://%s.s3.%s.amazonaws.com/%s", 
-                    bucketName, region, s3Key);
+                resultUrl = String.format("https://%s.s3.%s.amazonaws.com/%s",
+                    bucketName, region, webpS3Key);
                 log.info("이미지 업로드 완료 (직접 S3): {}", resultUrl);
             }
-            
+
             return resultUrl;
 
         } catch (Exception e) {
@@ -109,25 +192,22 @@ public class S3ImageService {
                 imageData = inputStream.readAllBytes();
             }
 
-            // 파일 확장자 추출
-            String fileExtension = getFileExtension(imageUrl);
-            if (fileExtension.isEmpty()) {
-                fileExtension = "jpg"; // 기본 확장자
-            }
+            // WebP로 변환
+            byte[] processedImageData = convertToWebP(imageData);
 
-            // S3 키 생성 (thumbnails/corporationName/yyyy/MM/dd/uuid.extension)
-            String s3Key = generateS3Key(corporationName, fileExtension);
+            // S3 키 생성 (thumbnails/corporationName/yyyy/MM/dd/uuid.webp)
+            String s3Key = generateS3Key(corporationName, "webp");
 
             // S3에 업로드
             ObjectMetadata metadata = new ObjectMetadata();
-            metadata.setContentLength(imageData.length);
-            metadata.setContentType(getContentType(fileExtension));
+            metadata.setContentLength(processedImageData.length);
+            metadata.setContentType("image/webp");
             metadata.setCacheControl("max-age=31536000"); // 1년 캐시
 
             PutObjectRequest putObjectRequest = new PutObjectRequest(
                     bucketName,
                     s3Key,
-                    new ByteArrayInputStream(imageData),
+                    new ByteArrayInputStream(processedImageData),
                     metadata
             );
 
@@ -162,57 +242,29 @@ public class S3ImageService {
         }
     }
 
+    /**
+     * S3 키의 확장자를 webp로 변경합니다.
+     *
+     * @param s3Key 원본 S3 키
+     * @return webp 확장자로 변경된 S3 키
+     */
+    private String changeExtensionToWebP(String s3Key) {
+        if (s3Key.contains(".")) {
+            return s3Key.substring(0, s3Key.lastIndexOf(".")) + ".webp";
+        }
+        return s3Key + ".webp";
+    }
+
     private String generateS3Key(String corporationName, String fileExtension) {
         LocalDateTime now = LocalDateTime.now();
         String datePrefix = now.format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
         String uuid = UUID.randomUUID().toString();
-        
-        return String.format("thumbnails/%s/%s/%s.%s", 
-                corporationName.toLowerCase().replaceAll("\\s+", "-"), 
-                datePrefix, 
-                uuid, 
+
+        return String.format("thumbnails/%s/%s/%s.%s",
+                corporationName.toLowerCase().replaceAll("\\s+", "-"),
+                datePrefix,
+                uuid,
                 fileExtension);
     }
 
-    private String getFileExtension(String imageUrl) {
-        // URL에서 확장자 추출
-        String[] parts = imageUrl.split("\\.");
-        if (parts.length > 1) {
-            String extension = parts[parts.length - 1].toLowerCase();
-            // 쿼리 파라미터 제거
-            extension = extension.split("\\?")[0];
-            // 유효한 이미지 확장자만 허용
-            if (extension.matches("^(jpg|jpeg|png|gif|webp)$")) {
-                return extension;
-            }
-        }
-        return "";
-    }
-
-    private String getContentType(String fileExtension) {
-        switch (fileExtension.toLowerCase()) {
-            case "jpg":
-            case "jpeg":
-                return "image/jpeg";
-            case "png":
-                return "image/png";
-            case "gif":
-                return "image/gif";
-            case "webp":
-                return "image/webp";
-            default:
-                return "image/jpeg";
-        }
-    }
-    
-    /**
-     * S3 키로부터 Content-Type을 추출합니다.
-     */
-    private String getContentTypeFromKey(String s3Key) {
-        String extension = "";
-        if (s3Key.contains(".")) {
-            extension = s3Key.substring(s3Key.lastIndexOf(".") + 1);
-        }
-        return getContentType(extension);
-    }
 }
