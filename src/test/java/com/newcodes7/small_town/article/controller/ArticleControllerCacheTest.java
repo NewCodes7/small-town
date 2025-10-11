@@ -31,7 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.CorporationRepository;
-import com.newcodes7.small_town.crawler.service.CrawlingService;
+import com.newcodes7.small_town.crawler.service.ArticlePersistenceService;
 import com.newcodes7.small_town.crawler.service.DefaultBlogCrawler;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
@@ -51,7 +51,7 @@ public class ArticleControllerCacheTest {
     private ArticleRepository articleRepository;
 
     @Autowired
-    private CrawlingService crawlingService;
+    private ArticlePersistenceService articlePersistenceService;
 
     @Autowired
     private DefaultBlogCrawler defaultBlogCrawler;
@@ -175,7 +175,7 @@ public class ArticleControllerCacheTest {
         // when - 게시글 추가
         Corporation corp = corporations.get(0);
         Article newArticle = ArticleCreator.createArticle(corp);
-        crawlingService.saveArticleWithAnalysis(newArticle, corp, defaultBlogCrawler);
+        articlePersistenceService.saveArticleWithAnalysis(newArticle, corp, defaultBlogCrawler);
 
         // then - 캐시 삭제되어 다시 DB 조회
         mockMvc.perform(get("/").param("view", "grouped"))

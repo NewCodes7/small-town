@@ -15,8 +15,9 @@ import java.util.Map;
 @Slf4j
 @ConditionalOnProperty(prefix = "crawler", name = "enabled", havingValue = "true")
 public class CrawlingScheduler {
-    
+
     private final CrawlingService crawlingService;
+    private final ArticlePersistenceService articlePersistenceService;
     
     @Scheduled(cron = "${crawler.schedule.cron}", zone = "Asia/Seoul")
     public void scheduledCrawling() {
@@ -24,7 +25,7 @@ public class CrawlingScheduler {
         
         try {
             List<CrawlResult> results = crawlingService.crawlAllBlogs();
-            Map<String, Object> aiResults = crawlingService.analyzeExistingArticles();
+            Map<String, Object> aiResults = articlePersistenceService.analyzeExistingArticles();
             
             long successCount = results.stream()
                     .filter(CrawlResult::isSuccess)

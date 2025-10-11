@@ -1,5 +1,6 @@
 package com.newcodes7.small_town.crawler.controller;
 
+import com.newcodes7.small_town.crawler.service.ArticlePersistenceService;
 import com.newcodes7.small_town.crawler.service.CrawlingService;
 import com.newcodes7.small_town.crawler.dto.CrawlingStats;
 import com.newcodes7.small_town.crawler.dto.CrawlResult;
@@ -16,8 +17,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Slf4j
 public class CrawlingController {
-    
+
     private final CrawlingService crawlingService;
+    private final ArticlePersistenceService articlePersistenceService;
     
     /**
      * 모든 기업 블로그 크롤링 실행
@@ -109,7 +111,7 @@ public class CrawlingController {
     public ResponseEntity<Map<String, Object>> analyzeExistingArticles() {
         try {
             log.info("기존 글 AI 분석 API 호출");
-            Map<String, Object> result = crawlingService.analyzeExistingArticles();
+            Map<String, Object> result = articlePersistenceService.analyzeExistingArticles();
 
             return ResponseEntity.ok(result);
 

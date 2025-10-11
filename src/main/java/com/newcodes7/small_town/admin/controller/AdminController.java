@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.corporation.controller;
+package com.newcodes7.small_town.admin.controller;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -37,6 +36,7 @@ import com.newcodes7.small_town.corporation.repository.IndustryRepository;
 import com.newcodes7.small_town.corporation.service.CorporationService;
 import com.newcodes7.small_town.crawler.repository.ArticleSummaryRepository;
 import com.newcodes7.small_town.crawler.repository.CategoryRepository;
+import com.newcodes7.small_town.crawler.service.ArticlePersistenceService;
 import com.newcodes7.small_town.crawler.service.CrawlingService;
 import com.newcodes7.small_town.crawler.service.TitleTranslationService;
 import com.newcodes7.small_town.global.entity.Article;
@@ -60,6 +60,7 @@ public class AdminController {
     private final ArticleRepository articleRepository;
     private final ArticleSummaryRepository articleSummaryRepository;
     private final TitleTranslationService titleTranslationService;
+    private final ArticlePersistenceService articlePersistenceService;
     
     // 기업 목록 페이지
     @GetMapping("/corporations")
@@ -236,7 +237,7 @@ public class AdminController {
                 return ResponseEntity.badRequest().body(response);
             }
 
-            crawlingService.updateArticleCategory(articleId, categoryName.trim());
+            articlePersistenceService.updateArticleCategory(articleId, categoryName.trim());
 
             response.put("success", true);
             response.put("message", "카테고리가 성공적으로 수정되었습니다.");
@@ -327,7 +328,6 @@ public class AdminController {
      */
     @PutMapping("/articles/{articleId}")
     @ResponseBody
-    @CacheEvict(value = "corporationArticles", allEntries = true)
     public ResponseEntity<Map<String, Object>> updateArticle(
             @PathVariable Long articleId,
             @RequestBody Map<String, Object> request) {
@@ -335,44 +335,15 @@ public class AdminController {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            Optional<Article> articleOpt = articleRepository.findById(articleId);
-            if (articleOpt.isEmpty()) {
-                response.put("success", false);
-                response.put("message", "글을 찾을 수 없습니다.");
-                return ResponseEntity.notFound().build();
-            }
-
-            Article article = articleOpt.get();
-
-            // 제목, 번역된 제목, 링크, 썸네일 수정
             String title = (String) request.get("title");
             String translatedTitle = (String) request.get("translatedTitle");
             String link = (String) request.get("link");
             String thumbnailUrl = (String) request.get("thumbnailUrl");
             String categoryName = (String) request.get("categoryName");
 
-            if (title != null && !title.trim().isEmpty()) {
-                article.setTitle(title.trim());
-            }
-
-            if (translatedTitle != null) {
-                article.setTranslatedTitle(translatedTitle.trim().isEmpty() ? null : translatedTitle.trim());
-            }
-
-            if (link != null && !link.trim().isEmpty()) {
-                article.setLink(link.trim());
-            }
-
-            if (thumbnailUrl != null) {
-                article.setThumbnailImage(thumbnailUrl.trim().isEmpty() ? null : thumbnailUrl.trim());
-            }
-
-            // 카테고리 수정 (기존 로직 재사용)
-            if (categoryName != null && !categoryName.trim().isEmpty()) {
-                crawlingService.updateArticleCategory(articleId, categoryName.trim());
-            }
-
-            articleRepository.save(article);
+            // ArticlePersistenceService를 통해 캐시 무효화와 함께 수정
+            articlePersistenceService.updateArticleBasicInfo(
+                articleId, title, translatedTitle, link, thumbnailUrl, categoryName);
 
             response.put("success", true);
             response.put("message", "글 정보가 성공적으로 수정되었습니다.");
@@ -436,7 +407,6 @@ public class AdminController {
      */
     @PutMapping("/articles/{articleId}/summaries")
     @ResponseBody
-    @CacheEvict(value = "corporationArticles", allEntries = true)
     public ResponseEntity<Map<String, Object>> updateArticleSummaries(
             @PathVariable Long articleId,
             @RequestBody Map<String, Object> request) {
@@ -560,7 +530,6 @@ public class AdminController {
      */
     @PutMapping("/articles/{articleId}/translated-title")
     @ResponseBody
-    @CacheEvict(value = "corporationArticles", allEntries = true)
     public ResponseEntity<Map<String, Object>> updateArticleTranslatedTitle(
             @PathVariable Long articleId,
             @RequestBody Map<String, String> request) {
@@ -568,14 +537,6 @@ public class AdminController {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            Optional<Article> articleOpt = articleRepository.findById(articleId);
-            if (articleOpt.isEmpty()) {
-                response.put("success", false);
-                response.put("message", "글을 찾을 수 없습니다.");
-                return ResponseEntity.notFound().build();
-            }
-
-            Article article = articleOpt.get();
             String translatedTitle = request.get("translatedTitle");
 
             if (translatedTitle == null) {
@@ -584,14 +545,13 @@ public class AdminController {
                 return ResponseEntity.badRequest().body(response);
             }
 
-            // 빈 문자열도 허용 (번역된 제목 삭제)
-            article.setTranslatedTitle(translatedTitle.trim().isEmpty() ? null : translatedTitle.trim());
-            articleRepository.save(article);
+            // ArticlePersistenceService를 통해 캐시 무효화와 함께 수정
+            articlePersistenceService.updateArticleTranslatedTitle(articleId, translatedTitle);
 
             response.put("success", true);
             response.put("message", "번역된 제목이 성공적으로 수정되었습니다.");
             response.put("articleId", articleId);
-            response.put("translatedTitle", article.getTranslatedTitle());
+            response.put("translatedTitle", translatedTitle.trim().isEmpty() ? null : translatedTitle.trim());
 
             return ResponseEntity.ok(response);
 
