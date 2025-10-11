@@ -35,7 +35,6 @@ import com.newcodes7.small_town.crawler.repository.ParsingSelectorRepository;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.util.TimeUtil;
-import com.newcodes7.small_town.service.S3ImageService;
 import com.rometools.rome.feed.synd.SyndEntry;
 import com.rometools.rome.feed.synd.SyndFeed;
 import com.rometools.rome.io.SyndFeedInput;

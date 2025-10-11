@@ -25,7 +25,6 @@ import com.newcodes7.small_town.crawler.exception.CrawlerTimeoutException;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.util.TimeUtil;
-import com.newcodes7.small_town.service.S3ImageService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
