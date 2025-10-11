@@ -568,7 +568,7 @@ public class AdminController {
     /**
      * 모든 기업 로고 이미지를 WebP로 마이그레이션 API
      */
-    @PostMapping("/images/migrate-logos-to-webp")
+    @GetMapping("/images/migrate-logos-to-webp")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> migrateAllLogosToWebP() {
         Map<String, Object> response = new HashMap<>();
@@ -598,7 +598,7 @@ public class AdminController {
     /**
      * 특정 기업 로고 이미지를 WebP로 마이그레이션 API
      */
-    @PostMapping("/corporations/{corporationId}/migrate-logo-to-webp")
+    @GetMapping("/corporations/{corporationId}/migrate-logo-to-webp")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> migrateLogoToWebP(@PathVariable Long corporationId) {
         Map<String, Object> response = new HashMap<>();
