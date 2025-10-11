@@ -131,20 +131,20 @@ body {
     .article-card {
         flex-direction: column;
     }
-    
+
     .article-thumbnail-container {
         flex: none;
-        height: 200px;
+        height: 155px;
         order: 0;
     }
-    
+
     .article-content {
         padding: 16px;
         order: 2;
     }
-    
+
     .article-thumbnail {
-        height: 180px;
+        height: 155px;
         border-radius: 0;
     }
 }
