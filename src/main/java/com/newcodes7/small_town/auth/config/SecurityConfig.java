@@ -66,8 +66,8 @@ public class SecurityConfig {
                 .requestMatchers("/error").permitAll()
                 .requestMatchers("/sitemap.xml", "/robots.txt").permitAll()
 
-                // 이미지 파일에 대한 접근은 모두 허용
-                .requestMatchers(org.springframework.http.HttpMethod.GET, "/**/*.jpg", "/**/*.jpeg", "/**/*.png", "/**/*.gif", "/**/*.svg").permitAll()
+                // 이미지 파일에 대한 접근은 모두 허용 (이미지 성능 테스트용으로 임시 추가)
+                .requestMatchers("/*.jpeg").permitAll()
 
                 // 글 목록 API는 모든 사용자 허용
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/articles/**").permitAll()
