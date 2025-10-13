@@ -13,8 +13,8 @@ class ArticleManager {
         this.currentRegions = [];
         this.currentView = 'grouped'; // 'list' or 'grouped'
         this.isLoading = false;
-        this.cache = new Map();
         this.debounceTimer = null;
+        this.userExplicitViewChange = false; // 사용자가 명시적으로 뷰를 변경했는지 추적
         this.init();
     }
 
@@ -33,14 +33,23 @@ class ArticleManager {
         this.currentKeyword = params.get('keyword') || '';
         this.currentRegions = params.getAll('regions') || [];
 
+        // URL에서 뷰 파라미터 읽기
+        const urlView = params.get('view') || 'grouped';
+
         // 키워드나 카테고리가 있으면 자동으로 리스트 뷰로 설정
+        // 단, URL에 명시적으로 view 파라미터가 있으면 그것을 우선
         const hasKeyword = this.currentKeyword && this.currentKeyword.trim() !== '';
         const hasCategories = params.getAll('category').length > 0;
 
-        if (hasKeyword || hasCategories) {
+        if (params.has('view')) {
+            // URL에 view 파라미터가 명시되어 있으면 그것을 사용 (사용자가 명시적으로 선택한 것)
+            this.currentView = urlView;
+        } else if (hasKeyword || hasCategories) {
+            // view 파라미터가 없고 키워드/카테고리가 있으면 list로
             this.currentView = 'list';
         } else {
-            this.currentView = params.get('view') || 'grouped';
+            // 둘 다 없으면 grouped
+            this.currentView = 'grouped';
         }
 
         // UI 상태 동기화
@@ -149,6 +158,8 @@ class ArticleManager {
             const isGrouped = this.currentView === 'grouped';
             // 상태 토글
             this.currentView = isGrouped ? 'list' : 'grouped';
+            // 사용자가 명시적으로 뷰를 변경했음을 표시
+            this.userExplicitViewChange = true;
             this.loadArticles();
         });
     }
@@ -174,8 +185,14 @@ class ArticleManager {
             this.currentPage = 0;
 
             // 키워드 검색 시 리스트 뷰로 자동 전환
-            if (this.currentKeyword && this.currentKeyword.length > 0) {
+            // 단, 사용자가 명시적으로 뷰를 변경한 경우는 예외
+            if (this.currentKeyword && this.currentKeyword.length > 0 && !this.userExplicitViewChange) {
                 this.currentView = 'list';
+            }
+
+            // 검색어가 비어있으면 명시적 뷰 변경 플래그 초기화
+            if (!this.currentKeyword || this.currentKeyword.length === 0) {
+                this.userExplicitViewChange = false;
             }
 
             this.loadArticles();
@@ -203,29 +220,9 @@ class ArticleManager {
         this.loadArticles();
     }
 
-    getCacheKey() {
-        const currentUrl = new URL(window.location);
-        const currentCategories = currentUrl.searchParams.getAll('category');
-        return `${this.currentView}-${this.currentPage}-${this.currentSort}-${this.currentKeyword}-${this.currentRegions.join(',')}-${currentCategories.join(',')}`;
-    }
-
     // 게시글을 로드하는 핵심 함수 
     async loadArticles() {
         if (this.isLoading) return;
-
-        // const cacheKey = this.getCacheKey();
-        // const cachedResult = this.cache.get(cacheKey);
-        // if (cachedResult) {
-        //     if (this.currentView === 'grouped') {
-        //         this.renderGroupedArticles(cachedResult.content);
-        //     } else {
-        //         this.renderArticles(cachedResult.content);
-        //     }
-        //     this.renderPagination(cachedResult);
-        //     // this.updateURL();
-        //     // this.updateSortButtons();
-        //     return;
-        // }
 
         this.isLoading = true;
         this.showLoadingState();
@@ -252,36 +249,21 @@ class ArticleManager {
                 params.append('category', category);
             });
 
-            // 키워드나 카테고리가 있으면 자동으로 리스트 뷰로 전환
-            if (this.currentKeyword || currentCategories.length > 0) {
+            // 뷰 파라미터 설정
+            // 사용자가 명시적으로 뷰를 변경한 경우, 키워드나 카테고리가 있어도 선택한 뷰 유지
+            if (this.userExplicitViewChange) {
+                // 명시적으로 뷰를 변경한 경우 현재 뷰 유지
+                params.set('view', this.currentView);
+            } else if (this.currentKeyword || currentCategories.length > 0) {
+                // 키워드나 카테고리가 있고 명시적 변경이 없으면 자동으로 list로
                 this.currentView = 'list';
                 params.set('view', 'list');
-            } else if (this.currentView === 'grouped') {
-                params.set('view', 'grouped');
             } else {
-                params.set('view', 'list');
+                // 그 외의 경우 현재 뷰 설정
+                params.set('view', this.currentView);
             }
 
             window.location.href = `?${params}`;
-
-            // const response = await fetch(`/api/articles?${params}`);
-            // if (!response.ok) {
-            //     throw new Error('Network response was not ok');
-            // }
-
-            // const data = await response.json();
-
-            // // 캐시 저장
-            // this.cache.set(cacheKey, data);
-
-            // if (this.currentView === 'grouped') {
-            //     this.renderGroupedArticles(data.content);
-            // } else {
-            //     this.renderArticles(data.content);
-            // }
-            // this.renderPagination(data);
-            // this.updateURL();
-            // this.updateSortButtons();
 
         } catch (error) {
             console.error('Error loading articles:', error);
