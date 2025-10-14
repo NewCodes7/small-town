@@ -281,6 +281,8 @@ public class DefaultBlogCrawler implements BlogCrawler {
             || publishFormat.equals("MMMM dd, yyyy")
             || publishFormat.equals("MMM dd, yyyy")) {
             return parseEnglishDateFormat(publishElement);
+        } else if (publishFormat.trim().equals("dd MMM yyyy")) {
+            return parseDayMonthYearFormat(publishElement);
         } else if (publishFormat.trim().equals("dd MMM")) {
             return parseShortEnglishDateFormat(publishElement);
         } else {
@@ -319,6 +321,18 @@ public class DefaultBlogCrawler implements BlogCrawler {
                         .parseCaseInsensitive()
                         .appendPattern("[MMMM d, yyyy][MMM d, yyyy]")
                         .toFormatter(Locale.ENGLISH);
+        LocalDate date = LocalDate.parse(dateText, formatter);
+        return TimeUtil.dateWithSeoulTime(date);
+    }
+
+    /**
+     * dd MMM yyyy 형식 파싱 
+     */
+    private LocalDateTime parseDayMonthYearFormat(Element publishElement) {
+        String dateText = publishElement.text();
+        dateText = dateText.replaceAll("[^a-zA-Z0-9\\s]", "");
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH);
         LocalDate date = LocalDate.parse(dateText, formatter);
         return TimeUtil.dateWithSeoulTime(date);
     }
