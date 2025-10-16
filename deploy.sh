@@ -138,7 +138,7 @@ deploy() {
     update_nginx_upstream $NEW_ACTIVE
 
     # 4. 이전 컨테이너 정리 (옵션)
-    read -p "이전 컨테이너($OLD_CONTAINER)를 제거하겠습니다." -r
+    log "이전 컨테이너($OLD_CONTAINER)를 제거하겠습니다." 
     cleanup_old_container $OLD_CONTAINER
     log "이전 컨테이너 제거 완료"
 
