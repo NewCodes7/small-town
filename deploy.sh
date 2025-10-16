@@ -138,16 +138,15 @@ deploy() {
     update_nginx_upstream $NEW_ACTIVE
 
     # 4. 이전 컨테이너 정리 (옵션)
-    read -p "이전 컨테이너($OLD_CONTAINER)를 제거하시겠습니까? (y/N): " -r
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        cleanup_old_container $OLD_CONTAINER
-        log "이전 컨테이너 제거 완료"
-    else
-        log "이전 컨테이너를 유지합니다 (롤백용)"
-    fi
+    read -p "이전 컨테이너($OLD_CONTAINER)를 제거하겠습니다." -r
+    cleanup_old_container $OLD_CONTAINER
+    log "이전 컨테이너 제거 완료"
 
     log "=== 배포 완료 ==="
     log "활성 서버: $NEW_ACTIVE ($NEW_CONTAINER)"
+
+    log "=== docker 미사용 리소스 정리 ==="
+    docker system prune -a    
 }
 
 # 롤백 함수
