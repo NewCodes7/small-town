@@ -18,18 +18,11 @@ RUN apt-get update && apt-get install -y curl wget gnupg     && wget -q -O - htt
 WORKDIR /app
 COPY --from=build /home/gradle/project/build/libs/*.jar app.jar
 
-# 보안을 위해 non-root 사용자 생성
-RUN addgroup --system spring && adduser --system spring --ingroup spring
-
-# WebDriverManager가 chromedriver를 다운로드하고 캐시할 디렉토리 생성 및 권한 설정
-RUN mkdir -p /home/spring/.cache \
-    && chown -R spring:spring /home/spring/.cache
+# WebDriverManager 캐시 디렉토리 생성
+RUN mkdir -p /.cache && chmod 777 /.cache
 
 # 로그 디렉토리 생성 및 권한 설정
-RUN mkdir -p /app/logs \
-    && chown -R spring:spring /app/logs
-
-USER spring:spring
+RUN mkdir -p /app/logs && chmod 777 /app/logs
 
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
