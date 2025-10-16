@@ -5,3 +5,5 @@ build/
 bin/
 # Docker environment file
 .env
+# Logs
+logs/

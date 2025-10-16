@@ -33,6 +33,7 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
+      - ./logs/blue:/app/logs
     networks:
       - app-network
     init: true
@@ -53,6 +54,7 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
+      - ./logs/green:/app/logs
     networks:
       - app-network
     profiles:

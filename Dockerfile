@@ -25,6 +25,10 @@ RUN addgroup --system spring && adduser --system spring --ingroup spring
 RUN mkdir -p /home/spring/.cache \
     && chown -R spring:spring /home/spring/.cache
 
+# 로그 디렉토리 생성 및 권한 설정
+RUN mkdir -p /app/logs \
+    && chown -R spring:spring /app/logs
+
 USER spring:spring
 
 EXPOSE 8080
