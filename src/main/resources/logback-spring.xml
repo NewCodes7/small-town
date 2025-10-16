@@ -5,7 +5,7 @@
     <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
 
     <!-- 프로퍼티 정의 -->
-    <springProperty scope="context" name="LOG_PATH" source="logging.file.path" defaultValue="./logs"/>
+    <springProperty scope="context" name="LOG_PATH" source="logging.file.path" defaultValue="/app/logs"/>
     <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="small-town"/>
 
     <!-- 콘솔 패턴 -->
