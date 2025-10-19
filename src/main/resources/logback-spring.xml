@@ -94,19 +94,13 @@
         </rollingPolicy>
     </appender>
 
-    <!-- 크롤러 로거 -->
-    <logger name="com.newcodes7.small_town.crawler" level="DEBUG" additivity="false">
-        <appender-ref ref="CRAWLER_FILE"/>
-        <appender-ref ref="CRAWLER_ERROR_FILE"/>
-        <appender-ref ref="CONSOLE"/>
-    </logger>
-
     <!-- 프로파일별 설정 -->
     <springProfile name="dev">
         <root level="INFO">
             <appender-ref ref="CONSOLE"/>
         </root>
         <logger name="com.newcodes7.small_town" level="DEBUG"/>
+        <logger name="com.newcodes7.small_town.crawler" level="DEBUG"/>
         <logger name="org.springframework.web" level="DEBUG"/>
         <logger name="org.hibernate.SQL" level="DEBUG"/>
         <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="TRACE"/>
@@ -119,6 +113,11 @@
             <appender-ref ref="ERROR_FILE"/>
         </root>
         <logger name="com.newcodes7.small_town" level="INFO"/>
+        <logger name="com.newcodes7.small_town.crawler" level="DEBUG" additivity="false">
+            <appender-ref ref="CRAWLER_FILE"/>
+            <appender-ref ref="CRAWLER_ERROR_FILE"/>
+            <appender-ref ref="CONSOLE"/>
+        </logger>
         <logger name="org.springframework.web" level="WARN"/>
         <logger name="org.hibernate.SQL" level="WARN"/>
     </springProfile>
