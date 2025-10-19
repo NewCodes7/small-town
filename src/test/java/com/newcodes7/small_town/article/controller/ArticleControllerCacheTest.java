@@ -164,7 +164,7 @@ public class ArticleControllerCacheTest {
     }
 
     @Test
-    void 게시글_추가시_캐시_삭제() throws Exception {
+    void 게시글_추가시_캐시_삭제_후_preload() throws Exception {
         // given - 캐시 생성
         mockMvc.perform(get("/").param("view", "grouped"))
             .andExpect(status().isOk())
@@ -183,7 +183,7 @@ public class ArticleControllerCacheTest {
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
             .andReturn();
-        verify(articleRepository, times(2))
+        verify(articleRepository, times(5))
             .findTop3ArticlesGroupedByCorporation(
                 isNull(), anyList(), anyInt(), anyList(), 
                 anyInt(), anyInt(), anyInt());

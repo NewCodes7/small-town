@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import com.newcodes7.small_town.global.annotation.CachePreload;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -119,6 +120,7 @@ public class CorporationService {
     
     @Transactional
     @CacheEvict(value = "corporationArticles", allEntries = true)
+    @CachePreload
     public CorporationResponseDto updateCorporation(Long id, CorporationUpdateDto dto) {
         if (id == null || id <= 0) {
             throw new InvalidParameterException("id", id);
@@ -178,6 +180,7 @@ public class CorporationService {
     
     @Transactional
     @CacheEvict(value = "corporationArticles", allEntries = true)
+    @CachePreload
     public void deleteCorporation(Long id) {
         if (id == null || id <= 0) {
             throw new InvalidParameterException("id", id);
@@ -277,6 +280,7 @@ public class CorporationService {
      */
     @Transactional
     @CacheEvict(value = "corporationArticles", allEntries = true)
+    @CachePreload
     public CorporationResponseDto updateCorporationWithLogo(Long id, CorporationUpdateDto dto, MultipartFile logoFile) throws IOException {
         if (id == null || id <= 0) {
             throw new InvalidParameterException("id", id);

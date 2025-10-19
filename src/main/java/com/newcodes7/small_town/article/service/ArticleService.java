@@ -19,6 +19,7 @@ import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
+import com.newcodes7.small_town.global.annotation.CachePreload;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -174,6 +175,7 @@ public class ArticleService {
     
     @Transactional
     @CacheEvict(value = "corporationArticles", allEntries = true)
+    @CachePreload
     public void deleteArticle(Long articleId) {
         if (articleId == null || articleId <= 0) {
             throw new InvalidParameterException("articleId", articleId, "유효하지 않은 게시글 ID입니다");
@@ -195,6 +197,7 @@ public class ArticleService {
      */
     @Transactional
     @CacheEvict(value = "corporationArticles", allEntries = true)
+    @CachePreload
     public boolean updateArticlePublishDate(Long articleId, LocalDateTime publishedAt) {
         if (articleId == null || articleId <= 0) {
             throw new InvalidParameterException("articleId", articleId, "유효하지 않은 게시글 ID입니다");

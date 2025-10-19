@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.crawler.dto.ArticleAnalysisResponse;
+import com.newcodes7.small_town.global.annotation.CachePreload;
 import com.newcodes7.small_town.crawler.repository.CategoryRepository;
 import com.newcodes7.small_town.crawler.repository.CrawlerArticleRepository;
 import com.newcodes7.small_town.global.entity.Article;
@@ -37,6 +38,7 @@ public class ArticlePersistenceService {
      */
     @Transactional
     @CacheEvict(value = "corporationArticles", allEntries = true)
+    @CachePreload
     public void saveArticleWithAnalysis(Article article, Corporation corporation, BlogCrawler crawler) throws IOException {
         // 이미지 업로드 처리
         crawler.processImageUpload(article, corporation);
@@ -65,6 +67,7 @@ public class ArticlePersistenceService {
      */
     @Transactional
     @CacheEvict(value = "corporationArticles", allEntries = true)
+    @CachePreload
     public void analyzeSingleArticle(Article article) throws Exception {
         // OpenAI로 분석 요청
         ArticleAnalysisResponse openAiResponse = openaiService.sendArticleAnalysis(article);
@@ -83,6 +86,7 @@ public class ArticlePersistenceService {
      */
     @Transactional
     @CacheEvict(value = "corporationArticles", allEntries = true)
+    @CachePreload
     public void updateArticleCategory(Long articleId, String categoryName) {
         // 글 조회
         Article article = crawlerArticleRepository.findById(articleId)
@@ -174,6 +178,7 @@ public class ArticlePersistenceService {
      */
     @Transactional
     @CacheEvict(value = "corporationArticles", allEntries = true)
+    @CachePreload
     public void updateArticleBasicInfo(Long articleId, String title, String translatedTitle,
                                        String link, String thumbnailUrl, String categoryName) {
         // 글 조회
@@ -220,6 +225,7 @@ public class ArticlePersistenceService {
      */
     @Transactional
     @CacheEvict(value = "corporationArticles", allEntries = true)
+    @CachePreload
     public void updateArticleTranslatedTitle(Long articleId, String translatedTitle) {
         // 글 조회
         Article article = crawlerArticleRepository.findById(articleId)
