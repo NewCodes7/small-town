@@ -354,16 +354,16 @@ public class S3ImageService {
                 imageData = inputStream.readAllBytes();
             }
 
-            // WebP로 변환
-            byte[] processedImageData = convertToWebP(imageData);
+            // PNG로 변환
+            byte[] processedImageData = convertToPNG(imageData);
 
-            // S3 키 생성 (thumbnails/corporationName/yyyy/MM/dd/uuid.webp)
-            String s3Key = generateS3Key(corporationName, "webp");
+            // S3 키 생성 (thumbnails/corporationName/yyyy/MM/dd/uuid.png)
+            String s3Key = generateS3Key(corporationName, "png");
 
             // S3에 업로드
             ObjectMetadata metadata = new ObjectMetadata();
             metadata.setContentLength(processedImageData.length);
-            metadata.setContentType("image/webp");
+            metadata.setContentType("image/png");
             metadata.setCacheControl("max-age=31536000"); // 1년 캐시
 
             PutObjectRequest putObjectRequest = new PutObjectRequest(
