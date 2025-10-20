@@ -323,6 +323,12 @@ public class S3ImageService {
     
     public String uploadImageFromUrl(String imageUrl, String corporationName) {
         try {
+            // 프로토콜이 명시되지 않은 경우 https 추가
+            if (imageUrl.startsWith("//")) {
+                imageUrl = "https:" + imageUrl;
+                log.debug("프로토콜 없는 URL에 https 추가: {}", imageUrl);
+            }
+
             // 외부 URL에서 이미지 다운로드
             URL url = new URL(imageUrl);
             // url에 공백 포함된 경우 때문에 인코딩 처리해야 함
