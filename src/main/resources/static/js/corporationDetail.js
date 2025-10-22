@@ -1,15 +1,17 @@
 // 카드 클릭 시 외부 링크로 이동
 document.querySelectorAll('.article-card').forEach(card => {
     card.addEventListener('click', function(e) {
-        // 태그나 다른 링크, 좋아요 버튼을 클릭한 경우가 아니라면
-        if (e.target.tagName !== 'A' && !e.target.closest('a') && !e.target.closest('.badge') && !e.target.closest('.like-button') && !e.target.closest('.admin-delete-btn')) {
+c        // 태그나 다른 링크, 좋아요 버튼, 관리자 버튼을 클릭한 경우가 아니라면
+        if (e.target.tagName !== 'A' && !e.target.closest('a') && !e.target.closest('.badge') &&
+            !e.target.closest('.like-button') && !e.target.closest('.admin-delete-btn') &&
+            !e.target.closest('.admin-edit-btn')) {
             const titleLink = this.querySelector('h5 a');
             if (titleLink) {
                 window.open(titleLink.href, '_blank');
             }
         }
     });
-    
+
     // 카드에 커서 스타일 추가
     card.style.cursor = 'pointer';
 });
@@ -184,6 +186,165 @@ function setupDefaultThumbnails() {
     });
 }
 
+// 관리자 권한 확인 및 버튼 표시
+async function checkAdminStatus() {
+    try {
+        const response = await fetch('/api/user-info', {
+            credentials: 'same-origin'
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+
+            if (data.isAdmin) {
+                // 관리자인 경우 삭제 및 수정 버튼 표시
+                document.querySelectorAll('.admin-buttons-container').forEach(container => {
+                    container.classList.remove('d-none');
+                });
+
+                // 크롤링 버튼 표시
+                const crawlBtn = document.getElementById('adminCrawlBtn');
+                if (crawlBtn) {
+                    crawlBtn.classList.remove('d-none');
+                }
+            }
+        }
+    } catch (error) {
+        console.error('관리자 권한 확인 중 오류 발생:', error);
+    }
+}
+
+// 게시글 삭제 처리
+async function deleteArticle(articleId) {
+    if (!confirm('정말로 이 게시글을 삭제하시겠습니까?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/admin/articles/${articleId}`, {
+            method: 'DELETE',
+            credentials: 'same-origin'
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            alert(data.message || '게시글이 삭제되었습니다.');
+            window.location.reload();
+        } else {
+            alert(data.message || '게시글 삭제에 실패했습니다.');
+        }
+    } catch (error) {
+        console.error('게시글 삭제 중 오류 발생:', error);
+        alert('게시글 삭제 중 오류가 발생했습니다.');
+    }
+}
+
+// 게시글 수정 모달 표시
+function showEditModal(articleId, publishedAt, thumbnail) {
+    const modal = new bootstrap.Modal(document.getElementById('editArticleModal'));
+
+    // 폼 데이터 설정
+    document.getElementById('editArticleId').value = articleId;
+
+    // publishedAt을 datetime-local 형식으로 변환 (YYYY-MM-DDTHH:mm)
+    if (publishedAt) {
+        const date = new Date(publishedAt);
+        const formattedDate = date.getFullYear() + '-' +
+            String(date.getMonth() + 1).padStart(2, '0') + '-' +
+            String(date.getDate()).padStart(2, '0') + 'T' +
+            String(date.getHours()).padStart(2, '0') + ':' +
+            String(date.getMinutes()).padStart(2, '0');
+        document.getElementById('editPublishedAt').value = formattedDate;
+    }
+
+    document.getElementById('editThumbnail').value = thumbnail || '';
+
+    // 메시지 초기화
+    const messageDiv = document.getElementById('editMessage');
+    messageDiv.classList.add('d-none');
+
+    modal.show();
+}
+
+// 게시글 수정 저장
+async function saveArticleEdit(articleId, publishedAt, thumbnail) {
+    try {
+        // 발행일 수정
+        const publishDateResponse = await fetch(`/api/admin/articles/${articleId}/publish-date`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ publishedAt })
+        });
+
+        const publishDateData = await publishDateResponse.json();
+
+        if (!publishDateResponse.ok) {
+            throw new Error(publishDateData.message || '발행일 수정 실패');
+        }
+
+        // 썸네일 수정 (기존 Admin API 사용)
+        const thumbnailResponse = await fetch(`/admin/articles/${articleId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ thumbnailUrl: thumbnail })
+        });
+
+        const thumbnailData = await thumbnailResponse.json();
+
+        if (!thumbnailResponse.ok) {
+            throw new Error(thumbnailData.message || '썸네일 수정 실패');
+        }
+
+        return { success: true, message: '게시글 정보가 성공적으로 수정되었습니다.' };
+    } catch (error) {
+        return { success: false, message: error.message };
+    }
+}
+
+// 기업 크롤링 시작
+async function startCrawling(corporationId) {
+    const crawlBtn = document.getElementById('adminCrawlBtn');
+    const originalHtml = crawlBtn.innerHTML;
+
+    // 버튼 비활성화 및 로딩 표시
+    crawlBtn.disabled = true;
+    crawlBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>크롤링 중...';
+
+    try {
+        const response = await fetch(`/api/crawling/corporation/${corporationId}`, {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            const message = `크롤링이 완료되었습니다!\n\n` +
+                          `기업: ${data.corporationName}\n` +
+                          `전체 글: ${data.totalArticles}개\n` +
+                          `새로운 글: ${data.newArticles}개`;
+            alert(message);
+            window.location.reload();
+        } else {
+            alert(data.message || '크롤링에 실패했습니다.');
+        }
+    } catch (error) {
+        console.error('크롤링 중 오류 발생:', error);
+        alert('크롤링 중 오류가 발생했습니다.');
+    } finally {
+        // 버튼 복원
+        crawlBtn.disabled = false;
+        crawlBtn.innerHTML = originalHtml;
+    }
+}
+
 // 페이지 로드 후 상대 시간 적용 및 좋아요 상태 로드
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.relative-time').forEach(element => {
@@ -195,23 +356,89 @@ document.addEventListener('DOMContentLoaded', function() {
             element.title = formatDate(dateString);
         }
     });
-    
+
     // 좋아요 상태 로드
     loadLikeStatuses();
-    
+
     // 기본 썸네일 설정
     setupDefaultThumbnails();
-    
+
+    // 관리자 권한 확인 및 버튼 표시
+    checkAdminStatus();
+
+    // 삭제 버튼 이벤트 리스너
+    document.querySelectorAll('.admin-delete-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const articleId = this.getAttribute('data-article-id');
+            deleteArticle(articleId);
+        });
+    });
+
+    // 수정 버튼 이벤트 리스너
+    document.querySelectorAll('.admin-edit-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const articleId = this.getAttribute('data-article-id');
+            const publishedAt = this.getAttribute('data-published-at');
+            const thumbnail = this.getAttribute('data-thumbnail');
+            showEditModal(articleId, publishedAt, thumbnail);
+        });
+    });
+
+    // 크롤링 버튼 이벤트 리스너
+    const crawlBtn = document.getElementById('adminCrawlBtn');
+    if (crawlBtn) {
+        crawlBtn.addEventListener('click', function() {
+            const corporationId = this.getAttribute('data-corporation-id');
+            if (confirm('이 기업의 블로그를 크롤링하시겠습니까?')) {
+                startCrawling(corporationId);
+            }
+        });
+    }
+
+    // 게시글 편집 폼 제출 이벤트
+    const editForm = document.getElementById('editArticleForm');
+    if (editForm) {
+        editForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const articleId = document.getElementById('editArticleId').value;
+            const publishedAt = document.getElementById('editPublishedAt').value;
+            const thumbnail = document.getElementById('editThumbnail').value;
+            const messageDiv = document.getElementById('editMessage');
+
+            const result = await saveArticleEdit(articleId, publishedAt, thumbnail);
+
+            if (result.success) {
+                messageDiv.textContent = result.message;
+                messageDiv.className = 'alert alert-success';
+                messageDiv.classList.remove('d-none');
+
+                // 성공 후 페이지 새로고침
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                messageDiv.textContent = result.message;
+                messageDiv.className = 'alert alert-danger';
+                messageDiv.classList.remove('d-none');
+            }
+        });
+    }
+
     // 모달 로그인 처리
     const loginForm = document.getElementById('loginForm');
     if (loginForm) {
         loginForm.addEventListener('submit', async function(e) {
             e.preventDefault();
-            
+
             const email = document.getElementById('modalEmail').value;
             const password = document.getElementById('modalPassword').value;
             const messageDiv = document.getElementById('loginMessage');
-            
+
             try {
                 const response = await fetch('/api/auth/login', {
                     method: 'POST',
@@ -221,12 +448,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     credentials: 'same-origin',
                     body: JSON.stringify({ email, password })
                 });
-                
+
                 if (response.ok) {
                     messageDiv.textContent = '로그인 성공! 페이지를 새로고침합니다.';
                     messageDiv.className = 'alert alert-success';
                     messageDiv.classList.remove('d-none');
-                    
+
                     // 로그인 성공 후 페이지 새로고침하여 인증 상태 반영
                     setTimeout(() => {
                         window.location.reload();

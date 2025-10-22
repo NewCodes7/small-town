@@ -81,12 +81,16 @@
             </div>
         </div>
         
-        <!-- 뒤로가기 버튼 -->
+        <!-- 뒤로가기 버튼 및 관리자 버튼 -->
         <div class="mb-4">
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 justify-content-between">
                 <a th:href="@{/corporations}" class="btn btn-secondary">
                     <i class="fas fa-arrow-left me-2"></i>구독 블로그 목록
                 </a>
+                <!-- 관리자 전용 크롤링 버튼 (JavaScript로 표시 여부 제어) -->
+                <button id="adminCrawlBtn" class="btn btn-success d-none" th:attr="data-corporation-id=${corporation.id}">
+                    <i class="fas fa-sync-alt me-2"></i>크롤링 시작
+                </button>
             </div>
         </div>
         
@@ -103,10 +107,16 @@
             <div class="article-card" th:each="article : ${articles.content}">
                 <!-- Article Content (Left Side) -->
                 <div class="article-content">
-                    <!-- Admin Delete Button (only shown via JavaScript for admin users) -->
-                    <button class="admin-delete-btn d-none" title="글 삭제" th:attr="data-article-id=${article.id}">
-                        <i class="fas fa-trash"></i>
-                    </button>
+                    <!-- Admin Buttons (only shown via JavaScript for admin users) -->
+                    <div class="admin-buttons-container d-none">
+                        <button class="admin-delete-btn" title="글 삭제" th:attr="data-article-id=${article.id}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        <button class="admin-edit-btn" title="글 수정"
+                                th:attr="data-article-id=${article.id},data-published-at=${article.publishedAt},data-thumbnail=${article.thumbnailImage}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                    </div>
 
                     <!-- Title -->
                     <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
@@ -226,6 +236,46 @@
             </ul>
         </nav>
         
+        <!-- 게시글 편집 모달 (관리자 전용) -->
+        <div class="modal fade" id="editArticleModal" tabindex="-1" aria-labelledby="editArticleModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content" style="border-radius: 20px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="modal-title fw-bold" id="editArticleModalLabel" style="color: var(--primary-green);">
+                            <i class="fas fa-edit me-2"></i>게시글 정보 수정
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body pt-3">
+                        <div id="editMessage" class="alert d-none" role="alert"></div>
+
+                        <form id="editArticleForm">
+                            <input type="hidden" id="editArticleId">
+
+                            <div class="mb-3">
+                                <label for="editPublishedAt" class="form-label fw-bold">발행일</label>
+                                <input type="datetime-local" class="form-control" id="editPublishedAt" required
+                                       style="border-radius: 12px;">
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="editThumbnail" class="form-label fw-bold">썸네일 URL</label>
+                                <input type="text" class="form-control" id="editThumbnail"
+                                       placeholder="썸네일 이미지 URL을 입력하세요" style="border-radius: 12px;">
+                                <small class="text-muted">비워두면 썸네일이 제거됩니다</small>
+                            </div>
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary" style="border-radius: 12px; padding: 12px;">
+                                    <i class="fas fa-save me-2"></i>저장
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- 플로팅 로그인 모달 -->
         <div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
