@@ -104,6 +104,8 @@ public class MediumBlogCrawler implements BlogCrawler {
             String pageSource = driver.getPageSource();
             Document doc = Jsoup.parse(pageSource);
 
+            // Files.writeString(Path.of("medium_page.html"), pageSource); 디버깅용
+
             Elements articleElements = doc.select("article[data-testid='post-preview']");
 
             log.info("{} 발견된 Medium 아티클 요소 수: {}", link, articleElements.size());
@@ -174,22 +176,38 @@ public class MediumBlogCrawler implements BlogCrawler {
                 log.debug("썸네일 이미지 찾기 실패: {}", e.getMessage());
             }
             
-            // 발행일 찾기 - "Added" 텍스트를 포함하는 요소에서 시간 추출
+            // 발행일 찾기
             LocalDateTime publishedAt;
             String timeText = null;
 
-            // "Added"를 포함하는 요소 찾기
-            Element addedElement = element.selectFirst(":contains(Added)");
-            if (addedElement != null) {
-                String fullText = addedElement.text(); // "Added 3d ago"
-                log.debug("Added 요소 발견: {}", fullText);
+            // URL에 @가 포함되어 있으면 span 요소에서 "Aug 22", "Jul 11", "Jun 13" 같은 날짜 추출
+            if (corporation.getBlogLink().contains("@")) {
+                Elements spanElements = element.select("span");
+                Pattern datePattern = Pattern.compile("^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s+\\d{1,2}$", Pattern.CASE_INSENSITIVE);
 
-                // "Added " 부분을 제거하고 시간 부분만 추출
-                Pattern addedPattern = Pattern.compile("Added\\s+(.+)");
-                Matcher addedMatcher = addedPattern.matcher(fullText);
-                if (addedMatcher.find()) {
-                    timeText = addedMatcher.group(1); // "3d ago"
-                    log.debug("추출된 시간 텍스트: {}", timeText);
+                for (Element span : spanElements) {
+                    String spanText = span.text().trim();
+                    Matcher dateMatcher = datePattern.matcher(spanText);
+                    if (dateMatcher.matches()) {
+                        timeText = spanText;
+                        log.debug("날짜 span 요소 발견: {}", timeText);
+                        break;
+                    }
+                }
+            } else {
+                // @ 없는 일반 Medium 블로그는 "Added" 텍스트 패턴 사용
+                Element addedElement = element.selectFirst(":contains(Added)");
+                if (addedElement != null) {
+                    String fullText = addedElement.text(); // "Added 3d ago"
+                    log.debug("Added 요소 발견: {}", fullText);
+
+                    // "Added " 부분을 제거하고 시간 부분만 추출
+                    Pattern addedPattern = Pattern.compile("Added\\s+(.+)");
+                    Matcher addedMatcher = addedPattern.matcher(fullText);
+                    if (addedMatcher.find()) {
+                        timeText = addedMatcher.group(1); // "3d ago"
+                        log.debug("추출된 시간 텍스트: {}", timeText);
+                    }
                 }
             }
 
@@ -351,7 +369,7 @@ public class MediumBlogCrawler implements BlogCrawler {
         }
                 
         // Absolute date patterns (e.g., Oct 15, 2023)
-        Pattern absolutePattern = Pattern.compile("(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\\s+(\\d{1,2}),?\\s+(\\d{4})");
+        Pattern absolutePattern = Pattern.compile("(jan|feb|mar|apr|may|좋으|jul|aug|sep|oct|nov|dec)\\s+(\\d{1,2}),?\\s+(\\d{4})");
         Matcher absoluteMatcher = absolutePattern.matcher(text);
         if (absoluteMatcher.find()) {
             try {
