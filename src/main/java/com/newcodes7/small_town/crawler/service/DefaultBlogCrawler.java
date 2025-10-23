@@ -228,7 +228,9 @@ public class DefaultBlogCrawler implements BlogCrawler {
         if (imgSrc == null || imgSrc.isEmpty()) return "";
 
         // 상대 경로를 절대 경로로 변환
-        if (!imgSrc.startsWith("http")) {
+        if (imgSrc.startsWith("//")) {
+            imgSrc = "https:" + imgSrc; // kakaomobility 때문에 추가 (프로토콜 상대 URL)
+        } else if (!imgSrc.startsWith("http")) {
             imgSrc = resolveImageUrl(imgSrc, corporation.getBlogLink());
         }
 
