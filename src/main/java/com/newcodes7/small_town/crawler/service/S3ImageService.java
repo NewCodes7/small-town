@@ -40,6 +40,92 @@ public class S3ImageService {
     @Value("${s3.image.webp.quality:80}")
     private int webpQuality;
 
+    /*
+     * 현재 크롤링할 때 이미지 업로드 시 쓰이는 메서드 
+     */
+    public String uploadImageFromUrl(String imageUrl, String corporationName) {
+        try {
+            // 프로토콜이 명시되지 않은 경우 https 추가
+            if (imageUrl.startsWith("//")) {
+                imageUrl = "https:" + imageUrl;
+                log.debug("프로토콜 없는 URL에 https 추가: {}", imageUrl);
+            }
+
+            // 외부 URL에서 이미지 다운로드
+            URL url = new URL(imageUrl);
+            // url에 공백 포함된 경우 때문에 인코딩 처리해야 함
+            URI uri = new URI(url.getProtocol(), url.getUserInfo(), url.getHost(), url.getPort(), url.getPath(), url.getQuery(), url.getRef());
+            url = uri.toURL();
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(10000); // 10초
+            connection.setReadTimeout(30000); // 30초
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
+
+            // 티스토리/카카오 이미지인 경우 추가 헤더 설정
+            if (imageUrl.contains("daumcdn.net") || imageUrl.contains("kakaocdn.net") || imageUrl.contains("tistory.com")) {
+                connection.setRequestProperty("Referer", "https://tistory.com/");
+                connection.setRequestProperty("Accept", "image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8");
+                connection.setRequestProperty("Accept-Language", "ko-KR,ko;q=0.9,en;q=0.8");
+                connection.setRequestProperty("Cache-Control", "no-cache");
+                log.debug("티스토리 이미지 요청에 특수 헤더 추가: {}", imageUrl);
+            }
+            
+            byte[] imageData;
+            try (InputStream inputStream = connection.getInputStream()) {
+                imageData = inputStream.readAllBytes();
+            }
+
+            // PNG로 변환
+            byte[] processedImageData = convertToPNG(imageData);
+
+            // S3 키 생성 (thumbnails/corporationName/yyyy/MM/dd/uuid.png)
+            String s3Key = generateS3Key(corporationName, "png");
+
+            // S3에 업로드
+            ObjectMetadata metadata = new ObjectMetadata();
+            metadata.setContentLength(processedImageData.length);
+            metadata.setContentType("image/png");
+            metadata.setCacheControl("max-age=31536000"); // 1년 캐시
+
+            PutObjectRequest putObjectRequest = new PutObjectRequest(
+                    bucketName,
+                    s3Key,
+                    new ByteArrayInputStream(processedImageData),
+                    metadata
+            );
+
+            amazonS3.putObject(putObjectRequest);
+
+            // CloudFront 사용 가능하면 CloudFront URL, 아니면 직접 S3 URL
+            String resultUrl;
+            if (cloudfrontDomain != null && !cloudfrontDomain.trim().isEmpty()) {
+                // 운영환경: CloudFront URL 사용
+                resultUrl = cloudfrontDomain + "/" + s3Key;
+                log.info("이미지 업로드 완료 (CloudFront): {} -> {}", imageUrl, resultUrl);
+            } else {
+                // 개발환경: 직접 S3 URL 사용
+                resultUrl = String.format("https://%s.s3.%s.amazonaws.com/%s", 
+                    bucketName, region, s3Key);
+                log.info("이미지 업로드 완료 (직접 S3): {} -> {}", imageUrl, resultUrl);
+            }
+            
+            return resultUrl;
+
+        } catch (IOException e) {
+            // 티스토리/카카오 이미지 403 에러는 예상되는 상황이므로 warn 레벨로 로그
+            if (imageUrl.contains("daumcdn.net") || imageUrl.contains("kakaocdn.net") || imageUrl.contains("tistory.com")) {
+                log.warn("티스토리 이미지 접근 제한으로 업로드 실패 (원본 URL 사용): {}", imageUrl);
+            } else {
+                log.error("이미지 업로드 실패: {}", imageUrl, e);
+            }
+            return imageUrl; // 업로드 실패 시 원본 URL 반환
+        } catch (URISyntaxException e) {
+            log.error("잘못된 URL 형식: {}", imageUrl, e);
+            return imageUrl; // 잘못된 URL 형식 시 원본 URL 반환
+        }
+    }
+
     /**
      * S3에서 이미지를 다운로드합니다.
      *
@@ -318,89 +404,6 @@ public class S3ImageService {
         } catch (Exception e) {
             log.error("바이트 배열 JPEG 이미지 업로드 실패: {}", s3Key, e);
             throw new RuntimeException("JPEG 이미지 업로드 실패", e);
-        }
-    }
-    
-    public String uploadImageFromUrl(String imageUrl, String corporationName) {
-        try {
-            // 프로토콜이 명시되지 않은 경우 https 추가
-            if (imageUrl.startsWith("//")) {
-                imageUrl = "https:" + imageUrl;
-                log.debug("프로토콜 없는 URL에 https 추가: {}", imageUrl);
-            }
-
-            // 외부 URL에서 이미지 다운로드
-            URL url = new URL(imageUrl);
-            // url에 공백 포함된 경우 때문에 인코딩 처리해야 함
-            URI uri = new URI(url.getProtocol(), url.getUserInfo(), url.getHost(), url.getPort(), url.getPath(), url.getQuery(), url.getRef());
-            url = uri.toURL();
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("GET");
-            connection.setConnectTimeout(10000); // 10초
-            connection.setReadTimeout(30000); // 30초
-            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
-
-            // 티스토리/카카오 이미지인 경우 추가 헤더 설정
-            if (imageUrl.contains("daumcdn.net") || imageUrl.contains("kakaocdn.net") || imageUrl.contains("tistory.com")) {
-                connection.setRequestProperty("Referer", "https://tistory.com/");
-                connection.setRequestProperty("Accept", "image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8");
-                connection.setRequestProperty("Accept-Language", "ko-KR,ko;q=0.9,en;q=0.8");
-                connection.setRequestProperty("Cache-Control", "no-cache");
-                log.debug("티스토리 이미지 요청에 특수 헤더 추가: {}", imageUrl);
-            }
-            
-            byte[] imageData;
-            try (InputStream inputStream = connection.getInputStream()) {
-                imageData = inputStream.readAllBytes();
-            }
-
-            // PNG로 변환
-            byte[] processedImageData = convertToPNG(imageData);
-
-            // S3 키 생성 (thumbnails/corporationName/yyyy/MM/dd/uuid.png)
-            String s3Key = generateS3Key(corporationName, "png");
-
-            // S3에 업로드
-            ObjectMetadata metadata = new ObjectMetadata();
-            metadata.setContentLength(processedImageData.length);
-            metadata.setContentType("image/png");
-            metadata.setCacheControl("max-age=31536000"); // 1년 캐시
-
-            PutObjectRequest putObjectRequest = new PutObjectRequest(
-                    bucketName,
-                    s3Key,
-                    new ByteArrayInputStream(processedImageData),
-                    metadata
-            );
-
-            amazonS3.putObject(putObjectRequest);
-
-            // CloudFront 사용 가능하면 CloudFront URL, 아니면 직접 S3 URL
-            String resultUrl;
-            if (cloudfrontDomain != null && !cloudfrontDomain.trim().isEmpty()) {
-                // 운영환경: CloudFront URL 사용
-                resultUrl = cloudfrontDomain + "/" + s3Key;
-                log.info("이미지 업로드 완료 (CloudFront): {} -> {}", imageUrl, resultUrl);
-            } else {
-                // 개발환경: 직접 S3 URL 사용
-                resultUrl = String.format("https://%s.s3.%s.amazonaws.com/%s", 
-                    bucketName, region, s3Key);
-                log.info("이미지 업로드 완료 (직접 S3): {} -> {}", imageUrl, resultUrl);
-            }
-            
-            return resultUrl;
-
-        } catch (IOException e) {
-            // 티스토리/카카오 이미지 403 에러는 예상되는 상황이므로 warn 레벨로 로그
-            if (imageUrl.contains("daumcdn.net") || imageUrl.contains("kakaocdn.net") || imageUrl.contains("tistory.com")) {
-                log.warn("티스토리 이미지 접근 제한으로 업로드 실패 (원본 URL 사용): {}", imageUrl);
-            } else {
-                log.error("이미지 업로드 실패: {}", imageUrl, e);
-            }
-            return imageUrl; // 업로드 실패 시 원본 URL 반환
-        } catch (URISyntaxException e) {
-            log.error("잘못된 URL 형식: {}", imageUrl, e);
-            return imageUrl; // 잘못된 URL 형식 시 원본 URL 반환
         }
     }
 

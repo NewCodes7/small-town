@@ -38,7 +38,6 @@ import com.newcodes7.small_town.crawler.repository.ArticleSummaryRepository;
 import com.newcodes7.small_town.crawler.repository.CategoryRepository;
 import com.newcodes7.small_town.crawler.service.ArticlePersistenceService;
 import com.newcodes7.small_town.crawler.service.CrawlingService;
-import com.newcodes7.small_town.crawler.service.ImageMigrationService;
 import com.newcodes7.small_town.crawler.service.TitleTranslationService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.ArticleSummary;
@@ -62,7 +61,6 @@ public class AdminController {
     private final ArticleSummaryRepository articleSummaryRepository;
     private final TitleTranslationService titleTranslationService;
     private final ArticlePersistenceService articlePersistenceService;
-    private final ImageMigrationService imageMigrationService;
     
     // 기업 목록 페이지
     @GetMapping("/corporations")
@@ -561,168 +559,6 @@ public class AdminController {
             log.error("번역된 제목 수정 중 오류 발생: {}", e.getMessage(), e);
             response.put("success", false);
             response.put("message", "번역된 제목 수정 중 오류가 발생했습니다: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(response);
-        }
-    }
-
-    /**
-     * 모든 기업 로고 이미지를 WebP로 마이그레이션 API
-     */
-    @GetMapping("/images/migrate-logos-to-webp")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> migrateAllLogosToWebP() {
-        Map<String, Object> response = new HashMap<>();
-
-        try {
-            // 비동기로 실행하여 오래 걸리는 작업이 UI를 블로킹하지 않도록 함
-            new Thread(() -> {
-                try {
-                    imageMigrationService.migrateAllLogosToWebP();
-                } catch (Exception e) {
-                    log.error("로고 이미지 WebP 마이그레이션 중 오류 발생", e);
-                }
-            }).start();
-
-            response.put("success", true);
-            response.put("message", "로고 이미지 WebP 마이그레이션 작업이 시작되었습니다. 로그를 확인해주세요.");
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            response.put("success", false);
-            response.put("message", "마이그레이션 작업 시작 중 오류가 발생했습니다: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(response);
-        }
-    }
-
-    /**
-     * 특정 기업 로고 이미지를 WebP로 마이그레이션 API
-     */
-    @GetMapping("/corporations/{corporationId}/migrate-logo-to-webp")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> migrateLogoToWebP(@PathVariable Long corporationId) {
-        Map<String, Object> response = new HashMap<>();
-
-        try {
-            String result = imageMigrationService.migrateLogoToWebP(corporationId);
-
-            response.put("success", true);
-            response.put("message", result);
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            log.error("로고 이미지 WebP 마이그레이션 중 오류 발생: {}", e.getMessage(), e);
-            response.put("success", false);
-            response.put("message", "마이그레이션 중 오류가 발생했습니다: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(response);
-        }
-    }
-
-    /**
-     * 모든 기업 로고 이미지를 PNG로 마이그레이션 API
-     */
-    @GetMapping("/images/migrate-logos-to-png")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> migrateAllLogosToPNG() {
-        Map<String, Object> response = new HashMap<>();
-
-        try {
-            // 비동기로 실행하여 오래 걸리는 작업이 UI를 블로킹하지 않도록 함
-            new Thread(() -> {
-                try {
-                    imageMigrationService.migrateAllLogosToPNG();
-                } catch (Exception e) {
-                    log.error("로고 이미지 PNG 마이그레이션 중 오류 발생", e);
-                }
-            }).start();
-
-            response.put("success", true);
-            response.put("message", "로고 이미지 PNG 마이그레이션 작업이 시작되었습니다. 로그를 확인해주세요.");
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            response.put("success", false);
-            response.put("message", "마이그레이션 작업 시작 중 오류가 발생했습니다: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(response);
-        }
-    }
-
-    /**
-     * 특정 기업 로고 이미지를 PNG로 마이그레이션 API
-     */
-    @GetMapping("/corporations/{corporationId}/migrate-logo-to-png")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> migrateLogoToPNG(@PathVariable Long corporationId) {
-        Map<String, Object> response = new HashMap<>();
-
-        try {
-            String result = imageMigrationService.migrateLogoToPNG(corporationId);
-
-            response.put("success", true);
-            response.put("message", result);
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            log.error("로고 이미지 PNG 마이그레이션 중 오류 발생: {}", e.getMessage(), e);
-            response.put("success", false);
-            response.put("message", "마이그레이션 중 오류가 발생했습니다: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(response);
-        }
-    }
-
-    /**
-     * 모든 게시글 썸네일 이미지를 JPEG로 마이그레이션 API
-     */
-    @GetMapping("/images/migrate-thumbnails-to-jpeg")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> migrateAllThumbnailsToJPEG() {
-        Map<String, Object> response = new HashMap<>();
-
-        try {
-            // 비동기로 실행하여 오래 걸리는 작업이 UI를 블로킹하지 않도록 함
-            new Thread(() -> {
-                try {
-                    imageMigrationService.migrateAllThumbnailsToJPEG();
-                } catch (Exception e) {
-                    log.error("썸네일 이미지 JPEG 마이그레이션 중 오류 발생", e);
-                }
-            }).start();
-
-            response.put("success", true);
-            response.put("message", "썸네일 이미지 JPEG 마이그레이션 작업이 시작되었습니다. 로그를 확인해주세요.");
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            response.put("success", false);
-            response.put("message", "마이그레이션 작업 시작 중 오류가 발생했습니다: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(response);
-        }
-    }
-
-    /**
-     * 특정 게시글 썸네일 이미지를 JPEG로 마이그레이션 API
-     */
-    @GetMapping("/articles/{articleId}/migrate-thumbnail-to-jpeg")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> migrateThumbnailToJPEG(@PathVariable Long articleId) {
-        Map<String, Object> response = new HashMap<>();
-
-        try {
-            String result = imageMigrationService.migrateThumbnailToJPEG(articleId);
-
-            response.put("success", true);
-            response.put("message", result);
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            log.error("썸네일 이미지 JPEG 마이그레이션 중 오류 발생: {}", e.getMessage(), e);
-            response.put("success", false);
-            response.put("message", "마이그레이션 중 오류가 발생했습니다: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
     }
