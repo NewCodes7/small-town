@@ -15,7 +15,7 @@ public class HomeCacheInterceptor implements HandlerInterceptor {
 
     @Override
     public void postHandle(HttpServletRequest request, HttpServletResponse response, Object handler, @Nullable ModelAndView modelAndView) throws Exception {
-        long maxAgeInSeconds = TimeUnit.HOURS.toSeconds(1);
+        long maxAgeInSeconds = TimeUnit.MINUTES.toSeconds(5);
         
         response.setHeader("Cache-Control", "public, max-age=" + maxAgeInSeconds);
         response.setDateHeader("Expires", TimeUnit.SECONDS.toMillis(maxAgeInSeconds) + System.currentTimeMillis());
