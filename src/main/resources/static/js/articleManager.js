@@ -129,9 +129,10 @@ class ArticleManager {
 
         // 페이지네이션 이벤트 (동적 바인딩)
         document.addEventListener('click', (e) => {
-            if (e.target.classList.contains('page-link') && e.target.dataset.page !== undefined) {
+            const pageLink = e.target.closest('.page-link');
+            if (pageLink && pageLink.dataset.page !== undefined) {
                 e.preventDefault();
-                const page = parseInt(e.target.dataset.page);
+                const page = parseInt(pageLink.dataset.page);
                 if (!isNaN(page)) {
                     this.currentPage = page;
                     smoothScrollToElement('searchForm', -70);

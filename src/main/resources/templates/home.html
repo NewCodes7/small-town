@@ -1127,8 +1127,6 @@
                                          (currentPage >= totalPages - halfRange - 1 ? totalPages - 2 :
                                              currentPage + halfRange)))}
                     ">
-                        <!-- 첫 번째 페이지와 생략 기호 제거 -->
-
                         <!-- Main page numbers -->
                         <li class="page-item page-number"
                             th:each="pageNum, iterStat : ${#numbers.sequence(startPage, endPage)}"
@@ -1137,7 +1135,6 @@
                             <a class="page-link" href="#" th:attr="data-page=${pageNum}" th:text="${pageNum + 1}">1</a>
                         </li>
 
-                        <!-- 마지막 페이지 표시 제거 -->
                     </th:block>
 
                     <!-- Next Button -->
@@ -1393,7 +1390,7 @@
     </div>
     
     <div layout:fragment="scripts">
-        <script th:src="@{/js/articleManager.js}"></script>
+        <script th:src="@{/js/articleManager.js(v='1.0.1')}"></script>
         <script th:src="@{/js/home.js}"></script>
         <script th:src="@{/js/banner.js}"></script>
         <script th:src="@{/js/categoryFilter.js}"></script>
