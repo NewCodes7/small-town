@@ -271,25 +271,33 @@ public class DefaultBlogCrawler implements BlogCrawler {
     private LocalDateTime parsePublishedDate(Element element) {
         Element publishElement = element.selectFirst(parsingSelector.getPublish());
         String publishFormat = parsingSelector.getPublishFormat();
+        LocalDateTime publishedAt;
 
         if (publishFormat.equals("yyyy.MM.dd")
             || publishFormat.equals("yyyy.M.dd")
             || publishFormat.equals("yyyy-MM-dd")) {
-            return parseKoreanDateFormat(publishElement);
+            publishedAt = parseKoreanDateFormat(publishElement);
         } else if (publishFormat.equals("ISO8601")) {
-            return parseISO8601Format(publishElement);
+            publishedAt = parseISO8601Format(publishElement);
         } else if (publishFormat.equals("MMM d, yyyy")
             || publishFormat.equals("MMMM d, yyyy")
             || publishFormat.equals("MMMM dd, yyyy")
             || publishFormat.equals("MMM dd, yyyy")) {
-            return parseEnglishDateFormat(publishElement);
+            publishedAt = parseEnglishDateFormat(publishElement);
         } else if (publishFormat.trim().equals("dd MMM yyyy")) {
-            return parseDayMonthYearFormat(publishElement);
+            publishedAt = parseDayMonthYearFormat(publishElement);
         } else if (publishFormat.trim().equals("dd MMM")) {
-            return parseShortEnglishDateFormat(publishElement);
+            publishedAt = parseShortEnglishDateFormat(publishElement);
         } else {
-            return parseKoreanDateFormat(publishElement);
+            publishedAt = parseKoreanDateFormat(publishElement);
         }
+
+        // 미래 날짜일 시 크롤링된 시각으로 설정 (SK플래닛 블로그 대응)
+        if (publishedAt.isAfter(LocalDateTime.now())) {
+            publishedAt = LocalDateTime.now();
+        }
+        
+        return publishedAt;
     }
 
     /**
