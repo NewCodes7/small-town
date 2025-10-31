@@ -37,4 +37,12 @@ public class CrawlResult {
         result.setCrawledAt(LocalDateTime.now());
         return result;
     }
+
+    /**
+     * 크롤링 결과에 신규 글이 포함되어 있는지 확인
+     * @return 신규 글이 1개 이상이면 true
+     */
+    public boolean hasNewArticles() {
+        return success && newArticles > 0;
+    }
 }

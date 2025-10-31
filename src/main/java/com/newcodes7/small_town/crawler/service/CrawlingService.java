@@ -17,6 +17,7 @@ import com.newcodes7.small_town.crawler.exception.CrawlerException;
 import com.newcodes7.small_town.crawler.exception.CrawlerNotFoundException;
 import com.newcodes7.small_town.crawler.repository.CrawlerArticleRepository;
 import com.newcodes7.small_town.crawler.repository.CrawlerCorporationRepository;
+import com.newcodes7.small_town.global.cache.NginxCachePurgeService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 
@@ -34,6 +35,7 @@ public class CrawlingService {
     private final RobotsTxtService robotsTxtService;
     private final WebDriverConfig webDriverConfig;
     private final ArticlePersistenceService articlePersistenceService;
+    private final NginxCachePurgeService nginxCachePurgeService;
 
     /**
      * 모든 기업 블로그 크롤링 (동기 처리)
@@ -73,7 +75,44 @@ public class CrawlingService {
         }
 
         log.info("전체 크롤링 완료 - 처리된 기업: {}개", results.size());
+
+        // 크롤링 완료 후 선택적 캐시 purge
+        purgeCacheForCrawlResults(results);
+
         return results;
+    }
+
+    /**
+     * 크롤링 결과에 따라 선택적으로 캐시 purge
+     * - 신규 글이 추가된 corporation만 개별 purge
+     * - 전체적으로 신규 글이 1개 이상이면 home 페이지 purge
+     */
+    private void purgeCacheForCrawlResults(List<CrawlResult> results) {
+        try {
+            // 신규 글이 추가된 corporation 찾기
+            List<Long> corporationIdsWithNewArticles = results.stream()
+                    .filter(CrawlResult::hasNewArticles)
+                    .map(result -> result.getCorporation().getId())
+                    .toList();
+
+            if (corporationIdsWithNewArticles.isEmpty()) {
+                log.info("신규 글이 없어 캐시 purge를 건너뜁니다.");
+                return;
+            }
+
+            log.info("신규 글이 추가된 기업 {}개에 대해 캐시 purge 시작", corporationIdsWithNewArticles.size());
+
+            // 신규 글이 있는 corporation 페이지만 purge
+            nginxCachePurgeService.purgeCorporationPages(corporationIdsWithNewArticles);
+
+            // 전체적으로 신규 글이 있으면 home 페이지도 purge
+            nginxCachePurgeService.purgeHomePages();
+
+            log.info("크롤링 후 캐시 purge 완료");
+        } catch (Exception e) {
+            log.error("크롤링 후 캐시 purge 중 오류 발생: {}", e.getMessage(), e);
+            // 캐시 purge 실패는 크롤링 자체를 실패시키지 않음
+        }
     }
     
     /**
