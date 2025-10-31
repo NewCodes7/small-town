@@ -95,6 +95,7 @@
     </appender>
 
     <!-- 프로파일별 설정 -->
+    <!-- 개발 환경: 콘솔 출력만 사용 -->
     <springProfile name="dev">
         <root level="INFO">
             <appender-ref ref="CONSOLE"/>
@@ -106,6 +107,16 @@
         <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="TRACE"/>
     </springProfile>
 
+    <!-- 테스트 환경: 콘솔 출력만 사용 -->
+    <springProfile name="test">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+        <logger name="com.newcodes7.small_town" level="DEBUG"/>
+        <logger name="com.newcodes7.small_town.crawler" level="DEBUG"/>
+    </springProfile>
+
+    <!-- 운영 환경: 콘솔 및 파일 출력 사용 -->
     <springProfile name="prod">
         <root level="WARN">
             <appender-ref ref="CONSOLE"/>
@@ -122,11 +133,10 @@
         <logger name="org.hibernate.SQL" level="WARN"/>
     </springProfile>
 
-    <!-- 기본 설정 (프로파일 미지정 시) -->
-    <springProfile name="!dev &amp; !prod">
+    <!-- 기본 설정 (프로파일 미지정 시): 콘솔 출력만 사용 -->
+    <springProfile name="!dev &amp; !prod &amp; !test">
         <root level="INFO">
             <appender-ref ref="CONSOLE"/>
-            <appender-ref ref="FILE"/>
         </root>
     </springProfile>
 </configuration>
