@@ -11,6 +11,7 @@ class ArticleManager {
         this.currentSort = 'latest';
         this.currentKeyword = '';
         this.currentRegions = [];
+        this.currentContentTypes = [];
         this.currentView = 'grouped'; // 'list' or 'grouped'
         this.isLoading = false;
         this.debounceTimer = null;
@@ -32,6 +33,7 @@ class ArticleManager {
         this.currentSort = params.get('sort') || 'latest';
         this.currentKeyword = params.get('keyword') || '';
         this.currentRegions = params.getAll('regions') || [];
+        this.currentContentTypes = params.getAll('contentTypes') || [];
 
         // URL에서 뷰 파라미터 읽기
         const urlView = params.get('view') || 'grouped';
@@ -71,6 +73,14 @@ class ArticleManager {
         // 지역 필터 상태 업데이트
         this.currentRegions.forEach(region => {
             const checkbox = document.getElementById(region);
+            if (checkbox) {
+                checkbox.checked = true;
+            }
+        });
+
+        // 콘텐츠 타입 필터 상태 업데이트
+        this.currentContentTypes.forEach(contentType => {
+            const checkbox = document.getElementById(contentType + 'Filter');
             if (checkbox) {
                 checkbox.checked = true;
             }
@@ -213,10 +223,18 @@ class ArticleManager {
 
     handleRegionChange() {
         const checkedRegions = [];
+        const checkedContentTypes = [];
+
         document.querySelectorAll('.filter-checkbox:checked').forEach(checkbox => {
-            checkedRegions.push(checkbox.value);
+            if (checkbox.name === 'regions') {
+                checkedRegions.push(checkbox.value);
+            } else if (checkbox.name === 'contentTypes') {
+                checkedContentTypes.push(checkbox.value);
+            }
         });
+
         this.currentRegions = checkedRegions;
+        this.currentContentTypes = checkedContentTypes;
         this.currentPage = 0;
         this.loadArticles();
     }
@@ -241,6 +259,10 @@ class ArticleManager {
 
             this.currentRegions.forEach(region => {
                 params.append('regions', region);
+            });
+
+            this.currentContentTypes.forEach(contentType => {
+                params.append('contentTypes', contentType);
             });
 
             // 현재 선택된 카테고리 유지
@@ -381,14 +403,15 @@ class ArticleManager {
         if (this.currentSort !== 'latest') params.set('sort', this.currentSort);
         if (this.currentKeyword) params.set('keyword', this.currentKeyword);
         this.currentRegions.forEach(region => params.append('regions', region));
-        
+        this.currentContentTypes.forEach(contentType => params.append('contentTypes', contentType));
+
         // 현재 선택된 카테고리 유지
         const currentUrl = new URL(window.location);
         const currentCategories = currentUrl.searchParams.getAll('category');
         currentCategories.forEach(category => {
             params.append('category', category);
         });
-        
+
         params.set('view', this.currentView);
 
         const newURL = `${window.location.pathname}?${params.toString()}`;

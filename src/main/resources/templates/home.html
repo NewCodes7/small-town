@@ -79,8 +79,14 @@
                             <div class="article-content">
                                 <div class="article-top">
                                     <div class="article-badge">🔥 인기글</div>
-                                    <h2 class="article-title title-link"
-                                        th:text="${article.translatedTitle != null && !article.translatedTitle.isEmpty() ? article.translatedTitle : article.title}">Article Title</h2>
+                                    <h2 class="article-title title-link">
+                                        <span th:text="${article.translatedTitle != null && !article.translatedTitle.isEmpty() ? article.translatedTitle : article.title}">Article Title</span>
+                                        <!-- YouTube 영상일 경우 로고 표시 (썸네일이 없을 때만) -->
+                                        <i th:if="${article.youtubeContent && (article.thumbnailImage == null || #strings.isEmpty(article.thumbnailImage) || article.thumbnailImage.length() <= 2)}"
+                                           class="fab fa-youtube ms-2"
+                                           style="color: #FF0000; font-size: 1.1em;"
+                                           title="YouTube 영상"></i>
+                                    </h2>
                                 </div>
                                 <div class="article-info">
                                     <div class="article-company">
@@ -163,23 +169,48 @@
                 <div class="filter-pills-container">
                     <!-- Quick Filter Pills -->
                     <div class="quick-filters">
-                        <!-- Region Filter Pills -->
-                        <div class="filter-group">
-                            <input type="checkbox" name="regions" value="domestic" id="domestic"
-                                   th:checked="${selectedRegions.contains('domestic')}"
-                                   class="filter-checkbox">
-                            <label for="domestic" class="filter-pill region-pill">
-                                <i class="fas fa-map-marker-alt"></i>
-                                <span>국내</span>
-                            </label>
-                            
-                            <input type="checkbox" name="regions" value="overseas" id="overseas"
-                                   th:checked="${selectedRegions.contains('overseas')}"
-                                   class="filter-checkbox">
-                            <label for="overseas" class="filter-pill region-pill">
-                                <i class="fas fa-globe"></i>
-                                <span>해외</span>
-                            </label>
+                        <!-- Region Filter Group -->
+                        <div class="filter-group-wrapper">
+                            <span class="filter-group-label">지역</span>
+                            <div class="filter-group">
+                                <input type="checkbox" name="regions" value="domestic" id="domestic"
+                                       th:checked="${selectedRegions.contains('domestic')}"
+                                       class="filter-checkbox">
+                                <label for="domestic" class="filter-pill region-pill">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    <span>국내</span>
+                                </label>
+
+                                <input type="checkbox" name="regions" value="overseas" id="overseas"
+                                       th:checked="${selectedRegions.contains('overseas')}"
+                                       class="filter-checkbox">
+                                <label for="overseas" class="filter-pill region-pill">
+                                    <i class="fas fa-globe"></i>
+                                    <span>해외</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Content Type Filter Group -->
+                        <div class="filter-group-wrapper">
+                            <span class="filter-group-label">타입</span>
+                            <div class="filter-group">
+                                <input type="checkbox" name="contentTypes" value="blog" id="blogFilter"
+                                       th:checked="${selectedContentTypes.contains('blog')}"
+                                       class="filter-checkbox">
+                                <label for="blogFilter" class="filter-pill content-type-pill">
+                                    <i class="fas fa-blog"></i>
+                                    <span>블로그</span>
+                                </label>
+
+                                <input type="checkbox" name="contentTypes" value="youtube" id="youtubeFilter"
+                                       th:checked="${selectedContentTypes.contains('youtube')}"
+                                       class="filter-checkbox">
+                                <label for="youtubeFilter" class="filter-pill content-type-pill">
+                                    <i class="fab fa-youtube"></i>
+                                    <span>유튜브</span>
+                                </label>
+                            </div>
                         </div>
 
                         <!-- Category Filter -->
@@ -345,7 +376,26 @@
                 display: flex;
                 align-items: center;
                 flex-wrap: wrap;
-                gap: 12px;
+                gap: 20px;
+            }
+
+            .filter-group-wrapper {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                padding: 12px 16px;
+                background: rgba(34, 197, 94, 0.04);
+                border-radius: 16px;
+                border: 1px solid rgba(34, 197, 94, 0.15);
+            }
+
+            .filter-group-label {
+                font-size: 11px;
+                font-weight: 700;
+                color: var(--primary-green);
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                padding-left: 4px;
             }
 
             .filter-group {
@@ -362,7 +412,7 @@
                 display: flex;
                 align-items: center;
                 gap: 8px;
-                padding: 12px 20px;
+                padding: 9px 12px;
                 background: white;
                 border: 2px solid #e5e7eb;
                 border-radius: 25px;
@@ -508,7 +558,7 @@
                 display: flex;
                 align-items: center;
                 gap: 8px;
-                padding: 12px 20px;
+                padding: 9px 12px;
                 background: white;
                 border: 2px solid #e5e7eb;
                 border-radius: 25px;
@@ -569,6 +619,12 @@
 
                 .quick-filters {
                     justify-content: center;
+                    flex-direction: column;
+                    width: 100%;
+                }
+
+                .filter-group-wrapper {
+                    width: 100%;
                 }
 
                 .view-controls {
@@ -584,6 +640,14 @@
                 .search-filter-container {
                     padding: 20px 16px;
                     border-radius: 20px;
+                }
+
+                .filter-group-wrapper {
+                    padding: 10px 12px;
+                }
+
+                .filter-group-label {
+                    font-size: 10px;
                 }
 
                 .filter-pill,
@@ -788,7 +852,7 @@
                 }
             }
         </style>
-        
+
 
         <!-- Selected Categories Row Styles -->
         <style>
@@ -926,9 +990,13 @@
                             <a th:href="${article.link}"
                             target="_blank"
                             class="text-decoration-none title-link"
-                            style="color: inherit;"
-                            th:text="${article.translatedTitle != null && !article.translatedTitle.isEmpty() ? article.translatedTitle : article.title}">
-                            Article Title
+                            style="color: inherit;">
+                                <span th:text="${article.translatedTitle != null && !article.translatedTitle.isEmpty() ? article.translatedTitle : article.title}">Article Title</span>
+                                <!-- YouTube 영상일 경우 로고 표시 (썸네일이 없을 때만) -->
+                                <i th:if="${article.youtubeContent && (article.thumbnailImage == null || #strings.isEmpty(article.thumbnailImage) || article.thumbnailImage.length() <= 2)}"
+                                   class="fab fa-youtube ms-2"
+                                   style="color: #FF0000; font-size: 1.1em;"
+                                   title="YouTube 영상"></i>
                             </a>
                         </h5>
                         
@@ -1007,8 +1075,14 @@
                             <!-- Title -->
                             <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
                                 <a th:href="${firstArticle.link}" target="_blank"
-                                class="text-decoration-none title-link" style="color: inherit;"
-                                th:text="${firstArticle.translatedTitle != null && !firstArticle.translatedTitle.isEmpty() ? firstArticle.translatedTitle : firstArticle.title}"></a>
+                                class="text-decoration-none title-link" style="color: inherit;">
+                                    <span th:text="${firstArticle.translatedTitle != null && !firstArticle.translatedTitle.isEmpty() ? firstArticle.translatedTitle : firstArticle.title}"></span>
+                                    <!-- YouTube 영상일 경우 로고 표시 (썸네일이 없을 때만) -->
+                                    <i th:if="${firstArticle.youtubeContent}"
+                                       class="fab fa-youtube ms-2"
+                                       style="color: #FF0000; font-size: 1.1em;"
+                                       title="YouTube 영상"></i>
+                                </a>
                             </h5>
                             
                             <!-- Company Info & Stats -->
@@ -1046,8 +1120,14 @@
                             <div class="child" th:each="child : ${childArticles}" th:attr="data-article-id=${child.id}">
                                 <h6 class="fw-bold" style="margin: 0;">
                                     <a th:href="${child.link}" target="_blank"
-                                    class="text-decoration-none title-link" style="color: inherit;"
-                                    th:text="${child.translatedTitle != null && !child.translatedTitle.isEmpty() ? child.translatedTitle : child.title}"></a>
+                                    class="text-decoration-none title-link" style="color: inherit;">
+                                        <span th:text="${child.translatedTitle != null && !child.translatedTitle.isEmpty() ? child.translatedTitle : child.title}"></span>
+                                        <!-- YouTube 영상일 경우 로고 표시 (child는 썸네일 없는 작은 글) -->
+                                        <i th:if="${child.youtubeContent}"
+                                           class="fab fa-youtube ms-2"
+                                           style="color: #FF0000; font-size: 0.95em;"
+                                           title="YouTube 영상"></i>
+                                    </a>
                                 </h6>
                                 <span class="child-date d-flex align-items-center flex-wrap">
                                     <span class="d-flex align-items-center gap-3">

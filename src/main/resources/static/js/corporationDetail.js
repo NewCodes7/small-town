@@ -366,6 +366,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // 관리자 권한 확인 및 버튼 표시
     checkAdminStatus();
 
+    // Content Type Toggle 이벤트 리스너
+    document.querySelectorAll('input[name="contentTypeToggle"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const contentType = this.value;
+            const corporationId = window.location.pathname.split('/').pop();
+            window.location.href = `/corporations/${corporationId}?contentType=${contentType}`;
+        });
+    });
+
     // 삭제 버튼 이벤트 리스너
     document.querySelectorAll('.admin-delete-btn').forEach(btn => {
         btn.addEventListener('click', function(e) {

@@ -79,7 +79,13 @@ public class Article {
     
     @Column(name = "published_at")
     private LocalDateTime publishedAt;
-    
+
+    @Column(name = "youtube_video_id", length = 50)
+    private String youtubeVideoId;
+
+    @Column(name = "content_type", length = 20)
+    private String contentType;
+
     @CreatedDate
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -113,8 +119,26 @@ public class Article {
     public void softDelete() {
         this.deletedAt = LocalDateTime.now();
     }
-    
+
     public boolean isDeleted() {
         return deletedAt != null;
+    }
+
+    public boolean isYoutubeContent() {
+        return "YOUTUBE".equals(contentType);
+    }
+
+    public String getYoutubeEmbedUrl() {
+        if (youtubeVideoId != null && !youtubeVideoId.isEmpty()) {
+            return "https://www.youtube.com/embed/" + youtubeVideoId;
+        }
+        return null;
+    }
+
+    public String getYoutubeWatchUrl() {
+        if (youtubeVideoId != null && !youtubeVideoId.isEmpty()) {
+            return "https://www.youtube.com/watch?v=" + youtubeVideoId;
+        }
+        return null;
     }
 }

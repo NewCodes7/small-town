@@ -48,10 +48,10 @@ public class ArticleService {
     }
 
     @Cacheable(value = "corporationArticles",
-               key = "'filters-' + #keyword + '-' + #regions + '-' + #page + '-' + #size + '-' + #sort + '-' + #view + '-' + #category",
+               key = "'filters-' + #keyword + '-' + #regions + '-' + #page + '-' + #size + '-' + #sort + '-' + #view + '-' + #category + '-' + #contentTypes",
                condition = "#keyword == null")
     public Page<ArticleResponseDto> getArticlesWithFilters(String keyword, List<String> regions,
-                                                     int page, int size, String sort, String view, List<String> category) {
+                                                     int page, int size, String sort, String view, List<String> category, List<String> contentTypes) {
         List<Integer> domesticTypes = null;
         if (regions != null && !regions.isEmpty()) {
             domesticTypes = new ArrayList<>();
@@ -65,12 +65,12 @@ public class ArticleService {
 
         if (view.equals("list")) {
             Pageable pageable = PageRequest.of(page, size);
-            Page<Article> articles = articleRepository.findArticlesWithFilters(keyword, domesticTypes, sort, category, pageable);
+            Page<Article> articles = articleRepository.findArticlesWithFilters(keyword, domesticTypes, sort, category, contentTypes, pageable);
             return articles.map(ArticleListResponseDto::new);
         }
 
         if (view.equals("grouped")) {
-            return getArticlesGroupedByCorporationWithPaging(keyword, domesticTypes, category, page, size);
+            return getArticlesGroupedByCorporationWithPaging(keyword, domesticTypes, category, contentTypes, page, size);
         }
 
         return Page.empty();
@@ -79,6 +79,7 @@ public class ArticleService {
     public Page<ArticleResponseDto> getArticlesGroupedByCorporationWithPaging(String keyword,
                                                                         List<Integer> domesticTypes,
                                                                         List<String> category,
+                                                                        List<String> contentTypes,
                                                                         int page, int size) {
         // 1. 전체 기업 개수 조회
         long totalCorporations = articleRepository.countDistinctCorporationsByFilters(
@@ -89,43 +90,96 @@ public class ArticleService {
             category != null ? category.size() : 0
         );
 
-        // 2. 기업별 최신 글 3개씩 조회
-        int offset = page * size;
-        List<Article> articles = articleRepository.findTop3ArticlesGroupedByCorporation(
-            keyword,
-            domesticTypes != null ? domesticTypes : new ArrayList<>(),
-            domesticTypes != null ? domesticTypes.size() : 0,
-            category != null ? category : new ArrayList<>(),
-            category != null ? category.size() : 0,
-            offset,
-            size
-        );
+        // 2. contentTypes 필터 확인
+        boolean includeBlog = contentTypes == null || contentTypes.isEmpty() || contentTypes.contains("blog");
+        boolean includeYoutube = contentTypes == null || contentTypes.isEmpty() || contentTypes.contains("youtube");
 
-        // 3. 기업별로 그룹화
-        Map<Corporation, List<Article>> groupedByCorporation = articles.stream()
+        // 3. 블로그와 YouTube를 별도로 조회 (페이징 없이 모두 가져옴)
+        List<Article> blogArticles = new ArrayList<>();
+        if (includeBlog) {
+            blogArticles = articleRepository.findTop3BlogsGroupedByCorporation(
+                keyword,
+                domesticTypes != null ? domesticTypes : new ArrayList<>(),
+                domesticTypes != null ? domesticTypes.size() : 0,
+                category != null ? category : new ArrayList<>(),
+                category != null ? category.size() : 0,
+                0,
+                Integer.MAX_VALUE
+            );
+        }
+
+        List<Article> youtubeArticles = new ArrayList<>();
+        if (includeYoutube) {
+            youtubeArticles = articleRepository.findTop3YouTubesGroupedByCorporation(
+                keyword,
+                domesticTypes != null ? domesticTypes : new ArrayList<>(),
+                domesticTypes != null ? domesticTypes.size() : 0,
+                category != null ? category : new ArrayList<>(),
+                category != null ? category.size() : 0,
+                0,
+                Integer.MAX_VALUE
+            );
+        }
+
+        // 4. 블로그별로 그룹화하여 카드 생성
+        Map<Corporation, List<Article>> groupedBlogs = blogArticles.stream()
                 .collect(Collectors.groupingBy(Article::getCorporation,
                     LinkedHashMap::new,
                     Collectors.toList()
                 ));
 
-        // 4. GroupedArticlesDto로 변환
-        List<GroupedArticlesDto> groupedList = groupedByCorporation.entrySet().stream()
+        // 5. YouTube별로 그룹화하여 카드 생성
+        Map<Corporation, List<Article>> groupedYoutubes = youtubeArticles.stream()
+                .collect(Collectors.groupingBy(Article::getCorporation,
+                    LinkedHashMap::new,
+                    Collectors.toList()
+                ));
+
+        // 6. 블로그와 YouTube 카드를 모두 리스트에 추가
+        List<GroupedArticlesDto> allCards = new ArrayList<>();
+
+        // 블로그 카드 추가
+        groupedBlogs.entrySet().stream()
                 .map(entry -> new GroupedArticlesDto(
                         new CorporationDto(entry.getKey()),
                         entry.getValue().stream()
                                 .map(ArticleListResponseDto::new)
                                 .collect(Collectors.toList())
                 ))
-                .collect(Collectors.toList());
+                .forEach(allCards::add);
 
-        // 5. Page로 변환 (정확한 total count 사용)
+        // YouTube 카드 추가
+        groupedYoutubes.entrySet().stream()
+                .map(entry -> new GroupedArticlesDto(
+                        new CorporationDto(entry.getKey()),
+                        entry.getValue().stream()
+                                .map(ArticleListResponseDto::new)
+                                .collect(Collectors.toList())
+                ))
+                .forEach(allCards::add);
+
+        // 7. 각 카드의 최신 글 기준으로 정렬 (최신순)
+        allCards.sort((card1, card2) -> {
+            ArticleListResponseDto latest1 = card1.getArticles().get(0);
+            ArticleListResponseDto latest2 = card2.getArticles().get(0);
+            return latest2.getPublishedAt().compareTo(latest1.getPublishedAt());
+        });
+
+        // 8. 페이징 적용
+        int start = page * size;
+        int end = Math.min(start + size, allCards.size());
+        List<GroupedArticlesDto> pagedCards = start < allCards.size()
+            ? allCards.subList(start, end)
+            : new ArrayList<>();
+
+        // 9. Page로 변환
         Pageable pageable = PageRequest.of(page, size);
         return new PageImpl<>(
-            groupedList.stream()
+            pagedCards.stream()
                     .map(dto -> (ArticleResponseDto) dto)
                     .collect(Collectors.toList()),
             pageable,
-            totalCorporations
+            allCards.size()
         );
     }
     
@@ -167,6 +221,18 @@ public class ArticleService {
         Pageable pageable = PageRequest.of(page, size);
         Page<Article> articles = articleRepository.findByCorporationId(corporationId, pageable);
         return articles.map(ArticleListResponseDto::new);
+    }
+
+    public Page<ArticleListResponseDto> getBlogsByCorporation(Long corporationId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Article> blogs = articleRepository.findBlogsByCorporationId(corporationId, pageable);
+        return blogs.map(ArticleListResponseDto::new);
+    }
+
+    public Page<ArticleListResponseDto> getYouTubesByCorporation(Long corporationId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Article> youtubes = articleRepository.findYouTubesByCorporationId(corporationId, pageable);
+        return youtubes.map(ArticleListResponseDto::new);
     }
     
     public long getTotalArticleCount() {

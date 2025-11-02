@@ -8,7 +8,7 @@ import com.newcodes7.small_town.global.entity.Corporation;
 
 @Getter
 public class CorporationDetailDto {
-    
+
     private final Long id;
     private final String name;
     private final String homeLink;
@@ -17,10 +17,12 @@ public class CorporationDetailDto {
     private final String logoUrl;
     private final String logoFilename;
     private final String logoS3Url;
+    private final String youtubeUrl;
+    private final String youtubeChannelId;
     private final Boolean isDomestic;
     private final LocalDateTime createdAt;
     private final long articleCount;
-    
+
     public CorporationDetailDto(Corporation corporation, long articleCount) {
         this.id = corporation.getId();
         this.name = corporation.getName();
@@ -30,6 +32,8 @@ public class CorporationDetailDto {
         this.logoUrl = corporation.getLogoUrl();
         this.logoFilename = corporation.getLogoFilename();
         this.logoS3Url = corporation.getLogoS3Url();
+        this.youtubeUrl = corporation.getYoutubeUrl();
+        this.youtubeChannelId = corporation.getYoutubeChannelId();
         this.isDomestic = corporation.getIsDomestic();
         this.createdAt = corporation.getCreatedAt();
         this.articleCount = articleCount;
