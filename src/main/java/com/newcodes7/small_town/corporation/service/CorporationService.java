@@ -24,6 +24,7 @@ import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.corporation.repository.IndustryRepository;
 import com.newcodes7.small_town.crawler.entity.ParsingSelector;
 import com.newcodes7.small_town.crawler.repository.ParsingSelectorRepository;
+import com.newcodes7.small_town.crawler.service.YouTubeService;
 import com.newcodes7.small_town.global.cache.NginxCachePurgeService;
 import com.newcodes7.small_town.global.entity.Corporation;
 
@@ -41,6 +42,7 @@ public class CorporationService {
     private final FileUploadService fileUploadService;
     private final ParsingSelectorRepository parsingSelectorRepository;
     private final NginxCachePurgeService nginxCachePurgeService;
+    private final YouTubeService youtubeService;
     
     public Page<CorporationResponseDto> getAllCorporations(Pageable pageable) {
         return corporationRepository.findAllActive(pageable)
@@ -73,11 +75,24 @@ public class CorporationService {
         if (dto.getName() == null || dto.getName().trim().isEmpty()) {
             throw new InvalidParameterException("name", dto.getName(), "기업명은 필수입니다");
         }
-        
+
         if (corporationRepository.existsByNameAndDeletedAtIsNull(dto.getName())) {
             throw new DuplicateCorporationNameException(dto.getName());
         }
-        
+
+        // YouTube URL 처리
+        String youtubeChannelId = null;
+        if (dto.getYoutubeUrl() != null && !dto.getYoutubeUrl().trim().isEmpty()) {
+            try {
+                youtubeChannelId = youtubeService.getChannelIdFromUrl(dto.getYoutubeUrl());
+                if (youtubeChannelId == null) {
+                    log.warn("YouTube Channel ID 조회 실패 - URL: {}", dto.getYoutubeUrl());
+                }
+            } catch (Exception e) {
+                log.error("YouTube Channel ID 조회 중 오류 발생 - URL: {}", dto.getYoutubeUrl(), e);
+            }
+        }
+
         Corporation corporation = Corporation.builder()
                 .name(dto.getName())
                 .isDomestic(dto.getIsDomestic())
@@ -85,8 +100,10 @@ public class CorporationService {
                 .blogLink(dto.getBlogLink())
                 .crewLink(dto.getCrewLink())
                 .logoUrl(dto.getLogoUrl())
+                .youtubeUrl(dto.getYoutubeUrl())
+                .youtubeChannelId(youtubeChannelId)
                 .build();
-        
+
         Corporation savedCorporation = corporationRepository.save(corporation);
 
         ParsingSelector parsingSelector = ParsingSelector.builder()
@@ -148,7 +165,25 @@ public class CorporationService {
         corporation.setBlogLink(dto.getBlogLink());
         corporation.setCrewLink(dto.getCrewLink());
         corporation.setLogoUrl(dto.getLogoUrl());
-        
+
+        // YouTube URL 처리
+        if (dto.getYoutubeUrl() != null && !dto.getYoutubeUrl().trim().isEmpty()) {
+            try {
+                String youtubeChannelId = youtubeService.getChannelIdFromUrl(dto.getYoutubeUrl());
+                corporation.setYoutubeUrl(dto.getYoutubeUrl());
+                corporation.setYoutubeChannelId(youtubeChannelId);
+                if (youtubeChannelId == null) {
+                    log.warn("YouTube Channel ID 조회 실패 - URL: {}", dto.getYoutubeUrl());
+                }
+            } catch (Exception e) {
+                log.error("YouTube Channel ID 조회 중 오류 발생 - URL: {}", dto.getYoutubeUrl(), e);
+            }
+        } else {
+            // YouTube URL이 null이거나 비어있으면 초기화
+            corporation.setYoutubeUrl(null);
+            corporation.setYoutubeChannelId(null);
+        }
+
         // 기존 업종 관계 제거
         corporation.getCorporationIndustries().clear();
         
@@ -215,11 +250,24 @@ public class CorporationService {
         if (dto.getName() == null || dto.getName().trim().isEmpty()) {
             throw new InvalidParameterException("name", dto.getName(), "기업명은 필수입니다");
         }
-        
+
         if (corporationRepository.existsByNameAndDeletedAtIsNull(dto.getName())) {
             throw new DuplicateCorporationNameException(dto.getName());
         }
-        
+
+        // YouTube URL 처리
+        String youtubeChannelId = null;
+        if (dto.getYoutubeUrl() != null && !dto.getYoutubeUrl().trim().isEmpty()) {
+            try {
+                youtubeChannelId = youtubeService.getChannelIdFromUrl(dto.getYoutubeUrl());
+                if (youtubeChannelId == null) {
+                    log.warn("YouTube Channel ID 조회 실패 - URL: {}", dto.getYoutubeUrl());
+                }
+            } catch (Exception e) {
+                log.error("YouTube Channel ID 조회 중 오류 발생 - URL: {}", dto.getYoutubeUrl(), e);
+            }
+        }
+
         Corporation corporation = Corporation.builder()
                 .name(dto.getName())
                 .isDomestic(dto.getIsDomestic())
@@ -227,8 +275,10 @@ public class CorporationService {
                 .blogLink(dto.getBlogLink())
                 .crewLink(dto.getCrewLink())
                 .logoUrl(dto.getLogoUrl())
+                .youtubeUrl(dto.getYoutubeUrl())
+                .youtubeChannelId(youtubeChannelId)
                 .build();
-        
+
         Corporation savedCorporation = corporationRepository.save(corporation);
 
         ParsingSelector parsingSelector = ParsingSelector.builder()
@@ -314,7 +364,27 @@ public class CorporationService {
         if (dto.getBlogLink() != null) corporation.setBlogLink(dto.getBlogLink());
         if (dto.getCrewLink() != null) corporation.setCrewLink(dto.getCrewLink());
         if (dto.getLogoUrl() != null) corporation.setLogoUrl(dto.getLogoUrl());
-        
+
+        // YouTube URL 처리
+        if (dto.getYoutubeUrl() != null) {
+            if (!dto.getYoutubeUrl().trim().isEmpty()) {
+                try {
+                    String youtubeChannelId = youtubeService.getChannelIdFromUrl(dto.getYoutubeUrl());
+                    corporation.setYoutubeUrl(dto.getYoutubeUrl());
+                    corporation.setYoutubeChannelId(youtubeChannelId);
+                    if (youtubeChannelId == null) {
+                        log.warn("YouTube Channel ID 조회 실패 - URL: {}", dto.getYoutubeUrl());
+                    }
+                } catch (Exception e) {
+                    log.error("YouTube Channel ID 조회 중 오류 발생 - URL: {}", dto.getYoutubeUrl(), e);
+                }
+            } else {
+                // YouTube URL이 빈 문자열이면 초기화
+                corporation.setYoutubeUrl(null);
+                corporation.setYoutubeChannelId(null);
+            }
+        }
+
         // 로고 파일 업로드 처리
         if (logoFile != null && !logoFile.isEmpty()) {
             // 기존 로고 파일 삭제

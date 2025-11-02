@@ -19,6 +19,8 @@ public class CorporationResponseDto {
     private String logoUrl;
     private String logoFilename;
     private String logoS3Url;
+    private String youtubeUrl;
+    private String youtubeChannelId;
     private Boolean isDomestic;
     private Long articleCount;
     private String baseUrl;
@@ -62,6 +64,8 @@ public class CorporationResponseDto {
         dto.setLogoUrl(corporation.getLogoUrl());
         dto.setLogoFilename(corporation.getLogoFilename());
         dto.setLogoS3Url(corporation.getLogoS3Url());
+        dto.setYoutubeUrl(corporation.getYoutubeUrl());
+        dto.setYoutubeChannelId(corporation.getYoutubeChannelId());
         dto.setIsDomestic(corporation.getIsDomestic());
         dto.setBaseUrl(parsingSelector.getBaseUrl());
         dto.setArticle(parsingSelector.getArticle());
@@ -91,6 +95,8 @@ public class CorporationResponseDto {
         dto.setLogoUrl(corporation.getLogoUrl());
         dto.setLogoFilename(corporation.getLogoFilename());
         dto.setLogoS3Url(corporation.getLogoS3Url());
+        dto.setYoutubeUrl(corporation.getYoutubeUrl());
+        dto.setYoutubeChannelId(corporation.getYoutubeChannelId());
         dto.setIsDomestic(corporation.getIsDomestic());
         dto.setArticleCount(0L); // Default article count
         dto.setCreatedAt(corporation.getCreatedAt());

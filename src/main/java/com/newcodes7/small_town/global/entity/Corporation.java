@@ -58,6 +58,12 @@ public class Corporation {
     @Column(name = "is_domestic")
     private Integer isDomestic;
 
+    @Column(name = "youtube_url", length = 500)
+    private String youtubeUrl;
+
+    @Column(name = "youtube_channel_id", length = 100)
+    private String youtubeChannelId;
+
     @JsonIgnore
     @OneToMany(mappedBy = "corporation", cascade = CascadeType.ALL)
     private List<Article> articles;

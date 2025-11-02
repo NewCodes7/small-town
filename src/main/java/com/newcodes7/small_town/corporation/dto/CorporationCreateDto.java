@@ -18,6 +18,7 @@ public class CorporationCreateDto {
     private String blogLink;
     private String crewLink;
     private String logoUrl;
+    private String youtubeUrl;
 
     // 블로그 글 파싱을 위해 필요한 속성 
     private String baseUrl;

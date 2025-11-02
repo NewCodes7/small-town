@@ -18,6 +18,7 @@ public class CorporationUpdateDto {
     private String crewLink;
     private String logoUrl;
     private String effectiveLogoUrl; // 읽기 전용 필드 (폼에서 표시용)
+    private String youtubeUrl;
     private String baseUrl;
     private String article; 
     private String title;

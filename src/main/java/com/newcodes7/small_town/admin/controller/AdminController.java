@@ -132,6 +132,7 @@ public class AdminController {
             updateDto.setBlogLink(corporation.getBlogLink());
             updateDto.setCrewLink(corporation.getCrewLink());
             updateDto.setLogoUrl(corporation.getLogoUrl());
+            updateDto.setYoutubeUrl(corporation.getYoutubeUrl());
             updateDto.setBaseUrl(corporation.getBaseUrl());
             updateDto.setArticle(corporation.getArticle());
             updateDto.setTitle(corporation.getTitle());
