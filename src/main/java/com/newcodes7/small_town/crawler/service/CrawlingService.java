@@ -38,11 +38,11 @@ public class CrawlingService {
     private final NginxCachePurgeService nginxCachePurgeService;
 
     /**
-     * 모든 기업 블로그 크롤링 (동기 처리)
+     * 모든 기업의 블로그만 크롤링 (동기 처리)
      */
     public List<CrawlResult> crawlAllBlogs() {
         List<Corporation> corporations = crawlerCorporationRepository.findAllWithBlogLink();
-        log.info("크롤링 시작 - 대상 기업: {}개", corporations.size());
+        log.info("블로그 크롤링 시작 - 대상 기업: {}개", corporations.size());
 
         List<CrawlResult> results = new ArrayList<>();
 
@@ -64,6 +64,82 @@ public class CrawlingService {
                 if (driver != null) {
                     webDriverConfig.forceCloseWebDriver(driver);
                     // 메모리 정리를 위한 대기 시간
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        log.warn("메모리 정리 대기 중 인터럽트 발생");
+                    }
+                }
+            }
+        }
+
+        log.info("블로그 크롤링 완료 - 처리된 기업: {}개", results.size());
+
+        // 크롤링 완료 후 선택적 캐시 purge
+        purgeCacheForCrawlResults(results);
+
+        return results;
+    }
+
+    /**
+     * 모든 기업의 YouTube만 크롤링 (동기 처리)
+     * YouTube는 API를 사용하므로 WebDriver 불필요
+     */
+    public List<CrawlResult> crawlAllYouTube() {
+        List<Corporation> corporations = crawlerCorporationRepository.findAllWithYoutubeChannel();
+        log.info("YouTube 크롤링 시작 - 대상 기업: {}개", corporations.size());
+
+        List<CrawlResult> results = new ArrayList<>();
+
+        for (Corporation corporation : corporations) {
+            try {
+                CrawlResult result = crawlSingleYouTube(corporation.getId(), null);
+                results.add(result);
+
+                log.info("YouTube 크롤링 완료 - {}: {}/{} 진행", corporation.getName(),
+                    results.size(), corporations.size());
+
+            } catch (Exception e) {
+                log.error("기업 ID {} YouTube 크롤링 중 오류 발생: {}", corporation.getId(), e.getMessage(), e);
+                results.add(CrawlResult.failure(corporation, "YouTube 크롤링 실행 실패: " + e.getMessage()));
+            }
+        }
+
+        log.info("YouTube 크롤링 완료 - 처리된 기업: {}개", results.size());
+
+        // 크롤링 완료 후 선택적 캐시 purge
+        purgeCacheForCrawlResults(results);
+
+        return results;
+    }
+
+    /**
+     * 모든 기업의 블로그 및 YouTube 모두 크롤링 (동기 처리)
+     */
+    public List<CrawlResult> crawlAll() {
+        List<Corporation> corporations = crawlerCorporationRepository.findAllWithBlogLinkOrYoutubeChannel();
+        log.info("전체 크롤링 시작 - 대상 기업: {}개 (블로그 및 YouTube 포함)", corporations.size());
+
+        List<CrawlResult> results = new ArrayList<>();
+
+        // 기업별로 WebDriver를 새로 생성하여 메모리 누적 방지
+        for (Corporation corporation : corporations) {
+            WebDriver driver = null;
+            try {
+                driver = webDriverConfig.createWebDriver();
+                CrawlResult result = crawlSingleBlog(corporation.getId(), driver);
+                results.add(result);
+
+                log.info("기업 크롤링 완료 - {}: {}/{} 진행", corporation.getName(),
+                    results.size(), corporations.size());
+
+            } catch (Exception e) {
+                log.error("기업 ID {} 크롤링 중 오류 발생: {}", corporation.getId(), e.getMessage(), e);
+                results.add(CrawlResult.failure(corporation, "크롤링 실행 실패: " + e.getMessage()));
+            } finally {
+                if (driver != null) {
+                    webDriverConfig.forceCloseWebDriver(driver);
                     try {
                         Thread.sleep(1000);
                     } catch (InterruptedException ie) {
@@ -116,7 +192,7 @@ public class CrawlingService {
     }
     
     /**
-     * 특정 기업 블로그 크롤링 (WebDriver 관리 + 예외 처리)
+     * 특정 기업 블로그만 크롤링 (WebDriver 관리 + 예외 처리)
      */
     public CrawlResult crawlSingleBlog(Long corporationId, WebDriver driver) {
         Corporation corporation = crawlerCorporationRepository.findByIdAndNotDeleted(corporationId);
@@ -124,7 +200,8 @@ public class CrawlingService {
             throw new CorporationCrawlingException(corporationId);
         }
 
-        if (corporation.getBlogLink() == null || corporation.getBlogLink().trim().isEmpty()) {
+        boolean hasBlogLink = corporation.getBlogLink() != null && !corporation.getBlogLink().trim().isEmpty();
+        if (!hasBlogLink) {
             throw new CorporationCrawlingException(corporationId, "empty or null blog URL");
         }
 
@@ -134,13 +211,13 @@ public class CrawlingService {
         }
 
         try {
-            return crawlAndSaveArticles(corporation, driver);
+            return crawlAndSaveBlogArticles(corporation, driver);
         } catch (CrawlerException e) {
-            log.error("크롤링 실패 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
+            log.error("블로그 크롤링 실패 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
             throw e;
         } catch (Exception e) {
-            log.error("예상치 못한 크롤링 오류 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
-            throw new CrawlerException("CRAWLER_UNEXPECTED_ERROR", "Unexpected error during crawling for corporation: " + corporation.getName(), e) {};
+            log.error("예상치 못한 블로그 크롤링 오류 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
+            throw new CrawlerException("CRAWLER_UNEXPECTED_ERROR", "Unexpected error during blog crawling for corporation: " + corporation.getName(), e) {};
         } finally {
             if (!isDriverProvided) {
                 webDriverConfig.forceCloseWebDriver(driver);
@@ -149,44 +226,96 @@ public class CrawlingService {
     }
 
     /**
-     * 크롤링 및 Article들 저장
+     * 특정 기업 YouTube만 크롤링
+     * YouTube는 API를 사용하므로 WebDriver 불필요
      */
-    private CrawlResult crawlAndSaveArticles(Corporation corporation, WebDriver driver) throws IOException {
-        // 적절한 크롤러 선택
-        BlogCrawler crawler = selectCrawler(corporation.getBlogLink());
-        log.info("크롤링 시작 - 기업: {}, 크롤러: {}", corporation.getName(), crawler.getProviderName());
-
-        // robots.txt 확인 및 크롤링 실행
-        String baseUrl = crawler.extractBaseUrl(corporation.getBlogLink());
-        log.info("robots.txt 확인 - 기업: {}, 블로그URL: {}, 베이스URL: {}", corporation.getName(), corporation.getBlogLink(), baseUrl);
-
-        boolean isAllowed = robotsTxtService.isPathAllowed(baseUrl, "/");
-        log.info("robots.txt 확인 결과 - 기업: {}, 허용 여부: {}", corporation.getName(), isAllowed);
-
-        if (!isAllowed) {
-            log.warn("robots.txt에 의해 크롤링이 금지됨 - 기업: {}, 블로그URL: {}, 베이스URL: {}", corporation.getName(), corporation.getBlogLink(), baseUrl);
-            return CrawlResult.failure(corporation, "robots.txt에 의해 크롤링 금지됨");
+    public CrawlResult crawlSingleYouTube(Long corporationId, WebDriver driver) {
+        Corporation corporation = crawlerCorporationRepository.findByIdAndNotDeleted(corporationId);
+        if (corporation == null) {
+            throw new CorporationCrawlingException(corporationId);
         }
 
-        log.info("robots.txt 확인 완료 - 크롤링 허용됨");
-        List<Article> crawledArticles = crawler.crawlWithRobotsCheck(driver, corporation, robotsTxtService);
+        boolean hasYoutubeChannel = corporation.getYoutubeChannelId() != null && !corporation.getYoutubeChannelId().trim().isEmpty();
+        if (!hasYoutubeChannel) {
+            throw new CorporationCrawlingException(corporationId, "empty or null YouTube channel ID");
+        }
+
+        try {
+            return crawlAndSaveYouTubeArticles(corporation, driver);
+        } catch (CrawlerException e) {
+            log.error("YouTube 크롤링 실패 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
+            throw e;
+        } catch (Exception e) {
+            log.error("예상치 못한 YouTube 크롤링 오류 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
+            throw new CrawlerException("CRAWLER_UNEXPECTED_ERROR", "Unexpected error during YouTube crawling for corporation: " + corporation.getName(), e) {};
+        }
+    }
+
+    /**
+     * 블로그 크롤링 및 Article 저장
+     */
+    private CrawlResult crawlAndSaveBlogArticles(Corporation corporation, WebDriver driver) throws IOException {
+        List<Article> crawledArticles = new ArrayList<>();
+        List<Article> newArticles = new ArrayList<>();
+
+        BlogCrawler blogCrawler = selectCrawler(corporation.getBlogLink());
+        log.info("블로그 크롤링 시작 - 기업: {}, 크롤러: {}", corporation.getName(), blogCrawler.getProviderName());
+
+        // robots.txt 확인 및 크롤링 실행
+        String baseUrl = blogCrawler.extractBaseUrl(corporation.getBlogLink());
+        boolean isAllowed = robotsTxtService.isPathAllowed(baseUrl, "/");
+
+        if (!isAllowed) {
+            log.warn("robots.txt에 의해 블로그 크롤링이 금지됨 - 기업: {}", corporation.getName());
+            return CrawlResult.success(corporation, newArticles, 0);
+        }
+
+        List<Article> blogArticles = blogCrawler.crawlWithRobotsCheck(driver, corporation, robotsTxtService);
+        crawledArticles.addAll(blogArticles);
 
         // 중복 제거 및 저장
-        List<Article> newArticles = new ArrayList<>();
-        for (Article article : crawledArticles) {
+        for (Article article : blogArticles) {
             if (!crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(article.getLink()).isPresent()) {
-                articlePersistenceService.saveArticleWithAnalysis(article, corporation, crawler);
+                // 블로그 글은 contentType을 "BLOG"로 설정
+                if (article.getContentType() == null) {
+                    article.setContentType("BLOG");
+                }
+                articlePersistenceService.saveArticleWithAnalysis(article, corporation, blogCrawler);
                 newArticles.add(article);
-            } else {
-                log.debug("중복 게시글 스킵: {}", article.getLink());
             }
         }
 
-        int newArticlesCount = newArticles.size();
-        log.info("크롤링 완료 - 기업: {}, 전체: {}개, 신규: {}개",
-            corporation.getName(), crawledArticles.size(), newArticlesCount);
+        log.info("블로그 크롤링 완료 - 기업: {}, 조회: {}개, 신규: {}개",
+                 corporation.getName(), blogArticles.size(), newArticles.size());
 
-        return CrawlResult.success(corporation, newArticles, newArticlesCount);
+        return CrawlResult.success(corporation, newArticles, newArticles.size());
+    }
+
+    /**
+     * YouTube 크롤링 및 Article 저장
+     */
+    private CrawlResult crawlAndSaveYouTubeArticles(Corporation corporation, WebDriver driver) throws IOException {
+        List<Article> crawledArticles = new ArrayList<>();
+        List<Article> newArticles = new ArrayList<>();
+
+        BlogCrawler youtubeCrawler = selectCrawler("https://www.youtube.com/channel/" + corporation.getYoutubeChannelId());
+        log.info("YouTube 크롤링 시작 - 기업: {}, 크롤러: {}", corporation.getName(), youtubeCrawler.getProviderName());
+
+        List<Article> youtubeArticles = youtubeCrawler.crawl(driver, corporation);
+        crawledArticles.addAll(youtubeArticles);
+
+        // 중복 제거 및 저장
+        for (Article article : youtubeArticles) {
+            if (!crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(article.getLink()).isPresent()) {
+                articlePersistenceService.saveArticleWithAnalysis(article, corporation, youtubeCrawler);
+                newArticles.add(article);
+            }
+        }
+
+        log.info("YouTube 크롤링 완료 - 기업: {}, 조회: {}개, 신규: {}개",
+                 corporation.getName(), youtubeArticles.size(), newArticles.size());
+
+        return CrawlResult.success(corporation, newArticles, newArticles.size());
     }
 
     /**

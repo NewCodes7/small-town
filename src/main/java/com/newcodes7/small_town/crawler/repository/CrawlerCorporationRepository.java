@@ -15,6 +15,12 @@ public interface CrawlerCorporationRepository extends JpaRepository<Corporation,
     @Query("SELECT c FROM Corporation c WHERE c.blogLink IS NOT NULL AND c.blogLink != '' AND c.deletedAt IS NULL")
     List<Corporation> findAllWithBlogLink();
 
+    @Query("SELECT c FROM Corporation c WHERE c.youtubeChannelId IS NOT NULL AND c.youtubeChannelId != '' AND c.deletedAt IS NULL")
+    List<Corporation> findAllWithYoutubeChannel();
+
+    @Query("SELECT DISTINCT c FROM Corporation c WHERE ((c.blogLink IS NOT NULL AND c.blogLink != '') OR (c.youtubeChannelId IS NOT NULL AND c.youtubeChannelId != '')) AND c.deletedAt IS NULL")
+    List<Corporation> findAllWithBlogLinkOrYoutubeChannel();
+
     @Query("SELECT c FROM Corporation c WHERE c.id = :id AND c.deletedAt IS NULL")
     Corporation findByIdAndNotDeleted(@Param("id") Long id);
 }

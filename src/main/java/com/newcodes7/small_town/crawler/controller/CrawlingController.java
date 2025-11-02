@@ -22,37 +22,103 @@ public class CrawlingController {
     private final ArticlePersistenceService articlePersistenceService;
     
     /**
-     * 모든 기업 블로그 크롤링 실행
-     * 테스트를 위해 GET 메서드로 구현
-     * 실제 운영에서는 POST 메서드로 변경할 수 있음
+     * 모든 기업의 블로그 및 YouTube 모두 크롤링 실행
      */
     @GetMapping("/all")
-    public ResponseEntity<Map<String, Object>> crawlAllBlogs() {
+    public ResponseEntity<Map<String, Object>> crawlAll() {
         try {
-            log.info("전체 크롤링 API 호출");
-            List<CrawlResult> results = crawlingService.crawlAllBlogs();
-            
+            log.info("전체 크롤링 API 호출 (블로그 + YouTube)");
+            List<CrawlResult> results = crawlingService.crawlAll();
+
             long successCount = results.stream()
                     .filter(CrawlResult::isSuccess)
                     .count();
-            
+
             long totalNewArticles = results.stream()
                     .filter(CrawlResult::isSuccess)
                     .mapToLong(CrawlResult::getNewArticles)
                     .sum();
-            
+
             return ResponseEntity.ok(Map.of(
                 "success", true,
-                "message", "크롤링이 완료되었습니다.",
+                "message", "전체 크롤링이 완료되었습니다.",
                 "totalCorporations", results.size(),
                 "successCount", successCount,
                 "failureCount", results.size() - successCount,
                 "totalNewArticles", totalNewArticles,
                 "results", results
             ));
-            
+
         } catch (Exception e) {
             log.error("전체 크롤링 API 오류", e);
+            throw e;
+        }
+    }
+
+    /**
+     * 모든 기업의 블로그만 크롤링 실행
+     */
+    @GetMapping("/blogs")
+    public ResponseEntity<Map<String, Object>> crawlAllBlogs() {
+        try {
+            log.info("블로그 전용 크롤링 API 호출");
+            List<CrawlResult> results = crawlingService.crawlAllBlogs();
+
+            long successCount = results.stream()
+                    .filter(CrawlResult::isSuccess)
+                    .count();
+
+            long totalNewArticles = results.stream()
+                    .filter(CrawlResult::isSuccess)
+                    .mapToLong(CrawlResult::getNewArticles)
+                    .sum();
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "블로그 크롤링이 완료되었습니다.",
+                "totalCorporations", results.size(),
+                "successCount", successCount,
+                "failureCount", results.size() - successCount,
+                "totalNewArticles", totalNewArticles,
+                "results", results
+            ));
+
+        } catch (Exception e) {
+            log.error("블로그 크롤링 API 오류", e);
+            throw e;
+        }
+    }
+
+    /**
+     * 모든 기업의 YouTube만 크롤링 실행
+     */
+    @GetMapping("/youtube")
+    public ResponseEntity<Map<String, Object>> crawlAllYouTube() {
+        try {
+            log.info("YouTube 전용 크롤링 API 호출");
+            List<CrawlResult> results = crawlingService.crawlAllYouTube();
+
+            long successCount = results.stream()
+                    .filter(CrawlResult::isSuccess)
+                    .count();
+
+            long totalNewArticles = results.stream()
+                    .filter(CrawlResult::isSuccess)
+                    .mapToLong(CrawlResult::getNewArticles)
+                    .sum();
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "YouTube 크롤링이 완료되었습니다.",
+                "totalCorporations", results.size(),
+                "successCount", successCount,
+                "failureCount", results.size() - successCount,
+                "totalNewArticles", totalNewArticles,
+                "results", results
+            ));
+
+        } catch (Exception e) {
+            log.error("YouTube 크롤링 API 오류", e);
             throw e;
         }
     }
@@ -60,16 +126,16 @@ public class CrawlingController {
     /**
      * 특정 기업 블로그 크롤링 실행
      */
-    @GetMapping("/corporation/{corporationId}")
+    @GetMapping("/blogs/corporation/{corporationId}")
     public ResponseEntity<Map<String, Object>> crawlSingleBlog(@PathVariable("corporationId") Long corporationId) {
         try {
-            log.info("개별 크롤링 API 호출 - corporationId: {}", corporationId);
+            log.info("개별 블로그 크롤링 API 호출 - corporationId: {}", corporationId);
             CrawlResult result = crawlingService.crawlSingleBlog(corporationId, null);
-            
+
             if (result.isSuccess()) {
                 return ResponseEntity.ok(Map.of(
                     "success", true,
-                    "message", "크롤링이 완료되었습니다.",
+                    "message", "블로그 크롤링이 완료되었습니다.",
                     "corporationName", result.getCorporation().getName(),
                     "totalArticles", result.getTotalArticles(),
                     "newArticles", result.getNewArticles(),
@@ -83,9 +149,42 @@ public class CrawlingController {
                             "corporationId", corporationId
                         ));
             }
-            
+
         } catch (Exception e) {
-            log.error("개별 크롤링 API 오류 - corporationId: {}", corporationId, e);
+            log.error("개별 블로그 크롤링 API 오류 - corporationId: {}", corporationId, e);
+            throw e;
+        }
+    }
+
+    /**
+     * 특정 기업 YouTube 크롤링 실행
+     */
+    @GetMapping("/youtube/corporation/{corporationId}")
+    public ResponseEntity<Map<String, Object>> crawlSingleYouTube(@PathVariable("corporationId") Long corporationId) {
+        try {
+            log.info("개별 YouTube 크롤링 API 호출 - corporationId: {}", corporationId);
+            CrawlResult result = crawlingService.crawlSingleYouTube(corporationId, null);
+
+            if (result.isSuccess()) {
+                return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "YouTube 크롤링이 완료되었습니다.",
+                    "corporationName", result.getCorporation().getName(),
+                    "totalArticles", result.getTotalArticles(),
+                    "newArticles", result.getNewArticles(),
+                    "result", result
+                ));
+            } else {
+                return ResponseEntity.badRequest()
+                        .body(Map.of(
+                            "success", false,
+                            "message", result.getErrorMessage(),
+                            "corporationId", corporationId
+                        ));
+            }
+
+        } catch (Exception e) {
+            log.error("개별 YouTube 크롤링 API 오류 - corporationId: {}", corporationId, e);
             throw e;
         }
     }
