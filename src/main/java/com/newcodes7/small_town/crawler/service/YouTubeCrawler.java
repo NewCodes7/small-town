@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 public class YouTubeCrawler implements BlogCrawler {
 
     private final YouTubeService youtubeService;
+    private final S3ImageService s3ImageService;
 
     @Override
     public boolean canHandle(String blogUrl) {
@@ -79,8 +80,18 @@ public class YouTubeCrawler implements BlogCrawler {
 
     @Override
     public void processImageUpload(Article article, Corporation corporation) {
-        // YouTube 썸네일은 이미 YouTube CDN URL이므로 별도 업로드 불필요
-        log.debug("YouTube 썸네일은 업로드 건너뜀 - Article: {}", article.getTitle());
+        String originalImageUrl = article.getThumbnailImage();
+
+        if (originalImageUrl != null && !originalImageUrl.isEmpty() && originalImageUrl.startsWith("http")) {
+            try {
+                String s3ImageUrl = s3ImageService.uploadImageFromUrl(originalImageUrl, corporation.getName());
+                article.setThumbnailImage(s3ImageUrl);
+                log.info("YouTube 썸네일 S3 업로드 성공: {} -> {}", originalImageUrl, s3ImageUrl);
+            } catch (Exception e) {
+                log.warn("YouTube 썸네일 이미지 업로드 실패: {} - {}", originalImageUrl, e.getMessage());
+                // S3 업로드 실패 시 원본 URL 그대로 유지
+            }
+        }
     }
 
     /**
