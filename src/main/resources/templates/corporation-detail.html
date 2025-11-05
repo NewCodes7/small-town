@@ -96,98 +96,33 @@
             </div>
         </div>
 
-        <!-- Content Type Toggle (only show if YouTube channel exists) -->
-        <div class="mb-4 d-flex justify-content-center" th:if="${corporation.youtubeChannelId != null && !corporation.youtubeChannelId.isEmpty()}">
-            <div class="btn-group content-toggle" role="group" aria-label="Content type toggle">
-                <input type="radio" class="btn-check" name="contentTypeToggle" id="blogToggle" value="blog" autocomplete="off"
-                       th:checked="${contentType == 'blog' || contentType == null}">
-                <label class="btn btn-outline-primary" for="blogToggle">
-                    <i class="fas fa-blog me-2"></i>블로그
-                </label>
-
-                <input type="radio" class="btn-check" name="contentTypeToggle" id="youtubeToggle" value="youtube" autocomplete="off"
-                       th:checked="${contentType == 'youtube'}">
-                <label class="btn btn-outline-danger" for="youtubeToggle">
-                    <i class="fab fa-youtube me-2"></i>유튜브
-                </label>
-            </div>
+        <!-- Navigation Buttons -->
+        <div class="mb-4 d-flex justify-content-center gap-2">
+            <a th:href="@{/corporations/{id}(id=${corporation.id})}"
+               class="btn btn-primary">
+                <i class="fas fa-blog me-2"></i>블로그
+            </a>
+            <a th:if="${corporation.youtubeChannelId != null && !corporation.youtubeChannelId.isEmpty()}"
+               th:href="@{/corporations/{id}/video(id=${corporation.id})}"
+               class="btn btn-outline-danger">
+                <i class="fab fa-youtube me-2"></i>유튜브
+            </a>
         </div>
 
-        <style>
-            .content-toggle .btn {
-                border-radius: 0;
-                padding: 10px 30px;
-                font-weight: 600;
-                font-size: 15px;
-                transition: all 0.3s ease;
-            }
-
-            .content-toggle .btn:first-child {
-                border-radius: 25px 0 0 25px;
-            }
-
-            .content-toggle .btn:last-child {
-                border-radius: 0 25px 25px 0;
-            }
-
-            .content-toggle .btn:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            }
-
-            .content-toggle .btn-check:checked + .btn:hover {
-                transform: translateY(0);
-                box-shadow: none;
-            }
-
-            /* YouTube Embed Styles */
-            .youtube-embed-wrapper {
-                position: relative;
-                width: 100%;
-                padding-bottom: 56.25%; /* 16:9 비율 */
-                height: 0;
-                overflow: hidden;
-                border-radius: 12px;
-                background: #000;
-            }
-
-            .youtube-embed {
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                border-radius: 12px;
-            }
-
-            .article-thumbnail-container .youtube-embed-wrapper {
-                width: 100%;
-                height: 100%;
-                padding-bottom: 0;
-            }
-
-            .article-thumbnail-container .youtube-embed {
-                position: relative;
-                width: 100%;
-                height: 100%;
-                min-height: 200px;
-            }
-        </style>
-
         <!-- 블로그 글 섹션 -->
-        <div class="mb-5" th:if="${(contentType == 'blog' || contentType == null) && blogs != null && !blogs.content.isEmpty()}">
+        <div class="mb-5" th:if="${articles != null && !articles.content.isEmpty()}">
             <!-- 블로그 글 목록 헤더 -->
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h3 style="color: var(--text-dark); font-weight: 700;">
                     <i class="fas fa-blog me-2" style="color: var(--primary-green);"></i>
                     <span th:text="${corporation.name}">회사명</span>의 블로그 글
                 </h3>
-                <span class="text-muted" th:text="'총 ' + ${blogTotalElements} + '개의 글'">총 0개의 글</span>
+                <span class="text-muted" th:text="'총 ' + ${totalElements} + '개의 글'">총 0개의 글</span>
             </div>
 
             <!-- 블로그 글 목록 -->
             <div class="articles-container">
-                <div class="article-card" th:each="article : ${blogs.content}">
+                <div class="article-card" th:each="article : ${articles.content}">
                     <!-- Article Content (Left Side) -->
                     <div class="article-content">
                         <!-- Admin Buttons (only shown via JavaScript for admin users) -->
@@ -208,11 +143,6 @@
                                class="text-decoration-none title-link"
                                style="color: inherit;">
                                <span th:text="${article.translatedTitle != null && !article.translatedTitle.isEmpty() ? article.translatedTitle : article.title}">Article Title</span>
-                               <!-- YouTube 영상일 경우 로고 표시 -->
-                               <i th:if="${article.youtubeContent}"
-                                  class="fab fa-youtube ms-2"
-                                  style="color: #FF0000; font-size: 1.0em;"
-                                  title="YouTube 영상"></i>
                             </a>
                         </h5>
 
@@ -230,24 +160,13 @@
 
                     <!-- Thumbnail Container (Right Side) -->
                     <div class="article-thumbnail-container">
-                        <!-- YouTube 임베드 -->
-                        <div th:if="${article.youtubeContent && article.youtubeVideoId != null}" class="youtube-embed-wrapper">
-                            <iframe
-                                th:attr="src='https://www.youtube.com/embed/' + ${article.youtubeVideoId}"
-                                frameborder="0"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                allowfullscreen
-                                loading="lazy"
-                                class="youtube-embed">
-                            </iframe>
-                        </div>
                         <!-- 일반 썸네일 -->
-                        <img th:if="${!article.youtubeContent && article.thumbnailImage.length > 2}"
+                        <img th:if="${article.thumbnailImage != null && article.thumbnailImage.length() > 2}"
                              th:src="${article.thumbnailImage}"
                              th:alt="${article.title}"
                              class="article-thumbnail">
                         <!-- 기본 썸네일 -->
-                        <div th:unless="${(article.youtubeContent && article.youtubeVideoId != null) || article.thumbnailImage.length > 2}"
+                        <div th:unless="${article.thumbnailImage != null && article.thumbnailImage.length() > 2}"
                              class="article-thumbnail default-thumbnail">
                             <div class="default-thumbnail-content">
                                 <i class="fas fa-code"></i>
@@ -265,130 +184,27 @@
             </div>
 
             <!-- Blog Pagination -->
-            <nav th:if="${blogTotalPages > 0}" class="mt-4">
+            <nav th:if="${totalPages > 0}" class="mt-4">
                 <ul class="pagination justify-content-center">
-                    <li class="page-item" th:class="${blogCurrentPage == 0} ? 'page-item disabled' : 'page-item'">
+                    <li class="page-item" th:class="${currentPage == 0} ? 'page-item disabled' : 'page-item'">
                         <a class="page-link"
-                           th:href="@{/corporations/{corporationId}(corporationId=${corporation.id}, page=${blogCurrentPage - 1}, contentType='blog')}">
+                           th:href="@{/corporations/{corporationId}(corporationId=${corporation.id}, page=${currentPage - 1})}">
                             <i class="fas fa-chevron-left me-1"></i>이전
                         </a>
                     </li>
                     <th:block th:with="maxPagesToShow=5, halfRange=2,
-                        startPage=${blogTotalPages <= maxPagesToShow ? 0 : (blogCurrentPage <= halfRange ? 0 : (blogCurrentPage >= blogTotalPages - halfRange - 1 ? blogTotalPages - maxPagesToShow : blogCurrentPage - halfRange))},
-                        endPage=${blogTotalPages <= 1 ? 0 : (blogTotalPages <= maxPagesToShow ? blogTotalPages - 1 : (blogCurrentPage <= halfRange ? maxPagesToShow - 1 : (blogCurrentPage >= blogTotalPages - halfRange - 1 ? blogTotalPages - 2 : blogCurrentPage + halfRange)))}">
+                        startPage=${totalPages <= maxPagesToShow ? 0 : (currentPage <= halfRange ? 0 : (currentPage >= totalPages - halfRange - 1 ? totalPages - maxPagesToShow : currentPage - halfRange))},
+                        endPage=${totalPages <= 1 ? 0 : (totalPages <= maxPagesToShow ? totalPages - 1 : (currentPage <= halfRange ? maxPagesToShow - 1 : (currentPage >= totalPages - halfRange - 1 ? totalPages - 2 : currentPage + halfRange)))}">
                         <li class="page-item" th:each="pageNum : ${#numbers.sequence(startPage, endPage)}"
-                            th:class="${pageNum == blogCurrentPage} ? 'page-item active' : 'page-item'">
+                            th:class="${pageNum == currentPage} ? 'page-item active' : 'page-item'">
                             <a class="page-link"
-                               th:href="@{/corporations/{corporationId}(corporationId=${corporation.id}, page=${pageNum}, contentType='blog')}"
+                               th:href="@{/corporations/{corporationId}(corporationId=${corporation.id}, page=${pageNum})}"
                                th:text="${pageNum + 1}">1</a>
                         </li>
                     </th:block>
-                    <li class="page-item" th:class="${blogCurrentPage >= blogTotalPages - 1} ? 'page-item disabled' : 'page-item'">
+                    <li class="page-item" th:class="${currentPage >= totalPages - 1} ? 'page-item disabled' : 'page-item'">
                         <a class="page-link"
-                           th:href="@{/corporations/{corporationId}(corporationId=${corporation.id}, page=${blogCurrentPage + 1}, contentType='blog')}">
-                            다음<i class="fas fa-chevron-right ms-1"></i>
-                        </a>
-                    </li>
-                </ul>
-            </nav>
-        </div>
-
-        <!-- YouTube 영상 섹션 -->
-        <div class="mb-5" th:if="${contentType == 'youtube' && youtubes != null && !youtubes.content.isEmpty()}">
-            <!-- YouTube 영상 목록 헤더 -->
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h3 style="color: var(--text-dark); font-weight: 700;">
-                    <i class="fab fa-youtube me-2" style="color: #FF0000;"></i>
-                    <span th:text="${corporation.name}">회사명</span>의 YouTube 영상
-                </h3>
-                <span class="text-muted" th:text="'총 ' + ${youtubeTotalElements} + '개의 영상'">총 0개의 영상</span>
-            </div>
-
-            <!-- YouTube 영상 목록 -->
-            <div class="articles-container">
-                <div class="article-card" th:each="article : ${youtubes.content}">
-                    <!-- Article Content (Left Side) -->
-                    <div class="article-content">
-                        <!-- Admin Buttons -->
-                        <div class="admin-buttons-container d-none">
-                            <button class="admin-delete-btn" title="영상 삭제" th:attr="data-article-id=${article.id}">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                            <button class="admin-edit-btn" title="영상 수정"
-                                    th:attr="data-article-id=${article.id},data-published-at=${article.publishedAt},data-thumbnail=${article.thumbnailImage}">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                        </div>
-
-                        <!-- Title -->
-                        <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
-                            <a th:href="${article.link}"
-                               target="_blank"
-                               class="text-decoration-none title-link"
-                               style="color: inherit;">
-                               <span th:text="${article.translatedTitle != null && !article.translatedTitle.isEmpty() ? article.translatedTitle : article.title}">YouTube Title</span>
-                               <i class="fab fa-youtube ms-2" style="color: #FF0000; font-size: 1.0em;" title="YouTube 영상"></i>
-                            </a>
-                        </h5>
-
-                        <!-- Stats -->
-                        <div class="d-flex align-items-center mb-3 flex-wrap">
-                            <div class="d-flex align-items-center gap-3">
-                                <small class="text-muted relative-time"
-                                       th:attr="data-date=${article.publishedAt}"
-                                       th:title="${article.publishedAt}"
-                                       th:text="${article.publishedAt}">2024-01-01</small>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Thumbnail Container (Right Side) -->
-                    <div class="article-thumbnail-container">
-                        <!-- YouTube 임베드 (YouTube 섹션이므로 항상 임베드) -->
-                        <div th:if="${article.youtubeVideoId != null}" class="youtube-embed-wrapper">
-                            <iframe
-                                th:attr="src='https://www.youtube.com/embed/' + ${article.youtubeVideoId}"
-                                frameborder="0"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                allowfullscreen
-                                loading="lazy"
-                                class="youtube-embed">
-                            </iframe>
-                        </div>
-                        <!-- YouTube 기본 썸네일 (videoId가 없는 경우) -->
-                        <div th:unless="${article.youtubeVideoId != null}"
-                             class="article-thumbnail default-thumbnail">
-                            <div class="default-thumbnail-content">
-                                <i class="fab fa-youtube fa-3x" style="color: #FF0000;"></i>
-                                <div class="thumbnail-pattern"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- YouTube Pagination -->
-            <nav th:if="${youtubeTotalPages > 0}" class="mt-4">
-                <ul class="pagination justify-content-center">
-                    <li class="page-item" th:class="${youtubCurrentPage == 0} ? 'page-item disabled' : 'page-item'">
-                        <a class="page-link"
-                           th:href="@{/corporations/{corporationId}(corporationId=${corporation.id}, page=${youtubCurrentPage - 1}, contentType='youtube')}">
-                            <i class="fas fa-chevron-left me-1"></i>이전
-                        </a>
-                    </li>
-                    <th:block th:with="maxPagesToShow=5, halfRange=2,
-                        startPage=${youtubeTotalPages <= maxPagesToShow ? 0 : (youtubCurrentPage <= halfRange ? 0 : (youtubCurrentPage >= youtubeTotalPages - halfRange - 1 ? youtubeTotalPages - maxPagesToShow : youtubCurrentPage - halfRange))},
-                        endPage=${youtubeTotalPages <= 1 ? 0 : (youtubeTotalPages <= maxPagesToShow ? youtubeTotalPages - 1 : (youtubCurrentPage <= halfRange ? maxPagesToShow - 1 : (youtubCurrentPage >= youtubeTotalPages - halfRange - 1 ? youtubeTotalPages - 2 : youtubCurrentPage + halfRange)))}">
-                        <li class="page-item" th:each="pageNum : ${#numbers.sequence(startPage, endPage)}"
-                            th:class="${pageNum == youtubCurrentPage} ? 'page-item active' : 'page-item'">
-                            <a class="page-link"
-                               th:href="@{/corporations/{corporationId}(corporationId=${corporation.id}, page=${pageNum}, contentType='youtube')}"
-                               th:text="${pageNum + 1}">1</a>
-                        </li>
-                    </th:block>
-                    <li class="page-item" th:class="${youtubCurrentPage >= youtubeTotalPages - 1} ? 'page-item disabled' : 'page-item'">
-                        <a class="page-link"
-                           th:href="@{/corporations/{corporationId}(corporationId=${corporation.id}, page=${youtubCurrentPage + 1}, contentType='youtube')}">
+                           th:href="@{/corporations/{corporationId}(corporationId=${corporation.id}, page=${currentPage + 1})}">
                             다음<i class="fas fa-chevron-right ms-1"></i>
                         </a>
                     </li>
@@ -397,7 +213,7 @@
         </div>
 
         <!-- Empty State -->
-        <div th:if="${(contentType == 'blog' || contentType == null) && (blogs == null || blogs.content.isEmpty())}" class="text-center py-5">
+        <div th:if="${articles == null || articles.content.isEmpty()}" class="text-center py-5">
             <div class="hero-section">
                 <i class="fas fa-blog fa-4x mb-4" style="color: var(--primary-green); opacity: 0.5;"></i>
                 <h4 class="mb-3" style="color: var(--text-dark); font-weight: 700;">
@@ -405,18 +221,6 @@
                 </h4>
                 <p class="text-muted mb-4">
                     새로운 블로그 글이 곧 업데이트될 예정입니다.
-                </p>
-            </div>
-        </div>
-
-        <div th:if="${contentType == 'youtube' && (youtubes == null || youtubes.content.isEmpty())}" class="text-center py-5">
-            <div class="hero-section">
-                <i class="fab fa-youtube fa-4x mb-4" style="color: #FF0000; opacity: 0.5;"></i>
-                <h4 class="mb-3" style="color: var(--text-dark); font-weight: 700;">
-                    아직 등록된 YouTube 영상이 없어요
-                </h4>
-                <p class="text-muted mb-4">
-                    새로운 YouTube 영상이 곧 업데이트될 예정입니다.
                 </p>
             </div>
         </div>

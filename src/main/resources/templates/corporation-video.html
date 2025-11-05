@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title th:text="${corporation.name + ' YouTube'}">YouTube</title>
+    <th:block layout:fragment="meta" th:remove="tag">
+        <meta name="description" th:content="${corporation.name} + '의 최신 YouTube 영상을 NewCodes에서 확인하세요.'">
+        <meta name="keywords" th:content="${corporation.name} + ', YouTube, IT, 개발자, NewCodes'">
+        <meta name="robots" content="index, follow">
+    </th:block>
+    <link rel="stylesheet" type="text/css" th:href="@{/css/corporation-detail.css}">
+    <link rel="stylesheet" type="text/css" th:href="@{/css/home.css}">
+</head>
+<body>
+    <div layout:fragment="content">
+        <!-- 회사 정보 섹션 -->
+        <div class="card mb-5" style="border-radius: 20px; background: var(--white); border: 2px solid var(--border-light);">
+            <div class="card-body p-5">
+                <div class="row align-items-center">
+                    <!-- 회사 로고 -->
+                    <div class="col-md-2 text-center mb-3 mb-md-0">
+                        <img th:if="${corporation.logoS3Url != null}"
+                             th:src="${corporation.logoS3Url}"
+                             th:alt="${corporation.name}"
+                             class="img-fluid" style="max-width: 80px; border-radius: 12px;">
+                        <div th:unless="${corporation.logoS3Url != null}"
+                             class="d-flex align-items-center justify-content-center"
+                             style="width: 80px; height: 80px; background: var(--secondary-green); border-radius: 12px;">
+                            <i class="fas fa-building fa-2x" style="color: var(--primary-green);"></i>
+                        </div>
+                    </div>
+
+                    <!-- 회사 정보 -->
+                    <div class="col-md-10">
+                        <div class="row">
+                            <div class="col-lg-8">
+                                <h1 class="mb-3" style="color: var(--text-dark); font-weight: 700;" th:text="${corporation.name}">회사명</h1>
+
+                                <div class="d-flex flex-wrap gap-3 mb-3" style="margin-bottom:10px;">
+                                    <span class="badge"
+                                          th:class="${corporation.isDomestic} ? 'badge bg-success' : 'badge bg-info'"
+                                          th:text="${corporation.regionText}">지역</span>
+                                </div>
+
+                                <div class="d-flex flex-wrap gap-3">
+                                    <a th:if="${corporation.homeLink != null}"
+                                       th:href="${corporation.homeLink}"
+                                       target="_blank"
+                                       class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-home me-1"></i>홈페이지
+                                    </a>
+                                    <a th:if="${corporation.blogLink != null}"
+                                       th:href="${corporation.blogLink}"
+                                       target="_blank"
+                                       class="btn btn-outline-secondary btn-sm">
+                                        <i class="fas fa-blog me-1"></i>기술 블로그
+                                    </a>
+                                    <a th:if="${corporation.youtubeUrl != null}"
+                                       th:href="${corporation.youtubeUrl}"
+                                       target="_blank"
+                                       class="btn btn-outline-danger btn-sm">
+                                        <i class="fab fa-youtube me-1"></i>YouTube
+                                    </a>
+                                    <a th:if="${corporation.crewLink != null}"
+                                       th:href="${corporation.crewLink}"
+                                       target="_blank"
+                                       class="btn btn-outline-info btn-sm">
+                                        <i class="fas fa-users me-1"></i>채용정보
+                                    </a>
+                                </div>
+                            </div>
+
+                            <!-- 통계 정보 -->
+                            <div class="col-lg-4">
+                                <div class="stats-card text-center" style="background: #FEE2E2; border-radius: 15px; padding: 1.5rem;">
+                                    <div class="stats-number" style="color: #DC2626; font-size: 2rem; font-weight: 700;" th:text="${totalElements}">0</div>
+                                    <div class="stats-label" style="color: #DC2626; font-weight: 600;">총 영상 수</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 뒤로가기 버튼 -->
+        <div class="mb-4">
+            <div class="d-flex gap-2 justify-content-between">
+                <a th:href="@{/corporations}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>구독 블로그 목록
+                </a>
+            </div>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div class="mb-4 d-flex justify-content-center gap-2">
+            <a th:href="@{/corporations/{id}(id=${corporation.id})}"
+               class="btn btn-outline-primary">
+                <i class="fas fa-blog me-2"></i>블로그
+            </a>
+            <a th:href="@{/corporations/{id}/video(id=${corporation.id})}"
+               class="btn btn-danger">
+                <i class="fab fa-youtube me-2"></i>유튜브
+            </a>
+        </div>
+
+        <style>
+            /* Video Thumbnail with Play Button */
+            .video-embed-container {
+                flex: 0 0 300px;
+                position: relative;
+                overflow: hidden;
+                background: #000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 12px;
+                height: 168.75px; /* 300 * 9/16 */
+            }
+
+            .video-thumbnail-preview {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                border-radius: 12px;
+            }
+
+            .video-play-overlay {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 68px;
+                height: 48px;
+                background-color: rgba(255, 0, 0, 0.8);
+                border-radius: 12px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.3s ease;
+                cursor: pointer;
+            }
+
+            .video-play-overlay::after {
+                content: '';
+                width: 0;
+                height: 0;
+                border-style: solid;
+                border-width: 10px 0 10px 17px;
+                border-color: transparent transparent transparent #fff;
+                margin-left: 3px;
+            }
+
+            .video-embed-container:hover .video-play-overlay {
+                background-color: rgba(255, 0, 0, 1);
+                transform: translate(-50%, -50%) scale(1.1);
+            }
+
+            .video-thumbnail-fallback {
+                height: 168.75px;
+                width: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: linear-gradient(135deg, #FEE2E2 0%, #FFEDED 100%);
+            }
+
+            @media (max-width: 768px) {
+                .video-embed-container {
+                    flex: none;
+                    height: auto;
+                }
+            }
+
+            /* Video Modal Styles */
+            .video-modal {
+                display: none;
+                position: fixed;
+                z-index: 9999;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.9);
+                animation: fadeIn 0.3s ease;
+            }
+
+            .video-modal.active {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .video-modal-content {
+                position: relative;
+                width: 90%;
+                max-width: 1200px;
+                aspect-ratio: 16 / 9;
+                animation: scaleIn 0.3s ease;
+            }
+
+            .video-modal-close {
+                position: absolute;
+                top: -40px;
+                right: 0;
+                color: #fff;
+                font-size: 35px;
+                font-weight: bold;
+                cursor: pointer;
+                background: none;
+                border: none;
+                padding: 0;
+                line-height: 1;
+                transition: color 0.3s ease;
+            }
+
+            .video-modal-close:hover {
+                color: #FF0000;
+            }
+
+            .video-modal iframe {
+                width: 100%;
+                height: 100%;
+                border: 0;
+                border-radius: 8px;
+            }
+
+            .video-embed-container {
+                cursor: pointer;
+                transition: transform 0.3s ease;
+            }
+
+            .article-card:hover .video-embed-container {
+                transform: scale(1.02);
+            }
+
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+
+            @keyframes scaleIn {
+                from { transform: scale(0.8); opacity: 0; }
+                to { transform: scale(1); opacity: 1; }
+            }
+
+            @media (max-width: 768px) {
+                .video-modal-content {
+                    width: 95%;
+                }
+
+                .video-modal-close {
+                    top: -35px;
+                    font-size: 30px;
+                }
+            }
+        </style>
+
+        <!-- YouTube 영상 섹션 -->
+        <div class="mb-5" th:if="${videos != null && !videos.content.isEmpty()}">
+            <!-- YouTube 영상 목록 헤더 -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3 style="color: var(--text-dark); font-weight: 700;">
+                    <i class="fab fa-youtube me-2" style="color: #FF0000;"></i>
+                    <span th:text="${corporation.name}">회사명</span>의 YouTube 영상
+                </h3>
+                <span class="text-muted" th:text="'총 ' + ${totalElements} + '개의 영상'">총 0개의 영상</span>
+            </div>
+
+            <!-- YouTube 영상 목록 -->
+            <div class="articles-container">
+                <div class="article-card" th:each="video : ${videos.content}">
+                    <!-- Video Content (Left Side) -->
+                    <div class="article-content">
+                        <!-- Title -->
+                        <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
+                            <a th:href="${video.link}"
+                               target="_blank"
+                               class="text-decoration-none title-link"
+                               style="color: inherit;">
+                               <span th:text="${video.translatedTitle != null && !video.translatedTitle.isEmpty() ? video.translatedTitle : video.title}">YouTube Title</span>
+                               <!-- YouTube 영상일 경우 로고 표시 (videoId가 없을 때만) -->
+                               <i th:if="${video.videoId == null or video.videoId.isEmpty()}"
+                                  class="fab fa-youtube ms-2"
+                                  style="color: #FF0000; font-size: 1.0em;"
+                                  title="YouTube 영상"></i>
+                            </a>
+                        </h5>
+
+                        <!-- Stats -->
+                        <div class="d-flex align-items-center mb-3 flex-wrap">
+                            <div class="d-flex align-items-center gap-3">
+                                <small class="text-muted relative-time"
+                                       th:attr="data-date=${video.publishedAt}"
+                                       th:title="${video.publishedAt}"
+                                       th:text="${video.publishedAt}">2024-01-01</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Video Embed Container (Right Side) -->
+                    <div class="video-embed-container"
+                         th:if="${video.videoId != null && !video.videoId.isEmpty()}"
+                         th:attr="data-video-id=${video.videoId}, data-video-title=${video.translatedTitle != null && !video.translatedTitle.isEmpty() ? video.translatedTitle : video.title}"
+                         onclick="openVideoModal(this)">
+                        <!-- YouTube Thumbnail -->
+                        <img th:if="${video.thumbnailUrl != null && !video.thumbnailUrl.isEmpty()}"
+                             th:src="${video.thumbnailUrl}"
+                             th:alt="${video.title}"
+                             class="video-thumbnail-preview">
+                        <!-- Fallback gradient if no thumbnail -->
+                        <div th:unless="${video.thumbnailUrl != null && !video.thumbnailUrl.isEmpty()}"
+                             class="video-thumbnail-fallback">
+                        </div>
+                        <!-- Play Button Overlay -->
+                        <div class="video-play-overlay"></div>
+                    </div>
+                    <!-- Fallback for videos without videoId -->
+                    <div class="video-embed-container"
+                         th:unless="${video.videoId != null && !video.videoId.isEmpty()}">
+                        <div class="video-thumbnail-fallback">
+                            <div class="default-thumbnail-content">
+                                <i class="fab fa-youtube fa-3x" style="color: #FF0000;"></i>
+                                <div class="thumbnail-pattern"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pagination -->
+            <nav th:if="${totalPages > 0}" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item" th:class="${currentPage == 0} ? 'page-item disabled' : 'page-item'">
+                        <a class="page-link"
+                           th:href="@{/corporations/{corporationId}/video(corporationId=${corporation.id}, page=${currentPage - 1})}">
+                            <i class="fas fa-chevron-left me-1"></i>이전
+                        </a>
+                    </li>
+                    <th:block th:with="maxPagesToShow=5, halfRange=2,
+                        startPage=${totalPages <= maxPagesToShow ? 0 : (currentPage <= halfRange ? 0 : (currentPage >= totalPages - halfRange - 1 ? totalPages - maxPagesToShow : currentPage - halfRange))},
+                        endPage=${totalPages <= 1 ? 0 : (totalPages <= maxPagesToShow ? totalPages - 1 : (currentPage <= halfRange ? maxPagesToShow - 1 : (currentPage >= totalPages - halfRange - 1 ? totalPages - 2 : currentPage + halfRange)))}">
+                        <li class="page-item" th:each="pageNum : ${#numbers.sequence(startPage, endPage)}"
+                            th:class="${pageNum == currentPage} ? 'page-item active' : 'page-item'">
+                            <a class="page-link"
+                               th:href="@{/corporations/{corporationId}/video(corporationId=${corporation.id}, page=${pageNum})}"
+                               th:text="${pageNum + 1}">1</a>
+                        </li>
+                    </th:block>
+                    <li class="page-item" th:class="${currentPage >= totalPages - 1} ? 'page-item disabled' : 'page-item'">
+                        <a class="page-link"
+                           th:href="@{/corporations/{corporationId}/video(corporationId=${corporation.id}, page=${currentPage + 1})}">
+                            다음<i class="fas fa-chevron-right ms-1"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+
+        <!-- Empty State -->
+        <div th:if="${videos == null || videos.content.isEmpty()}" class="text-center py-5">
+            <div class="hero-section">
+                <i class="fab fa-youtube fa-4x mb-4" style="color: #FF0000; opacity: 0.5;"></i>
+                <h4 class="mb-3" style="color: var(--text-dark); font-weight: 700;">
+                    아직 등록된 YouTube 영상이 없어요
+                </h4>
+                <p class="text-muted mb-4">
+                    새로운 YouTube 영상이 곧 업데이트될 예정입니다.
+                </p>
+            </div>
+        </div>
+
+        <!-- Video Modal -->
+        <div id="videoModal" class="video-modal" onclick="closeVideoModal(event)">
+            <div class="video-modal-content">
+                <button class="video-modal-close" onclick="closeVideoModal(event)">&times;</button>
+                <iframe id="modalVideoPlayer"
+                        src=""
+                        title="YouTube video player"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        referrerpolicy="strict-origin-when-cross-origin"
+                        allowfullscreen>
+                </iframe>
+            </div>
+        </div>
+    </div>
+
+    <div layout:fragment="scripts">
+        <script th:src="@{/js/corporationDetail.js}"></script>
+        <script>
+            // Open video modal
+            function openVideoModal(element) {
+                const videoId = element.getAttribute('data-video-id');
+                const videoTitle = element.getAttribute('data-video-title');
+                const modal = document.getElementById('videoModal');
+                const iframe = document.getElementById('modalVideoPlayer');
+
+                // Set iframe src with autoplay
+                iframe.src = `https://www.youtube.com/embed/${videoId}?controls=1&modestbranding=1&rel=0&autoplay=1`;
+                iframe.title = videoTitle;
+
+                // Show modal
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden'; // Prevent background scrolling
+            }
+
+            // Close video modal
+            function closeVideoModal(event) {
+                const modal = document.getElementById('videoModal');
+                const iframe = document.getElementById('modalVideoPlayer');
+
+                // Only close if clicking on modal background or close button
+                if (event.target === modal || event.target.classList.contains('video-modal-close')) {
+                    modal.classList.remove('active');
+                    iframe.src = ''; // Stop video playback
+                    document.body.style.overflow = ''; // Restore scrolling
+                }
+            }
+
+            // Close modal with Escape key
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    const modal = document.getElementById('videoModal');
+                    if (modal.classList.contains('active')) {
+                        closeVideoModal({ target: modal });
+                    }
+                }
+            });
+        </script>
+    </div>
+</body>
+</html>
