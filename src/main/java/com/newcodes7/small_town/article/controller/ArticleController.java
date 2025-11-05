@@ -70,7 +70,6 @@ public class ArticleController {
             @RequestParam(name = "regions", required = false) List<String> regions,
             @RequestParam(name = "view", defaultValue = "grouped") String view,
             @RequestParam(name = "category", required = false) List<String> category,
-            @RequestParam(name = "contentTypes", required = false) List<String> contentTypes,
             Model model) {
 
         Page<ArticleResponseDto> articles = articleService.getArticlesWithFilters(
@@ -80,12 +79,11 @@ public class ArticleController {
             size,
             sort,
             view,
-            category == null ? null : category.stream().sorted().toList(),
-            contentTypes == null ? null : contentTypes.stream().sorted().toList()
+            category == null ? null : category.stream().sorted().toList()
         );
 
-        log.info("필터 조건: keyword='{}', regions={}, contentTypes={}, {}개의 글 조회",
-                 keyword, regions, contentTypes, articles.getTotalElements());
+        log.info("필터 조건: keyword='{}', regions={}, {}개의 글 조회",
+                 keyword, regions, articles.getTotalElements());
 
         // 회사 목록 가져오기 (모든 회사 포함)
         Page<CorporationResponseDto> corporations = corporationService.getAllCorporations(PageRequest.of(0, 50));
@@ -111,7 +109,6 @@ public class ArticleController {
         model.addAttribute("currentSort", sort);
         model.addAttribute("keyword", keyword);
         model.addAttribute("selectedRegions", regions != null ? regions : new ArrayList<>());
-        model.addAttribute("selectedContentTypes", contentTypes != null ? contentTypes : new ArrayList<>());
         model.addAttribute("corporations", corporationsWithLogos);
         model.addAttribute("isGrouped", view.equals("grouped"));
         model.addAttribute("categories", categories);
@@ -129,8 +126,7 @@ public class ArticleController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) List<String> regions,
             @RequestParam(defaultValue = "list") String view,
-            @RequestParam(name = "category", required = false) List<String> category,
-            @RequestParam(name = "contentTypes", required = false) List<String> contentTypes
+            @RequestParam(name = "category", required = false) List<String> category
         ) {
 
         Page<ArticleResponseDto> articles = articleService.getArticlesWithFilters(
@@ -140,8 +136,7 @@ public class ArticleController {
             size,
             sort,
             view,
-            category,
-            contentTypes
+            category
         );
 
         Map<String, Object> response = new HashMap<>();
@@ -154,7 +149,6 @@ public class ArticleController {
         response.put("currentSort", sort);
         response.put("keyword", keyword);
         response.put("selectedRegions", regions != null ? regions : new ArrayList<>());
-        response.put("selectedContentTypes", contentTypes != null ? contentTypes : new ArrayList<>());
         response.put("view", view);
 
         return ResponseEntity.ok(response);
@@ -324,30 +318,16 @@ public class ArticleController {
     public String corporationDetail(@PathVariable Long corporationId,
                                   @RequestParam(defaultValue = "0") int page,
                                   @RequestParam(defaultValue = "10") int size,
-                                  @RequestParam(defaultValue = "blog") String contentType,
                                   Model model) {
         CorporationDetailDto corporation = articleService.getCorporationDetail(corporationId);
 
-        Page<ArticleListResponseDto> blogs = Page.empty();
-        Page<ArticleListResponseDto> youtubes = Page.empty();
-
-        // contentType에 따라 해당하는 데이터만 로드
-        if ("blog".equals(contentType)) {
-            blogs = articleService.getBlogsByCorporation(corporationId, page, size);
-        } else if ("youtube".equals(contentType)) {
-            youtubes = articleService.getYouTubesByCorporation(corporationId, page, size);
-        }
+        Page<ArticleListResponseDto> articles = articleService.getArticlesByCorporation(corporationId, page, size);
 
         model.addAttribute("corporation", corporation);
-        model.addAttribute("contentType", contentType);
-        model.addAttribute("blogs", blogs);
-        model.addAttribute("youtubes", youtubes);
-        model.addAttribute("blogCurrentPage", "blog".equals(contentType) ? page : 0);
-        model.addAttribute("youtubCurrentPage", "youtube".equals(contentType) ? page : 0);
-        model.addAttribute("blogTotalPages", blogs.getTotalPages());
-        model.addAttribute("youtubeTotalPages", youtubes.getTotalPages());
-        model.addAttribute("blogTotalElements", blogs.getTotalElements());
-        model.addAttribute("youtubeTotalElements", youtubes.getTotalElements());
+        model.addAttribute("articles", articles);
+        model.addAttribute("currentPage", page);
+        model.addAttribute("totalPages", articles.getTotalPages());
+        model.addAttribute("totalElements", articles.getTotalElements());
 
         return "corporation-detail";
     }

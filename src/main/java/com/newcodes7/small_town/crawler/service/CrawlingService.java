@@ -12,14 +12,17 @@ import org.springframework.stereotype.Service;
 import com.newcodes7.small_town.crawler.config.WebDriverConfig;
 import com.newcodes7.small_town.crawler.dto.CrawlResult;
 import com.newcodes7.small_town.crawler.dto.CrawlingStats;
+import com.newcodes7.small_town.crawler.dto.VideoCrawlResult;
 import com.newcodes7.small_town.crawler.exception.CorporationCrawlingException;
 import com.newcodes7.small_town.crawler.exception.CrawlerException;
 import com.newcodes7.small_town.crawler.exception.CrawlerNotFoundException;
 import com.newcodes7.small_town.crawler.repository.CrawlerArticleRepository;
 import com.newcodes7.small_town.crawler.repository.CrawlerCorporationRepository;
+import com.newcodes7.small_town.crawler.repository.CrawlerVideoRepository;
 import com.newcodes7.small_town.global.cache.NginxCachePurgeService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.global.entity.Video;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +34,7 @@ public class CrawlingService {
 
     private final CrawlerCorporationRepository crawlerCorporationRepository;
     private final CrawlerArticleRepository crawlerArticleRepository;
+    private final CrawlerVideoRepository crawlerVideoRepository;
     private final ApplicationContext applicationContext;
     private final RobotsTxtService robotsTxtService;
     private final WebDriverConfig webDriverConfig;
@@ -86,15 +90,15 @@ public class CrawlingService {
      * 모든 기업의 YouTube만 크롤링 (동기 처리)
      * YouTube는 API를 사용하므로 WebDriver 불필요
      */
-    public List<CrawlResult> crawlAllYouTube() {
+    public List<VideoCrawlResult> crawlAllYouTube() {
         List<Corporation> corporations = crawlerCorporationRepository.findAllWithYoutubeChannel();
         log.info("YouTube 크롤링 시작 - 대상 기업: {}개", corporations.size());
 
-        List<CrawlResult> results = new ArrayList<>();
+        List<VideoCrawlResult> results = new ArrayList<>();
 
         for (Corporation corporation : corporations) {
             try {
-                CrawlResult result = crawlSingleYouTube(corporation.getId(), null);
+                VideoCrawlResult result = crawlSingleYouTube(corporation.getId(), null);
                 results.add(result);
 
                 log.info("YouTube 크롤링 완료 - {}: {}/{} 진행", corporation.getName(),
@@ -102,14 +106,14 @@ public class CrawlingService {
 
             } catch (Exception e) {
                 log.error("기업 ID {} YouTube 크롤링 중 오류 발생: {}", corporation.getId(), e.getMessage(), e);
-                results.add(CrawlResult.failure(corporation, "YouTube 크롤링 실행 실패: " + e.getMessage()));
+                results.add(VideoCrawlResult.failure(corporation, "YouTube 크롤링 실행 실패: " + e.getMessage()));
             }
         }
 
         log.info("YouTube 크롤링 완료 - 처리된 기업: {}개", results.size());
 
         // 크롤링 완료 후 선택적 캐시 purge
-        purgeCacheForCrawlResults(results);
+        purgeCacheForVideoCrawlResults(results);
 
         return results;
     }
@@ -190,6 +194,39 @@ public class CrawlingService {
             // 캐시 purge 실패는 크롤링 자체를 실패시키지 않음
         }
     }
+
+    /**
+     * 비디오 크롤링 결과에 따라 선택적으로 캐시 purge
+     * - 신규 영상이 추가된 corporation만 개별 purge
+     * - 전체적으로 신규 영상이 1개 이상이면 home 페이지 purge
+     */
+    private void purgeCacheForVideoCrawlResults(List<VideoCrawlResult> results) {
+        try {
+            // 신규 영상이 추가된 corporation 찾기
+            List<Long> corporationIdsWithNewVideos = results.stream()
+                    .filter(VideoCrawlResult::hasNewVideos)
+                    .map(result -> result.getCorporation().getId())
+                    .toList();
+
+            if (corporationIdsWithNewVideos.isEmpty()) {
+                log.info("신규 영상이 없어 캐시 purge를 건너뜁니다.");
+                return;
+            }
+
+            log.info("신규 영상이 추가된 기업 {}개에 대해 캐시 purge 시작", corporationIdsWithNewVideos.size());
+
+            // 신규 영상이 있는 corporation 페이지만 purge
+            nginxCachePurgeService.purgeCorporationPages(corporationIdsWithNewVideos);
+
+            // 전체적으로 신규 영상이 있으면 home 페이지도 purge
+            nginxCachePurgeService.purgeHomePages();
+
+            log.info("비디오 크롤링 후 캐시 purge 완료");
+        } catch (Exception e) {
+            log.error("비디오 크롤링 후 캐시 purge 중 오류 발생: {}", e.getMessage(), e);
+            // 캐시 purge 실패는 크롤링 자체를 실패시키지 않음
+        }
+    }
     
     /**
      * 특정 기업 블로그만 크롤링 (WebDriver 관리 + 예외 처리)
@@ -229,7 +266,7 @@ public class CrawlingService {
      * 특정 기업 YouTube만 크롤링
      * YouTube는 API를 사용하므로 WebDriver 불필요
      */
-    public CrawlResult crawlSingleYouTube(Long corporationId, WebDriver driver) {
+    public VideoCrawlResult crawlSingleYouTube(Long corporationId, WebDriver driver) {
         Corporation corporation = crawlerCorporationRepository.findByIdAndNotDeleted(corporationId);
         if (corporation == null) {
             throw new CorporationCrawlingException(corporationId);
@@ -241,7 +278,7 @@ public class CrawlingService {
         }
 
         try {
-            return crawlAndSaveYouTubeArticles(corporation, driver);
+            return crawlAndSaveYouTubeVideos(corporation, driver);
         } catch (CrawlerException e) {
             log.error("YouTube 크롤링 실패 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
             throw e;
@@ -276,10 +313,6 @@ public class CrawlingService {
         // 중복 제거 및 저장
         for (Article article : blogArticles) {
             if (!crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(article.getLink()).isPresent()) {
-                // 블로그 글은 contentType을 "BLOG"로 설정
-                if (article.getContentType() == null) {
-                    article.setContentType("BLOG");
-                }
                 articlePersistenceService.saveArticleWithAnalysis(article, corporation, blogCrawler);
                 newArticles.add(article);
             }
@@ -292,30 +325,31 @@ public class CrawlingService {
     }
 
     /**
-     * YouTube 크롤링 및 Article 저장
+     * YouTube 크롤링 및 Video 저장
      */
-    private CrawlResult crawlAndSaveYouTubeArticles(Corporation corporation, WebDriver driver) throws IOException {
-        List<Article> crawledArticles = new ArrayList<>();
-        List<Article> newArticles = new ArrayList<>();
+    private VideoCrawlResult crawlAndSaveYouTubeVideos(Corporation corporation, WebDriver driver) throws IOException {
+        List<Video> newVideos = new ArrayList<>();
 
-        BlogCrawler youtubeCrawler = selectCrawler("https://www.youtube.com/channel/" + corporation.getYoutubeChannelId());
+        VideoCrawler youtubeCrawler = selectVideoCrawler("https://www.youtube.com/channel/" + corporation.getYoutubeChannelId());
         log.info("YouTube 크롤링 시작 - 기업: {}, 크롤러: {}", corporation.getName(), youtubeCrawler.getProviderName());
 
-        List<Article> youtubeArticles = youtubeCrawler.crawl(driver, corporation);
-        crawledArticles.addAll(youtubeArticles);
+        List<Video> youtubeVideos = youtubeCrawler.crawl(driver, corporation);
 
         // 중복 제거 및 저장
-        for (Article article : youtubeArticles) {
-            if (!crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(article.getLink()).isPresent()) {
-                articlePersistenceService.saveArticleWithAnalysis(article, corporation, youtubeCrawler);
-                newArticles.add(article);
+        for (Video video : youtubeVideos) {
+            if (!crawlerVideoRepository.findFirstByLinkAndDeletedAtIsNull(video.getLink()).isPresent()) {
+                // 이미지 업로드 처리
+                youtubeCrawler.processImageUpload(video, corporation);
+                // Video 저장
+                crawlerVideoRepository.save(video);
+                newVideos.add(video);
             }
         }
 
         log.info("YouTube 크롤링 완료 - 기업: {}, 조회: {}개, 신규: {}개",
-                 corporation.getName(), youtubeArticles.size(), newArticles.size());
+                 corporation.getName(), youtubeVideos.size(), newVideos.size());
 
-        return CrawlResult.success(corporation, newArticles, newArticles.size());
+        return VideoCrawlResult.success(corporation, newVideos, newVideos.size());
     }
 
     /**
@@ -326,19 +360,38 @@ public class CrawlingService {
                 .values()
                 .stream()
                 .toList();
-        
+
         // 특화된 크롤러 우선 선택
         for (BlogCrawler crawler : crawlers) {
             if (!crawler.getProviderName().equals("Default") && crawler.canHandle(blogUrl)) {
                 return crawler;
             }
         }
-        
+
         // 기본 크롤러 반환
         return crawlers.stream()
                 .filter(crawler -> crawler.getProviderName().equals("Default"))
                 .findFirst()
                 .orElseThrow(() -> new CrawlerNotFoundException(blogUrl));
+    }
+
+    /**
+     * URL에 따라 적절한 비디오 크롤러 선택
+     */
+    private VideoCrawler selectVideoCrawler(String url) {
+        List<VideoCrawler> crawlers = applicationContext.getBeansOfType(VideoCrawler.class)
+                .values()
+                .stream()
+                .toList();
+
+        // 적절한 크롤러 선택
+        for (VideoCrawler crawler : crawlers) {
+            if (crawler.canHandle(url)) {
+                return crawler;
+            }
+        }
+
+        throw new CrawlerNotFoundException(url);
     }
     
     /**

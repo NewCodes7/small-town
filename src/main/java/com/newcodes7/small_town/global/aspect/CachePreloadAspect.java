@@ -51,24 +51,24 @@ public class CachePreloadAspect {
      * 자주 사용되는 필터 조합으로 캐시를 미리 로드합니다.
      */
     private void preloadCommonFilters() {
-        preloadFilter(null, null, 0, 10, null, "grouped", null, null);
-        preloadFilter(null, null, 0, 10, null, "list", null, null);
-        preloadFilter(null, Arrays.asList("domestic"), 0, 10, null, "grouped", null, null);
-        preloadFilter(null, Arrays.asList("overseas"), 0, 10, null, "grouped", null, null);
+        preloadFilter(null, null, 0, 10, null, "grouped", null);
+        preloadFilter(null, null, 0, 10, null, "list", null);
+        preloadFilter(null, Arrays.asList("domestic"), 0, 10, null, "grouped", null);
+        preloadFilter(null, Arrays.asList("overseas"), 0, 10, null, "grouped", null);
     }
 
     /**
      * 개별 필터 조건으로 캐시를 로드합니다.
      */
     private void preloadFilter(String keyword, List<String> regions, int page, int size,
-                               String sort, String view, List<String> category, List<String> contentTypes) {
+                               String sort, String view, List<String> category) {
         try {
-            articleService.getArticlesWithFilters(keyword, regions, page, size, sort, view, category, contentTypes);
-            log.debug("캐시 프리로드 성공 - regions: {}, page: {}, sort: {}, view: {}, contentTypes: {}",
-                     regions, page, sort, view, contentTypes);
+            articleService.getArticlesWithFilters(keyword, regions, page, size, sort, view, category);
+            log.debug("캐시 프리로드 성공 - regions: {}, page: {}, sort: {}, view: {}",
+                     regions, page, sort, view);
         } catch (Exception e) {
-            log.warn("캐시 프리로드 실패 - regions: {}, page: {}, sort: {}, view: {}, contentTypes: {}, 오류: {}",
-                    regions, page, sort, view, contentTypes, e.getMessage());
+            log.warn("캐시 프리로드 실패 - regions: {}, page: {}, sort: {}, view: {}, 오류: {}",
+                    regions, page, sort, view, e.getMessage());
         }
     }
 }

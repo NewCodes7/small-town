@@ -65,21 +65,21 @@ public class CrawlingScheduler {
         log.info("스케줄된 YouTube 크롤링 작업 시작");
 
         try {
-            List<CrawlResult> results = crawlingService.crawlAllYouTube();
+            List<com.newcodes7.small_town.crawler.dto.VideoCrawlResult> results = crawlingService.crawlAllYouTube();
 
             long successCount = results.stream()
-                    .filter(CrawlResult::isSuccess)
+                    .filter(com.newcodes7.small_town.crawler.dto.VideoCrawlResult::isSuccess)
                     .count();
 
             long failureCount = results.size() - successCount;
 
-            long totalNewArticles = results.stream()
-                    .filter(CrawlResult::isSuccess)
-                    .mapToLong(CrawlResult::getNewArticles)
+            long totalNewVideos = results.stream()
+                    .filter(com.newcodes7.small_town.crawler.dto.VideoCrawlResult::isSuccess)
+                    .mapToLong(com.newcodes7.small_town.crawler.dto.VideoCrawlResult::getNewVideos)
                     .sum();
 
-            log.info("스케줄된 YouTube 크롤링 작업 완료 - 성공: {}개, 실패: {}개, 신규 글: {}개",
-                successCount, failureCount, totalNewArticles);
+            log.info("스케줄된 YouTube 크롤링 작업 완료 - 성공: {}개, 실패: {}개, 신규 영상: {}개",
+                successCount, failureCount, totalNewVideos);
 
             // 실패한 경우 로그 출력
             results.stream()

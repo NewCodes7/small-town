@@ -3,10 +3,10 @@
         xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{layout/base}">
 <head>
-    <title>홈</title>
+    <title>유튜브</title>
     <th:block layout:fragment="meta" th:remove="tag">
-        <meta name="description" content="NewCodes에서 최신 기술 블로그와 IT 소식을 만나보세요. 개발자를 위한 다양한 아티클을 매일 업데이트합니다.">
-        <meta name="keywords" content="홈, 최신 기술, IT 뉴스, 개발자 커뮤니티, 기술 아티클, NewCodes">
+        <meta name="description" content="NewCodes에서 최신 기술 유튜브를 한 곳에서 만나보세요. 개발자를 위한 다양한 기술 영상을 매일 업데이트합니다.">
+        <meta name="keywords" content="유튜브, 최신 기술, IT 뉴스, 개발자 커뮤니티, 기술 영상, NewCodes">
         <meta name="robots" content="index, follow">
     </th:block>
     <link rel="stylesheet" type="text/css" th:href="@{/css/home.css}">
@@ -24,7 +24,7 @@
                             <i class="fas me-3" style="color: var(--primary-green);"></i>
                             NewCodes
                         </h1>
-                        <p class="hero-subtitle">모든 기술블로그를 한 곳에서 만나보세요!</p>
+                        <p class="hero-subtitle">모든 기술 유튜브를 한 곳에서 만나보세요!</p>
                         
                         <!-- Stats Cards -->
                         <!-- <div class="row g-4 justify-content-center">
@@ -52,21 +52,21 @@
                     </div>
                 </div>
                 
-                <!-- Slides 2-6: Popular Articles -->
-                <div class="banner-slide" th:each="article, iterStat : ${popularArticles}">
-                    <a th:href="${article.link}" target="_blank" class="banner-link">
-                        <div class="popular-article-banner">
-                            <!-- Article Thumbnail -->
-                            <div class="article-thumbnail">
-                                <img th:if="${article.thumbnailImage != null and !article.thumbnailImage.isEmpty()}"
-                                     th:src="${article.thumbnailImage}"
-                                     th:alt="${article.title}"
+                <!-- Slides 2-6: Popular Videos -->
+                <div class="banner-slide" th:each="video, iterStat : ${popularVideos}">
+                    <a th:href="${video.link}" target="_blank" class="banner-link">
+                        <div class="popular-video-banner">
+                            <!-- Video Thumbnail -->
+                            <div class="video-thumbnail">
+                                <img th:if="${video.thumbnailUrl != null and !video.thumbnailUrl.isEmpty()}"
+                                     th:src="${video.thumbnailUrl}"
+                                     th:alt="${video.title}"
                                      width="300"
                                      height="155"
                                      class="thumbnail-image">
-                                <div th:unless="${article.thumbnailImage != null and !article.thumbnailImage.isEmpty()}" 
+                                <div th:unless="${video.thumbnailUrl != null and !video.thumbnailUrl.isEmpty()}"
                                      class="default-thumbnail">
-                                     <div class="article-thumbnail default-thumbnail">
+                                     <div class="video-thumbnail default-thumbnail">
                                         <div class="default-thumbnail-content">
                                             <i class="fas fa-code"></i>
                                             <div class="thumbnail-pattern"></div>
@@ -75,39 +75,44 @@
                                 </div>
                             </div>
                             
-                            <!-- Article Content -->
-                            <div class="article-content">
-                                <div class="article-top">
-                                    <div class="article-badge">🔥 인기글</div>
-                                    <h2 class="article-title title-link">
-                                        <span th:text="${article.translatedTitle != null && !article.translatedTitle.isEmpty() ? article.translatedTitle : article.title}">Article Title</span>
+                            <!-- Video Content -->
+                            <div class="video-content">
+                                <div class="video-top">
+                                    <div class="video-badge">🔥 인기글</div>
+                                    <h2 class="video-title title-link">
+                                        <span th:text="${video.translatedTitle != null && !video.translatedTitle.isEmpty() ? video.translatedTitle : video.title}">Video Title</span>
+                                        <!-- YouTube 영상일 경우 로고 표시 (썸네일이 없을 때만) -->
+                                        <i th:if="${video.thumbnailUrl == null or video.thumbnailUrl.isEmpty()}"
+                                           class="fab fa-youtube ms-2"
+                                           style="color: #FF0000; font-size: 1.1em;"
+                                           title="YouTube 영상"></i>
                                     </h2>
                                 </div>
-                                <div class="article-info">
-                                    <div class="article-company">
-                                        <a th:href="@{/corporations/{id}(id=${article.corporation.id})}"
+                                <div class="video-info">
+                                    <div class="video-company">
+                                        <a th:href="@{/corporations/{id}(id=${video.corporation.id})}"
                                            class="d-flex align-items-center text-decoration-none company-link">
-                                            <img th:if="${article.corporation.effectiveLogoUrl != null and !article.corporation.effectiveLogoUrl.isEmpty()}"
-                                                 th:src="${article.corporation.effectiveLogoUrl}"
-                                                 th:alt="${article.corporation.name}"
-                                                 th:title="${article.corporation.name}"
+                                            <img th:if="${video.corporation.effectiveLogoUrl != null and !video.corporation.effectiveLogoUrl.isEmpty()}"
+                                                 th:src="${video.corporation.effectiveLogoUrl}"
+                                                 th:alt="${video.corporation.name}"
+                                                 th:title="${video.corporation.name}"
                                                  class="company-logo">
-                                            <span class="company-name" th:text="${article.corporation.name}">Company</span>
+                                            <span class="company-name" th:text="${video.corporation.name}">Company</span>
                                         </a>
                                     </div>
-                                    <div class="article-metrics">
+                                    <div class="video-metrics">
                                         <span class="publish-date relative-time" 
-                                              th:attr="data-date=${article.publishedAt}"
-                                              th:title="${article.publishedAt}"
-                                              th:text="${article.publishedAt}">2024-01-01</span>
+                                              th:attr="data-date=${video.publishedAt}"
+                                              th:title="${video.publishedAt}"
+                                              th:text="${video.publishedAt}">2024-01-01</span>
                                         <!-- <div class="article-stats">
                                             <span class="stat-item">
                                                 <i class="fas fa-eye"></i>
-                                                <span class="view-count" th:text="${article.viewCount ?: 0}">0</span>
+                                                <span class="view-count" th:text="${video.viewCount ?: 0}">0</span>
                                             </span>
                                             <span class="stat-item">
                                                 <i class="fas fa-heart"></i>
-                                                <span th:text="${article.likeCount ?: 0}">0</span>
+                                                <span th:text="${video.likeCount ?: 0}">0</span>
                                             </span>
                                         </div> -->
                                     </div>
@@ -126,7 +131,7 @@
                 
                 <div class="banner-indicators">
                     <button class="indicator active" onclick="goToSlide(0)"></button>
-                    <button class="indicator" th:each="article, iterStat : ${popularArticles}" th:onclick="'goToSlide(' + ${iterStat.index + 1} + ')'"></button>
+                    <button class="indicator" th:each="video, iterStat : ${popularVideos}" th:onclick="'goToSlide(' + ${iterStat.index + 1} + ')'"></button>
                 </div>
                 
                 <button class="banner-nav banner-nav-next" onclick="nextSlide()">
@@ -186,6 +191,8 @@
                             </div>
                         </div>
 
+                        <!-- Content Type Filter Group (Removed - Videos only) -->
+
                         <!-- Category Filter -->
                         <div class="filter-group">
                             <div class="category-filter-dropdown">
@@ -239,6 +246,106 @@
 
         <!-- Enhanced Search Filter Styles -->
         <style>
+            /* Popular video banner styles - matching article banner */
+            .popular-video-banner {
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(135deg, var(--secondary-green) 0%, #F0F8F0 100%);
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                color: var(--text-dark);
+                position: relative;
+                padding: 40px;
+                gap: 40px;
+            }
+
+            .popular-video-banner .video-thumbnail {
+                flex: 0 0 300px;
+                height: 155.22px;
+                border-radius: 12px;
+                overflow: hidden;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: #E8FFF2;
+            }
+
+            .popular-video-banner .video-content {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                padding: 30px;
+            }
+
+            .popular-video-banner .video-badge {
+                display: inline-block;
+                background: var(--primary-green);
+                color: white;
+                padding: 6px 16px;
+                border-radius: 20px;
+                font-size: 0.9rem;
+                font-weight: 600;
+                margin-bottom: 20px;
+                align-self: flex-start;
+            }
+
+            .popular-video-banner .video-title {
+                font-size: 1.8rem;
+                font-weight: 700;
+                margin-bottom: 0;
+                line-height: 1.4;
+                color: var(--text-dark);
+            }
+
+            .popular-video-banner .video-info {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                gap: 20px;
+                flex-wrap: wrap;
+                margin-top: auto;
+            }
+
+            .popular-video-banner .video-company {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            @media (max-width: 768px) {
+                .popular-video-banner {
+                    flex-direction: column;
+                    gap: 20px;
+                    padding: 20px;
+                    text-align: center;
+                }
+                .popular-video-banner .video-thumbnail {
+                    flex: none;
+                    width: 100%;
+                    max-width: 300px;
+                    margin: 0 auto;
+                }
+                .popular-video-banner .video-content {
+                    padding: 20px;
+                    text-align: center;
+                    align-items: center;
+                }
+                .popular-video-banner .video-badge {
+                    align-self: center;
+                }
+                .popular-video-banner .video-title {
+                    font-size: 1.4rem;
+                }
+                .popular-video-banner .video-info {
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 12px;
+                }
+            }
+
             .search-filter-container {
                 background: linear-gradient(135deg, #f8fffe 0%, #f0fdf4 100%);
                 border-radius: 24px;
@@ -952,61 +1059,66 @@
 
         <!-- 리스트 뷰 -->
         <div th:unless="${isGrouped}" th:fragment="articleWrapper" id="article-list-container">
-            <!-- Articles Stack -->
+            <!-- Videos Stack -->
             <div class="articles-list-container">
-                <div class="article-card-wrapper" th:each="article : ${articles.content}">
-                    <div class="article-card" th:attr="data-article-id=${article.id}">
-                        <!-- Article Content (Left Side) -->
-                    <div class="article-content">
+                <div class="video-card-wrapper" th:each="video : ${videos.content}">
+                    <div class="video-card" th:attr="data-article-id=${video.id}">
+                        <!-- Video Content (Left Side) -->
+                    <div class="video-content">
                         <!-- Title -->
                         <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
-                            <a th:href="${article.link}"
+                            <a th:href="${video.link}"
                             target="_blank"
                             class="text-decoration-none title-link"
                             style="color: inherit;">
-                                <span th:text="${article.translatedTitle != null && !article.translatedTitle.isEmpty() ? article.translatedTitle : article.title}">Article Title</span>
+                                <span th:text="${video.translatedTitle != null && !video.translatedTitle.isEmpty() ? video.translatedTitle : video.title}">Video Title</span>
+                                <!-- YouTube 영상일 경우 로고 표시 (썸네일이 없을 때만) -->
+                                <i th:if="${video.thumbnailUrl == null or video.thumbnailUrl.isEmpty()}"
+                                   class="fab fa-youtube ms-2"
+                                   style="color: #FF0000; font-size: 1.1em;"
+                                   title="YouTube 영상"></i>
                             </a>
                         </h5>
                         
                         <!-- Company Info & Stats -->
                         <div class="d-flex align-items-center flex-wrap">
                             <div class="d-flex align-items-center me-4">
-                                <a th:href="@{/corporations/{id}(id=${article.corporation.id})}" 
+                                <a th:href="@{/corporations/{id}(id=${video.corporation.id})}" 
                                 class="d-flex align-items-center text-decoration-none company-link">
-                                    <img width="20px;" th:if="${article.corporation.effectiveLogoUrl != null}"
-                                        th:src="${article.corporation.effectiveLogoUrl}" 
-                                        th:alt="${article.corporation.name}"
+                                    <img width="20px;" th:if="${video.corporation.effectiveLogoUrl != null}"
+                                        th:src="${video.corporation.effectiveLogoUrl}" 
+                                        th:alt="${video.corporation.name}"
                                         class="company-logo me-2" style="border-radius: 4px;">
-                                    <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;" th:text="${article.corporation.name}">Company</span>
+                                    <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;" th:text="${video.corporation.name}">Company</span>
                                 </a>
                             </div>
                             <div class="d-flex align-items-center gap-3">
                                 <small class="text-muted relative-time" 
-                                    th:attr="data-date=${article.publishedAt}"
-                                    th:title="${article.publishedAt}"
-                                    th:text="${article.publishedAt}">2024-01-01</small>
+                                    th:attr="data-date=${video.publishedAt}"
+                                    th:title="${video.publishedAt}"
+                                    th:text="${video.publishedAt}">2024-01-01</small>
                                 <!-- <span class="text-muted d-flex align-items-center" style="font-size: 0.85rem;">
-                                    <i class="fas fa-eye me-1"></i> <span class="view-count" th:text="${article.viewCount}">0</span>
+                                    <i class="fas fa-eye me-1"></i> <span class="view-count" th:text="${video.viewCount}">0</span>
                                 </span> -->
                                 <!-- <button class="like-button" 
-                                        th:attr="data-article-id=${article.id}">
+                                        th:attr="data-article-id=${video.id}">
                                     <i class="fas fa-heart like-icon"></i> 
-                                    <span class="like-count" th:text="${article.likeCount}">0</span>
+                                    <span class="like-count" th:text="${video.likeCount}">0</span>
                                 </button> -->
                             </div>
                         </div>
                     </div>
                     
                     <!-- Thumbnail Container (Right Side) -->
-                    <div class="article-thumbnail-container">
-                        <img th:if="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}"
-                            th:src="${article.thumbnailImage}"
-                            th:alt="${article.title}"
+                    <div class="video-thumbnail-container">
+                        <img th:if="${video.thumbnailUrl != null && !video.thumbnailUrl.isEmpty()}"
+                            th:src="${video.thumbnailUrl}"
+                            th:alt="${video.title}"
                             width="300"
                             height="155"
-                            class="article-thumbnail">
-                        <div th:unless="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}" 
-                            class="article-thumbnail default-thumbnail">
+                            class="video-thumbnail">
+                        <div th:unless="${video.thumbnailUrl != null && !video.thumbnailUrl.isEmpty()}"
+                            class="video-thumbnail default-thumbnail">
                             <div class="default-thumbnail-content">
                                 <i class="fas fa-code"></i>
                                 <div class="thumbnail-pattern"></div>
@@ -1017,13 +1129,13 @@
 
                     <!-- Admin Control Panel (separate from article) -->
                     <div class="admin-control-panel d-none">
-                        <button class="admin-edit-btn" title="글 편집" th:attr="data-article-id=${article.id}">
+                        <button class="admin-edit-btn" title="글 편집" th:attr="data-article-id=${video.id}">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button class="admin-summary-btn" title="요약 관리" th:attr="data-article-id=${article.id}">
+                        <button class="admin-summary-btn" title="요약 관리" th:attr="data-article-id=${video.id}">
                             <i class="fas fa-list"></i>
                         </button>
-                        <button class="admin-delete-btn" title="글 삭제" th:attr="data-article-id=${article.id},data-article-title=${article.title}">
+                        <button class="admin-delete-btn" title="글 삭제" th:attr="data-article-id=${video.id},data-article-title=${video.title}">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
@@ -1033,18 +1145,23 @@
 
         <!-- 그룹 뷰 -->
         <div th:if="${isGrouped}" th:fragment="articleWrapper" id="article-grouped-container" class="grouped-view">
-            <!-- Grouped Articles Container -->
-            <div th:if="${!articles.content.isEmpty()}" class="articles-container">
-                <div class="article-card-wrapper" th:each="group : ${articles.content}" th:with="firstArticle=${group.articles[0]}, childArticles=${group.articles.size() > 1} ? ${group.articles.subList(1, group.articles.size())} : ${new java.util.ArrayList()}">
-                    <div class="article-card" th:attr="data-article-id=${firstArticle.id}">
+            <!-- Grouped Videos Container -->
+            <div th:if="${!videos.content.isEmpty()}" class="articles-container">
+                <div class="video-card-wrapper" th:each="group : ${videos.content}" th:with="firstVideo=${group.videos[0]}, childVideos=${group.videos.size() > 1} ? ${group.videos.subList(1, group.videos.size())} : ${new java.util.ArrayList()}">
+                    <div class="video-card" th:attr="data-article-id=${firstVideo.id}">
 
-                        <!-- Article Content (Left Side) -->
-                        <div class="article-content">
+                        <!-- Video Content (Left Side) -->
+                        <div class="video-content">
                             <!-- Title -->
                             <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
-                                <a th:href="${firstArticle.link}" target="_blank"
+                                <a th:href="${firstVideo.link}" target="_blank"
                                 class="text-decoration-none title-link" style="color: inherit;">
-                                    <span th:text="${firstArticle.translatedTitle != null && !firstArticle.translatedTitle.isEmpty() ? firstArticle.translatedTitle : firstArticle.title}"></span>
+                                    <span th:text="${firstVideo.translatedTitle != null && !firstVideo.translatedTitle.isEmpty() ? firstVideo.translatedTitle : firstVideo.title}"></span>
+                                    <!-- YouTube 영상일 경우 로고 표시 (썸네일이 없을 때만) -->
+                                    <i th:if="${firstVideo.thumbnailUrl == null or firstVideo.thumbnailUrl.isEmpty()}"
+                                       class="fab fa-youtube ms-2"
+                                       style="color: #FF0000; font-size: 1.1em;"
+                                       title="YouTube 영상"></i>
                                 </a>
                             </h5>
                             
@@ -1057,20 +1174,20 @@
                                     </a>
                                 </div>
                                 <div class="d-flex align-items-center gap-3">
-                                    <small class="text-muted relative-time" th:attr="data-date=${firstArticle.publishedAt}" th:title="${firstArticle.publishedAt}" th:text="${firstArticle.publishedAt}"></small>
+                                    <small class="text-muted relative-time" th:attr="data-date=${firstVideo.publishedAt}" th:title="${firstVideo.publishedAt}" th:text="${firstVideo.publishedAt}"></small>
                                 </div>
                             </div>
                         </div>
                         
                         <!-- Thumbnail Container (Right Side) -->
-                        <div class="article-thumbnail-container">
-                            <img th:if="${firstArticle.thumbnailImage != null && !firstArticle.thumbnailImage.isEmpty()}"
-                                th:src="${firstArticle.thumbnailImage}"
-                                th:alt="${firstArticle.title}"
+                        <div class="video-thumbnail-container">
+                            <img th:if="${firstVideo.thumbnailUrl != null && !firstVideo.thumbnailUrl.isEmpty()}"
+                                th:src="${firstVideo.thumbnailUrl}"
+                                th:alt="${firstVideo.title}"
                                 width="300"
                                 height="155"
-                                class="article-thumbnail">
-                            <div th:unless="${firstArticle.thumbnailImage != null && !firstArticle.thumbnailImage.isEmpty()}" class="article-thumbnail default-thumbnail">
+                                class="video-thumbnail">
+                            <div th:unless="${firstVideo.thumbnailUrl != null && !firstVideo.thumbnailUrl.isEmpty()}" class="video-thumbnail default-thumbnail">
                                 <div class="default-thumbnail-content">
                                     <i class="fas fa-code"></i>
                                     <div class="thumbnail-pattern"></div>
@@ -1079,12 +1196,17 @@
                         </div>
 
                         <!-- Child Container (Bottom Side) -->
-                        <div class="child-container" th:if="${!childArticles.isEmpty()}">
-                            <div class="child" th:each="child : ${childArticles}" th:attr="data-article-id=${child.id}">
+                        <div class="child-container" th:if="${!childVideos.isEmpty()}">
+                            <div class="child" th:each="child : ${childVideos}" th:attr="data-article-id=${child.id}">
                                 <h6 class="fw-bold" style="margin: 0;">
                                     <a th:href="${child.link}" target="_blank"
                                     class="text-decoration-none title-link" style="color: inherit;">
                                         <span th:text="${child.translatedTitle != null && !child.translatedTitle.isEmpty() ? child.translatedTitle : child.title}"></span>
+                                        <!-- YouTube 영상일 경우 로고 표시 (child는 썸네일 없는 작은 글) -->
+                                        <i th:if="${child.thumbnailUrl == null or child.thumbnailUrl.isEmpty()}"
+                                           class="fab fa-youtube ms-2"
+                                           style="color: #FF0000; font-size: 0.95em;"
+                                           title="YouTube 영상"></i>
                                     </a>
                                 </h6>
                                 <span class="child-date d-flex align-items-center flex-wrap">
@@ -1103,13 +1225,13 @@
 
                     <!-- Admin Control Panel (separate from article) -->
                     <div class="admin-control-panel d-none">
-                        <button class="admin-edit-btn" title="글 편집" th:attr="data-article-id=${firstArticle.id}">
+                        <button class="admin-edit-btn" title="글 편집" th:attr="data-article-id=${firstVideo.id}">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button class="admin-summary-btn" title="요약 관리" th:attr="data-article-id=${firstArticle.id}">
+                        <button class="admin-summary-btn" title="요약 관리" th:attr="data-article-id=${firstVideo.id}">
                             <i class="fas fa-list"></i>
                         </button>
-                        <button class="admin-delete-btn" title="글 삭제" th:attr="data-article-id=${firstArticle.id},data-article-title=${firstArticle.title}">
+                        <button class="admin-delete-btn" title="글 삭제" th:attr="data-article-id=${firstVideo.id},data-article-title=${firstVideo.title}">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
@@ -1117,7 +1239,7 @@
             </div>
 
             <!-- Empty State -->
-            <div th:if="${articles.content.isEmpty()}" class="text-center py-5">
+            <div th:if="${videos.content.isEmpty()}" class="text-center py-5">
                 <div class="hero-section">
                     <i class="fas fa-search fa-4x mb-4" style="color: var(--primary-green); opacity: 0.5;" th:if="${keyword != null && !keyword.isEmpty()}"></i>
                     <i class="fas fa-seedling fa-4x mb-4" style="color: var(--primary-green); opacity: 0.5;" th:unless="${keyword != null && !keyword.isEmpty()}"></i>
@@ -1187,14 +1309,90 @@
 
         <!-- Admin Control Panel Styles -->
         <style>
-            .article-card-wrapper {
+            /* Video Card Styles - matching article-card */
+            .video-card {
+                transition: all 0.3s ease;
+                border: 1px solid var(--border-light);
+                border-radius: 16px;
+                background: var(--white);
+                box-shadow: 0 2px 8px rgba(3, 199, 90, 0.08);
+                overflow: hidden;
+                margin-bottom: 16px;
+                display: flex;
+                flex-wrap: wrap;
+                align-items: stretch;
+            }
+
+            .video-card:hover {
+                transform: translateY(-4px);
+                box-shadow: 0 8px 24px rgba(3, 199, 90, 0.15);
+                border-color: var(--primary-green);
+            }
+
+            .video-card:hover .video-thumbnail {
+                transform: scale(1.05);
+            }
+
+            .video-thumbnail-container {
+                flex: 0 0 300px;
+                position: relative;
+                overflow: hidden;
+                background: linear-gradient(135deg, var(--secondary-green) 0%, #F0FFF0 100%);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .video-thumbnail {
+                height: 155.22px;
+                width: 100%;
+                object-fit: cover;
+                object-position: center;
+                background: var(--primary-green);
+                transition: transform 0.3s ease;
+                display: block;
+                border-radius: 8px;
+            }
+
+            .video-content {
+                flex: 1;
+                padding: 24px;
+                display: flex;
+                flex-direction: column;
+                order: 1;
+                min-width: 0;
+            }
+
+            @media (max-width: 768px) {
+                .video-card {
+                    flex-direction: column;
+                }
+
+                .video-thumbnail-container {
+                    flex: none;
+                    height: 155px;
+                    order: 0;
+                }
+
+                .video-content {
+                    padding: 16px;
+                    order: 2;
+                }
+
+                .video-thumbnail {
+                    height: 155px;
+                    border-radius: 0;
+                }
+            }
+
+            .video-card-wrapper {
                 display: flex;
                 align-items: flex-start;
                 gap: 15px;
                 margin-bottom: 30px;
             }
 
-            .article-card-wrapper .article-card {
+            .video-card-wrapper .video-card {
                 flex: 1;
                 margin-bottom: 0;
             }
@@ -1218,7 +1416,7 @@
                 pointer-events: auto;
             }
 
-            .article-card-wrapper:hover .admin-control-panel:not(.d-none) {
+            .video-card-wrapper:hover .admin-control-panel:not(.d-none) {
                 opacity: 1;
             }
 
@@ -1274,7 +1472,7 @@
 
             /* 모바일 대응 */
             @media (max-width: 768px) {
-                .article-card-wrapper {
+                .video-card-wrapper {
                     flex-direction: column;
                     gap: 10px;
                     align-items: stretch;
@@ -1299,7 +1497,7 @@
         </style>
 
         <!-- 관리자 전용 글 편집 모달 -->
-        <div class="modal fade" id="editArticleModal" tabindex="-1">
+        <div class="modal fade" id="editVideoModal" tabindex="-1">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -1307,7 +1505,7 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <form id="editArticleForm">
+                        <form id="editVideoForm">
                             <div class="mb-3">
                                 <label for="articleTitle" class="form-label">제목</label>
                                 <input type="text" class="form-control" id="articleTitle" required>
@@ -1336,7 +1534,7 @@
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
-                        <button type="button" class="btn btn-primary" id="saveArticleBtn">저장</button>
+                        <button type="button" class="btn btn-primary" id="saveVideoBtn">저장</button>
                     </div>
                 </div>
             </div>

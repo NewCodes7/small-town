@@ -61,7 +61,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authz -> authz
                 .requestMatchers("/api/auth/**", "/auth/**", "/api/user-info", "/api/auth/me").permitAll()
-                .requestMatchers("/", "/home", "/articles/**", "/about", "/corporations", "/corporations/**").permitAll()
+                .requestMatchers("/", "/home", "/articles/**", "/about", "/corporations", "/corporations/**", "/video").permitAll()
                 .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
                 .requestMatchers("/error").permitAll()
                 .requestMatchers("/sitemap.xml", "/robots.txt").permitAll()

@@ -24,7 +24,6 @@ public class ArticleListResponseDto implements ArticleResponseDto {
     private final String publishedAt;
     private final CorporationDto corporation;
     private final List<Tag> tags;
-    private final boolean youtubeContent;
 
     public ArticleListResponseDto(Article article) {
         this.id = article.getId();
@@ -42,6 +41,5 @@ public class ArticleListResponseDto implements ArticleResponseDto {
         this.tags = article.getArticleTags().stream()
             .map(articleTag -> articleTag.getTag())
             .collect(Collectors.toList());
-        this.youtubeContent = article.isYoutubeContent();
     }
 }

@@ -96,15 +96,15 @@ public class CrawlingController {
     public ResponseEntity<Map<String, Object>> crawlAllYouTube() {
         try {
             log.info("YouTube 전용 크롤링 API 호출");
-            List<CrawlResult> results = crawlingService.crawlAllYouTube();
+            List<com.newcodes7.small_town.crawler.dto.VideoCrawlResult> results = crawlingService.crawlAllYouTube();
 
             long successCount = results.stream()
-                    .filter(CrawlResult::isSuccess)
+                    .filter(com.newcodes7.small_town.crawler.dto.VideoCrawlResult::isSuccess)
                     .count();
 
-            long totalNewArticles = results.stream()
-                    .filter(CrawlResult::isSuccess)
-                    .mapToLong(CrawlResult::getNewArticles)
+            long totalNewVideos = results.stream()
+                    .filter(com.newcodes7.small_town.crawler.dto.VideoCrawlResult::isSuccess)
+                    .mapToLong(com.newcodes7.small_town.crawler.dto.VideoCrawlResult::getNewVideos)
                     .sum();
 
             return ResponseEntity.ok(Map.of(
@@ -113,7 +113,7 @@ public class CrawlingController {
                 "totalCorporations", results.size(),
                 "successCount", successCount,
                 "failureCount", results.size() - successCount,
-                "totalNewArticles", totalNewArticles,
+                "totalNewVideos", totalNewVideos,
                 "results", results
             ));
 
@@ -126,7 +126,7 @@ public class CrawlingController {
     /**
      * 특정 기업 블로그 크롤링 실행
      */
-    @GetMapping("/blogs/corporation/{corporationId}")
+    @GetMapping("/blogs/{corporationId}")
     public ResponseEntity<Map<String, Object>> crawlSingleBlog(@PathVariable("corporationId") Long corporationId) {
         try {
             log.info("개별 블로그 크롤링 API 호출 - corporationId: {}", corporationId);
@@ -159,19 +159,19 @@ public class CrawlingController {
     /**
      * 특정 기업 YouTube 크롤링 실행
      */
-    @GetMapping("/youtube/corporation/{corporationId}")
+    @GetMapping("/youtube/{corporationId}")
     public ResponseEntity<Map<String, Object>> crawlSingleYouTube(@PathVariable("corporationId") Long corporationId) {
         try {
             log.info("개별 YouTube 크롤링 API 호출 - corporationId: {}", corporationId);
-            CrawlResult result = crawlingService.crawlSingleYouTube(corporationId, null);
+            com.newcodes7.small_town.crawler.dto.VideoCrawlResult result = crawlingService.crawlSingleYouTube(corporationId, null);
 
             if (result.isSuccess()) {
                 return ResponseEntity.ok(Map.of(
                     "success", true,
                     "message", "YouTube 크롤링이 완료되었습니다.",
                     "corporationName", result.getCorporation().getName(),
-                    "totalArticles", result.getTotalArticles(),
-                    "newArticles", result.getNewArticles(),
+                    "totalVideos", result.getTotalVideos(),
+                    "newVideos", result.getNewVideos(),
                     "result", result
                 ));
             } else {

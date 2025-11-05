@@ -15,7 +15,7 @@ public class CacheConfig {
 
     @Bean
     public CacheManager cacheManager() {
-        CaffeineCacheManager cacheManager = new CaffeineCacheManager("corporationArticles");
+        CaffeineCacheManager cacheManager = new CaffeineCacheManager("corporationArticles", "corporationVideos");
         cacheManager.setCaffeine(Caffeine.newBuilder()
             .maximumWeight(100_000_000)  // 약 100MB 제한 (가중치 기준)
             .weigher((Weigher<Object, Object>) (key, value) -> {
