@@ -89,15 +89,16 @@ public class ArticleService {
             category != null ? category.size() : 0
         );
 
-        // 2. 블로그 글 조회 (페이징 없이 모두 가져옴)
+        // 2. DB에서 직접 페이징된 블로그 글 조회
+        int offset = page * size;
         List<Article> articles = articleRepository.findTop3ArticlesGroupedByCorporation(
             keyword,
             domesticTypes != null ? domesticTypes : new ArrayList<>(),
             domesticTypes != null ? domesticTypes.size() : 0,
             category != null ? category : new ArrayList<>(),
             category != null ? category.size() : 0,
-            0,
-            Integer.MAX_VALUE
+            offset,
+            size
         );
 
         // 3. 기업별로 그룹화하여 카드 생성
@@ -107,8 +108,8 @@ public class ArticleService {
                     Collectors.toList()
                 ));
 
-        // 4. 카드 리스트 생성
-        List<GroupedArticlesDto> allCards = groupedArticles.entrySet().stream()
+        // 4. 카드 리스트 생성 (이미 DB에서 정렬되어 온 순서 유지)
+        List<GroupedArticlesDto> pagedCards = groupedArticles.entrySet().stream()
                 .map(entry -> new GroupedArticlesDto(
                         new CorporationDto(entry.getKey()),
                         entry.getValue().stream()
@@ -117,28 +118,14 @@ public class ArticleService {
                 ))
                 .collect(Collectors.toList());
 
-        // 5. 각 카드의 최신 글 기준으로 정렬 (최신순)
-        allCards.sort((card1, card2) -> {
-            ArticleListResponseDto latest1 = card1.getArticles().get(0);
-            ArticleListResponseDto latest2 = card2.getArticles().get(0);
-            return latest2.getPublishedAt().compareTo(latest1.getPublishedAt());
-        });
-
-        // 6. 페이징 적용
-        int start = page * size;
-        int end = Math.min(start + size, allCards.size());
-        List<GroupedArticlesDto> pagedCards = start < allCards.size()
-            ? allCards.subList(start, end)
-            : new ArrayList<>();
-
-        // 7. Page로 변환
+        // 5. Page로 변환
         Pageable pageable = PageRequest.of(page, size);
         return new PageImpl<>(
             pagedCards.stream()
                     .map(dto -> (ArticleResponseDto) dto)
                     .collect(Collectors.toList()),
             pageable,
-            allCards.size()
+            totalCorporations
         );
     }
     
