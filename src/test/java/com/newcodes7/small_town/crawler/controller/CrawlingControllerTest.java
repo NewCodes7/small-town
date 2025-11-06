@@ -169,7 +169,7 @@ public class CrawlingControllerTest {
         Corporation corporation = createTossCorporation("토스", "https://toss.tech", 1);
         
         //when&then
-        mockMvc.perform(get("/api/crawling/corporation/{corporationId}", corporation.getId())
+        mockMvc.perform(get("/api/crawling/blogs/{corporationId}", corporation.getId())
                 .cookie(new Cookie("accessToken", accessToken))        
                 .accept(MediaType.APPLICATION_JSON))
                 .andDo(print())
@@ -197,7 +197,7 @@ public class CrawlingControllerTest {
         Corporation corporation = createTossCorporation("토스", "https://toss.tech", 1);
 
         //when
-        mockMvc.perform(get("/api/crawling/corporation/{corporationId}", corporation.getId())
+        mockMvc.perform(get("/api/crawling/blogs/{corporationId}", corporation.getId())
                 .cookie(new Cookie("accessToken", accessToken))        
                 .accept(MediaType.APPLICATION_JSON));
         
