@@ -153,7 +153,7 @@
                             <input type="text" 
                                    id="searchInput" 
                                    class="search-input" 
-                                   placeholder="원하는 글을 검색해보세요!" 
+                                   placeholder="원하는 영상을 검색해보세요!" 
                                    th:value="${keyword}"
                                    autocomplete="off">
                             <button type="submit" class="search-submit-btn">
@@ -1431,9 +1431,10 @@
 
             .video-content {
                 flex: 1;
-                padding: 24px;
                 display: flex;
                 flex-direction: column;
+                justify-content: space-between;
+                padding: 30px;
                 order: 1;
                 min-width: 0;
             }
