@@ -4,6 +4,7 @@ import com.newcodes7.small_town.crawler.service.ArticlePersistenceService;
 import com.newcodes7.small_town.crawler.service.CrawlingService;
 import com.newcodes7.small_town.crawler.dto.CrawlingStats;
 import com.newcodes7.small_town.crawler.dto.CrawlResult;
+import com.newcodes7.small_town.crawler.dto.VideoCrawlResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -163,7 +164,7 @@ public class CrawlingController {
     public ResponseEntity<Map<String, Object>> crawlSingleYouTube(@PathVariable("corporationId") Long corporationId) {
         try {
             log.info("개별 YouTube 크롤링 API 호출 - corporationId: {}", corporationId);
-            com.newcodes7.small_town.crawler.dto.VideoCrawlResult result = crawlingService.crawlSingleYouTube(corporationId, null);
+            VideoCrawlResult result = crawlingService.crawlSingleYouTube(corporationId, null);
 
             if (result.isSuccess()) {
                 return ResponseEntity.ok(Map.of(

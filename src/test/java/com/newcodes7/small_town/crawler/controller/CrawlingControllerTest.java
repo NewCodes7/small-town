@@ -51,12 +51,18 @@ import com.newcodes7.small_town.auth.repository.RoleRepository;
 import com.newcodes7.small_town.auth.repository.UserRepository;
 import com.newcodes7.small_town.auth.service.AuthService;
 import com.newcodes7.small_town.config.TestWebDriverConfig;
+import com.newcodes7.small_town.corporation.dto.CorporationCreateDto;
+import com.newcodes7.small_town.corporation.service.CorporationService;
 import com.newcodes7.small_town.crawler.dto.OpenAiResponse;
+import com.newcodes7.small_town.crawler.dto.YouTubeVideo;
 import com.newcodes7.small_town.crawler.entity.ParsingSelector;
 import com.newcodes7.small_town.crawler.repository.ParsingSelectorRepository;
+import com.newcodes7.small_town.crawler.service.YouTubeService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.global.entity.Video;
 import com.newcodes7.small_town.utils.ArticleCreator;
+import com.newcodes7.small_town.crawler.repository.CrawlerVideoRepository;
 
 import jakarta.servlet.http.Cookie;
 
@@ -73,14 +79,23 @@ public class CrawlingControllerTest {
     @MockitoBean
     private RestTemplate restTemplate;
 
+    @MockitoBean
+    private YouTubeService youtubeService;
+
     @Autowired
     private ArticleRepository articleRepository;
+
+    @Autowired
+    private CorporationService corporationService;
 
     @Autowired
     private CorporationRepository corporationRepository;
 
     @Autowired
     private ParsingSelectorRepository parsingSelectorRepository;
+
+    @Autowired
+    private CrawlerVideoRepository crawlerVideoRepository;
 
     @Autowired
     private AuthService authService;
@@ -127,7 +142,7 @@ public class CrawlingControllerTest {
         accessToken = jwtResponseDto.getAccessToken();
         refreshToken = jwtResponseDto.getRefreshToken();
 
-        // RestTemplate mock 설정
+        // RestTemplate mock 설정 (OpenAI API)
         try {
             ClassPathResource resource = new ClassPathResource("openai_article_analysis.json");
             String mockResponseJson;
@@ -143,14 +158,14 @@ public class CrawlingControllerTest {
                 outputNode.toString(),
                 new TypeReference<List<OpenAiResponse.Output>>() {}
             );
-        
+
             OpenAiResponse mockOpenAiResponse = OpenAiResponse.builder()
                 .output(outputList)
                 .build();
-        
-            ResponseEntity<OpenAiResponse> mockResponseEntity = 
+
+            ResponseEntity<OpenAiResponse> mockResponseEntity =
                 new ResponseEntity<>(mockOpenAiResponse, HttpStatus.OK);
-        
+
             // RestTemplate.exchange() 메서드 mock 설정
             when(restTemplate.exchange(
                 anyString(),
@@ -158,6 +173,34 @@ public class CrawlingControllerTest {
                 any(HttpEntity.class),
                 eq(OpenAiResponse.class)
             )).thenReturn(mockResponseEntity);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // YouTubeService mock 설정
+        try {
+            ClassPathResource youtubeResource = new ClassPathResource("youtube_videos_mock.json");
+            String youtubeJsonContent;
+            try (InputStream inputStream = youtubeResource.getInputStream()) {
+                youtubeJsonContent = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+            }
+
+            ObjectMapper objectMapper = new ObjectMapper();
+            objectMapper.findAndRegisterModules(); // Java 8 datetime 지원
+            JsonNode rootNode = objectMapper.readTree(youtubeJsonContent);
+            JsonNode videosNode = rootNode.path("videos");
+
+            List<YouTubeVideo> mockYoutubeVideos = objectMapper.readValue(
+                videosNode.toString(),
+                new TypeReference<List<YouTubeVideo>>() {}
+            );
+
+            // YouTubeService mock 설정
+            when(youtubeService.getLatestVideos(anyString())).thenReturn(mockYoutubeVideos);
+            when(youtubeService.getLatestVideos(anyString(), any(Integer.class))).thenReturn(mockYoutubeVideos);
+            // YouTube Channel ID 추출 mock (모든 YouTube URL에 대해)
+            when(youtubeService.getChannelIdFromUrl(anyString()))
+                .thenReturn("UCeg5g-vWgtgzQ0cYNV2Cyow");
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -192,6 +235,38 @@ public class CrawlingControllerTest {
     }
 
     @Test
+    public void 토스_유튜브_크롤링_단일() throws Exception {
+        //given
+        Corporation corporation = createTossCorporation("토스", "https://toss.tech", 1);
+
+        //when&then
+        mockMvc.perform(get("/api/crawling/youtube/{corporationId}", corporation.getId())
+                .cookie(new Cookie("accessToken", accessToken))
+                .accept(MediaType.APPLICATION_JSON))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.corporationName", is(corporation.getName())))
+                .andExpect(jsonPath("$.newVideos", is(47))) 
+                .andExpect(jsonPath("$.totalVideos", is(47)))  
+                .andReturn();
+
+
+        List<Video> savedVideos = crawlerVideoRepository.findByCorporationId(corporation.getId());
+        savedVideos.stream().limit(10).forEach(video -> {
+            assertThat(video.getTitle()).isNotEmpty();
+            assertThat(video.getLink()).isNotEmpty();
+            assertThat(video.getLink()).startsWith("https://www.youtube.com/watch?v=");
+            assertThat(video.getThumbnailUrl()).isNotEmpty();
+            assertThat(video.getPublishedAt()).isNotNull();
+            assertThat(video.getVideoId()).isNotEmpty();
+            assertThat(video.getCorporation()).isNotNull();
+            assertThat(video.getCorporation().getId()).isEqualTo(corporation.getId());
+        });
+    }
+
+    @Test
     public void OpenAiAPI_아티클_분석_및_저장() throws Exception {
         //given
         Corporation corporation = createTossCorporation("토스", "https://toss.tech", 1);
@@ -213,30 +288,29 @@ public class CrawlingControllerTest {
     }
 
     private Corporation createTossCorporation(String name, String blogLink, int isDomestic) {
-        Corporation corporation = Corporation.builder()
+        CorporationCreateDto dto = CorporationCreateDto.builder()
                 .name(name)
+                .isDomestic(isDomestic)
                 .homeLink("https://newcodes.net/" + name)
                 .blogLink(blogLink)
                 .crewLink("https://newcodes.net/" + name + "/crew")
                 .logoUrl("https://newcodes.net/favicon.ico")
-                .logoFilename("logo_1.png")
-                .logoS3Url("https://s3.newcodes.net/logo/1.png")
-                .isDomestic(isDomestic)
-                .build();
-        corporationRepository.save(corporation);
-
-        ParsingSelector parsingSelector = ParsingSelector.builder()
-                .corporationId(corporation.getId())
+                .youtubeUrl("https://www.youtube.com/@toss_official")
                 .baseUrl(blogLink)
                 .article("a[class*='css-1qr3mg1'], a[class*='e1sck7qg4']")
                 .title("span[class*='typography--h6']")
                 .link("a[href]")
                 .thumbnail("img[alt*='thumbnail']")
                 .publish("span[class*='typography--small']")
-                .publishFormat("yyyy.M.dd") 
+                .publishFormat("yyyy.M.dd")
                 .build();
-        parsingSelectorRepository.save(parsingSelector);
 
-        return corporation;
+        Long corporationId = corporationService.createCorporation(dto).getId();
+
+        Corporation savedCorp = corporationRepository.findById(corporationId).orElseThrow();
+        savedCorp.setYoutubeChannelId("UCeg5g-vWgtgzQ0cYNV2Cyow");
+        corporationRepository.save(savedCorp);
+
+        return corporationRepository.findById(corporationId).orElseThrow();
     }
 }
