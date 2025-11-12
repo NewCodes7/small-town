@@ -7,6 +7,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.Video;
+import com.newcodes7.small_town.video.repository.VideoRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 public class TitleTranslationService {
 
     private final ArticleRepository articleRepository;
+    private final VideoRepository videoRepository;
     private final OpenaiService openaiService;
 
     /**
@@ -158,5 +161,120 @@ public class TitleTranslationService {
             // 혹시 다른 타입인 경우 기본적으로 국내로 간주
             return false;
         }
+    }
+
+    /**
+     * 해외 기업의 모든 비디오 제목을 번역
+     */
+    @Transactional
+    public void translateAllOverseasVideoTitles() {
+        log.info("해외 기업 비디오 제목 번역 시작");
+
+        // isDomestic이 false인 기업의 비디오들 조회
+        List<Video> overseasVideos = videoRepository.findOverseasVideosWithoutKoreanTitles();
+
+        log.info("번역 대상 해외 기업 비디오 수: {}", overseasVideos.size());
+
+        int translatedCount = 0;
+        int skippedCount = 0;
+        int errorCount = 0;
+
+        for (Video video : overseasVideos) {
+            try {
+                // 이미 번역된 제목이 있으면 스킵
+                if (video.getTranslatedTitle() != null
+                    && !video.getTranslatedTitle().isEmpty()
+                    && openaiService.containsKorean(video.getTranslatedTitle())
+                ) {
+                    log.debug("이미 번역된 제목 존재, 스킵: {}", video.getTitle());
+                    skippedCount++;
+                    continue;
+                }
+
+                // 원본 제목에 한국어가 포함되어 있으면 스킵
+                if (openaiService.containsKorean(video.getTitle())) {
+                    log.debug("원본 제목에 한국어 포함, 스킵: {}", video.getTitle());
+                    skippedCount++;
+                    continue;
+                }
+
+                // OpenAI로 제목 번역
+                String translatedTitle = openaiService.translateTitle(
+                    video.getTitle(),
+                    video.getCorporation().getName()
+                );
+
+                if (!openaiService.containsKorean(translatedTitle)) {
+                    log.warn("번역된 제목에 한국어가 포함되어 있지 않음, 스킵: {} -> {}", video.getTitle(), translatedTitle);
+                    skippedCount++;
+                    continue;
+                }
+
+                // 번역된 제목 저장
+                video.setTranslatedTitle(translatedTitle);
+                videoRepository.save(video);
+
+                translatedCount++;
+                log.info("비디오 제목 번역 완료 [{}/{}]: '{}' -> '{}'",
+                    translatedCount, overseasVideos.size(),
+                    video.getTitle(), translatedTitle);
+
+                // API 호출 제한 방지를 위한 잠시 대기 (1초)
+                Thread.sleep(1000);
+
+            } catch (Exception e) {
+                errorCount++;
+                log.error("비디오 제목 번역 실패: {} - {}", video.getTitle(), e.getMessage(), e);
+
+                // 오류가 너무 많이 발생하면 중단
+                if (errorCount > 10) {
+                    log.error("오류가 너무 많이 발생하여 번역을 중단합니다.");
+                    break;
+                }
+            }
+        }
+
+        log.info("해외 기업 비디오 제목 번역 완료 - 번역: {}, 스킵: {}, 오류: {}",
+            translatedCount, skippedCount, errorCount);
+    }
+
+    /**
+     * 특정 기업의 비디오 제목을 번역
+     */
+    @Transactional
+    public void translateCorporationVideoTitles(Long corporationId) {
+        log.info("기업 ID {} 비디오 제목 번역 시작", corporationId);
+
+        List<Video> videos = videoRepository.findByCorporationIdAndDeletedAtIsNull(corporationId);
+
+        int translatedCount = 0;
+        for (Video video : videos) {
+            try {
+                // 이미 번역된 제목이 있거나 한국어가 포함된 제목이면 스킵
+                if (video.getTranslatedTitle() != null && !video.getTranslatedTitle().isEmpty()) {
+                    continue;
+                }
+
+                if (openaiService.containsKorean(video.getTitle())) {
+                    continue;
+                }
+
+                String translatedTitle = openaiService.translateTitle(
+                    video.getTitle(),
+                    video.getCorporation().getName()
+                );
+
+                video.setTranslatedTitle(translatedTitle);
+                videoRepository.save(video);
+                translatedCount++;
+
+                Thread.sleep(1000); // API 호출 제한 방지
+
+            } catch (Exception e) {
+                log.error("비디오 제목 번역 실패: {} - {}", video.getTitle(), e.getMessage());
+            }
+        }
+
+        log.info("기업 ID {} 비디오 제목 번역 완료: {}개", corporationId, translatedCount);
     }
 }

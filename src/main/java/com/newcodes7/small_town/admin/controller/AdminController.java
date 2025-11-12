@@ -733,4 +733,64 @@ public class AdminController {
             return ResponseEntity.internalServerError().body(response);
         }
     }
+
+    /**
+     * 해외 기업 비디오 제목 번역 실행 API
+     */
+    @GetMapping("/videos/translate-titles")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> translateOverseasVideoTitles() {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // 비동기로 실행하여 오래 걸리는 작업이 UI를 블로킹하지 않도록 함
+            new Thread(() -> {
+                try {
+                    titleTranslationService.translateAllOverseasVideoTitles();
+                } catch (Exception e) {
+                    log.error("비디오 제목 번역 배치 작업 중 오류 발생", e);
+                }
+            }).start();
+
+            response.put("success", true);
+            response.put("message", "해외 기업 비디오 제목 번역 작업이 시작되었습니다. 로그를 확인해주세요.");
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "번역 작업 시작 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 특정 기업의 비디오 제목 번역 API
+     */
+    @GetMapping("/corporations/{corporationId}/translate-video-titles")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> translateCorporationVideoTitles(@PathVariable Long corporationId) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // 비동기로 실행
+            new Thread(() -> {
+                try {
+                    titleTranslationService.translateCorporationVideoTitles(corporationId);
+                } catch (Exception e) {
+                    log.error("기업 {} 비디오 제목 번역 중 오류 발생", corporationId, e);
+                }
+            }).start();
+
+            response.put("success", true);
+            response.put("message", "기업의 비디오 제목 번역 작업이 시작되었습니다.");
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "번역 작업 시작 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
 }

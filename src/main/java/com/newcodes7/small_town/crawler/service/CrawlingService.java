@@ -40,6 +40,7 @@ public class CrawlingService {
     private final WebDriverConfig webDriverConfig;
     private final ArticlePersistenceService articlePersistenceService;
     private final NginxCachePurgeService nginxCachePurgeService;
+    private final OpenaiService openaiService;
 
     /**
      * 모든 기업의 블로그만 크롤링 (동기 처리)
@@ -340,6 +341,10 @@ public class CrawlingService {
             if (!crawlerVideoRepository.findFirstByLinkAndDeletedAtIsNull(video.getLink()).isPresent()) {
                 // 이미지 업로드 처리
                 youtubeCrawler.processImageUpload(video, corporation);
+
+                // 해외 기업의 영어 제목 자동 번역
+                translateVideoTitleIfNeeded(video, corporation);
+
                 // Video 저장
                 crawlerVideoRepository.save(video);
                 newVideos.add(video);
@@ -350,6 +355,37 @@ public class CrawlingService {
                  corporation.getName(), youtubeVideos.size(), newVideos.size());
 
         return VideoCrawlResult.success(corporation, newVideos, newVideos.size());
+    }
+
+    /**
+     * 필요한 경우 비디오 제목을 번역합니다.
+     * 해외 기업의 영어 제목만 한국어로 번역합니다.
+     */
+    private void translateVideoTitleIfNeeded(Video video, Corporation corporation) {
+        try {
+            // 해외 기업인지 확인 (isDomestic = false)
+            if (!corporation.getIsDomestic()) {
+                String title = video.getTitle();
+
+                // 제목에 한국어가 포함되어 있지 않으면 번역
+                if (title != null && !openaiService.containsKorean(title)) {
+                    log.debug("영어 제목 번역 시도 - 기업: {}, 제목: {}", corporation.getName(), title);
+
+                    String translatedTitle = openaiService.translateTitle(title, corporation.getName());
+
+                    if (translatedTitle != null && !translatedTitle.trim().isEmpty()) {
+                        video.setTranslatedTitle(translatedTitle);
+
+                        log.info("비디오 제목 번역 완료 - 기업: {}, 원본: '{}' → 번역: '{}'",
+                            corporation.getName(), title, translatedTitle);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("비디오 제목 번역 중 오류 발생 - 기업: {}, 제목: {}, 오류: {}",
+                corporation.getName(), video.getTitle(), e.getMessage());
+            // 번역 실패는 크롤링을 중단시키지 않음
+        }
     }
 
     /**
