@@ -1,15 +1,23 @@
 package com.newcodes7.small_town.video.controller;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 
 import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
 import com.newcodes7.small_town.corporation.service.CorporationService;
@@ -81,5 +89,45 @@ public class VideoController {
         model.addAttribute("categories", categories);
 
         return "video";
+    }
+
+    /**
+     * 관리자용 영상 삭제 API
+     */
+    @DeleteMapping("/api/admin/videos/{videoId}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> deleteVideo(
+            @PathVariable Long videoId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // 관리자 권한 확인
+            if (userDetails == null || !isAdmin(userDetails)) {
+                response.put("status", "error");
+                response.put("message", "관리자 권한이 필요합니다.");
+                return ResponseEntity.status(403).body(response);
+            }
+
+            // 영상 삭제
+            videoService.deleteVideo(videoId);
+
+            response.put("status", "success");
+            response.put("message", "영상이 성공적으로 삭제되었습니다.");
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("영상 삭제 중 오류 발생: {}", e.getMessage(), e);
+
+            response.put("status", "error");
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+
+    private boolean isAdmin(UserDetails userDetails) {
+        return userDetails.getAuthorities().stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"));
     }
 }

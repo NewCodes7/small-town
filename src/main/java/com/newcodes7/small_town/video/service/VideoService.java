@@ -248,4 +248,26 @@ public class VideoService {
         videoRepository.save(video);
         log.info("영상 카테고리 수정 완료 - ID: {}, Category: {}", videoId, categoryName);
     }
+
+    /**
+     * 영상 삭제 (Soft Delete)
+     */
+    @Transactional
+    @CacheEvict(value = "corporationVideos", allEntries = true)
+    public void deleteVideo(Long videoId) {
+        if (videoId == null || videoId <= 0) {
+            throw new IllegalArgumentException("유효하지 않은 영상 ID입니다: " + videoId);
+        }
+
+        Video video = videoRepository.findById(videoId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 영상입니다. ID: " + videoId));
+
+        if (video.isDeleted()) {
+            throw new IllegalArgumentException("이미 삭제된 영상입니다. ID: " + videoId);
+        }
+
+        video.softDelete();
+        videoRepository.save(video);
+        log.info("영상 삭제 완료 - ID: {}", videoId);
+    }
 }
