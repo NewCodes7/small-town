@@ -135,7 +135,7 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
     @Query("SELECT v FROM Video v " +
            "JOIN FETCH v.corporation c " +
            "WHERE v.deletedAt IS NULL " +
-           "AND c.isDomestic = false " +
+           "AND c.isDomestic = 0 " +
            "ORDER BY v.publishedAt DESC")
     List<Video> findOverseasVideosWithoutKoreanTitles();
 }
