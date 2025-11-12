@@ -9,6 +9,7 @@ import com.google.api.services.youtube.model.SearchListResponse;
 import com.google.api.services.youtube.model.SearchResult;
 import com.newcodes7.small_town.crawler.dto.YouTubeVideo;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.text.StringEscapeUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -189,11 +190,11 @@ public class YouTubeService {
                 for (SearchResult item : response.getItems()) {
                     YouTubeVideo video = YouTubeVideo.builder()
                             .videoId(item.getId().getVideoId())
-                            .title(item.getSnippet().getTitle())
-                            .description(item.getSnippet().getDescription())
+                            .title(decodeHtmlEntities(item.getSnippet().getTitle()))
+                            .description(decodeHtmlEntities(item.getSnippet().getDescription()))
                             .publishedAt(convertToLocalDateTime(item.getSnippet().getPublishedAt()))
                             .thumbnailUrl(getThumbnailUrl(item))
-                            .channelTitle(item.getSnippet().getChannelTitle())
+                            .channelTitle(decodeHtmlEntities(item.getSnippet().getChannelTitle()))
                             .channelId(item.getSnippet().getChannelId())
                             .build();
                     videos.add(video);
@@ -273,5 +274,18 @@ public class YouTubeService {
         }
 
         return null;
+    }
+
+    /**
+     * HTML 엔티티를 실제 문자로 디코딩
+     *
+     * @param text HTML 엔티티가 포함된 텍스트
+     * @return 디코딩된 텍스트
+     */
+    private String decodeHtmlEntities(String text) {
+        if (text == null || text.isEmpty()) {
+            return text;
+        }
+        return StringEscapeUtils.unescapeHtml4(text);
     }
 }
