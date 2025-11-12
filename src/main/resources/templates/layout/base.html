@@ -57,25 +57,32 @@
 </head>
 <body>
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-light">
-        <div class="container">
+    <nav class="navbar navbar-light">
+        <div class="container" style="justify-content: flex-start !important;">
             <a class="navbar-brand" th:href="@{/}">
                 <i class="fas"></i> NewCodes
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-4">
+            <div class="navbar-nav-wrapper" style="display: flex; align-items: center;">
+                <ul class="navbar-nav ms-4" style="display: flex !important; flex-direction: row; align-items: center; gap: 0.5rem; margin: 0;">
                     <li class="nav-item">
                         <a class="nav-link" th:href="@{/}" data-nav="blog">
                             <i class="fas fa-blog me-1"></i>블로그
                         </a>
                     </li>
-                    <li class="nav-item">
+                    <li class="nav-item" style="position: relative;">
                         <a class="nav-link" th:href="@{/video}" data-nav="youtube">
                             <i class="fab fa-youtube me-1"></i>유튜브
                         </a>
+                        <!-- NEW Badge - Speech Bubble -->
+                        <div id="youtubeNewBadge" class="youtube-new-badge" style="display: none;">
+                            <button class="badge-close" onclick="dismissYoutubeNewBadge(event)" title="닫기">
+                                <i class="fas fa-times"></i>
+                            </button>
+                            <div class="badge-content">
+                                <span class="badge-emoji">✨</span>
+                                <span class="badge-text">새로운 기능이<br>추가됐어요!</span>
+                            </div>
+                        </div>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#" onclick="openFeedbackModal(); return false;" data-nav="feedback">
@@ -209,6 +216,32 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <style>
+        /* Navigation always visible - no collapse */
+        .navbar {
+            display: flex;
+            align-items: center;
+        }
+
+        .navbar > .container {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start !important;
+            width: 100%;
+        }
+
+        .navbar-nav-wrapper {
+            display: flex;
+            align-items: center;
+        }
+
+        .navbar-nav {
+            display: flex !important;
+            flex-direction: row;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 0;
+        }
+
         /* 활성 네비게이션 아이템 스타일 */
         .nav-link.active {
             color: var(--primary-green) !important;
@@ -228,21 +261,268 @@
         }
 
         /* 모바일 대응 */
-        @media (max-width: 991px) {
-            .nav-link.active::after {
-                bottom: 8px;
-                left: 0;
-                width: 4px;
-                height: 80%;
-                right: auto;
+        @media (max-width: 768px) {
+            .navbar-brand {
+                font-size: 1.1rem;
+            }
+
+            .navbar-nav {
+                gap: 0.25rem;
+            }
+
+            .nav-link {
+                font-size: 0.85rem;
+                padding: 0.4rem 0.5rem !important;
+            }
+
+            .nav-link i {
+                font-size: 0.9rem;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .navbar-brand {
+                font-size: 1rem;
+            }
+
+            .navbar-nav {
+                gap: 0.1rem;
+            }
+
+            .nav-link {
+                font-size: 0.75rem;
+                padding: 0.3rem 0.4rem !important;
+            }
+
+            .nav-link i {
+                margin-right: 0.1rem !important;
+            }
+        }
+
+        @media (max-width: 400px) {
+            .navbar-brand {
+                font-size: 0.9rem;
+            }
+
+            .nav-link {
+                font-size: 0.7rem;
+                padding: 0.25rem 0.3rem !important;
+            }
+
+            .nav-link i {
+                display: none; /* Hide icons on very small screens */
+            }
+        }
+
+        /* YouTube NEW Badge - Speech Bubble Styles */
+        .youtube-new-badge {
+            position: absolute;
+            top: calc(100% + 12px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 8px 24px rgba(34, 197, 94, 0.35);
+            z-index: 1000;
+            min-width: 140px;
+            animation: badgePulse 2s ease-in-out infinite;
+        }
+
+        /* Speech bubble tail (pointing up to the nav link) */
+        .youtube-new-badge::before {
+            content: '';
+            position: absolute;
+            top: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-bottom: 10px solid #22c55e;
+            filter: drop-shadow(0 -2px 3px rgba(34, 197, 94, 0.15));
+        }
+
+        .youtube-new-badge .badge-close {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0;
+            transition: all 0.2s ease;
+            color: white;
+            font-size: 10px;
+        }
+
+        .youtube-new-badge .badge-close:hover {
+            background: rgba(255, 255, 255, 0.35);
+            transform: scale(1.1);
+        }
+
+        .youtube-new-badge .badge-close i {
+            font-size: 9px;
+        }
+
+        .youtube-new-badge .badge-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            text-align: center;
+        }
+
+        .youtube-new-badge .badge-emoji {
+            font-size: 20px;
+            line-height: 1;
+            animation: emojiFloat 2s ease-in-out infinite;
+        }
+
+        .youtube-new-badge .badge-text {
+            line-height: 1.4;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: -0.2px;
+        }
+
+        /* Badge pulse animation */
+        @keyframes badgePulse {
+            0%, 100% {
+                box-shadow: 0 8px 24px rgba(34, 197, 94, 0.35);
+            }
+            50% {
+                box-shadow: 0 10px 32px rgba(34, 197, 94, 0.5);
+            }
+        }
+
+        /* Emoji float animation */
+        @keyframes emojiFloat {
+            0%, 100% {
+                transform: translateY(0px);
+            }
+            50% {
+                transform: translateY(-4px);
+            }
+        }
+
+        /* Badge slide in animation */
+        @keyframes badgeSlideIn {
+            0% {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-10px) scale(0.9);
+            }
+            100% {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0) scale(1);
+            }
+        }
+
+        .youtube-new-badge.badge-show {
+            animation: badgeSlideIn 0.5s ease-out, badgePulse 2s ease-in-out 0.5s infinite;
+        }
+
+        /* Badge fade out animation */
+        @keyframes badgeFadeOut {
+            0% {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-10px) scale(0.9);
+            }
+        }
+
+        .youtube-new-badge.badge-hide {
+            animation: badgeFadeOut 0.3s ease-out forwards;
+        }
+
+        /* 모바일 대응 - 네비게이션이 항상 표시되므로 배지는 아래로 */
+        @media (max-width: 768px) {
+            .youtube-new-badge {
+                top: calc(100% + 8px);
+                left: 50%;
+                transform: translateX(-50%);
+                min-width: 110px;
+                padding: 8px 12px;
+            }
+
+            /* Mobile: tail points up */
+            .youtube-new-badge::before {
+                top: -7px;
+                left: 50%;
+                transform: translateX(-50%);
+                border-left: 8px solid transparent;
+                border-right: 8px solid transparent;
+                border-bottom: 8px solid #22c55e;
+                border-top: 0;
+            }
+
+            .youtube-new-badge.badge-show {
+                animation: badgeSlideIn 0.5s ease-out, badgePulse 2s ease-in-out 0.5s infinite;
+            }
+
+            .youtube-new-badge.badge-hide {
+                animation: badgeFadeOut 0.3s ease-out forwards;
+            }
+
+            .youtube-new-badge .badge-emoji {
+                font-size: 16px;
+            }
+
+            .youtube-new-badge .badge-text {
+                font-size: 10px;
+            }
+
+            .youtube-new-badge .badge-close {
+                width: 16px;
+                height: 16px;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .youtube-new-badge {
+                min-width: 100px;
+                padding: 6px 10px;
+            }
+
+            .youtube-new-badge .badge-emoji {
+                font-size: 14px;
+            }
+
+            .youtube-new-badge .badge-text {
+                font-size: 9px;
+            }
+
+            .youtube-new-badge .badge-close {
+                width: 14px;
+                height: 14px;
+                top: 3px;
+                right: 3px;
             }
         }
     </style>
 
     <script>
-        // 페이지 로드 시 네비게이션 활성 상태 설정
+        // 페이지 로드 시 네비게이션 활성 상태 설정 및 NEW 배지 표시
         document.addEventListener('DOMContentLoaded', function() {
             setActiveNavigation();
+            initYoutubeNewBadge();
         });
 
         // 현재 페이지에 해당하는 네비게이션 아이템 활성화
@@ -268,6 +548,53 @@
                     blogLink.classList.add('active');
                 }
             }
+        }
+
+        // YouTube NEW 배지 초기화
+        function initYoutubeNewBadge() {
+            const currentPath = window.location.pathname;
+            const badge = document.getElementById('youtubeNewBadge');
+
+            if (!badge) return;
+
+            // video 페이지에서는 배지를 표시하지 않음
+            if (currentPath.startsWith('/video')) {
+                badge.style.display = 'none';
+                return;
+            }
+
+            // localStorage에서 배지 닫힘 상태 확인
+            const isBadgeDismissed = localStorage.getItem('youtubeNewBadgeDismissed') === 'true';
+
+            if (!isBadgeDismissed) {
+                // 배지를 표시하고 애니메이션 적용
+                badge.style.display = 'flex';
+                // 약간의 딜레이 후 애니메이션 시작 (DOM 렌더링 완료 후)
+                setTimeout(() => {
+                    badge.classList.add('badge-show');
+                }, 100);
+            }
+        }
+
+        // YouTube NEW 배지 닫기
+        function dismissYoutubeNewBadge(event) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const badge = document.getElementById('youtubeNewBadge');
+            if (!badge) return;
+
+            // 페이드아웃 애니메이션 적용
+            badge.classList.remove('badge-show');
+            badge.classList.add('badge-hide');
+
+            // 애니메이션 완료 후 배지 숨기기
+            setTimeout(() => {
+                badge.style.display = 'none';
+            }, 300);
+
+            // localStorage에 닫힘 상태 저장
+            localStorage.setItem('youtubeNewBadgeDismissed', 'true');
         }
 
         // 페이지 로드 시 인증 상태 확인
