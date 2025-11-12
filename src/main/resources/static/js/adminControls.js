@@ -1,9 +1,12 @@
 // 관리자 컨트롤 패널 기능
 let currentArticleId = null;
 let userInfo = null;
+let isVideoPage = false; // 영상 페이지인지 여부
 
 // 페이지 로드 시 사용자 정보 확인 및 관리자 버튼 표시
 document.addEventListener('DOMContentLoaded', function() {
+    // video 페이지인지 확인 (editVideoModal 존재 여부로 판단)
+    isVideoPage = document.getElementById('editVideoModal') !== null;
     checkUserAndShowAdminControls();
 });
 
@@ -78,6 +81,11 @@ function setupAdminEventListeners() {
         saveArticleBtn.addEventListener('click', saveArticle);
     }
 
+    const saveVideoBtn = document.getElementById('saveVideoBtn');
+    if (saveVideoBtn) {
+        saveVideoBtn.addEventListener('click', saveArticle); // saveArticle 함수 재사용
+    }
+
     const saveSummariesBtn = document.getElementById('saveSummariesBtn');
     if (saveSummariesBtn) {
         saveSummariesBtn.addEventListener('click', saveSummaries);
@@ -140,33 +148,63 @@ function loadCategories() {
         });
 }
 
-// 글 정보 로드
+// 글/영상 정보 로드
 function loadArticleForEdit(articleId) {
-    fetch(`/admin/articles/${articleId}/detail`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // 폼에 데이터 채우기
-                document.getElementById('articleTitle').value = data.article.title || '';
-                document.getElementById('articleLink').value = data.article.link || '';
-                document.getElementById('articleThumbnail').value = data.article.thumbnailImage || '';
-                document.getElementById('articleCategorySelect').value =
-                    data.article.category ? data.article.category.name : '';
+    if (isVideoPage) {
+        // 영상 정보 로드
+        fetch(`/admin/videos/${articleId}/detail`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 폼에 데이터 채우기
+                    document.getElementById('articleTitle').value = data.video.title || '';
+                    document.getElementById('articleLink').value = data.video.link || '';
+                    document.getElementById('articleThumbnail').value = data.video.thumbnailUrl || '';
+                    document.getElementById('articleCategorySelect').value =
+                        data.video.category ? data.video.category.name : '';
 
-                // 썸네일 미리보기
-                updateThumbnailPreview(data.article.thumbnailImage);
+                    // 썸네일 미리보기
+                    updateThumbnailPreview(data.video.thumbnailUrl);
 
-                // 모달 표시
-                const modal = new bootstrap.Modal(document.getElementById('editArticleModal'));
-                modal.show();
-            } else {
-                alert('글 정보 로드 실패: ' + data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('글 정보 로드 중 오류가 발생했습니다.');
-        });
+                    // 모달 표시
+                    const modal = new bootstrap.Modal(document.getElementById('editVideoModal'));
+                    modal.show();
+                } else {
+                    alert('영상 정보 로드 실패: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('영상 정보 로드 중 오류가 발생했습니다.');
+            });
+    } else {
+        // 글 정보 로드
+        fetch(`/admin/articles/${articleId}/detail`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 폼에 데이터 채우기
+                    document.getElementById('articleTitle').value = data.article.title || '';
+                    document.getElementById('articleLink').value = data.article.link || '';
+                    document.getElementById('articleThumbnail').value = data.article.thumbnailImage || '';
+                    document.getElementById('articleCategorySelect').value =
+                        data.article.category ? data.article.category.name : '';
+
+                    // 썸네일 미리보기
+                    updateThumbnailPreview(data.article.thumbnailImage);
+
+                    // 모달 표시
+                    const modal = new bootstrap.Modal(document.getElementById('editArticleModal'));
+                    modal.show();
+                } else {
+                    alert('글 정보 로드 실패: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('글 정보 로드 중 오류가 발생했습니다.');
+            });
+    }
 }
 
 // 요약 정보 로드
@@ -238,7 +276,7 @@ function updateThumbnailPreview(url) {
     }
 }
 
-// 글 정보 저장
+// 글/영상 정보 저장
 function saveArticle() {
     const title = document.getElementById('articleTitle').value.trim();
     const link = document.getElementById('articleLink').value.trim();
@@ -258,7 +296,11 @@ function saveArticle() {
         categoryName: categoryName || null
     };
 
-    fetch(`/admin/articles/${currentArticleId}`, {
+    const apiPath = isVideoPage ? `/admin/videos/${currentArticleId}` : `/admin/articles/${currentArticleId}`;
+    const modalId = isVideoPage ? 'editVideoModal' : 'editArticleModal';
+    const itemType = isVideoPage ? '영상' : '글';
+
+    fetch(apiPath, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
@@ -268,17 +310,17 @@ function saveArticle() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('글 정보가 성공적으로 수정되었습니다.');
-            const modal = bootstrap.Modal.getInstance(document.getElementById('editArticleModal'));
+            alert(`${itemType} 정보가 성공적으로 수정되었습니다.`);
+            const modal = bootstrap.Modal.getInstance(document.getElementById(modalId));
             modal.hide();
             location.reload();
         } else {
-            alert('글 정보 수정 실패: ' + data.message);
+            alert(`${itemType} 정보 수정 실패: ` + data.message);
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('글 정보 수정 중 오류가 발생했습니다.');
+        alert(`${itemType} 정보 수정 중 오류가 발생했습니다.`);
     });
 }
 
