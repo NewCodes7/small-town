@@ -40,7 +40,7 @@
                     <!-- Floating Company Logos -->
                     <div class="floating-logos-container">
                         <div class="floating-logo" th:each="corporation, iterStat : ${corporations}">
-                            <a th:href="@{/corporations/{id}(id=${corporation.id})}"
+                            <a th:href="@{/corporations/{id}/video(id=${corporation.id})}"
                                class="floating-logo-link">
                                 <img th:if="${corporation.effectiveLogoUrl != null}"
                                      th:src="${corporation.effectiveLogoUrl}"
@@ -90,7 +90,7 @@
                                 </div>
                                 <div class="video-info">
                                     <div class="video-company">
-                                        <a th:href="@{/corporations/{id}(id=${video.corporation.id})}"
+                                        <a th:href="@{/corporations/{id}/video(id=${video.corporation.id})}"
                                            class="d-flex align-items-center text-decoration-none company-link">
                                             <img th:if="${video.corporation.effectiveLogoUrl != null and !video.corporation.effectiveLogoUrl.isEmpty()}"
                                                  th:src="${video.corporation.effectiveLogoUrl}"
@@ -1044,10 +1044,10 @@
                         <!-- Company Info & Stats -->
                         <div class="d-flex align-items-center flex-wrap">
                             <div class="d-flex align-items-center me-4">
-                                <a th:href="@{/corporations/{id}(id=${video.corporation.id})}" 
+                                <a th:href="@{/corporations/{id}/video(id=${video.corporation.id})}"
                                 class="d-flex align-items-center text-decoration-none company-link">
                                     <img width="20px;" th:if="${video.corporation.effectiveLogoUrl != null}"
-                                        th:src="${video.corporation.effectiveLogoUrl}" 
+                                        th:src="${video.corporation.effectiveLogoUrl}"
                                         th:alt="${video.corporation.name}"
                                         class="company-logo me-2" style="border-radius: 4px;">
                                     <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;" th:text="${video.corporation.name}">Company</span>
@@ -1126,7 +1126,7 @@
                             <!-- Company Info & Stats -->
                             <div class="d-flex align-items-center flex-wrap">
                                 <div class="d-flex align-items-center me-4">
-                                    <a th:href="@{/corporations/{id}(id=${group.corporation.id})}" class="d-flex align-items-center text-decoration-none company-link">
+                                    <a th:href="@{/corporations/{id}/video(id=${group.corporation.id})}" class="d-flex align-items-center text-decoration-none company-link">
                                         <img width="20px;" th:if="${group.corporation.effectiveLogoUrl != null}" th:src="${group.corporation.effectiveLogoUrl}" th:alt="${group.corporation.name}" class="company-logo me-2" style="border-radius: 4px;">
                                         <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;" th:text="${group.corporation.name}"></span>
                                     </a>
@@ -1181,7 +1181,7 @@
                                 </span>
                             </div>
                             <div class="child more-corporation-articles">
-                                <a th:href="@{/corporations/{id}(id=${group.corporation.id})}" class="me-2 d-flex align-items-center text-decoration-none">
+                                <a th:href="@{/corporations/{id}/video(id=${group.corporation.id})}" class="me-2 d-flex align-items-center text-decoration-none">
                                     <span class="fw-bold me-2" style="font-size: 1rem;">더보기</span>
                                 </a>
                             </div>
