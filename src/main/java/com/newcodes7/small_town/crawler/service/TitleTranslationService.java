@@ -21,6 +21,7 @@ public class TitleTranslationService {
     private final ArticleRepository articleRepository;
     private final VideoRepository videoRepository;
     private final OpenaiService openaiService;
+    private final VideoPersistenceService videoPersistenceService;
 
     /**
      * 해외 기업의 모든 글 제목을 번역
@@ -210,9 +211,8 @@ public class TitleTranslationService {
                     continue;
                 }
 
-                // 번역된 제목 저장
-                video.setTranslatedTitle(translatedTitle);
-                videoRepository.save(video);
+                // 번역된 제목 저장 (캐시 evict 포함)
+                videoPersistenceService.updateVideoTranslatedTitle(video.getId(), translatedTitle);
 
                 translatedCount++;
                 log.info("비디오 제목 번역 완료 [{}/{}]: '{}' -> '{}'",
@@ -264,8 +264,8 @@ public class TitleTranslationService {
                     video.getCorporation().getName()
                 );
 
-                video.setTranslatedTitle(translatedTitle);
-                videoRepository.save(video);
+                // 번역된 제목 저장 (캐시 evict 포함)
+                videoPersistenceService.updateVideoTranslatedTitle(video.getId(), translatedTitle);
                 translatedCount++;
 
                 Thread.sleep(1000); // API 호출 제한 방지
