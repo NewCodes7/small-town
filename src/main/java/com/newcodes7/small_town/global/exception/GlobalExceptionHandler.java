@@ -22,19 +22,40 @@ import lombok.extern.slf4j.Slf4j;
 public class GlobalExceptionHandler {
     
     @ExceptionHandler(NoHandlerFoundException.class)
-    public String handleNoHandlerFoundException(NoHandlerFoundException e, Model model, HttpServletRequest request) {
+    public String handleNoHandlerFoundException(NoHandlerFoundException e, Model model, HttpServletRequest request, jakarta.servlet.http.HttpServletResponse response) {
         log.warn("404 Error - 페이지를 찾을 수 없음: {}", request.getRequestURI());
-        
+
+        response.setStatus(HttpStatus.NOT_FOUND.value());
+
         if (isApiRequest(request)) {
             return handleApiNotFoundException(request);
         }
-        
+
         model.addAttribute("status", "404");
         model.addAttribute("error", "페이지를 찾을 수 없습니다");
         model.addAttribute("message", "요청하신 페이지가 존재하지 않습니다.");
         model.addAttribute("path", request.getRequestURI());
         model.addAttribute("timestamp", LocalDateTime.now());
-        
+
+        return "error/404";
+    }
+
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public String handleNoResourceFoundException(org.springframework.web.servlet.resource.NoResourceFoundException e, Model model, HttpServletRequest request, jakarta.servlet.http.HttpServletResponse response) {
+        log.warn("404 Error - 리소스를 찾을 수 없음: {}", request.getRequestURI());
+
+        response.setStatus(HttpStatus.NOT_FOUND.value());
+
+        if (isApiRequest(request)) {
+            return handleApiNotFoundException(request);
+        }
+
+        model.addAttribute("status", "404");
+        model.addAttribute("error", "페이지를 찾을 수 없습니다");
+        model.addAttribute("message", "요청하신 페이지가 존재하지 않습니다.");
+        model.addAttribute("path", request.getRequestURI());
+        model.addAttribute("timestamp", LocalDateTime.now());
+
         return "error/404";
     }
     

@@ -99,8 +99,9 @@ public class SecurityConfig {
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/corporations/**").hasRole("ADMIN")
                 .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/corporations/**").hasRole("ADMIN")
                 .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/corporations/**").hasRole("ADMIN")
-                
-                .anyRequest().authenticated()
+
+                // 나머지 모든 요청은 허용 (404 처리를 위해)
+                .anyRequest().permitAll()
             )
             .oauth2Login(oauth2 -> oauth2
                 .loginPage("/auth/login")
