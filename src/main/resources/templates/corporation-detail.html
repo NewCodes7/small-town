@@ -43,25 +43,25 @@
                                 </div>
                                 
                                 <div class="d-flex flex-wrap gap-3">
-                                    <a th:if="${corporation.homeLink != null}"
+                                    <a th:if="${corporation.homeLink != null && !#strings.isEmpty(corporation.homeLink)}"
                                        th:href="${corporation.homeLink}"
                                        target="_blank"
                                        class="btn btn-outline-primary btn-sm">
                                         <i class="fas fa-home me-1"></i>홈페이지
                                     </a>
-                                    <a th:if="${corporation.blogLink != null}"
+                                    <a th:if="${corporation.blogLink != null && !#strings.isEmpty(corporation.blogLink)}"
                                        th:href="${corporation.blogLink}"
                                        target="_blank"
                                        class="btn btn-outline-secondary btn-sm">
                                         <i class="fas fa-blog me-1"></i>기술 블로그
                                     </a>
-                                    <a th:if="${corporation.youtubeUrl != null}"
+                                    <a th:if="${corporation.youtubeUrl != null && !#strings.isEmpty(corporation.youtubeUrl)}"
                                        th:href="${corporation.youtubeUrl}"
                                        target="_blank"
                                        class="btn btn-outline-danger btn-sm">
                                         <i class="fab fa-youtube me-1"></i>YouTube
                                     </a>
-                                    <a th:if="${corporation.crewLink != null}"
+                                    <a th:if="${corporation.crewLink != null && !#strings.isEmpty(corporation.crewLink)}"
                                        th:href="${corporation.crewLink}"
                                        target="_blank"
                                        class="btn btn-outline-info btn-sm">
