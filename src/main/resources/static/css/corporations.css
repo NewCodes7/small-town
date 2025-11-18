@@ -176,6 +176,95 @@
     border: 2px solid var(--border-light);
 }
 
+/* Search Row - 한 행 배치 */
+.search-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.search-form-inline {
+    flex: 1;
+}
+
+.search-form-inline .input-group {
+    flex-wrap: nowrap;
+}
+
+.search-form-inline .form-control {
+    min-width: 200px;
+}
+
+/* Filter Toggle */
+.filter-toggle-container {
+    display: inline-flex;
+    background: var(--secondary-green);
+    border-radius: 12px;
+    padding: 4px;
+    border: 2px solid var(--border-light);
+    flex-shrink: 0;
+}
+
+.filter-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-light);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.filter-toggle-btn:hover {
+    color: var(--primary-green);
+    background: white;
+}
+
+.filter-toggle-btn.active {
+    background: var(--primary-green);
+    color: white;
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+}
+
+.filter-toggle-btn.active:hover {
+    background: var(--primary-green-dark);
+    color: white;
+}
+
+.filter-toggle-btn i {
+    font-size: 0.8rem;
+}
+
+@media (max-width: 768px) {
+    .search-row {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .filter-toggle-container {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .search-form-inline {
+        width: 100%;
+    }
+
+    .filter-toggle-btn {
+        padding: 8px 12px;
+        font-size: 0.8rem;
+        flex: 1;
+        justify-content: center;
+    }
+
+    .filter-toggle-btn i {
+        font-size: 0.75rem;
+    }
+}
+
 .stats-section {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

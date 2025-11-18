@@ -30,6 +30,22 @@ public interface CorporationRepository extends JpaRepository<Corporation, Long> 
     Page<Corporation> findByNameContainingAndDeletedAtIsNull(@Param("name") String name, Pageable pageable);
     
     boolean existsByNameAndDeletedAtIsNull(String name);
-    
+
     long countByDeletedAtIsNull();
+
+    // 블로그 URL이 존재하는 기업 조회
+    @Query("SELECT c FROM Corporation c WHERE c.deletedAt IS NULL AND c.blogLink IS NOT NULL AND c.blogLink <> ''")
+    Page<Corporation> findAllActiveWithBlog(Pageable pageable);
+
+    // 유튜브 URL이 존재하는 기업 조회
+    @Query("SELECT c FROM Corporation c WHERE c.deletedAt IS NULL AND c.youtubeUrl IS NOT NULL AND c.youtubeUrl <> ''")
+    Page<Corporation> findAllActiveWithYoutube(Pageable pageable);
+
+    // 블로그 URL이 존재하는 기업 검색
+    @Query("SELECT c FROM Corporation c WHERE c.name LIKE %:name% AND c.deletedAt IS NULL AND c.blogLink IS NOT NULL AND c.blogLink <> ''")
+    Page<Corporation> findByNameContainingWithBlog(@Param("name") String name, Pageable pageable);
+
+    // 유튜브 URL이 존재하는 기업 검색
+    @Query("SELECT c FROM Corporation c WHERE c.name LIKE %:name% AND c.deletedAt IS NULL AND c.youtubeUrl IS NOT NULL AND c.youtubeUrl <> ''")
+    Page<Corporation> findByNameContainingWithYoutube(@Param("name") String name, Pageable pageable);
 }

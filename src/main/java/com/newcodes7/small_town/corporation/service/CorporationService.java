@@ -56,6 +56,32 @@ public class CorporationService {
         return corporationRepository.findByNameContainingAndDeletedAtIsNull(name, pageable)
                 .map(CorporationResponseDto::from);
     }
+
+    public Page<CorporationResponseDto> getCorporationsWithBlog(Pageable pageable) {
+        return corporationRepository.findAllActiveWithBlog(pageable)
+                .map(CorporationResponseDto::from);
+    }
+
+    public Page<CorporationResponseDto> getCorporationsWithYoutube(Pageable pageable) {
+        return corporationRepository.findAllActiveWithYoutube(pageable)
+                .map(CorporationResponseDto::from);
+    }
+
+    public Page<CorporationResponseDto> searchCorporationsWithBlog(String name, Pageable pageable) {
+        if (name == null || name.trim().isEmpty()) {
+            throw new InvalidParameterException("name", name, "검색어는 비어있을 수 없습니다");
+        }
+        return corporationRepository.findByNameContainingWithBlog(name, pageable)
+                .map(CorporationResponseDto::from);
+    }
+
+    public Page<CorporationResponseDto> searchCorporationsWithYoutube(String name, Pageable pageable) {
+        if (name == null || name.trim().isEmpty()) {
+            throw new InvalidParameterException("name", name, "검색어는 비어있을 수 없습니다");
+        }
+        return corporationRepository.findByNameContainingWithYoutube(name, pageable)
+                .map(CorporationResponseDto::from);
+    }
     
     public CorporationResponseDto getCorporationById(Long id) {
         if (id == null || id <= 0) {

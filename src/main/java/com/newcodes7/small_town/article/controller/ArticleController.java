@@ -38,6 +38,7 @@ import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.entity.Category;
 import com.newcodes7.small_town.crawler.repository.CategoryRepository;
+import com.newcodes7.small_town.video.repository.VideoRepository;
 import com.newcodes7.small_town.global.util.Client;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -60,6 +61,7 @@ public class ArticleController {
     private final ViewService viewService;
     private final CorporationService corporationService;
     private final CategoryRepository categoryRepository;
+    private final VideoRepository videoRepository;
 
     @GetMapping({"", "/"})
     public String home(
@@ -280,20 +282,36 @@ public class ArticleController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "12") int size,
             @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "all") String filter,
             Model model) {
-        
+
         Page<CorporationResponseDto> corporations;
-        
+
         if (search != null && !search.trim().isEmpty()) {
-            corporations = corporationService.searchCorporations(search.trim(), PageRequest.of(page, size));
+            // 검색어가 있는 경우
+            if ("blog".equals(filter)) {
+                corporations = corporationService.searchCorporationsWithBlog(search.trim(), PageRequest.of(page, size));
+            } else if ("youtube".equals(filter)) {
+                corporations = corporationService.searchCorporationsWithYoutube(search.trim(), PageRequest.of(page, size));
+            } else {
+                corporations = corporationService.searchCorporations(search.trim(), PageRequest.of(page, size));
+            }
         } else {
-            corporations = corporationService.getAllCorporations(PageRequest.of(page, size));
+            // 검색어가 없는 경우
+            if ("blog".equals(filter)) {
+                corporations = corporationService.getCorporationsWithBlog(PageRequest.of(page, size));
+            } else if ("youtube".equals(filter)) {
+                corporations = corporationService.getCorporationsWithYoutube(PageRequest.of(page, size));
+            } else {
+                corporations = corporationService.getAllCorporations(PageRequest.of(page, size));
+            }
         }
         
         // Statistics
         long totalCorporations = corporationService.getTotalCorporationCount();
         long totalArticles = articleService.getTotalArticleCount();
-        
+        long totalVideos = videoRepository.countByDeletedAtIsNull();
+
         long domesticCount = totalCorporations;
         long overseasCount = 0;
         
@@ -304,13 +322,15 @@ public class ArticleController {
         model.addAttribute("hasNext", corporations.hasNext());
         model.addAttribute("hasPrevious", corporations.hasPrevious());
         model.addAttribute("currentSearch", search);
-        
+        model.addAttribute("currentFilter", filter);
+
         // Statistics
         model.addAttribute("totalCorporations", totalCorporations);
         model.addAttribute("domesticCount", domesticCount);
         model.addAttribute("overseasCount", overseasCount);
         model.addAttribute("totalArticles", totalArticles);
-        
+        model.addAttribute("totalVideos", totalVideos);
+
         return "corporations";
     }
 
