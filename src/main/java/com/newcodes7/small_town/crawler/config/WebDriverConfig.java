@@ -152,9 +152,9 @@ public class WebDriverConfig {
      */
     private void killZombieChromeProcesses() {
         try {
-            // headless Chrome 프로세스만 종료 (더 안전)
+            // Chrome 프로세스 종료
             Process killChrome = Runtime.getRuntime().exec(new String[]{
-                "sh", "-c", "pkill -9 -f 'chrome.*--headless'"
+                "sh", "-c", "pkill -9 -f 'chrome'"
             });
             killChrome.waitFor();
 
