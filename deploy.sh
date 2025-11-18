@@ -96,6 +96,23 @@ cleanup_old_container() {
     fi
 }
 
+# swap 메모리 재할당 함수
+reset_swap() {
+    log "=== swap 메모리 재할당 시작 ==="
+
+    log "swap 해제 중..."
+    sudo swapoff -a
+
+    log "swap 재할당 중..."
+    sudo swapon -a
+
+    log "swap 메모리 재할당 완료"
+
+    # swap 상태 확인
+    log "현재 swap 상태:"
+    free -h | grep -i swap
+}
+
 # 메인 배포 함수
 deploy() {
     log "=== git 변경 내용 가져오기 ==="
@@ -146,7 +163,10 @@ deploy() {
     log "활성 서버: $NEW_ACTIVE ($NEW_CONTAINER)"
 
     log "=== docker 미사용 리소스 정리 ==="
-    docker system prune -a    
+    docker system prune -a
+
+    # swap 메모리 재할당
+    reset_swap
 }
 
 # 롤백 함수
