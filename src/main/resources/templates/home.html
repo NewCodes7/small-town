@@ -1412,6 +1412,17 @@
                 background: var(--primary-green-dark);
             }
 
+            /* 1600px 미만에서는 채팅창 숨기고 버튼만 표시 */
+            @media (max-width: 1599px) {
+                .feedback-btn.hidden {
+                    display: flex;
+                }
+
+                .feedback-chat.show {
+                    display: none;
+                }
+            }
+
             /* Mobile Responsive */
             @media (max-width: 768px) {
                 .feedback-widget {
