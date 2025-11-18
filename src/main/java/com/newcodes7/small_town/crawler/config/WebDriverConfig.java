@@ -154,7 +154,7 @@ public class WebDriverConfig {
         try {
             // Chrome 프로세스 종료
             Process killChrome = Runtime.getRuntime().exec(new String[]{
-                "sh", "-c", "pkill -9 -f 'chrome'"
+                "sh", "-c", "pkill -9 -f chrome"
             });
             killChrome.waitFor();
 
