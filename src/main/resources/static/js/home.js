@@ -1,46 +1,8 @@
 function bindArticleEvents() {
-    // clickCard();
     likeButton();
     initPagination();
     bindMoreButtonEvents();
 }
-
-// 카드 클릭 시 외부 링크로 이동
-function clickCard() {
-    document.querySelectorAll('.article-card').forEach(card => {
-        card.addEventListener('click', async function(e) {
-            // 태그, 링크, 버튼 등 특정 요소를 클릭한 경우가 아니라면 카드 전체 클릭으로 간주
-            if (e.target.tagName !== 'A' && !e.target.closest('a') && !e.target.closest('.badge') && !e.target.closest('.like-button') && !e.target.closest('.company-link') && !e.target.closest('.admin-delete-btn') && !e.target.closest('.more-corporation-articles')) {
-                const titleLink = this.querySelector('h5 a');
-                const articleId = this.getAttribute('data-article-id');
-                if (titleLink) {
-                    window.open(titleLink.href, '_blank');
-
-                    const response = await fetch(`/api/articles/${articleId}/view`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        credentials: 'same-origin',
-                        redirect: 'manual'
-                    });
-
-                    if (response.ok) {
-                        const data = await response.json();
-
-                        if (data.incremented) {
-                            const viewCount = this.querySelector('.view-count');
-                            viewCount.textContent = data.viewCount;
-                        }
-                    }
-                }
-            }
-        });
-        
-        // 카드에 커서 스타일 추가
-        card.style.cursor = 'pointer';
-    });
-};
 
 // '더보기' 버튼 클릭 이벤트
 function bindMoreButtonEvents() {
