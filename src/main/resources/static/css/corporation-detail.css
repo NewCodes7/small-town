@@ -92,9 +92,62 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-image: 
+    background-image:
         radial-gradient(circle at 20% 20%, rgba(255,255,255,0.1) 0%, transparent 50%),
         radial-gradient(circle at 80% 80%, rgba(255,255,255,0.1) 0%, transparent 50%),
         radial-gradient(circle at 40% 60%, rgba(255,255,255,0.05) 0%, transparent 50%);
     z-index: 1;
+}
+
+/* Content Toggle Buttons */
+.content-toggle-container {
+    display: inline-flex;
+    background: var(--secondary-green);
+    border-radius: 12px;
+    padding: 4px;
+    border: 2px solid var(--border-light);
+}
+
+.content-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-light);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.content-toggle-btn:hover {
+    color: var(--primary-green);
+    background: white;
+}
+
+.content-toggle-btn.active {
+    background: var(--primary-green);
+    color: white;
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+}
+
+.content-toggle-btn.active:hover {
+    background: var(--primary-green-dark);
+    color: white;
+}
+
+.content-toggle-btn i {
+    font-size: 0.85rem;
+}
+
+@media (max-width: 576px) {
+    .content-toggle-btn {
+        padding: 8px 14px;
+        font-size: 0.85rem;
+    }
+
+    .content-toggle-btn i {
+        font-size: 0.8rem;
+    }
 }

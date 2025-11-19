@@ -615,16 +615,16 @@
             .view-toggle-btn {
                 display: flex;
                 align-items: center;
-                gap: 8px;
-                padding: 9px 12px;
-                background: white;
-                border: 2px solid #e5e7eb;
-                border-radius: 25px;
-                font-size: 15px;
-                font-weight: 500;
-                color: #6b7280;
+                gap: 6px;
+                padding: 10px 20px;
+                background: var(--secondary-green);
+                border: 2px solid var(--border-light);
+                border-radius: 12px;
+                font-size: 0.9rem;
+                font-weight: 600;
+                color: var(--text-light);
                 cursor: pointer;
-                transition: all 0.3s ease;
+                transition: all 0.2s ease;
                 text-decoration: none;
                 white-space: nowrap;
             }
@@ -632,30 +632,28 @@
             .view-toggle-btn:hover {
                 border-color: var(--primary-green);
                 color: var(--primary-green);
-                transform: translateY(-1px);
-                box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
+                background: white;
             }
 
             .view-toggle-btn.active {
                 background: var(--primary-green);
                 border-color: var(--primary-green);
                 color: white;
-                box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+                box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
             }
 
             .view-toggle-btn.active:hover {
                 background: var(--primary-green-dark);
-                transform: translateY(-1px);
-                box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
+                border-color: var(--primary-green-dark);
             }
 
             .view-text {
-                font-size: 15px;
+                font-size: 0.9rem;
                 font-weight: 600;
             }
 
             .view-toggle-btn i {
-                font-size: 16px;
+                font-size: 0.85rem;
             }
 
             .filter-pill i {
@@ -698,13 +696,13 @@
 
                 .filter-pill,
                 .view-toggle-btn {
-                    padding: 10px 16px;
-                    font-size: 14px;
+                    padding: 8px 14px;
+                    font-size: 0.85rem;
                 }
 
                 .filter-pill i,
                 .view-toggle-btn i {
-                    font-size: 15px;
+                    font-size: 0.8rem;
                 }
 
                 .search-input-container {

@@ -89,16 +89,18 @@
         </button>
 
         <!-- Navigation Buttons -->
-        <div class="mb-4 d-flex justify-content-center gap-2">
-            <a th:href="@{/corporations/{id}(id=${corporation.id})}"
-               class="btn btn-primary">
-                <i class="fas fa-blog me-2"></i>블로그
-            </a>
-            <a th:if="${corporation.youtubeChannelId != null && !corporation.youtubeChannelId.isEmpty()}"
-               th:href="@{/corporations/{id}/video(id=${corporation.id})}"
-               class="btn btn-outline-danger">
-                <i class="fab fa-youtube me-2"></i>유튜브
-            </a>
+        <div class="mb-4 d-flex justify-content-center">
+            <div class="content-toggle-container">
+                <a th:href="@{/corporations/{id}(id=${corporation.id})}"
+                   class="content-toggle-btn active">
+                    <i class="fas fa-blog me-1"></i>블로그
+                </a>
+                <a th:if="${corporation.youtubeChannelId != null && !corporation.youtubeChannelId.isEmpty()}"
+                   th:href="@{/corporations/{id}/video(id=${corporation.id})}"
+                   class="content-toggle-btn">
+                    <i class="fab fa-youtube me-1"></i>유튜브
+                </a>
+            </div>
         </div>
 
         <!-- 블로그 글 섹션 -->
