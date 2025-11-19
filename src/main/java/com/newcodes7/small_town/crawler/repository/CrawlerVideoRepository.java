@@ -26,4 +26,7 @@ public interface CrawlerVideoRepository extends JpaRepository<Video, Long> {
 
     @Query("SELECT COUNT(v) FROM Video v WHERE v.corporation.id = :corporationId AND v.createdAt >= :since")
     Long countNewVideosByCorporation(@Param("corporationId") Long corporationId, @Param("since") LocalDateTime since);
+
+    @Query("SELECT v FROM Video v WHERE v.deletedAt IS NULL AND (v.category IS NULL) ORDER BY v.createdAt ASC")
+    List<Video> findUnanalyzedVideos();
 }

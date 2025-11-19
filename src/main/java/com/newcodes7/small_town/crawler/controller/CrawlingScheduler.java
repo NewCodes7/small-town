@@ -1,7 +1,9 @@
 package com.newcodes7.small_town.crawler.controller;
 
 import com.newcodes7.small_town.crawler.dto.CrawlResult;
+import com.newcodes7.small_town.crawler.service.ArticlePersistenceService;
 import com.newcodes7.small_town.crawler.service.CrawlingService;
+import com.newcodes7.small_town.crawler.service.TitleTranslationService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +20,8 @@ import java.util.List;
 public class CrawlingScheduler {
 
     private final CrawlingService crawlingService;
+    private final TitleTranslationService titleTranslationService;
+    private final ArticlePersistenceService articlePersistenceService;
 
     /**
      * 블로그 크롤링 스케줄러
@@ -92,6 +96,36 @@ public class CrawlingScheduler {
 
         } catch (Exception e) {
             log.error("스케줄된 YouTube 크롤링 작업 중 오류 발생", e);
+        }
+    }
+
+    /**
+     * 제목 번역 및 AI 카테고리 분류 스케줄러
+     */
+    @Scheduled(cron = "${crawler.schedule.analysis.cron:0 0 5 * * ?}", zone = "Asia/Seoul")
+    public void scheduledTranslationAndAnalysis() {
+        log.info("스케줄된 번역 및 AI 분석 작업 시작");
+
+        try {
+            // 1. 해외 기업 글 제목 번역
+            log.info("해외 기업 글 제목 번역 시작");
+            titleTranslationService.translateAllOverseasArticleTitles();
+            log.info("해외 기업 글 제목 번역 완료");
+
+            // 2. 해외 기업 영상 제목 번역
+            log.info("해외 기업 영상 제목 번역 시작");
+            titleTranslationService.translateAllOverseasVideoTitles();
+            log.info("해외 기업 영상 제목 번역 완료");
+
+            // 3. 미분류 글 AI 카테고리 분류
+            log.info("미분류 글 AI 카테고리 분류 시작");
+            var result = articlePersistenceService.analyzeExistingArticles();
+            log.info("미분류 글 AI 카테고리 분류 완료 - {}", result.get("message"));
+
+            log.info("스케줄된 번역 및 AI 분석 작업 완료");
+
+        } catch (Exception e) {
+            log.error("스케줄된 번역 및 AI 분석 작업 중 오류 발생", e);
         }
     }
 }
