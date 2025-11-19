@@ -306,6 +306,8 @@ public class DefaultBlogCrawler implements BlogCrawler {
             publishedAt = parseDayMonthYearFormat(dateText);
         } else if (publishFormat.trim().equals("dd MMM")) {
             publishedAt = parseShortEnglishDateFormat(dateText);
+        } else if (publishFormat.trim().equals("MMM dd") || publishFormat.trim().equals("MMM d")) {
+            publishedAt = parseMonthDayFormat(dateText);
         } else {
             publishedAt = parseKoreanDateFormat(dateText);
         }
@@ -368,7 +370,25 @@ public class DefaultBlogCrawler implements BlogCrawler {
      * 짧은 영어 날짜 형식 파싱 (dd MMM)
      */
     private LocalDateTime parseShortEnglishDateFormat(String dateText) {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM", Locale.ENGLISH);
+        DateTimeFormatter formatter = new DateTimeFormatterBuilder()
+                .parseCaseInsensitive()
+                .appendPattern("[dd MMM][d MMM]")
+                .toFormatter(Locale.ENGLISH);
+        TemporalAccessor temporalAccessor = formatter.parse(dateText);
+        LocalDate date = LocalDate.of(LocalDate.now().getYear(),
+                                    temporalAccessor.get(ChronoField.MONTH_OF_YEAR),
+                                    temporalAccessor.get(ChronoField.DAY_OF_MONTH));
+        return TimeUtil.dateWithSeoulTime(date);
+    }
+
+    /**
+     * 월-일 영어 날짜 형식 파싱 (MMM dd)
+     */
+    private LocalDateTime parseMonthDayFormat(String dateText) {
+        DateTimeFormatter formatter = new DateTimeFormatterBuilder()
+                .parseCaseInsensitive()
+                .appendPattern("[MMM dd][MMM d]")
+                .toFormatter(Locale.ENGLISH);
         TemporalAccessor temporalAccessor = formatter.parse(dateText);
         LocalDate date = LocalDate.of(LocalDate.now().getYear(),
                                     temporalAccessor.get(ChronoField.MONTH_OF_YEAR),
