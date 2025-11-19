@@ -44,6 +44,7 @@ public class MediumBlogCrawler implements BlogCrawler {
                     || blogUrl.contains("netflixtechblog.com") 
                     || blogUrl.contains("yogiyo.co.kr")
                     || blogUrl.contains("gccompany.co.kr")
+                    || blogUrl.contains("techblog.lotteon.com")
                 );
     }
     
