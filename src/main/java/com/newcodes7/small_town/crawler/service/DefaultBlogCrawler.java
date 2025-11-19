@@ -271,40 +271,41 @@ public class DefaultBlogCrawler implements BlogCrawler {
     private LocalDateTime parsePublishedDate(Element element) {
         Element publishElement = element.selectFirst(parsingSelector.getPublish());
         String publishFormat = parsingSelector.getPublishFormat();
+        String dateText = publishElement.text().trim();
         LocalDateTime publishedAt;
 
         if (publishFormat.equals("yyyy.MM.dd")
             || publishFormat.equals("yyyy.M.dd")
             || publishFormat.equals("yyyy-MM-dd")) {
-            publishedAt = parseKoreanDateFormat(publishElement);
+            publishedAt = parseKoreanDateFormat(dateText);
         } else if (publishFormat.equals("ISO8601")) {
             publishedAt = parseISO8601Format(publishElement);
         } else if (publishFormat.equals("MMM d, yyyy")
             || publishFormat.equals("MMMM d, yyyy")
             || publishFormat.equals("MMMM dd, yyyy")
             || publishFormat.equals("MMM dd, yyyy")) {
-            publishedAt = parseEnglishDateFormat(publishElement);
+            publishedAt = parseEnglishDateFormat(dateText);
         } else if (publishFormat.trim().equals("dd MMM yyyy")) {
-            publishedAt = parseDayMonthYearFormat(publishElement);
+            publishedAt = parseDayMonthYearFormat(dateText);
         } else if (publishFormat.trim().equals("dd MMM")) {
-            publishedAt = parseShortEnglishDateFormat(publishElement);
+            publishedAt = parseShortEnglishDateFormat(dateText);
         } else {
-            publishedAt = parseKoreanDateFormat(publishElement);
+            publishedAt = parseKoreanDateFormat(dateText);
         }
 
         // 미래 날짜일 시 크롤링된 시각으로 설정 (SK플래닛 블로그 대응)
         if (publishedAt.isAfter(LocalDateTime.now())) {
             publishedAt = LocalDateTime.now();
         }
-        
+
         return publishedAt;
     }
 
     /**
      * 한국 날짜 형식 파싱 (yyyy.MM.dd)
      */
-    private LocalDateTime parseKoreanDateFormat(Element publishElement) {
-        String cleanDateText = extractDateOnly(publishElement.text());
+    private LocalDateTime parseKoreanDateFormat(String dateText) {
+        String cleanDateText = extractDateOnly(dateText);
         return TimeUtil.dateWithSeoulTime(parseDate(cleanDateText));
     }
 
@@ -320,8 +321,8 @@ public class DefaultBlogCrawler implements BlogCrawler {
     /**
      * 영어 날짜 형식 파싱 (MMM d, yyyy)
      */
-    private LocalDateTime parseEnglishDateFormat(Element publishElement) {
-        String dateText = publishElement.text().split("/")[0].trim();
+    private LocalDateTime parseEnglishDateFormat(String dateText) {
+        dateText = dateText.split("/")[0].trim();
         dateText = dateText.replaceAll("[^a-zA-Z0-9\\s,]", "");
 
         // 비표준 월 축약형을 표준 형태로 정규화
@@ -336,10 +337,9 @@ public class DefaultBlogCrawler implements BlogCrawler {
     }
 
     /**
-     * dd MMM yyyy 형식 파싱 
+     * dd MMM yyyy 형식 파싱
      */
-    private LocalDateTime parseDayMonthYearFormat(Element publishElement) {
-        String dateText = publishElement.text();
+    private LocalDateTime parseDayMonthYearFormat(String dateText) {
         dateText = dateText.replaceAll("[^a-zA-Z0-9\\s]", "");
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH);
@@ -350,10 +350,9 @@ public class DefaultBlogCrawler implements BlogCrawler {
     /**
      * 짧은 영어 날짜 형식 파싱 (dd MMM)
      */
-    private LocalDateTime parseShortEnglishDateFormat(Element publishElement) {
-        String cleanDateText = publishElement.text();
+    private LocalDateTime parseShortEnglishDateFormat(String dateText) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM", Locale.ENGLISH);
-        TemporalAccessor temporalAccessor = formatter.parse(cleanDateText);
+        TemporalAccessor temporalAccessor = formatter.parse(dateText);
         LocalDate date = LocalDate.of(LocalDate.now().getYear(),
                                     temporalAccessor.get(ChronoField.MONTH_OF_YEAR),
                                     temporalAccessor.get(ChronoField.DAY_OF_MONTH));
