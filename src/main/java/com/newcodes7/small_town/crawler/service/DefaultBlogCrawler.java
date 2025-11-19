@@ -90,7 +90,12 @@ public class DefaultBlogCrawler implements BlogCrawler {
             // 스크롤 시뮬레이션
             JavascriptExecutor js = (JavascriptExecutor) driver;
             Random random = new Random();
-            while (true) {
+            int maxScrollAttempts = 50; // 최대 스크롤 횟수 제한
+            int scrollCount = 0;
+            long previousHeight = 0;
+            int noChangeCount = 0;
+
+            while (scrollCount < maxScrollAttempts) {
                 long currentPos = (long) js.executeScript("return window.scrollY + window.innerHeight;");
                 long totalHeight = (long) js.executeScript("return document.body.scrollHeight;");
 
@@ -98,11 +103,23 @@ public class DefaultBlogCrawler implements BlogCrawler {
                     break; // 페이지 끝 도달
                 }
 
-                // 랜덤 스크롤 
+                // 높이 변화 감지 (무한 스크롤 대응)
+                if (totalHeight == previousHeight) {
+                    noChangeCount++;
+                    if (noChangeCount >= 3) {
+                        break; // 3번 연속 높이 변화 없으면 종료
+                    }
+                } else {
+                    noChangeCount = 0;
+                    previousHeight = totalHeight;
+                }
+
+                // 랜덤 스크롤
                 int scrollAmount = 200 + random.nextInt(300);
                 js.executeScript("window.scrollBy(0, " + scrollAmount + ")");
 
                 Thread.sleep(500 + random.nextInt(1000));
+                scrollCount++;
             }
             
             String pageSource = driver.getPageSource();
