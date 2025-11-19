@@ -87,7 +87,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     
     @Query("SELECT DISTINCT a FROM Article a " +
            "JOIN FETCH a.corporation c " +
-           "JOIN FETCH a.category " +
+           "LEFT JOIN FETCH a.category " +
            "WHERE a.deletedAt IS NULL " +
            "AND c.id = :corporationId " +
            "ORDER BY a.publishedAt DESC, a.createdAt DESC")
