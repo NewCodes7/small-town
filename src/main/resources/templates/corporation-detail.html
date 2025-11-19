@@ -83,18 +83,10 @@
             </div>
         </div>
         
-        <!-- 뒤로가기 버튼 및 관리자 버튼 -->
-        <div class="mb-4">
-            <div class="d-flex gap-2 justify-content-between">
-                <a th:href="@{/corporations}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left me-2"></i>구독 블로그 목록
-                </a>
-                <!-- 관리자 전용 크롤링 버튼 (JavaScript로 표시 여부 제어) -->
-                <button id="adminCrawlBtn" class="btn btn-success d-none" th:attr="data-corporation-id=${corporation.id}">
-                    <i class="fas fa-sync-alt me-2"></i>크롤링 시작
-                </button>
-            </div>
-        </div>
+        <!-- 관리자 전용 크롤링 버튼 (JavaScript로 표시 여부 제어) -->
+        <button id="adminCrawlBtn" class="btn btn-success d-none" th:attr="data-corporation-id=${corporation.id}">
+            <i class="fas fa-sync-alt me-2"></i>크롤링 시작
+        </button>
 
         <!-- Navigation Buttons -->
         <div class="mb-4 d-flex justify-content-center gap-2">
