@@ -260,7 +260,74 @@ function setupDefaultThumbnails() {
 
 // positionFloatingLogos 함수 제거됨 - CSS에서 고정 위치 사용
 
+// 뷰 토글 버튼 초기화
+function initViewToggle() {
+    const groupedViewBtn = document.getElementById('groupedViewBtn');
+    const listViewBtn = document.getElementById('listViewBtn');
+
+    if (groupedViewBtn) {
+        groupedViewBtn.addEventListener('click', function() {
+            updateViewParam('grouped');
+        });
+    }
+
+    if (listViewBtn) {
+        listViewBtn.addEventListener('click', function() {
+            updateViewParam('list');
+        });
+    }
+}
+
+// 지역 토글 버튼 초기화
+function initRegionToggle() {
+    const regionAllBtn = document.getElementById('regionAllBtn');
+    const regionDomesticBtn = document.getElementById('regionDomesticBtn');
+    const regionOverseasBtn = document.getElementById('regionOverseasBtn');
+
+    if (regionAllBtn) {
+        regionAllBtn.addEventListener('click', function() {
+            updateRegionParam(null);
+        });
+    }
+
+    if (regionDomesticBtn) {
+        regionDomesticBtn.addEventListener('click', function() {
+            updateRegionParam('domestic');
+        });
+    }
+
+    if (regionOverseasBtn) {
+        regionOverseasBtn.addEventListener('click', function() {
+            updateRegionParam('overseas');
+        });
+    }
+}
+
+// 뷰 파라미터 업데이트 및 페이지 리다이렉트
+function updateViewParam(viewType) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('view', viewType);
+    // 페이지를 처음으로 리셋
+    url.searchParams.set('page', '0');
+    window.location.href = url.toString();
+}
+
+// 지역 파라미터 업데이트 및 페이지 리다이렉트
+function updateRegionParam(region) {
+    const url = new URL(window.location.href);
+    // 기존 regions 파라미터 삭제
+    url.searchParams.delete('regions');
+    // 새 지역 파라미터 설정 (전체가 아닌 경우에만)
+    if (region) {
+        url.searchParams.set('regions', region);
+    }
+    // 페이지를 처음으로 리셋
+    url.searchParams.set('page', '0');
+    window.location.href = url.toString();
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     bindArticleEvents();
-    // initViewToggle();
+    initViewToggle();
+    initRegionToggle();
 });

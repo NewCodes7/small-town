@@ -449,3 +449,244 @@ body {
     opacity: 0.7;
     transform: translateY(-4px);
 }
+
+/* Common Component Styles */
+
+/* View Toggle Button - 기업별 묶기 등 토글 버튼 */
+.view-controls {
+    display: flex;
+    align-items: center;
+}
+
+.view-toggle-container {
+    display: inline-flex;
+    background: white;
+    border-radius: 12px;
+    padding: 4px;
+    border: 2px solid var(--border-light);
+}
+
+.view-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #6b7280;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.view-toggle-btn:hover {
+    color: var(--primary-green);
+    background: white;
+}
+
+.view-toggle-btn.active {
+    background: var(--primary-green);
+    color: white;
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+}
+
+.view-toggle-btn.active:hover {
+    background: var(--primary-green-dark);
+    color: white;
+}
+
+.view-text {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.view-toggle-btn i {
+    font-size: 16px;
+}
+
+/* Region Toggle Container - 전체/국내/해외 토글 버튼 */
+.region-toggle-container {
+    display: inline-flex;
+    background: white;
+    border-radius: 12px;
+    padding: 4px;
+    border: 2px solid var(--border-light);
+}
+
+.region-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #6b7280;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.region-toggle-btn:hover {
+    color: var(--primary-green);
+    background: var(--secondary-green);
+}
+
+.region-toggle-btn.active {
+    background: var(--primary-green);
+    color: white;
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+}
+
+.region-toggle-btn.active:hover {
+    background: var(--primary-green-dark);
+    color: white;
+}
+
+.region-toggle-btn i {
+    font-size: 16px;
+}
+
+/* Content Toggle Container - 블로그/유튜브 전환 버튼 */
+.content-toggle-container {
+    display: inline-flex;
+    background: var(--secondary-green);
+    border-radius: 12px;
+    padding: 4px;
+    border: 2px solid var(--border-light);
+}
+
+.content-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-light);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.content-toggle-btn:hover {
+    color: var(--primary-green);
+    background: white;
+}
+
+.content-toggle-btn.active {
+    background: var(--primary-green);
+    color: white;
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+}
+
+.content-toggle-btn.active:hover {
+    background: var(--primary-green-dark);
+    color: white;
+}
+
+.content-toggle-btn i {
+    font-size: 0.85rem;
+}
+
+/* Filter Toggle - corporations 페이지 필터 */
+.filter-toggle-container {
+    display: inline-flex;
+    background: var(--secondary-green);
+    border-radius: 12px;
+    padding: 4px;
+    border: 2px solid var(--border-light);
+    flex-shrink: 0;
+}
+
+.filter-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-light);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.filter-toggle-btn:hover {
+    color: var(--primary-green);
+    background: white;
+}
+
+.filter-toggle-btn.active {
+    background: var(--primary-green);
+    color: white;
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+}
+
+.filter-toggle-btn.active:hover {
+    background: var(--primary-green-dark);
+    color: white;
+}
+
+.filter-toggle-btn i {
+    font-size: 0.8rem;
+}
+
+/* Responsive for common components */
+@media (max-width: 768px) {
+    .view-toggle-btn {
+        padding: 10px 16px;
+        font-size: 14px;
+    }
+
+    .view-toggle-btn i {
+        font-size: 15px;
+    }
+
+    .view-text {
+        font-size: 14px;
+    }
+
+    .region-toggle-btn {
+        padding: 10px 16px;
+        font-size: 14px;
+    }
+
+    .region-toggle-btn i {
+        font-size: 15px;
+    }
+}
+
+@media (max-width: 576px) {
+    .content-toggle-btn {
+        padding: 8px 14px;
+        font-size: 0.85rem;
+    }
+
+    .content-toggle-btn i {
+        font-size: 0.8rem;
+    }
+
+    .filter-toggle-container {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .filter-toggle-btn {
+        padding: 8px 12px;
+        font-size: 0.8rem;
+        flex: 1;
+        justify-content: center;
+    }
+
+    .filter-toggle-btn i {
+        font-size: 0.75rem;
+    }
+}

@@ -171,21 +171,23 @@
                     <div class="quick-filters">
                         <!-- Region Filter Group -->
                         <div class="filter-group">
-                            <input type="checkbox" name="regions" value="domestic" id="domestic"
-                                   th:checked="${selectedRegions.contains('domestic')}"
-                                   class="filter-checkbox">
-                            <label for="domestic" class="filter-pill region-pill">
-                                <i class="fas fa-map-marker-alt"></i>
-                                <span>국내</span>
-                            </label>
-
-                            <input type="checkbox" name="regions" value="overseas" id="overseas"
-                                   th:checked="${selectedRegions.contains('overseas')}"
-                                   class="filter-checkbox">
-                            <label for="overseas" class="filter-pill region-pill">
-                                <i class="fas fa-globe"></i>
-                                <span>해외</span>
-                            </label>
+                            <div class="region-toggle-container">
+                                <button type="button" id="regionAllBtn"
+                                        th:class="'region-toggle-btn' + (${selectedRegions.isEmpty() or (selectedRegions.contains('domestic') and selectedRegions.contains('overseas'))} ? ' active' : '')">
+                                    <i class="fas fa-earth-americas"></i>
+                                    <span>전체</span>
+                                </button>
+                                <button type="button" id="regionDomesticBtn"
+                                        th:class="'region-toggle-btn' + (${selectedRegions.size() == 1 and selectedRegions.contains('domestic')} ? ' active' : '')">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    <span>국내</span>
+                                </button>
+                                <button type="button" id="regionOverseasBtn"
+                                        th:class="'region-toggle-btn' + (${selectedRegions.size() == 1 and selectedRegions.contains('overseas')} ? ' active' : '')">
+                                    <i class="fas fa-globe"></i>
+                                    <span>해외</span>
+                                </button>
+                            </div>
                         </div>
 
                         <!-- Content Type Filter Group (Removed - Videos only) -->
@@ -224,11 +226,18 @@
 
                     <!-- View Controls -->
                     <div class="view-controls">
-                        <button id="groupedViewBtn" type="button" 
-                                th:class="'view-toggle-btn' + (${isGrouped} ? ' active' : '')">
-                            <i class="fas fa-layer-group"></i>
-                            <span class="view-text">기업별 묶기</span>
-                        </button>
+                        <div class="view-toggle-container">
+                            <button id="groupedViewBtn" type="button"
+                                    th:class="'view-toggle-btn' + (${isGrouped} ? ' active' : '')">
+                                <i class="fas fa-layer-group"></i>
+                                <span class="view-text">기업별</span>
+                            </button>
+                            <button id="listViewBtn" type="button"
+                                    th:class="'view-toggle-btn' + (${!isGrouped} ? ' active' : '')">
+                                <i class="fas fa-list"></i>
+                                <span class="view-text">리스트</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -607,55 +616,6 @@
                 scrollbar-color: #cbd5e1 #f1f5f9;
             }
 
-            .view-controls {
-                display: flex;
-                align-items: center;
-            }
-
-            .view-toggle-btn {
-                display: flex;
-                align-items: center;
-                gap: 6px;
-                padding: 10px 20px;
-                background: var(--secondary-green);
-                border: 2px solid var(--border-light);
-                border-radius: 12px;
-                font-size: 0.9rem;
-                font-weight: 600;
-                color: var(--text-light);
-                cursor: pointer;
-                transition: all 0.2s ease;
-                text-decoration: none;
-                white-space: nowrap;
-            }
-
-            .view-toggle-btn:hover {
-                border-color: var(--primary-green);
-                color: var(--primary-green);
-                background: white;
-            }
-
-            .view-toggle-btn.active {
-                background: var(--primary-green);
-                border-color: var(--primary-green);
-                color: white;
-                box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
-            }
-
-            .view-toggle-btn.active:hover {
-                background: var(--primary-green-dark);
-                border-color: var(--primary-green-dark);
-            }
-
-            .view-text {
-                font-size: 0.9rem;
-                font-weight: 600;
-            }
-
-            .view-toggle-btn i {
-                font-size: 0.85rem;
-            }
-
             .filter-pill i {
                 font-size: 16px;
             }
@@ -694,14 +654,12 @@
                     border-radius: 20px;
                 }
 
-                .filter-pill,
-                .view-toggle-btn {
+                .filter-pill {
                     padding: 8px 14px;
                     font-size: 0.85rem;
                 }
 
-                .filter-pill i,
-                .view-toggle-btn i {
+                .filter-pill i {
                     font-size: 0.8rem;
                 }
 
