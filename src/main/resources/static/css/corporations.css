@@ -104,33 +104,141 @@
     font-size: 1.25rem;
     font-weight: 700;
     color: var(--text-dark);
-    margin-bottom: 12px;
+    margin-bottom: 16px;
     text-align: center;
     line-height: 1.3;
 }
 
-.corp-info {
+/* Industry Tags Section */
+.industry-tags {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 16px;
+    gap: 6px;
+    justify-content: center;
+    margin-top: 12px;
+    min-height: 28px;
 }
 
-.corp-badge {
+.industry-tag {
     font-size: 0.75rem;
-    padding: 4px 12px;
-    border-radius: 20px;
+    padding: 6px 14px;
+    border-radius: 6px;
     font-weight: 600;
+    letter-spacing: 0.2px;
+    transition: all 0.3s ease;
+    box-shadow: none;
+    animation: fadeInUp 0.5s ease;
+    border: 1px solid transparent;
 }
 
-.badge-domestic {
-    background: var(--secondary-green);
-    color: var(--primary-green-dark);
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
-.badge-overseas {
-    background: #E3F2FD;
-    color: #1976D2;
+/* Industry 색상 테마 - Notion 스타일 */
+.industry-tag[data-industry*="IT"],
+.industry-tag[data-industry*="서비스"],
+.industry-tag[data-industry*="테크"] {
+    background: #EDE9FE;
+    color: #5B21B6;
+    border-color: #DDD6FE;
+}
+
+.industry-tag[data-industry*="AI"] {
+    background: #FCE7F3;
+    color: #BE185D;
+    border-color: #FBCFE8;
+}
+
+.industry-tag[data-industry*="커머스"],
+.industry-tag[data-industry*="이커머스"],
+.industry-tag[data-industry*="쇼핑"] {
+    background: #DBEAFE;
+    color: #1E40AF;
+    border-color: #BFDBFE;
+}
+
+.industry-tag[data-industry*="핀테크"],
+.industry-tag[data-industry*="금융"],
+.industry-tag[data-industry*="결제"] {
+    background: #D1FAE5;
+    color: #065F46;
+    border-color: #A7F3D0;
+}
+
+.industry-tag[data-industry*="게임"],
+.industry-tag[data-industry*="엔터"] {
+    background: #FEF3C7;
+    color: #92400E;
+    border-color: #FDE68A;
+}
+
+.industry-tag[data-industry*="모빌리티"],
+.industry-tag[data-industry*="자동차"],
+.industry-tag[data-industry*="교통"] {
+    background: #E0E7FF;
+    color: #3730A3;
+    border-color: #C7D2FE;
+}
+
+.industry-tag[data-industry*="교육"],
+.industry-tag[data-industry*="에듀"] {
+    background: #FEE2E2;
+    color: #991B1B;
+    border-color: #FECACA;
+}
+
+.industry-tag[data-industry*="헬스케어"],
+.industry-tag[data-industry*="의료"],
+.industry-tag[data-industry*="바이오"] {
+    background: #FED7AA;
+    color: #9A3412;
+    border-color: #FDBA74;
+}
+
+.industry-tag[data-industry*="미디어"],
+.industry-tag[data-industry*="콘텐츠"] {
+    background: #FBCFE8;
+    color: #9F1239;
+    border-color: #F9A8D4;
+}
+
+/* 기본 색상 (위 조건에 해당하지 않는 경우) */
+.industry-tag:not([data-industry*="IT"]):not([data-industry*="플랫폼"]):not([data-industry*="커머스"]):not([data-industry*="핀테크"]):not([data-industry*="게임"]):not([data-industry*="모빌리티"]):not([data-industry*="교육"]):not([data-industry*="헬스케어"]):not([data-industry*="미디어"]):not([data-industry*="소프트웨어"]):not([data-industry*="테크"]):not([data-industry*="서비스"]):not([data-industry*="이커머스"]):not([data-industry*="쇼핑"]):not([data-industry*="금융"]):not([data-industry*="결제"]):not([data-industry*="엔터"]):not([data-industry*="자동차"]):not([data-industry*="교통"]):not([data-industry*="에듀"]):not([data-industry*="의료"]):not([data-industry*="바이오"]):not([data-industry*="콘텐츠"]) {
+    background: #DCFCE7;
+    color: #166534;
+    border-color: #BBF7D0;
+}
+
+.more-tag {
+    background: #F3F4F6;
+    color: #6B7280;
+    border-color: #D1D5DB;
+}
+
+/* Hover effects */
+.corporation-card:hover .industry-tag {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.corporation-card:hover .industry-tag:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.corporation-card:hover .industry-tag:nth-child(2) {
+    animation-delay: 0.05s;
+}
+
+.corporation-card:hover .industry-tag:nth-child(3) {
+    animation-delay: 0.1s;
 }
 
 
@@ -236,19 +344,42 @@
     font-size: 0.9rem;
 }
 
+/* Admin Controls */
+.admin-edit-btn {
+    border: 2px solid var(--primary-green);
+    color: var(--primary-green);
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.admin-edit-btn:hover {
+    background: var(--primary-green);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(3, 199, 90, 0.3);
+}
+
+.admin-edit-btn i {
+    transition: transform 0.3s ease;
+}
+
+.admin-edit-btn:hover i {
+    transform: rotate(15deg);
+}
+
 @media (max-width: 768px) {
     .corp-title {
         font-size: 2rem;
     }
-    
+
     .corp-subtitle {
         font-size: 1.1rem;
     }
-    
+
     .corp-hero {
         padding: 32px 20px;
     }
-    
+
     .corporation-card {
         margin-bottom: 16px;
     }

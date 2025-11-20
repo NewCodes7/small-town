@@ -1,38 +1,27 @@
 // 관리자 컨트롤 패널 기능
 let currentArticleId = null;
-let userInfo = null;
 let isVideoPage = false; // 영상 페이지인지 여부
 
 // 페이지 로드 시 사용자 정보 확인 및 관리자 버튼 표시
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     // video 페이지인지 확인 (editVideoModal 존재 여부로 판단)
     isVideoPage = document.getElementById('editVideoModal') !== null;
-    checkUserAndShowAdminControls();
+    await checkUserAndShowAdminControls();
 });
 
 // 사용자 정보 확인 및 관리자 컨트롤 표시
-function checkUserAndShowAdminControls() {
-    fetch('/api/user-info')
-        .then(response => response.json())
-        .then(data => {
-            userInfo = data;
-            if (data.authenticated && data.isAdmin) {
-                showAdminControls();
-                setupAdminEventListeners();
-                loadCategories();
-            }
-        })
-        .catch(error => {
-            console.error('사용자 정보 확인 중 오류:', error);
-        });
-}
+async function checkUserAndShowAdminControls() {
+    try {
+        await userAuth.fetchUserInfo();
 
-// 관리자 컨트롤 버튼 표시
-function showAdminControls() {
-    const adminPanels = document.querySelectorAll('.admin-control-panel');
-    adminPanels.forEach(panel => {
-        panel.classList.remove('d-none');
-    });
+        if (userAuth.isAuthenticated() && userAuth.isAdminUser()) {
+            userAuth.showAdminControls();
+            setupAdminEventListeners();
+            loadCategories();
+        }
+    } catch (error) {
+        console.error('사용자 정보 확인 중 오류:', error);
+    }
 }
 
 // 관리자 이벤트 리스너 설정

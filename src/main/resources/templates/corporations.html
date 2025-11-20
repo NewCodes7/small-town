@@ -87,41 +87,86 @@
             <div class="col-lg-4 col-md-6" th:each="corp : ${corporations.content}">
                 <div class="corporation-card">
                     <a th:href="@{/corporations/{id}(id=${corp.id})}" class="corp-card-link"></a>
-                    
+
                     <!-- Logo Section -->
                     <div class="corp-logo-container">
-                        <img th:if="${corp.effectiveLogoUrl != null}" 
-                             th:src="${corp.effectiveLogoUrl}" 
+                        <img th:if="${corp.effectiveLogoUrl != null}"
+                             th:src="${corp.effectiveLogoUrl}"
                              th:alt="${corp.name}"
                              class="corp-logo">
                         <div th:unless="${corp.effectiveLogoUrl != null}" class="default-corp-logo">
                             <i class="fas fa-building fa-2x" style="color: var(--primary-green);"></i>
                         </div>
                     </div>
-                    
+
                     <!-- Content Section -->
                     <div class="corp-content">
                         <h3 class="corp-name" th:text="${corp.name}">Company Name</h3>
-                        
-                        <!-- Info Badges -->
-                        <!-- <div class="corp-info">
-                            <span class="corp-badge" 
-                                  th:class="${corp.isDomestic != null && corp.isDomestic} ? 'corp-badge badge-domestic' : 'corp-badge badge-overseas'"
-                                  th:text="${corp.regionText}">지역</span>
-                            <span class="corp-badge" style="background: #F3E5F5; color: #7B1FA2;" 
-                                  th:if="${corp.industries != null && !corp.industries.isEmpty()}"
-                                  th:text="${corp.industries.size() == 1 ? corp.industries[0] : corp.industries[0] + ' 외 ' + (corp.industries.size() - 1) + '개'}">업종</span>
-                        </div> -->
-                        
-                        
-                        <!-- Stats -->
-                        <!-- <div class="corp-stats">
-                            <span class="corp-articles-count">
-                                <i class="fas fa-newspaper me-1"></i>
-                                블로그 글 <strong th:text="${corp.articleCount ?: 0}">0</strong>개
-                            </span>
-                            <span class="corp-date" th:text="'등록: ' + ${#temporals.format(corp.createdAt, 'MM.dd')}">등록: 01.01</span>
-                        </div> -->
+
+                        <!-- Industry Tags -->
+                        <div class="industry-tags" th:if="${corp.industries != null && !corp.industries.isEmpty()}">
+                            <span class="industry-tag"
+                                  th:each="industry, iterStat : ${corp.industries}"
+                                  th:if="${iterStat.index < 3}"
+                                  th:text="${industry}"
+                                  th:attr="data-industry=${industry}">Industry</span>
+                            <span class="industry-tag more-tag"
+                                  th:if="${corp.industries.size() > 3}"
+                                  th:text="'+' + ${corp.industries.size() - 3}">+2</span>
+                        </div>
+
+                        <!-- Admin Edit Button -->
+                        <div class="admin-control-panel d-none mt-3">
+                            <button class="btn btn-sm btn-outline-primary admin-edit-btn w-100"
+                                    th:data-corp-id="${corp.id}"
+                                    th:data-corp-name="${corp.name}"
+                                    th:data-industries="${corp.industries != null ? #strings.listJoin(corp.industries, ','): ''}"
+                                    onclick="openIndustryEditModalFromButton(this)">
+                                <i class="fas fa-edit me-1"></i>Industry 수정
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Industry Edit Modal -->
+        <div class="modal fade" id="industryEditModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="fas fa-industry me-2"></i>
+                            <span id="modalCorporationName"></span> - Industry 수정
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="industryCheckboxes" class="mb-3">
+                            <!-- Industry 체크박스가 동적으로 생성됩니다 -->
+                        </div>
+
+                        <hr>
+
+                        <div class="mt-3">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-plus-circle me-1"></i>새 Industry 추가
+                            </label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="newIndustryName"
+                                       placeholder="예: AI, 블록체인, 헬스케어...">
+                                <button class="btn btn-success" type="button" onclick="addNewIndustry()">
+                                    <i class="fas fa-plus me-1"></i>추가
+                                </button>
+                            </div>
+                            <small class="text-muted">존재하지 않는 업종을 직접 추가할 수 있습니다.</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                        <button type="button" class="btn btn-primary" onclick="saveIndustries()">
+                            <i class="fas fa-save me-1"></i>저장
+                        </button>
                     </div>
                 </div>
             </div>
@@ -181,6 +226,7 @@
     </div>
 
     <div layout:fragment="scripts">
+        <script th:src="@{/js/userAuth.js}"></script>
         <script th:src="@{/js/corporations.js}"></script>
     </div>
 </body>

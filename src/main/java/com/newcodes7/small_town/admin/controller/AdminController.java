@@ -793,4 +793,121 @@ public class AdminController {
             return ResponseEntity.internalServerError().body(response);
         }
     }
+
+    /**
+     * Industry 목록 조회 API
+     */
+    @GetMapping("/industries")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getIndustries() {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            response.put("success", true);
+            response.put("industries", industryRepository.findAll());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Industry 목록 조회 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * Industry 생성 API
+     */
+    @PostMapping("/industries")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> createIndustry(@RequestBody Map<String, String> request) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            String name = request.get("name");
+
+            if (name == null || name.trim().isEmpty()) {
+                response.put("success", false);
+                response.put("message", "Industry 이름이 필요합니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // 중복 체크
+            if (industryRepository.existsByName(name.trim())) {
+                response.put("success", false);
+                response.put("message", "이미 존재하는 Industry입니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            com.newcodes7.small_town.corporation.entity.Industry industry =
+                com.newcodes7.small_town.corporation.entity.Industry.builder()
+                    .name(name.trim())
+                    .build();
+
+            com.newcodes7.small_town.corporation.entity.Industry savedIndustry = industryRepository.save(industry);
+
+            response.put("success", true);
+            response.put("message", "Industry가 성공적으로 생성되었습니다.");
+            response.put("industry", savedIndustry);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Industry 생성 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Industry 생성 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * Corporation의 Industry 수정 API
+     */
+    @PutMapping("/corporations/{corporationId}/industries")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> updateCorporationIndustries(
+            @PathVariable Long corporationId,
+            @RequestBody Map<String, Object> request) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            @SuppressWarnings("unchecked")
+            List<Integer> industryIds = (List<Integer>) request.get("industryIds");
+
+            if (industryIds == null) {
+                industryIds = new ArrayList<>();
+            }
+
+            // CorporationUpdateDto 생성 (기존 정보 유지)
+            CorporationResponseDto corporation = corporationService.getCorporationById(corporationId);
+            CorporationUpdateDto updateDto = new CorporationUpdateDto();
+            updateDto.setName(corporation.getName());
+            updateDto.setHomeLink(corporation.getHomeLink());
+            updateDto.setBlogLink(corporation.getBlogLink());
+            updateDto.setCrewLink(corporation.getCrewLink());
+            updateDto.setLogoUrl(corporation.getLogoUrl());
+            updateDto.setYoutubeUrl(corporation.getYoutubeUrl());
+            updateDto.setBaseUrl(corporation.getBaseUrl());
+            updateDto.setArticle(corporation.getArticle());
+            updateDto.setTitle(corporation.getTitle());
+            updateDto.setLink(corporation.getLink());
+            updateDto.setThumbnail(corporation.getThumbnail());
+            updateDto.setPublish(corporation.getPublish());
+            updateDto.setPublishFormat(corporation.getPublishFormat());
+            updateDto.setIndustryIds(industryIds);
+
+            corporationService.updateCorporation(corporationId, updateDto);
+
+            response.put("success", true);
+            response.put("message", "Industry가 성공적으로 수정되었습니다.");
+            response.put("corporationId", corporationId);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Corporation Industry 수정 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Industry 수정 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
 }
