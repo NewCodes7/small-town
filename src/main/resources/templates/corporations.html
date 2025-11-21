@@ -51,23 +51,52 @@
             <div class="search-row">
                 <!-- Filter Toggle -->
                 <div class="filter-toggle-container">
-                    <a th:href="@{/corporations(search=${currentSearch}, filter='all')}"
+                    <a th:href="@{/corporations(search=${currentSearch}, filter='all', industries=${selectedIndustries})}"
                        th:class="${currentFilter == 'all' || currentFilter == null} ? 'filter-toggle-btn active' : 'filter-toggle-btn'">
                         <i class="fas fa-th-large me-1"></i>전체
                     </a>
-                    <a th:href="@{/corporations(search=${currentSearch}, filter='blog')}"
+                    <a th:href="@{/corporations(search=${currentSearch}, filter='blog', industries=${selectedIndustries})}"
                        th:class="${currentFilter == 'blog'} ? 'filter-toggle-btn active' : 'filter-toggle-btn'">
                         <i class="fas fa-blog me-1"></i>블로그
                     </a>
-                    <a th:href="@{/corporations(search=${currentSearch}, filter='youtube')}"
+                    <a th:href="@{/corporations(search=${currentSearch}, filter='youtube', industries=${selectedIndustries})}"
                        th:class="${currentFilter == 'youtube'} ? 'filter-toggle-btn active' : 'filter-toggle-btn'">
                         <i class="fab fa-youtube me-1"></i>유튜브
                     </a>
                 </div>
 
+                <!-- Industry Filter Dropdown -->
+                <div class="industry-filter-dropdown">
+                    <button class="filter-toggle-btn industry-filter-btn" type="button" id="industryDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-industry me-1"></i>
+                        <span>카테고리</span>
+                        <i class="fas fa-chevron-down ms-1" style="font-size: 0.7rem;"></i>
+                    </button>
+                    <ul class="dropdown-menu modern-dropdown" aria-labelledby="industryDropdown" id="industryDropdownMenu">
+                        <th:block th:each="industry : ${allIndustries}">
+                            <li>
+                                <div class="dropdown-item category-item">
+                                    <input type="checkbox"
+                                           class="category-checkbox"
+                                           th:id="'industry-' + ${industry.id}"
+                                           th:value="${industry.id}"
+                                           th:checked="${selectedIndustries != null && selectedIndustries.contains(industry.id)}">
+                                    <label th:for="'industry-' + ${industry.id}"
+                                           class="category-label">
+                                        <span class="category-name" th:text="${industry.name}">Industry Name</span>
+                                    </label>
+                                </div>
+                            </li>
+                        </th:block>
+                    </ul>
+                </div>
+
                 <!-- Search Form -->
                 <form method="get" action="" class="search-form-inline">
                     <input type="hidden" name="filter" th:value="${currentFilter}">
+                    <th:block th:if="${selectedIndustries != null}" th:each="industryId : ${selectedIndustries}">
+                        <input type="hidden" name="industries" th:value="${industryId}">
+                    </th:block>
                     <div class="input-group">
                         <span class="input-group-text" style="background: var(--secondary-green); border: 2px solid var(--border-light); color: var(--primary-green-dark);">
                             <i class="fas fa-search"></i>
@@ -79,6 +108,20 @@
                         </button>
                     </div>
                 </form>
+            </div>
+
+            <!-- Selected Industries Row -->
+            <div class="selected-categories-row" id="selectedIndustriesGroup" th:style="${selectedIndustries != null && !selectedIndustries.isEmpty()} ? '' : 'display: none;'">
+                <div id="selectedIndustriesList" class="selected-categories-inline">
+                    <th:block th:if="${selectedIndustries != null}" th:each="industryId : ${selectedIndustries}">
+                        <th:block th:each="industry : ${allIndustries}">
+                            <span th:if="${industry.id == industryId}" class="selected-category-block" th:attr="data-industry-id=${industryId}">
+                                <span th:text="${industry.name}">Industry</span>
+                                <button type="button" class="remove-category-btn" th:onclick="'removeIndustry(' + ${industryId} + ')'">&times;</button>
+                            </span>
+                        </th:block>
+                    </th:block>
+                </div>
             </div>
         </div>
 
@@ -105,11 +148,16 @@
 
                         <!-- Industry Tags -->
                         <div class="industry-tags" th:if="${corp.industries != null && !corp.industries.isEmpty()}">
-                            <span class="industry-tag"
-                                  th:each="industry, iterStat : ${corp.industries}"
-                                  th:if="${iterStat.index < 3}"
-                                  th:text="${industry}"
-                                  th:attr="data-industry=${industry}">Industry</span>
+                            <th:block th:each="industry, iterStat : ${corp.industries}">
+                                <th:block th:if="${iterStat.index < 3}">
+                                    <th:block th:each="allInd, allIterStat : ${allIndustries}">
+                                        <span th:if="${allInd.name == industry}"
+                                              class="industry-tag"
+                                              th:text="${industry}"
+                                              th:attr="data-industry=${industry}, data-color-index=${(allIterStat.index % 10) + 1}">Industry</span>
+                                    </th:block>
+                                </th:block>
+                            </th:block>
                             <span class="industry-tag more-tag"
                                   th:if="${corp.industries.size() > 3}"
                                   th:text="'+' + ${corp.industries.size() - 3}">+2</span>
@@ -200,7 +248,7 @@
                 <!-- Previous Button -->
                 <li class="page-item" th:class="${!hasPrevious} ? 'page-item disabled' : 'page-item'">
                     <a class="page-link"
-                       th:href="@{/corporations(page=${currentPage - 1}, search=${currentSearch}, filter=${currentFilter})}">
+                       th:href="@{/corporations(page=${currentPage - 1}, search=${currentSearch}, filter=${currentFilter}, industries=${selectedIndustries})}">
                         <i class="fas fa-chevron-left me-1"></i>이전
                     </a>
                 </li>
@@ -210,14 +258,14 @@
                     th:each="pageNum : ${#numbers.sequence(0, T(java.lang.Math).min(totalPages - 1, 4))}"
                     th:class="${pageNum == currentPage} ? 'page-item active' : 'page-item'">
                     <a class="page-link"
-                       th:href="@{/corporations(page=${pageNum}, search=${currentSearch}, filter=${currentFilter})}"
+                       th:href="@{/corporations(page=${pageNum}, search=${currentSearch}, filter=${currentFilter}, industries=${selectedIndustries})}"
                        th:text="${pageNum + 1}">1</a>
                 </li>
 
                 <!-- Next Button -->
                 <li class="page-item" th:class="${!hasNext} ? 'page-item disabled' : 'page-item'">
                     <a class="page-link"
-                       th:href="@{/corporations(page=${currentPage + 1}, search=${currentSearch}, filter=${currentFilter})}">
+                       th:href="@{/corporations(page=${currentPage + 1}, search=${currentSearch}, filter=${currentFilter}, industries=${selectedIndustries})}">
                         다음<i class="fas fa-chevron-right ms-1"></i>
                     </a>
                 </li>

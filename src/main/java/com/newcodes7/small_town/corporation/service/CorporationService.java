@@ -21,6 +21,7 @@ import com.newcodes7.small_town.corporation.exception.DuplicateCorporationNameEx
 import com.newcodes7.small_town.corporation.exception.IndustryNotFoundException;
 import com.newcodes7.small_town.corporation.exception.InvalidParameterException;
 import com.newcodes7.small_town.corporation.repository.CorporationRepository;
+import com.newcodes7.small_town.corporation.repository.CorporationSpecification;
 import com.newcodes7.small_town.corporation.repository.IndustryRepository;
 import com.newcodes7.small_town.crawler.entity.ParsingSelector;
 import com.newcodes7.small_town.crawler.repository.ParsingSelectorRepository;
@@ -44,45 +45,23 @@ public class CorporationService {
     private final NginxCachePurgeService nginxCachePurgeService;
     private final YouTubeService youtubeService;
     
-    public Page<CorporationResponseDto> getAllCorporations(Pageable pageable) {
-        return corporationRepository.findAllActive(pageable)
-                .map(CorporationResponseDto::from);
-    }
-    
-    public Page<CorporationResponseDto> searchCorporations(String name, Pageable pageable) {
-        if (name == null || name.trim().isEmpty()) {
-            throw new InvalidParameterException("name", name, "검색어는 비어있을 수 없습니다");
-        }
-        return corporationRepository.findByNameContainingAndDeletedAtIsNull(name, pageable)
-                .map(CorporationResponseDto::from);
-    }
-
-    public Page<CorporationResponseDto> getCorporationsWithBlog(Pageable pageable) {
-        return corporationRepository.findAllActiveWithBlog(pageable)
-                .map(CorporationResponseDto::from);
-    }
-
-    public Page<CorporationResponseDto> getCorporationsWithYoutube(Pageable pageable) {
-        return corporationRepository.findAllActiveWithYoutube(pageable)
-                .map(CorporationResponseDto::from);
+    /**
+     * 통합 필터링 메서드
+     * 검색어, 필터 타입(blog/youtube/all), Industry 필터를 하나의 쿼리로 처리합니다.
+     *
+     * @param search 검색어 (null 가능)
+     * @param filter 필터 타입 ("all", "blog", "youtube", null)
+     * @param industryIds Industry ID 리스트 (null 또는 빈 리스트 가능)
+     * @param pageable 페이징 정보
+     * @return 필터링된 Corporation 페이지
+     */
+    public Page<CorporationResponseDto> getCorporationsWithFilters(String search, String filter, List<Integer> industryIds, Pageable pageable) {
+        return corporationRepository.findAll(
+                CorporationSpecification.withFilters(search, filter, industryIds),
+                pageable
+        ).map(CorporationResponseDto::from);
     }
 
-    public Page<CorporationResponseDto> searchCorporationsWithBlog(String name, Pageable pageable) {
-        if (name == null || name.trim().isEmpty()) {
-            throw new InvalidParameterException("name", name, "검색어는 비어있을 수 없습니다");
-        }
-        return corporationRepository.findByNameContainingWithBlog(name, pageable)
-                .map(CorporationResponseDto::from);
-    }
-
-    public Page<CorporationResponseDto> searchCorporationsWithYoutube(String name, Pageable pageable) {
-        if (name == null || name.trim().isEmpty()) {
-            throw new InvalidParameterException("name", name, "검색어는 비어있을 수 없습니다");
-        }
-        return corporationRepository.findByNameContainingWithYoutube(name, pageable)
-                .map(CorporationResponseDto::from);
-    }
-    
     public CorporationResponseDto getCorporationById(Long id) {
         if (id == null || id <= 0) {
             throw new InvalidParameterException("id", id);

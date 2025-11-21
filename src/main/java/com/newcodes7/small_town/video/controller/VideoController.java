@@ -64,7 +64,7 @@ public class VideoController {
                  keyword, regions, videos.getTotalElements());
 
         // 회사 목록 가져오기 (YouTube 채널이 있는 회사만)
-        Page<CorporationResponseDto> corporations = corporationService.getAllCorporations(PageRequest.of(0, 50));
+        Page<CorporationResponseDto> corporations = corporationService.getCorporationsWithFilters(null, null, null, PageRequest.of(0, 50));
         List<CorporationResponseDto> corporationsWithYouTube = corporations.getContent().stream()
             .filter(corp -> corp.getYoutubeUrl() != null && !corp.getYoutubeUrl().isEmpty())
             .limit(20)

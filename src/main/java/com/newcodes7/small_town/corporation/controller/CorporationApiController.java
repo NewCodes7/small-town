@@ -31,14 +31,10 @@ public class CorporationApiController {
             @RequestParam(required = false) String search) {
         
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        Page<CorporationResponseDto> corporations;
-        
-        if (search != null && !search.trim().isEmpty()) {
-            corporations = corporationService.searchCorporations(search, pageable);
-        } else {
-            corporations = corporationService.getAllCorporations(pageable);
-        }
-        
+
+        // 통합 필터링 메서드 사용
+        Page<CorporationResponseDto> corporations = corporationService.getCorporationsWithFilters(search, null, null, pageable);
+
         return ResponseEntity.ok(corporations);
     }
     

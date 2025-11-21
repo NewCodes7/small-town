@@ -34,6 +34,8 @@ import com.newcodes7.small_town.article.service.ViewService;
 import com.newcodes7.small_town.auth.entity.User;
 import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
 import com.newcodes7.small_town.corporation.service.CorporationService;
+import com.newcodes7.small_town.corporation.entity.Industry;
+import com.newcodes7.small_town.corporation.repository.IndustryRepository;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.entity.Category;
@@ -62,6 +64,7 @@ public class ArticleController {
     private final CorporationService corporationService;
     private final CategoryRepository categoryRepository;
     private final VideoRepository videoRepository;
+    private final IndustryRepository industryRepository;
 
     @GetMapping({"", "/"})
     public String home(
@@ -88,7 +91,7 @@ public class ArticleController {
                  keyword, regions, articles.getTotalElements());
 
         // 회사 목록 가져오기 (모든 회사 포함)
-        Page<CorporationResponseDto> corporations = corporationService.getAllCorporations(PageRequest.of(0, 50));
+        Page<CorporationResponseDto> corporations = corporationService.getCorporationsWithFilters(null, null, null, PageRequest.of(0, 50));
         List<CorporationResponseDto> corporationsWithLogos = corporations.getContent().stream()
             .limit(20)
             .toList();
@@ -283,29 +286,13 @@ public class ArticleController {
             @RequestParam(defaultValue = "12") int size,
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "all") String filter,
+            @RequestParam(required = false) List<Integer> industries,
             Model model) {
 
-        Page<CorporationResponseDto> corporations;
-
-        if (search != null && !search.trim().isEmpty()) {
-            // 검색어가 있는 경우
-            if ("blog".equals(filter)) {
-                corporations = corporationService.searchCorporationsWithBlog(search.trim(), PageRequest.of(page, size));
-            } else if ("youtube".equals(filter)) {
-                corporations = corporationService.searchCorporationsWithYoutube(search.trim(), PageRequest.of(page, size));
-            } else {
-                corporations = corporationService.searchCorporations(search.trim(), PageRequest.of(page, size));
-            }
-        } else {
-            // 검색어가 없는 경우
-            if ("blog".equals(filter)) {
-                corporations = corporationService.getCorporationsWithBlog(PageRequest.of(page, size));
-            } else if ("youtube".equals(filter)) {
-                corporations = corporationService.getCorporationsWithYoutube(PageRequest.of(page, size));
-            } else {
-                corporations = corporationService.getAllCorporations(PageRequest.of(page, size));
-            }
-        }
+        // 통합 필터링 메서드 호출
+        Page<CorporationResponseDto> corporations = corporationService.getCorporationsWithFilters(
+                search, filter, industries, PageRequest.of(page, size)
+        );
         
         // Statistics
         long totalCorporations = corporationService.getTotalCorporationCount();
@@ -315,6 +302,9 @@ public class ArticleController {
         long domesticCount = totalCorporations;
         long overseasCount = 0;
         
+        // Industry 목록 조회
+        List<Industry> allIndustries = industryRepository.findAll();
+
         model.addAttribute("corporations", corporations);
         model.addAttribute("currentPage", page);
         model.addAttribute("totalPages", corporations.getTotalPages());
@@ -323,6 +313,8 @@ public class ArticleController {
         model.addAttribute("hasPrevious", corporations.hasPrevious());
         model.addAttribute("currentSearch", search);
         model.addAttribute("currentFilter", filter);
+        model.addAttribute("selectedIndustries", industries);
+        model.addAttribute("allIndustries", allIndustries);
 
         // Statistics
         model.addAttribute("totalCorporations", totalCorporations);

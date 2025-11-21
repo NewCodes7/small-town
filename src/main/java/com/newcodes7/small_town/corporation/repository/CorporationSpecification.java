@@ -1,0 +1,68 @@
+package com.newcodes7.small_town.corporation.repository;
+
+import com.newcodes7.small_town.corporation.entity.CorporationIndustry;
+import com.newcodes7.small_town.global.entity.Corporation;
+import jakarta.persistence.criteria.*;
+import org.springframework.data.jpa.domain.Specification;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Corporation 엔티티에 대한 동적 쿼리를 생성하는 Specification 클래스
+ */
+public class CorporationSpecification {
+
+    /**
+     * 다양한 필터 조건을 조합하여 Specification 생성
+     *
+     * @param search 검색어 (기업명)
+     * @param filter 필터 타입 ("all", "blog", "youtube")
+     * @param industryIds Industry ID 리스트
+     * @return 조합된 Specification
+     */
+    public static Specification<Corporation> withFilters(String search, String filter, List<Integer> industryIds) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            // 소프트 삭제되지 않은 것만 조회
+            predicates.add(criteriaBuilder.isNull(root.get("deletedAt")));
+
+            // 검색어 필터
+            if (search != null && !search.trim().isEmpty()) {
+                predicates.add(criteriaBuilder.like(
+                    root.get("name"),
+                    "%" + search.trim() + "%"
+                ));
+            }
+
+            // 블로그/유튜브 필터
+            if ("blog".equals(filter)) {
+                predicates.add(criteriaBuilder.isNotNull(root.get("blogLink")));
+                predicates.add(criteriaBuilder.notEqual(root.get("blogLink"), ""));
+            } else if ("youtube".equals(filter)) {
+                predicates.add(criteriaBuilder.isNotNull(root.get("youtubeUrl")));
+                predicates.add(criteriaBuilder.notEqual(root.get("youtubeUrl"), ""));
+            }
+
+            // Industry 필터
+            if (industryIds != null && !industryIds.isEmpty()) {
+                // JOIN을 통한 Industry 필터링
+                Join<Corporation, CorporationIndustry> corporationIndustryJoin =
+                    root.join("corporationIndustries", JoinType.INNER);
+                predicates.add(corporationIndustryJoin.get("industry").get("id").in(industryIds));
+
+                // DISTINCT 설정 (중복 제거)
+                query.distinct(true);
+            }
+
+            // EntityGraph 대신 Fetch Join 사용 (N+1 문제 해결)
+            // count 쿼리가 아닐 때만 fetch join 적용
+            if (query.getResultType() != Long.class && query.getResultType() != long.class) {
+                root.fetch("corporationIndustries", JoinType.LEFT).fetch("industry", JoinType.LEFT);
+            }
+
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
+    }
+}

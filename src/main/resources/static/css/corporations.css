@@ -142,79 +142,75 @@
     }
 }
 
-/* Industry 색상 테마 - Notion 스타일 */
-.industry-tag[data-industry*="IT"],
-.industry-tag[data-industry*="서비스"],
-.industry-tag[data-industry*="테크"] {
-    background: #EDE9FE;
-    color: #5B21B6;
-    border-color: #DDD6FE;
-}
-
-.industry-tag[data-industry*="AI"] {
-    background: #FCE7F3;
-    color: #BE185D;
-    border-color: #FBCFE8;
-}
-
-.industry-tag[data-industry*="커머스"],
-.industry-tag[data-industry*="이커머스"],
-.industry-tag[data-industry*="쇼핑"] {
-    background: #DBEAFE;
+/* Industry 색상 테마 - Industry 순서에 따라 고정된 색상 부여 */
+/* 1번째 Industry - 파랑 */
+.industry-tag[data-color-index="1"] {
+    background: #BFDBFE;
     color: #1E40AF;
-    border-color: #BFDBFE;
+    border-color: #93C5FD;
 }
 
-.industry-tag[data-industry*="핀테크"],
-.industry-tag[data-industry*="금융"],
-.industry-tag[data-industry*="결제"] {
-    background: #D1FAE5;
+/* 2번째 Industry - 민트 */
+.industry-tag[data-color-index="2"] {
+    background: #A7F3D0;
     color: #065F46;
-    border-color: #A7F3D0;
+    border-color: #6EE7B7;
 }
 
-.industry-tag[data-industry*="게임"],
-.industry-tag[data-industry*="엔터"] {
-    background: #FEF3C7;
-    color: #92400E;
-    border-color: #FDE68A;
-}
-
-.industry-tag[data-industry*="모빌리티"],
-.industry-tag[data-industry*="자동차"],
-.industry-tag[data-industry*="교통"] {
-    background: #E0E7FF;
-    color: #3730A3;
-    border-color: #C7D2FE;
-}
-
-.industry-tag[data-industry*="교육"],
-.industry-tag[data-industry*="에듀"] {
-    background: #FEE2E2;
-    color: #991B1B;
-    border-color: #FECACA;
-}
-
-.industry-tag[data-industry*="헬스케어"],
-.industry-tag[data-industry*="의료"],
-.industry-tag[data-industry*="바이오"] {
-    background: #FED7AA;
+/* 3번째 Industry - 주황 */
+.industry-tag[data-color-index="3"] {
+    background: #FDBA74;
     color: #9A3412;
-    border-color: #FDBA74;
+    border-color: #FB923C;
 }
 
-.industry-tag[data-industry*="미디어"],
-.industry-tag[data-industry*="콘텐츠"] {
+/* 4번째 Industry - 핑크 */
+.industry-tag[data-color-index="4"] {
     background: #FBCFE8;
-    color: #9F1239;
+    color: #BE185D;
     border-color: #F9A8D4;
 }
 
-/* 기본 색상 (위 조건에 해당하지 않는 경우) */
-.industry-tag:not([data-industry*="IT"]):not([data-industry*="플랫폼"]):not([data-industry*="커머스"]):not([data-industry*="핀테크"]):not([data-industry*="게임"]):not([data-industry*="모빌리티"]):not([data-industry*="교육"]):not([data-industry*="헬스케어"]):not([data-industry*="미디어"]):not([data-industry*="소프트웨어"]):not([data-industry*="테크"]):not([data-industry*="서비스"]):not([data-industry*="이커머스"]):not([data-industry*="쇼핑"]):not([data-industry*="금융"]):not([data-industry*="결제"]):not([data-industry*="엔터"]):not([data-industry*="자동차"]):not([data-industry*="교통"]):not([data-industry*="에듀"]):not([data-industry*="의료"]):not([data-industry*="바이오"]):not([data-industry*="콘텐츠"]) {
-    background: #DCFCE7;
+/* 5번째 Industry - 노랑 */
+.industry-tag[data-color-index="5"] {
+    background: #FDE68A;
+    color: #92400E;
+    border-color: #FCD34D;
+}
+
+/* 6번째 Industry - 청록 */
+.industry-tag[data-color-index="6"] {
+    background: #99F6E4;
+    color: #115E59;
+    border-color: #5EEAD4;
+}
+
+/* 7번째 Industry - 보라 */
+.industry-tag[data-color-index="7"] {
+    background: #DDD6FE;
+    color: #5B21B6;
+    border-color: #C4B5FD;
+}
+
+/* 8번째 Industry - 빨강 */
+.industry-tag[data-color-index="8"] {
+    background: #FECACA;
+    color: #991B1B;
+    border-color: #FCA5A5;
+}
+
+/* 9번째 Industry - 라임 */
+.industry-tag[data-color-index="9"] {
+    background: #D9F99D;
+    color: #3F6212;
+    border-color: #BEF264;
+}
+
+/* 10번째 Industry - 초록 */
+.industry-tag[data-color-index="10"] {
+    background: #BBF7D0;
     color: #166534;
-    border-color: #BBF7D0;
+    border-color: #86EFAC;
 }
 
 .more-tag {
@@ -282,6 +278,175 @@
     padding: 24px;
     margin-bottom: 32px;
     border: 2px solid var(--border-light);
+}
+
+/* Industry Filter Styles */
+.industry-filter-dropdown {
+    position: relative;
+}
+
+.industry-filter-btn {
+    color: var(--text-dark) !important;
+    background: var(--secondary-green);
+    border: 2px solid var(--border-light);
+    position: relative;
+    padding: 8px 16px !important;
+    height: 49.75px;
+}
+
+.industry-filter-btn:hover {
+    color: var(--primary-green) !important;
+    background: var(--secondary-green) !important;
+    border-color: var(--primary-green) !important;
+}
+
+.industry-filter-btn[aria-expanded="true"] {
+    color: var(--primary-green) !important;
+    background: var(--secondary-green) !important;
+    border-color: var(--primary-green) !important;
+}
+
+.industry-filter-btn i.fa-chevron-down {
+    transition: transform 0.3s ease;
+    opacity: 0.7;
+    margin-left: 4px;
+}
+
+.industry-filter-btn[aria-expanded="true"] i.fa-chevron-down {
+    transform: rotate(180deg);
+}
+
+.modern-dropdown {
+    width: auto;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(3, 199, 90, 0.12),
+                0 8px 24px rgba(0, 0, 0, 0.08);
+    border: 2px solid var(--border-light);
+    padding: 12px 8px;
+    background: white;
+    backdrop-filter: blur(10px);
+    margin-top: 8px;
+}
+
+.category-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 12px;
+    margin: 4px 0;
+    position: relative;
+}
+
+.category-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 0;
+    background: linear-gradient(180deg, var(--primary-green) 0%, #02b36a 100%);
+    border-radius: 0 2px 2px 0;
+    transition: height 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.category-item:hover {
+    background: linear-gradient(135deg, var(--secondary-green) 0%, rgba(240, 248, 240, 0.7) 100%);
+    padding-left: 20px;
+}
+
+.category-item:hover::before {
+    height: 70%;
+}
+
+.category-item:active {
+    transform: scale(0.98);
+}
+
+.category-checkbox {
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    min-height: 20px;
+    margin-right: 14px;
+    cursor: pointer;
+    accent-color: var(--primary-green);
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.category-checkbox:hover {
+    transform: scale(1.1);
+}
+
+.category-checkbox:checked {
+    filter: drop-shadow(0 2px 4px rgba(3, 199, 90, 0.3));
+}
+
+.category-label {
+    flex: 1;
+    cursor: pointer;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.category-name {
+    font-weight: 600;
+    color: var(--text-dark);
+    font-size: 0.9rem;
+    letter-spacing: -0.01em;
+    transition: color 0.2s ease;
+    white-space: nowrap;
+}
+
+.category-item:hover .category-name {
+    color: var(--primary-green);
+}
+
+/* Selected Categories/Industries */
+.selected-categories-row {
+    margin-top: 20px;
+    margin-bottom: 0;
+}
+
+.selected-categories-inline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.selected-category-block {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: var(--secondary-green);
+    border: 2px solid var(--primary-green);
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--primary-green);
+}
+
+.remove-category-btn {
+    background: none;
+    border: none;
+    color: var(--primary-green);
+    font-size: 1.2rem;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    transition: color 0.2s ease;
+}
+
+.remove-category-btn:hover {
+    color: #dc3545;
 }
 
 /* Search Row - 한 행 배치 */

@@ -184,3 +184,80 @@ if (searchKeyword) {
         }
     });
 }
+
+// Industry 필터링
+let selectedIndustries = new Set();
+
+// 현재 URL에서 선택된 industry 가져오기
+function initSelectedIndustries() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const industries = urlParams.getAll('industries');
+    selectedIndustries = new Set(industries.map(id => parseInt(id)));
+    updateIndustryCheckboxes();
+}
+
+// Checkbox 상태 업데이트
+function updateIndustryCheckboxes() {
+    document.querySelectorAll('.category-checkbox').forEach(checkbox => {
+        const industryId = parseInt(checkbox.value);
+        checkbox.checked = selectedIndustries.has(industryId);
+    });
+}
+
+// Checkbox 클릭 이벤트
+document.addEventListener('DOMContentLoaded', function() {
+    initSelectedIndustries();
+
+    // Checkbox 이벤트 리스너
+    document.querySelectorAll('.category-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const industryId = parseInt(this.value);
+            if (this.checked) {
+                selectedIndustries.add(industryId);
+            } else {
+                selectedIndustries.delete(industryId);
+            }
+            applyIndustryFilter();
+        });
+    });
+
+    // Industry 드롭다운 width 동적 조정 (콘텐츠에 맞춰)
+    const industryDropdown = document.getElementById('industryDropdown');
+    const industryDropdownMenu = document.getElementById('industryDropdownMenu');
+
+    if (industryDropdown && industryDropdownMenu) {
+        // 드롭다운이 열릴 때 자동으로 width 조정 (콘텐츠에 맞춤)
+        industryDropdown.addEventListener('show.bs.dropdown', function() {
+            // 버튼 width를 최소값으로 설정
+            const buttonWidth = this.offsetWidth;
+            industryDropdownMenu.style.minWidth = buttonWidth + 'px';
+            // width는 auto로 설정하여 콘텐츠에 맞춰 확장되도록
+            industryDropdownMenu.style.width = 'auto';
+        });
+    }
+});
+
+// Industry 필터 적용
+function applyIndustryFilter() {
+    const urlParams = new URLSearchParams(window.location.search);
+
+    // 기존 industries 파라미터 제거
+    urlParams.delete('industries');
+
+    // 새로운 industries 파라미터 추가
+    selectedIndustries.forEach(id => {
+        urlParams.append('industries', id);
+    });
+
+    // 페이지를 0으로 리셋
+    urlParams.set('page', '0');
+
+    // 페이지 리로드
+    window.location.href = `${window.location.pathname}?${urlParams.toString()}`;
+}
+
+// Industry 제거
+function removeIndustry(industryId) {
+    selectedIndustries.delete(industryId);
+    applyIndustryFilter();
+}
