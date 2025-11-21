@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -852,6 +853,54 @@ public class AdminController {
             log.error("Industry 생성 중 오류 발생: {}", e.getMessage(), e);
             response.put("success", false);
             response.put("message", "Industry 생성 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * Industry 삭제 API
+     * Industry를 삭제하면 cascade로 해당 Industry를 사용하는 모든 기업에서 자동으로 제거됩니다.
+     */
+    @DeleteMapping("/industries/{id}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> deleteIndustry(@PathVariable Integer id) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // Industry 존재 확인
+            com.newcodes7.small_town.corporation.entity.Industry industry =
+                industryRepository.findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 Industry입니다. ID: " + id));
+
+            // Industry를 사용하는 기업 수 확인
+            int corporationCount = industry.getCorporationIndustries().size();
+
+            log.info("Industry 삭제 시작 - ID: {}, 이름: {}, 연결된 기업 수: {}",
+                     id, industry.getName(), corporationCount);
+
+            // Industry 삭제 (cascade로 CorporationIndustry도 자동 삭제됨)
+            industryRepository.delete(industry);
+
+            response.put("success", true);
+            response.put("message", String.format("Industry '%s'가 성공적으로 삭제되었습니다. (%d개 기업에서 제거됨)",
+                                                   industry.getName(), corporationCount));
+            response.put("deletedIndustryName", industry.getName());
+            response.put("affectedCorporationCount", corporationCount);
+
+            log.info("Industry 삭제 완료 - ID: {}, 이름: {}", id, industry.getName());
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            log.warn("Industry 삭제 실패 - 존재하지 않는 ID: {}", id);
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+
+        } catch (Exception e) {
+            log.error("Industry 삭제 중 오류 발생 - ID: {}, 오류: {}", id, e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Industry 삭제 중 오류가 발생했습니다: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
     }

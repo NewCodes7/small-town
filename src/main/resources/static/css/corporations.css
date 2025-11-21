@@ -532,6 +532,39 @@
     transform: rotate(15deg);
 }
 
+/* Industry Item with Delete Button */
+.industry-item {
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: background 0.2s ease;
+}
+
+.industry-item:hover {
+    background: #f8f9fa;
+}
+
+.delete-industry-btn {
+    opacity: 0;
+    transition: all 0.3s ease;
+    padding: 4px 8px;
+    font-size: 0.85rem;
+    border: 1px solid #dc3545;
+}
+
+.industry-item:hover .delete-industry-btn {
+    opacity: 1;
+}
+
+.delete-industry-btn:hover {
+    background: #dc3545;
+    color: white;
+    transform: scale(1.05);
+}
+
+.delete-industry-btn i {
+    font-size: 0.8rem;
+}
+
 @media (max-width: 768px) {
     .corp-title {
         font-size: 2rem;

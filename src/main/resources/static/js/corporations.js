@@ -48,13 +48,20 @@ function openIndustryEditModal(corporationId, corporationName, currentIndustries
     allIndustries.forEach(industry => {
         const isChecked = currentIndustries.includes(industry.name);
         const div = document.createElement('div');
-        div.className = 'form-check mb-2';
+        div.className = 'form-check mb-2 d-flex align-items-center justify-content-between industry-item';
         div.innerHTML = `
-            <input class="form-check-input" type="checkbox" value="${industry.id}"
-                   id="industry-${industry.id}" ${isChecked ? 'checked' : ''}>
-            <label class="form-check-label" for="industry-${industry.id}">
-                ${industry.name}
-            </label>
+            <div class="d-flex align-items-center">
+                <input class="form-check-input" type="checkbox" value="${industry.id}"
+                       id="industry-${industry.id}" ${isChecked ? 'checked' : ''}>
+                <label class="form-check-label ms-2" for="industry-${industry.id}">
+                    ${industry.name}
+                </label>
+            </div>
+            <button class="btn btn-sm btn-outline-danger delete-industry-btn"
+                    onclick="deleteIndustryFromModal(${industry.id}, '${industry.name}')"
+                    title="Industry 삭제">
+                <i class="fas fa-trash-alt"></i>
+            </button>
         `;
         industryCheckboxes.appendChild(div);
     });
@@ -260,4 +267,50 @@ function applyIndustryFilter() {
 function removeIndustry(industryId) {
     selectedIndustries.delete(industryId);
     applyIndustryFilter();
+}
+
+// Industry 삭제 (Admin 전용)
+async function deleteIndustryFromModal(industryId, industryName) {
+    // 확인 대화상자
+    const confirmed = confirm(
+        `정말로 Industry "${industryName}"을(를) 삭제하시겠습니까?\n\n` +
+        `이 Industry를 사용하는 모든 기업에서 자동으로 제거됩니다.\n` +
+        `이 작업은 되돌릴 수 없습니다.`
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/admin/industries/${industryId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert(data.message);
+
+            // Industry 목록 다시 로드
+            await loadIndustries();
+
+            // 모달 닫기
+            const modal = bootstrap.Modal.getInstance(document.getElementById('industryEditModal'));
+            if (modal) {
+                modal.hide();
+            }
+
+            // 페이지 새로고침
+            location.reload();
+        } else {
+            alert('오류: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Industry 삭제 실패:', error);
+        alert('Industry 삭제 중 오류가 발생했습니다.');
+    }
 }
