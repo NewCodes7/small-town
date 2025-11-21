@@ -1,11 +1,18 @@
 package com.newcodes7.small_town.crawler.service;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.newcodes7.small_town.crawler.dto.ArticleAnalysisResponse;
 import com.newcodes7.small_town.crawler.repository.CategoryRepository;
 import com.newcodes7.small_town.crawler.repository.CrawlerVideoRepository;
+import com.newcodes7.small_town.global.annotation.CachePreload;
 import com.newcodes7.small_town.global.entity.Category;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.entity.Video;
@@ -27,7 +34,7 @@ public class VideoPersistenceService {
     private final OpenaiService openaiService;
 
     /**
-     * Video 저장 (이미지 업로드 및 제목 번역 포함)
+     * Video 저장 (이미지 업로드, 제목 번역, AI 분석 포함)
      *
      * @param video 저장할 비디오
      * @param corporation 기업 정보
@@ -35,16 +42,49 @@ public class VideoPersistenceService {
      */
     @Transactional
     @CacheEvict(value = "corporationVideos", allEntries = true)
+    @CachePreload
     public void saveVideoWithTranslation(Video video, Corporation corporation, VideoCrawler videoCrawler) {
         // 이미지 업로드 처리
         videoCrawler.processImageUpload(video, corporation);
 
+        // Video 저장
+        crawlerVideoRepository.save(video);
+
         // 해외 기업의 영어 제목 자동 번역
         translateVideoTitleIfNeeded(video, corporation);
 
-        // Video 저장
-        crawlerVideoRepository.save(video);
+        // OpenAI 분석 및 카테고리 저장 (실패 시 video는 유지)
+        try {
+            ArticleAnalysisResponse openAiResponse = openaiService.sendVideoAnalysis(video);
+            Category category = categoryRepository.findByName(openAiResponse.getCategory())
+                                .orElseGet(() -> categoryRepository.save(openAiResponse.toCategoryEntity()));
+            video.setCategory(category);
+            crawlerVideoRepository.save(video);
+            log.debug("Video OpenAI 분석 완료 - Video: {}, Category: {}", video.getTitle(), category.getName());
+        } catch (Exception e) {
+            log.warn("Video OpenAI 분석 실패 - Video: {}, 오류: {}", video.getTitle(), e.getMessage());
+        }
+
         log.info("비디오 저장 완료 - 제목: {}, 기업: {}", video.getTitle(), corporation.getName());
+    }
+
+    /**
+     * 개별 비디오에 대한 AI 분석 (개별 트랜잭션)
+     */
+    @Transactional
+    @CacheEvict(value = "corporationVideos", allEntries = true)
+    @CachePreload
+    public void analyzeSingleVideo(Video video) throws Exception {
+        // OpenAI로 분석 요청
+        ArticleAnalysisResponse openAiResponse = openaiService.sendVideoAnalysis(video);
+
+        // 카테고리 저장 (기존 카테고리가 있다면 재사용)
+        Category category = categoryRepository.findByName(openAiResponse.getCategory())
+                            .orElseGet(() -> categoryRepository.save(openAiResponse.toCategoryEntity()));
+        video.setCategory(category);
+
+        // 변경사항 저장
+        crawlerVideoRepository.save(video);
     }
 
     /**
@@ -177,6 +217,63 @@ public class VideoPersistenceService {
         video.softDelete();
         crawlerVideoRepository.save(video);
         log.info("비디오 삭제 완료 - ID: {}", videoId);
+    }
+
+    /**
+     * 기존 비디오들에 대한 AI 분석 실행
+     */
+    public Map<String, Object> analyzeExistingVideos() {
+        Map<String, Object> result = new HashMap<>();
+
+        // AI 분석이 완료되지 않은 비디오들 조회
+        List<Video> unanalyzedVideos = crawlerVideoRepository.findUnanalyzedVideos();
+
+        log.info("AI 분석 대상 비디오 수: {}개", unanalyzedVideos.size());
+        result.put("totalUnanalyzedVideos", unanalyzedVideos.size());
+
+        if (unanalyzedVideos.isEmpty()) {
+            result.put("success", true);
+            result.put("message", "분석이 필요한 비디오가 없습니다.");
+            result.put("processedCount", 0);
+            result.put("successCount", 0);
+            result.put("failureCount", 0);
+            return result;
+        }
+
+        int processedCount = 0;
+        int successCount = 0;
+        int failureCount = 0;
+        List<String> errors = new ArrayList<>();
+
+        // 순차적으로 AI 분석 진행
+        for (Video video : unanalyzedVideos) {
+            processedCount++;
+            log.info("비디오 AI 분석 진행 중: {} / {} - {}", processedCount, unanalyzedVideos.size(), video.getTitle());
+
+            try {
+                analyzeSingleVideo(video);
+                successCount++;
+                log.info("비디오 AI 분석 완료: {}", video.getTitle());
+            } catch (Exception e) {
+                failureCount++;
+                String errorMsg = String.format("비디오 ID %d (%s) 분석 실패: %s",
+                    video.getId(), video.getTitle(), e.getMessage());
+                errors.add(errorMsg);
+                log.error(errorMsg, e);
+            }
+        }
+
+        result.put("success", true);
+        result.put("message", String.format("비디오 AI 분석 완료. 성공: %d개, 실패: %d개", successCount, failureCount));
+        result.put("processedCount", processedCount);
+        result.put("successCount", successCount);
+        result.put("failureCount", failureCount);
+
+        if (!errors.isEmpty()) {
+            result.put("errors", errors);
+        }
+
+        return result;
     }
 
     /**

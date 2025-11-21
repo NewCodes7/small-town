@@ -22,6 +22,7 @@ import com.newcodes7.small_town.crawler.dto.OpenAiRequest;
 import com.newcodes7.small_town.crawler.dto.OpenAiResponse;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.ArticleSummary;
+import com.newcodes7.small_town.global.entity.Video;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,7 +40,77 @@ public class OpenaiService {
 
     private final RestTemplate restTemplate;
 
-    // 요청 보내는 api
+    /**
+     * Video 분석 요청 (제목 + 설명으로 카테고리 분류)
+     */
+    public ArticleAnalysisResponse sendVideoAnalysis(Video video) throws IOException {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + openaiApiKey);
+        headers.set("Content-Type", "application/json");
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        Object textObject = mapper.readValue(
+            getClass().getResourceAsStream("/articleAnalysisExtraction.txt"),
+            Object.class
+        );
+
+        String instructions = new String(
+            getClass().getResourceAsStream("/articleAnalysisInstruction.txt").readAllBytes(),
+            StandardCharsets.UTF_8
+        );
+
+        // Video는 제목과 설명을 함께 사용하여 분석
+        String input = "제목: " + video.getTitle();
+        if (video.getDescription() != null && !video.getDescription().trim().isEmpty()) {
+            input += "\n설명: " + video.getDescription();
+        }
+
+        OpenAiRequest request = OpenAiRequest.builder()
+                .model(MODEL)
+                .instructions(instructions)
+                .text(textObject)
+                .input(input)
+                .build();
+
+        HttpEntity<OpenAiRequest> entity = new HttpEntity<>(request, headers);
+
+        ResponseEntity<OpenAiResponse> response = restTemplate.exchange(
+                OPENAI_API_URL,
+                HttpMethod.POST,
+                entity,
+                OpenAiResponse.class
+        );
+
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+            log.error("OpenAI API 호출 실패: {}", response.getStatusCode());
+            throw new RuntimeException("Failed to get response from OpenAI API");
+        }
+
+        String responseText = response.getBody().getOnlyResponseText();
+        log.debug("Video {} OpenAI API 응답: {}", video.getTitle(), responseText);
+
+        JsonNode rootNode = mapper.readTree(responseText);
+
+        // Video는 summary를 저장하지 않으므로 빈 리스트
+        List<ArticleSummary> summaries = new ArrayList<>();
+
+        ArticleAnalysisResponse analysisResponse = ArticleAnalysisResponse.builder()
+                    .category(rootNode.get("category").get("name").asText().toLowerCase())
+                    .tags(mapper.convertValue(
+                        rootNode.get("tags"),
+                        new TypeReference<List<String>>() {}
+                    ))
+                    .summaries(summaries)
+                    .build();
+
+        log.info("Video OpenAI API 호출 성공: {}", response.getStatusCode());
+        return analysisResponse;
+    }
+
+    /**
+     * Article 분석 요청
+     */
     public ArticleAnalysisResponse sendArticleAnalysis(Article article) throws IOException {
         HttpHeaders headers = new HttpHeaders();
         headers.set("Authorization", "Bearer " + openaiApiKey);
