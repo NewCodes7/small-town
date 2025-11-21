@@ -318,6 +318,8 @@
 
 .modern-dropdown {
     width: auto;
+    max-height: 300px;
+    overflow-y: auto;
     border-radius: 16px;
     box-shadow: 0 20px 60px rgba(3, 199, 90, 0.12),
                 0 8px 24px rgba(0, 0, 0, 0.08);
@@ -326,6 +328,27 @@
     background: white;
     backdrop-filter: blur(10px);
     margin-top: 8px;
+}
+
+/* 스크롤바 스타일링 */
+.modern-dropdown::-webkit-scrollbar {
+    width: 6px;
+}
+
+.modern-dropdown::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 10px;
+    margin: 8px 0;
+}
+
+.modern-dropdown::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, var(--secondary-green) 0%, #02b36a 100%);
+    border-radius: 10px;
+    transition: background 0.3s ease;
+}
+
+.modern-dropdown::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-green-dark);
 }
 
 .category-item {
