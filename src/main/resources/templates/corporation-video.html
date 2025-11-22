@@ -158,6 +158,16 @@
                 background: linear-gradient(135deg, #FEE2E2 0%, #FFEDED 100%);
             }
 
+            /* Video title clickable styles */
+            .video-title-clickable {
+                transition: color 0.2s ease;
+            }
+
+            .video-title-clickable:hover {
+                color: var(--primary-green) !important;
+                text-decoration: underline !important;
+            }
+
             @media (max-width: 768px) {
                 .video-embed-container {
                     flex: none;
@@ -367,14 +377,22 @@
                         <div class="article-content">
                         <!-- Title -->
                         <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
-                            <a th:href="${video.link}"
+                            <!-- videoId가 있으면 modal로 열기 -->
+                            <span th:if="${video.videoId != null && !video.videoId.isEmpty()}"
+                                  class="text-decoration-none title-link video-title-clickable"
+                                  th:attr="data-video-id=${video.videoId}, data-video-title=${video.translatedTitle != null && !video.translatedTitle.isEmpty() ? video.translatedTitle : video.title}, data-article-id=${video.id}"
+                                  onclick="openVideoModal(this)"
+                                  style="color: inherit; cursor: pointer;">
+                                <span th:text="${video.translatedTitle != null && !video.translatedTitle.isEmpty() ? video.translatedTitle : video.title}">YouTube Title</span>
+                            </span>
+                            <!-- videoId가 없으면 외부 링크로 열기 -->
+                            <a th:unless="${video.videoId != null && !video.videoId.isEmpty()}"
+                               th:href="${video.link}"
                                target="_blank"
                                class="text-decoration-none title-link"
                                style="color: inherit;">
                                <span th:text="${video.translatedTitle != null && !video.translatedTitle.isEmpty() ? video.translatedTitle : video.title}">YouTube Title</span>
-                               <!-- YouTube 영상일 경우 로고 표시 (videoId가 없을 때만) -->
-                               <i th:if="${video.videoId == null or video.videoId.isEmpty()}"
-                                  class="fab fa-youtube ms-2"
+                               <i class="fab fa-youtube ms-2"
                                   style="color: #FF0000; font-size: 1.0em;"
                                   title="YouTube 영상"></i>
                             </a>
@@ -394,7 +412,7 @@
                     <!-- Video Embed Container (Right Side) -->
                     <div class="video-embed-container"
                          th:if="${video.videoId != null && !video.videoId.isEmpty()}"
-                         th:attr="data-video-id=${video.videoId}, data-video-title=${video.translatedTitle != null && !video.translatedTitle.isEmpty() ? video.translatedTitle : video.title}"
+                         th:attr="data-video-id=${video.videoId}, data-video-title=${video.translatedTitle != null && !video.translatedTitle.isEmpty() ? video.translatedTitle : video.title}, data-article-id=${video.id}"
                          onclick="openVideoModal(this)">
                         <!-- YouTube Thumbnail -->
                         <img th:if="${video.thumbnailUrl != null && !video.thumbnailUrl.isEmpty()}"
@@ -542,8 +560,23 @@
             function openVideoModal(element) {
                 const videoId = element.getAttribute('data-video-id');
                 const videoTitle = element.getAttribute('data-video-title');
+                const articleId = element.getAttribute('data-article-id');
                 const modal = document.getElementById('videoModal');
                 const iframe = document.getElementById('modalVideoPlayer');
+
+                // Increment view count
+                if (articleId) {
+                    fetch(`/video/api/videos/${articleId}/view`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'same-origin',
+                        redirect: 'manual'
+                    }).catch(error => {
+                        console.log('조회수 증가 요청 실패:', error);
+                    });
+                }
 
                 // Set iframe src with autoplay
                 iframe.src = `https://www.youtube.com/embed/${videoId}?controls=1&modestbranding=1&rel=0&autoplay=1`;
@@ -575,6 +608,51 @@
                         closeVideoModal({ target: modal });
                     }
                 }
+            });
+
+            // Bind click events to video cards (similar to video.html)
+            function bindVideoCardEvents() {
+                document.querySelectorAll('.video-card').forEach(card => {
+                    card.addEventListener('click', (e) => {
+                        // 관리자 버튼을 클릭한 경우는 기본 동작 허용
+                        if (e.target.closest('.admin-delete-btn') ||
+                            e.target.closest('.admin-edit-btn')) {
+                            return; // 기본 동작 허용
+                        }
+
+                        // 이미 클릭 가능한 요소인 경우 중복 방지
+                        if (e.target.closest('.video-embed-container') ||
+                            e.target.closest('.video-title-clickable')) {
+                            return; // 이미 자체 클릭 핸들러가 있음
+                        }
+
+                        // 외부 링크인 경우 기본 동작 허용
+                        if (e.target.closest('a[target="_blank"]')) {
+                            return;
+                        }
+
+                        e.preventDefault();
+
+                        // 카드에서 video 정보 가져오기
+                        const videoEmbedContainer = card.querySelector('.video-embed-container');
+                        const videoId = videoEmbedContainer?.getAttribute('data-video-id');
+
+                        if (videoId && videoEmbedContainer) {
+                            openVideoModal(videoEmbedContainer);
+                        }
+                    });
+
+                    // videoId가 있는 카드만 cursor: pointer 설정
+                    const videoEmbedContainer = card.querySelector('.video-embed-container');
+                    if (videoEmbedContainer?.getAttribute('data-video-id')) {
+                        card.style.cursor = 'pointer';
+                    }
+                });
+            }
+
+            // 페이지 로드 시 이벤트 바인딩
+            document.addEventListener('DOMContentLoaded', function() {
+                bindVideoCardEvents();
             });
         </script>
     </div>
