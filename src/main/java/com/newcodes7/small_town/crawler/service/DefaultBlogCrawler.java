@@ -309,7 +309,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
         } else if (publishFormat.trim().equals("MMM dd") || publishFormat.trim().equals("MMM d")) {
             publishedAt = parseMonthDayFormat(dateText);
         } else {
-            publishedAt = parseKoreanDateFormat(dateText);
+            publishedAt = parseDateText(dateText, publishFormat);
         }
 
         // 미래 날짜일 시 크롤링된 시각으로 설정 (SK플래닛 블로그 대응)
@@ -388,6 +388,18 @@ public class DefaultBlogCrawler implements BlogCrawler {
         DateTimeFormatter formatter = new DateTimeFormatterBuilder()
                 .parseCaseInsensitive()
                 .appendPattern("[MMM dd][MMM d]")
+                .toFormatter(Locale.ENGLISH);
+        TemporalAccessor temporalAccessor = formatter.parse(dateText);
+        LocalDate date = LocalDate.of(LocalDate.now().getYear(),
+                                    temporalAccessor.get(ChronoField.MONTH_OF_YEAR),
+                                    temporalAccessor.get(ChronoField.DAY_OF_MONTH));
+        return TimeUtil.dateWithSeoulTime(date);
+    }
+
+    private LocalDateTime parseDateText(String dateText, String publishFormat) {
+        DateTimeFormatter formatter = new DateTimeFormatterBuilder()
+                .parseCaseInsensitive()
+                .appendPattern("[" + publishFormat + "]")
                 .toFormatter(Locale.ENGLISH);
         TemporalAccessor temporalAccessor = formatter.parse(dateText);
         LocalDate date = LocalDate.of(LocalDate.now().getYear(),
