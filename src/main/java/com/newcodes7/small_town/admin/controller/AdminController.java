@@ -208,7 +208,14 @@ public class AdminController {
             @RequestParam(defaultValue = "articles") String tab,
             Model model) {
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by("publishedAt").descending());
+        Pageable pageable;
+
+        // 기업 탭의 경우 조회수 기준 내림차순 정렬
+        if (tab.equals("corporations")) {
+            pageable = PageRequest.of(page, size, Sort.by("viewCount").descending().and(Sort.by("name").ascending()));
+        } else {
+            pageable = PageRequest.of(page, size, Sort.by("publishedAt").descending());
+        }
 
         // 블로그 글 목록
         Page<Article> articles;
@@ -232,8 +239,20 @@ public class AdminController {
             videos = Page.empty(pageable);
         }
 
+        // 기업 목록 (조회수 포함)
+        Page<CorporationResponseDto> corporations;
+        if (search != null && !search.trim().isEmpty() && tab.equals("corporations")) {
+            corporations = corporationService.getCorporationsWithFilters(search, null, null, pageable);
+            model.addAttribute("search", search);
+        } else if (tab.equals("corporations")) {
+            corporations = corporationService.getCorporationsWithFilters(null, null, null, pageable);
+        } else {
+            corporations = Page.empty(pageable);
+        }
+
         model.addAttribute("articles", articles);
         model.addAttribute("videos", videos);
+        model.addAttribute("corporations", corporations);
         model.addAttribute("categories", categoryRepository.findAll());
         model.addAttribute("currentTab", tab);
         return "admin/article/list";

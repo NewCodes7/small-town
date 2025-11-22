@@ -23,6 +23,7 @@ public class CorporationResponseDto {
     private String youtubeChannelId;
     private Boolean isDomestic;
     private Long articleCount;
+    private Integer viewCount;
     private String baseUrl;
     private String article; 
     private String title;
@@ -67,6 +68,7 @@ public class CorporationResponseDto {
         dto.setYoutubeUrl(corporation.getYoutubeUrl());
         dto.setYoutubeChannelId(corporation.getYoutubeChannelId());
         dto.setIsDomestic(corporation.getIsDomestic());
+        dto.setViewCount(corporation.getViewCount());
         dto.setBaseUrl(parsingSelector.getBaseUrl());
         dto.setArticle(parsingSelector.getArticle());
         dto.setTitle(parsingSelector.getTitle());
@@ -98,6 +100,7 @@ public class CorporationResponseDto {
         dto.setYoutubeUrl(corporation.getYoutubeUrl());
         dto.setYoutubeChannelId(corporation.getYoutubeChannelId());
         dto.setIsDomestic(corporation.getIsDomestic());
+        dto.setViewCount(corporation.getViewCount());
         dto.setArticleCount(0L); // Default article count
         dto.setCreatedAt(corporation.getCreatedAt());
         dto.setUpdatedAt(corporation.getUpdatedAt());

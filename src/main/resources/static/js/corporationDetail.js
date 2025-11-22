@@ -345,8 +345,35 @@ async function startCrawling(corporationId) {
     }
 }
 
+// 기업 페이지 조회수 증가
+async function incrementCorporationViewCount() {
+    // URL에서 기업 ID 추출
+    const pathParts = window.location.pathname.split('/');
+    const corporationId = pathParts[pathParts.indexOf('corporations') + 1];
+
+    if (!corporationId || corporationId === '' || isNaN(corporationId)) {
+        return;
+    }
+
+    try {
+        await fetch(`/api/corporations/${corporationId}/view`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'same-origin',
+            redirect: 'manual'
+        });
+    } catch (error) {
+        console.log('조회수 증가 요청 실패:', error);
+    }
+}
+
 // 페이지 로드 후 상대 시간 적용 및 좋아요 상태 로드
 document.addEventListener('DOMContentLoaded', function() {
+    // 기업 페이지 조회수 증가
+    incrementCorporationViewCount();
+
     document.querySelectorAll('.relative-time').forEach(element => {
         const dateString = element.getAttribute('data-date');
         if (dateString) {

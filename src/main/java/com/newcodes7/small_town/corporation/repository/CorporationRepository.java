@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -27,4 +28,8 @@ public interface CorporationRepository extends JpaRepository<Corporation, Long>,
     boolean existsByNameAndDeletedAtIsNull(String name);
 
     long countByDeletedAtIsNull();
+
+    @Modifying
+    @Query("UPDATE Corporation c SET c.viewCount = :viewCount WHERE c.id = :corporationId")
+    void updateViewCount(@Param("corporationId") Long corporationId, @Param("viewCount") int viewCount);
 }

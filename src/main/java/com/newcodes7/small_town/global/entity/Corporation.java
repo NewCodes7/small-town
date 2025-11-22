@@ -64,6 +64,9 @@ public class Corporation {
     @Column(name = "youtube_channel_id", length = 100)
     private String youtubeChannelId;
 
+    @Column(name = "view_count")
+    private Integer viewCount;
+
     @JsonIgnore
     @OneToMany(mappedBy = "corporation", cascade = CascadeType.ALL)
     private List<Article> articles;
