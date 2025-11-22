@@ -15,6 +15,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -25,7 +26,10 @@ import com.newcodes7.small_town.crawler.repository.CategoryRepository;
 import com.newcodes7.small_town.global.entity.Category;
 import com.newcodes7.small_town.video.dto.VideoResponseDto;
 import com.newcodes7.small_town.video.service.VideoService;
+import com.newcodes7.small_town.video.service.VideoViewService;
+import com.newcodes7.small_town.global.util.Client;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -36,6 +40,7 @@ import lombok.extern.slf4j.Slf4j;
 public class VideoController {
 
     private final VideoService videoService;
+    private final VideoViewService videoViewService;
     private final CorporationService corporationService;
     private final CategoryRepository categoryRepository;
 
@@ -89,6 +94,35 @@ public class VideoController {
         model.addAttribute("categories", categories);
 
         return "video";
+    }
+
+    /**
+     * 영상 조회수 증가 API
+     */
+    @PostMapping("/api/videos/{videoId}/view")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> incrementViewCount(@PathVariable Long videoId,
+                                                                @AuthenticationPrincipal UserDetails userDetails,
+                                                                HttpServletRequest request) {
+        String ipAddress = Client.getClientIpAddress(request);
+        boolean incremented;
+
+        if (userDetails != null) {
+            // 인증된 사용자
+            incremented = videoViewService.incrementViewCount(videoId, userDetails.getUsername(), ipAddress);
+        } else {
+            // 익명 사용자 (IP 기반)
+            incremented = videoViewService.incrementViewCountByIp(videoId, ipAddress);
+        }
+
+        long viewCount = videoViewService.getViewCount(videoId);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("incremented", incremented);
+        response.put("viewCount", viewCount);
+        response.put("authenticated", userDetails != null);
+
+        return ResponseEntity.ok(response);
     }
 
     /**

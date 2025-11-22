@@ -989,12 +989,12 @@
                     <div class="video-content">
                         <!-- Title -->
                         <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
-                            <a th:href="${video.link}"
-                            target="_blank"
-                            class="text-decoration-none title-link"
-                            style="color: inherit;">
+                            <span class="text-decoration-none title-link video-title-clickable"
+                                  th:attr="data-video-id=${video.videoId}, data-video-title=${video.translatedTitle != null && !video.translatedTitle.isEmpty() ? video.translatedTitle : video.title}, data-article-id=${video.id}"
+                                  onclick="openVideoModal(this)"
+                                  style="color: inherit; cursor: pointer;">
                                 <span th:text="${video.translatedTitle != null && !video.translatedTitle.isEmpty() ? video.translatedTitle : video.title}">Video Title</span>
-                            </a>
+                            </span>
                         </h5>
                         
                         <!-- Company Info & Stats -->
@@ -1028,7 +1028,7 @@
                     
                     <!-- Thumbnail Container (Right Side) -->
                     <div class="video-thumbnail-container"
-                         th:attr="data-video-id=${video.videoId}, data-video-title=${video.translatedTitle != null && !video.translatedTitle.isEmpty() ? video.translatedTitle : video.title}"
+                         th:attr="data-video-id=${video.videoId}, data-video-title=${video.translatedTitle != null && !video.translatedTitle.isEmpty() ? video.translatedTitle : video.title}, data-article-id=${video.id}"
                          onclick="openVideoModal(this)">
                         <img th:if="${video.thumbnailUrl != null && !video.thumbnailUrl.isEmpty()}"
                             th:src="${video.thumbnailUrl}"
@@ -1073,10 +1073,12 @@
                         <div class="video-content">
                             <!-- Title -->
                             <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
-                                <a th:href="${firstVideo.link}" target="_blank"
-                                class="text-decoration-none title-link" style="color: inherit;">
+                                <span class="text-decoration-none title-link video-title-clickable"
+                                      th:attr="data-video-id=${firstVideo.videoId}, data-video-title=${firstVideo.translatedTitle != null && !firstVideo.translatedTitle.isEmpty() ? firstVideo.translatedTitle : firstVideo.title}, data-article-id=${firstVideo.id}"
+                                      onclick="openVideoModal(this)"
+                                      style="color: inherit; cursor: pointer;">
                                     <span th:text="${firstVideo.translatedTitle != null && !firstVideo.translatedTitle.isEmpty() ? firstVideo.translatedTitle : firstVideo.title}"></span>
-                                </a>
+                                </span>
                             </h5>
                             
                             <!-- Company Info & Stats -->
@@ -1095,7 +1097,7 @@
                         
                         <!-- Thumbnail Container (Right Side) -->
                         <div class="video-thumbnail-container"
-                             th:attr="data-video-id=${firstVideo.videoId}, data-video-title=${firstVideo.translatedTitle != null && !firstVideo.translatedTitle.isEmpty() ? firstVideo.translatedTitle : firstVideo.title}"
+                             th:attr="data-video-id=${firstVideo.videoId}, data-video-title=${firstVideo.translatedTitle != null && !firstVideo.translatedTitle.isEmpty() ? firstVideo.translatedTitle : firstVideo.title}, data-article-id=${firstVideo.id}"
                              onclick="openVideoModal(this)">
                             <img th:if="${firstVideo.thumbnailUrl != null && !firstVideo.thumbnailUrl.isEmpty()}"
                                 th:src="${firstVideo.thumbnailUrl}"
@@ -1116,9 +1118,7 @@
                         <div class="child-container" th:if="${!childVideos.isEmpty()}">
                             <div class="child"
                                  th:each="child : ${childVideos}"
-                                 th:attr="data-article-id=${child.id}, data-video-id=${child.videoId}, data-video-title=${child.translatedTitle != null && !child.translatedTitle.isEmpty() ? child.translatedTitle : child.title}"
-                                 th:onclick="${child.videoId != null && !child.videoId.isEmpty()} ? 'openVideoModal(this)' : null"
-                                 th:style="${child.videoId != null && !child.videoId.isEmpty()} ? 'cursor: pointer;' : null">
+                                 th:attr="data-article-id=${child.id}, data-video-id=${child.videoId}, data-video-title=${child.translatedTitle != null && !child.translatedTitle.isEmpty() ? child.translatedTitle : child.title}">
                                 <h6 style="margin: 0;">
                                     <a th:if="${child.videoId == null || child.videoId.isEmpty()}"
                                        th:href="${child.link}" target="_blank"
@@ -1126,7 +1126,10 @@
                                         <span th:text="${child.translatedTitle != null && !child.translatedTitle.isEmpty() ? child.translatedTitle : child.title}"></span>
                                     </a>
                                     <span th:unless="${child.videoId == null || child.videoId.isEmpty()}"
-                                          class="text-decoration-none title-link" style="color: inherit;">
+                                          class="text-decoration-none title-link video-title-clickable"
+                                          th:attr="data-article-id=${child.id}, data-video-id=${child.videoId}, data-video-title=${child.translatedTitle != null && !child.translatedTitle.isEmpty() ? child.translatedTitle : child.title}"
+                                          onclick="openVideoModal(this)"
+                                          style="color: inherit; cursor: pointer;">
                                         <span th:text="${child.translatedTitle != null && !child.translatedTitle.isEmpty() ? child.translatedTitle : child.title}"></span>
                                     </span>
                                 </h6>
@@ -1393,6 +1396,16 @@
                 padding: 30px;
                 order: 1;
                 min-width: 0;
+            }
+
+            /* Video title clickable styles */
+            .video-title-clickable {
+                transition: color 0.2s ease;
+            }
+
+            .video-title-clickable:hover {
+                color: var(--primary-green) !important;
+                text-decoration: underline !important;
             }
 
             @media (max-width: 768px) {
@@ -1683,8 +1696,23 @@
             function openVideoModal(element) {
                 const videoId = element.getAttribute('data-video-id');
                 const videoTitle = element.getAttribute('data-video-title');
+                const articleId = element.getAttribute('data-article-id');
                 const modal = document.getElementById('videoModal');
                 const iframe = document.getElementById('modalVideoPlayer');
+
+                // Increment view count
+                if (articleId) {
+                    fetch(`/video/api/videos/${articleId}/view`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'same-origin',
+                        redirect: 'manual'
+                    }).catch(error => {
+                        console.log('조회수 증가 요청 실패:', error);
+                    });
+                }
 
                 // Set iframe src with autoplay
                 iframe.src = `https://www.youtube.com/embed/${videoId}?controls=1&modestbranding=1&rel=0&autoplay=1`;
@@ -1716,6 +1744,92 @@
                         closeVideoModal({ target: modal });
                     }
                 }
+            });
+
+            // Bind click events to video cards (similar to article cards)
+            function bindVideoCardEvents() {
+                document.querySelectorAll('.video-card').forEach(card => {
+                    card.addEventListener('click', (e) => {
+                        // 회사 링크, 배지, 관리자 버튼을 클릭한 경우는 기본 동작 허용
+                        if (e.target.closest('.badge') ||
+                            e.target.closest('.company-link') ||
+                            e.target.closest('.admin-delete-btn') ||
+                            e.target.closest('.admin-edit-btn') ||
+                            e.target.closest('.admin-summary-btn') ||
+                            e.target.closest('.more-corporation-articles')) {
+                            return; // 기본 동작 허용 (링크 이동 등)
+                        }
+
+                        // 이미 클릭 가능한 요소인 경우 중복 방지
+                        if (e.target.closest('.video-thumbnail-container') ||
+                            e.target.closest('.video-title-clickable') ||
+                            e.target.closest('.child')) {
+                            return; // 이미 자체 클릭 핸들러가 있음
+                        }
+
+                        e.preventDefault();
+
+                        // 카드에서 video 정보 가져오기
+                        const videoThumbnail = card.querySelector('.video-thumbnail-container');
+                        if (videoThumbnail) {
+                            openVideoModal(videoThumbnail);
+                        }
+                    });
+
+                    card.style.cursor = 'pointer';
+                });
+
+                // Bind click events to child elements (grouped view의 하위 항목들)
+                document.querySelectorAll('.child').forEach(child => {
+                    // more-corporation-articles는 제외
+                    if (child.classList.contains('more-corporation-articles')) {
+                        return;
+                    }
+
+                    child.addEventListener('click', (e) => {
+                        // 회사 링크를 클릭한 경우는 기본 동작 허용
+                        if (e.target.closest('.company-link') || e.target.closest('a')) {
+                            return; // 기본 동작 허용 (링크 이동 등)
+                        }
+
+                        // 이미 클릭 가능한 요소인 경우 중복 방지
+                        if (e.target.closest('.video-title-clickable')) {
+                            return; // 이미 자체 클릭 핸들러가 있음
+                        }
+
+                        e.preventDefault();
+
+                        // child 요소에서 video 정보 가져오기
+                        const videoId = child.getAttribute('data-video-id');
+                        const videoTitle = child.getAttribute('data-video-title');
+                        const articleId = child.getAttribute('data-article-id');
+
+                        // videoId가 있으면 모달 열기
+                        if (videoId && articleId) {
+                            const tempElement = {
+                                getAttribute: (attr) => {
+                                    if (attr === 'data-video-id') return videoId;
+                                    if (attr === 'data-video-title') return videoTitle;
+                                    if (attr === 'data-article-id') return articleId;
+                                }
+                            };
+                            openVideoModal(tempElement);
+                        } else {
+                            // videoId가 없으면 외부 링크로 이동
+                            const link = child.querySelector('a');
+                            if (link) {
+                                window.open(link.href, '_blank');
+                            }
+                        }
+                    });
+
+                    child.style.cursor = 'pointer';
+                });
+            }
+
+            // 페이지 로드 시 이벤트 바인딩
+            document.addEventListener('DOMContentLoaded', function() {
+                bindVideoCardEvents();
             });
         </script>
     </div>
