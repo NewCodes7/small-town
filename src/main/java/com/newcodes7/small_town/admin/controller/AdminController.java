@@ -205,20 +205,37 @@ public class AdminController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "articles") String tab,
             Model model) {
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("publishedAt").descending());
-        Page<Article> articles;
 
-        if (search != null && !search.trim().isEmpty()) {
+        // 블로그 글 목록
+        Page<Article> articles;
+        if (search != null && !search.trim().isEmpty() && tab.equals("articles")) {
             articles = articleRepository.findByTitleContainingIgnoreCaseAndDeletedAtIsNull(search, pageable);
             model.addAttribute("search", search);
-        } else {
+        } else if (tab.equals("articles")) {
             articles = articleRepository.findByDeletedAtIsNull(pageable);
+        } else {
+            articles = Page.empty(pageable);
+        }
+
+        // 유튜브 영상 목록
+        Page<Video> videos;
+        if (search != null && !search.trim().isEmpty() && tab.equals("videos")) {
+            videos = videoRepository.findByTitleContainingIgnoreCaseAndDeletedAtIsNull(search, pageable);
+            model.addAttribute("search", search);
+        } else if (tab.equals("videos")) {
+            videos = videoRepository.findByDeletedAtIsNull(pageable);
+        } else {
+            videos = Page.empty(pageable);
         }
 
         model.addAttribute("articles", articles);
+        model.addAttribute("videos", videos);
         model.addAttribute("categories", categoryRepository.findAll());
+        model.addAttribute("currentTab", tab);
         return "admin/article/list";
     }
 

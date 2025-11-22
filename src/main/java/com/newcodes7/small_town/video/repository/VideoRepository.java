@@ -127,6 +127,14 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
            "ORDER BY v.publishedAt DESC")
     List<Video> findByCorporationIdAndDeletedAtIsNull(@Param("corporationId") Long corporationId);
 
+    @Query("SELECT v FROM Video v " +
+           "JOIN FETCH v.corporation c " +
+           "LEFT JOIN FETCH v.category " +
+           "WHERE v.deletedAt IS NULL " +
+           "AND (LOWER(v.title) LIKE LOWER(CONCAT('%', :title, '%')) OR LOWER(v.translatedTitle) LIKE LOWER(CONCAT('%', :title, '%'))) " +
+           "ORDER BY v.publishedAt DESC")
+    Page<Video> findByTitleContainingIgnoreCaseAndDeletedAtIsNull(@Param("title") String title, Pageable pageable);
+
     /**
      * 해외 기업의 번역되지 않은 비디오 조회
      * (isDomestic = false, translatedTitle이 null이거나 빈 문자열)
