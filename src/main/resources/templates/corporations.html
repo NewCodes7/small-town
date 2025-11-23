@@ -51,17 +51,29 @@
             <div class="search-row">
                 <!-- Filter Toggle -->
                 <div class="filter-toggle-container">
-                    <a th:href="@{/corporations(search=${currentSearch}, filter='all', industries=${selectedIndustries})}"
+                    <a th:href="@{/corporations(search=${currentSearch}, filter='all', industries=${selectedIndustries}, sort=${currentSort})}"
                        th:class="${currentFilter == 'all' || currentFilter == null} ? 'filter-toggle-btn active' : 'filter-toggle-btn'">
                         <i class="fas fa-th-large me-1"></i>전체
                     </a>
-                    <a th:href="@{/corporations(search=${currentSearch}, filter='blog', industries=${selectedIndustries})}"
+                    <a th:href="@{/corporations(search=${currentSearch}, filter='blog', industries=${selectedIndustries}, sort=${currentSort})}"
                        th:class="${currentFilter == 'blog'} ? 'filter-toggle-btn active' : 'filter-toggle-btn'">
                         <i class="fas fa-blog me-1"></i>블로그
                     </a>
-                    <a th:href="@{/corporations(search=${currentSearch}, filter='youtube', industries=${selectedIndustries})}"
+                    <a th:href="@{/corporations(search=${currentSearch}, filter='youtube', industries=${selectedIndustries}, sort=${currentSort})}"
                        th:class="${currentFilter == 'youtube'} ? 'filter-toggle-btn active' : 'filter-toggle-btn'">
                         <i class="fab fa-youtube me-1"></i>유튜브
+                    </a>
+                </div>
+
+                <!-- Sort Toggle -->
+                <div class="filter-toggle-container">
+                    <a th:href="@{/corporations(search=${currentSearch}, filter=${currentFilter}, industries=${selectedIndustries}, sort='name')}"
+                       th:class="${currentSort == 'name' || currentSort == null} ? 'filter-toggle-btn active' : 'filter-toggle-btn'">
+                        <i class="fas fa-sort-alpha-down me-1"></i>이름순
+                    </a>
+                    <a th:href="@{/corporations(search=${currentSearch}, filter=${currentFilter}, industries=${selectedIndustries}, sort='popular')}"
+                       th:class="${currentSort == 'popular'} ? 'filter-toggle-btn active' : 'filter-toggle-btn'">
+                        <i class="fas fa-fire me-1"></i>인기순
                     </a>
                 </div>
 
@@ -94,6 +106,7 @@
                 <!-- Search Form -->
                 <form method="get" action="" class="search-form-inline">
                     <input type="hidden" name="filter" th:value="${currentFilter}">
+                    <input type="hidden" name="sort" th:value="${currentSort}">
                     <th:block th:if="${selectedIndustries != null}" th:each="industryId : ${selectedIndustries}">
                         <input type="hidden" name="industries" th:value="${industryId}">
                     </th:block>
@@ -248,7 +261,7 @@
                 <!-- Previous Button -->
                 <li class="page-item" th:class="${!hasPrevious} ? 'page-item disabled' : 'page-item'">
                     <a class="page-link"
-                       th:href="@{/corporations(page=${currentPage - 1}, search=${currentSearch}, filter=${currentFilter}, industries=${selectedIndustries})}">
+                       th:href="@{/corporations(page=${currentPage - 1}, search=${currentSearch}, filter=${currentFilter}, industries=${selectedIndustries}, sort=${currentSort})}">
                         <i class="fas fa-chevron-left me-1"></i>이전
                     </a>
                 </li>
@@ -258,14 +271,14 @@
                     th:each="pageNum : ${#numbers.sequence(0, T(java.lang.Math).min(totalPages - 1, 4))}"
                     th:class="${pageNum == currentPage} ? 'page-item active' : 'page-item'">
                     <a class="page-link"
-                       th:href="@{/corporations(page=${pageNum}, search=${currentSearch}, filter=${currentFilter}, industries=${selectedIndustries})}"
+                       th:href="@{/corporations(page=${pageNum}, search=${currentSearch}, filter=${currentFilter}, industries=${selectedIndustries}, sort=${currentSort})}"
                        th:text="${pageNum + 1}">1</a>
                 </li>
 
                 <!-- Next Button -->
                 <li class="page-item" th:class="${!hasNext} ? 'page-item disabled' : 'page-item'">
                     <a class="page-link"
-                       th:href="@{/corporations(page=${currentPage + 1}, search=${currentSearch}, filter=${currentFilter}, industries=${selectedIndustries})}">
+                       th:href="@{/corporations(page=${currentPage + 1}, search=${currentSearch}, filter=${currentFilter}, industries=${selectedIndustries}, sort=${currentSort})}">
                         다음<i class="fas fa-chevron-right ms-1"></i>
                     </a>
                 </li>

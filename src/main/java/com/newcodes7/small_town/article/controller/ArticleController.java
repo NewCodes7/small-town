@@ -9,6 +9,7 @@ import java.util.Map;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -287,11 +288,25 @@ public class ArticleController {
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "all") String filter,
             @RequestParam(required = false) List<Integer> industries,
+            @RequestParam(defaultValue = "name") String sort,
             Model model) {
+
+        // 정렬 옵션 설정
+        Sort sortOption;
+        if ("popular".equals(sort)) {
+            // 인기순: 조회수 내림차순, 이름 오름차순
+            sortOption = Sort.by(
+                Sort.Order.desc("viewCount"),
+                Sort.Order.asc("name")
+            );
+        } else {
+            // 이름순: 이름 오름차순
+            sortOption = Sort.by(Sort.Order.asc("name"));
+        }
 
         // 통합 필터링 메서드 호출
         Page<CorporationResponseDto> corporations = corporationService.getCorporationsWithFilters(
-                search, filter, industries, PageRequest.of(page, size)
+                search, filter, industries, PageRequest.of(page, size, sortOption)
         );
         
         // Statistics
@@ -313,6 +328,7 @@ public class ArticleController {
         model.addAttribute("hasPrevious", corporations.hasPrevious());
         model.addAttribute("currentSearch", search);
         model.addAttribute("currentFilter", filter);
+        model.addAttribute("currentSort", sort);
         model.addAttribute("selectedIndustries", industries);
         model.addAttribute("allIndustries", allIndustries);
 

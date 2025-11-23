@@ -259,6 +259,14 @@ function applyIndustryFilter() {
     // 페이지를 0으로 리셋
     urlParams.set('page', '0');
 
+    // sort 파라미터 유지 (존재하는 경우)
+    if (!urlParams.has('sort') && window.location.search.includes('sort=')) {
+        const currentSort = new URLSearchParams(window.location.search).get('sort');
+        if (currentSort) {
+            urlParams.set('sort', currentSort);
+        }
+    }
+
     // 페이지 리로드
     window.location.href = `${window.location.pathname}?${urlParams.toString()}`;
 }
