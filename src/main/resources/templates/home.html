@@ -204,12 +204,20 @@
                                             <hr class="dropdown-divider">
                                         </li>
                                         <li>
-                                            <a class="dropdown-item category-option" href="#"
-                                               th:attr="data-category-id=${category.id},
-                                                       data-category-name=${category.name}">
-                                                <i class="me-2"></i>
-                                                <span th:text="${category.name}">Category Name</span>
-                                            </a>
+                                            <div class="dropdown-item category-option-wrapper">
+                                                <a class="dropdown-item category-option" href="#"
+                                                   th:attr="data-category-id=${category.id},
+                                                           data-category-name=${category.name}">
+                                                    <i class="me-2"></i>
+                                                    <span th:text="${category.name}">Category Name</span>
+                                                </a>
+                                                <button class="admin-category-delete-btn d-none"
+                                                        th:attr="data-category-id=${category.id},
+                                                                data-category-name=${category.name}"
+                                                        title="카테고리 삭제">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
                                         </li>
                                     </th:block>
                                 </ul>
@@ -462,6 +470,49 @@
             /* Active category option - make icon white */
             .category-option.active i {
                 color: white !important;
+            }
+
+            /* Category option wrapper for delete button */
+            .category-option-wrapper {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                padding: 0;
+                background: transparent;
+            }
+
+            .category-option-wrapper .category-option {
+                flex: 1;
+                border-radius: 12px;
+                margin: 0;
+            }
+
+            .admin-category-delete-btn {
+                width: 28px;
+                height: 28px;
+                border: none;
+                border-radius: 50%;
+                background: #dc3545;
+                color: white;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                font-size: 11px;
+                box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+                flex-shrink: 0;
+                margin-right: 8px;
+            }
+
+            .admin-category-delete-btn:hover {
+                background: #c82333;
+                transform: scale(1.1);
+            }
+
+            .admin-category-delete-btn.d-none {
+                display: none !important;
             }
 
             /* Category block improvements */

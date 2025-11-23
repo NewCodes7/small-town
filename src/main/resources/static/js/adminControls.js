@@ -16,6 +16,7 @@ async function checkUserAndShowAdminControls() {
 
         if (userAuth.isAuthenticated() && userAuth.isAdminUser()) {
             userAuth.showAdminControls();
+            userAuth.showAdminControls('.admin-category-delete-btn'); // 카테고리 삭제 버튼 표시
             setupAdminEventListeners();
             loadCategories();
         }
@@ -32,6 +33,7 @@ function setupAdminEventListeners() {
         const editBtn = e.target.closest('.admin-edit-btn');
         const summaryBtn = e.target.closest('.admin-summary-btn');
         const deleteBtn = e.target.closest('.admin-delete-btn');
+        const categoryDeleteBtn = e.target.closest('.admin-category-delete-btn');
 
         if (editBtn || summaryBtn || deleteBtn) {
             e.preventDefault();
@@ -53,6 +55,22 @@ function setupAdminEventListeners() {
                     deleteArticle(articleId);
                 }
                 // 취소시에는 아무것도 하지 않음
+            }
+            return false;
+        }
+
+        // 카테고리 삭제 버튼 클릭 처리
+        if (categoryDeleteBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+
+            const categoryId = categoryDeleteBtn.dataset.categoryId;
+            const categoryName = categoryDeleteBtn.dataset.categoryName;
+
+            const confirmed = confirm(`정말로 "${categoryName}" 카테고리를 삭제하시겠습니까?\n\n이 카테고리를 사용하는 모든 게시글과 영상의 카테고리가 제거됩니다.`);
+            if (confirmed === true) {
+                deleteCategory(categoryId, categoryName);
             }
             return false;
         }
@@ -387,5 +405,39 @@ function deleteArticle(articleId) {
     .catch(error => {
         console.error('삭제 중 오류:', error);
         alert('글 삭제 중 오류가 발생했습니다: ' + error.message);
+    });
+}
+
+// 카테고리 삭제
+function deleteCategory(categoryId, categoryName) {
+    // 유효성 검사
+    if (!categoryId) {
+        alert('카테고리 ID가 올바르지 않습니다.');
+        return;
+    }
+
+    fetch(`/admin/categories/${categoryId}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('카테고리 삭제 실패: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('카테고리 삭제 중 오류:', error);
+        alert('카테고리 삭제 중 오류가 발생했습니다: ' + error.message);
     });
 }

@@ -993,4 +993,87 @@ public class AdminController {
             return ResponseEntity.internalServerError().body(response);
         }
     }
+
+    /**
+     * 카테고리 삭제 API
+     * 카테고리를 삭제하면 해당 카테고리를 가진 모든 Article과 Video의 category가 null로 설정됩니다.
+     */
+    @DeleteMapping("/categories/{id}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> deleteCategory(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // 카테고리 존재 확인
+            com.newcodes7.small_town.global.entity.Category category =
+                categoryRepository.findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 카테고리입니다. ID: " + id));
+
+            // 이미 삭제된 카테고리인지 확인
+            if (category.getDeletedAt() != null) {
+                response.put("success", false);
+                response.put("message", "이미 삭제된 카테고리입니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // 해당 카테고리를 사용하는 Article 수 확인 및 category를 null로 설정
+            List<Article> articlesWithCategory = articleRepository.findAll().stream()
+                .filter(a -> a.getCategory() != null && a.getCategory().getId().equals(id) && a.getDeletedAt() == null)
+                .toList();
+
+            int articleCount = articlesWithCategory.size();
+            for (Article article : articlesWithCategory) {
+                article.setCategory(null);
+            }
+            articleRepository.saveAll(articlesWithCategory);
+
+            // 해당 카테고리를 사용하는 Video 수 확인 및 category를 null로 설정
+            List<Video> videosWithCategory = videoRepository.findAll().stream()
+                .filter(v -> v.getCategory() != null && v.getCategory().getId().equals(id) && v.getDeletedAt() == null)
+                .toList();
+
+            int videoCount = videosWithCategory.size();
+            for (Video video : videosWithCategory) {
+                video.setCategory(null);
+            }
+            videoRepository.saveAll(videosWithCategory);
+
+            log.info("카테고리 삭제 시작 - ID: {}, 이름: {}, 연결된 Article 수: {}, 연결된 Video 수: {}",
+                     id, category.getName(), articleCount, videoCount);
+
+            // 카테고리 soft delete
+            com.newcodes7.small_town.global.entity.Category updatedCategory =
+                com.newcodes7.small_town.global.entity.Category.builder()
+                    .id(category.getId())
+                    .name(category.getName())
+                    .createdAt(category.getCreatedAt())
+                    .updatedAt(category.getUpdatedAt())
+                    .deletedAt(java.time.LocalDateTime.now())
+                    .build();
+            categoryRepository.save(updatedCategory);
+
+            response.put("success", true);
+            response.put("message", String.format("카테고리 '%s'가 성공적으로 삭제되었습니다. (Article %d개, Video %d개의 카테고리가 제거됨)",
+                                                   category.getName(), articleCount, videoCount));
+            response.put("deletedCategoryName", category.getName());
+            response.put("affectedArticleCount", articleCount);
+            response.put("affectedVideoCount", videoCount);
+
+            log.info("카테고리 삭제 완료 - ID: {}, 이름: {}", id, category.getName());
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            log.warn("카테고리 삭제 실패 - 존재하지 않는 ID: {}", id);
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+
+        } catch (Exception e) {
+            log.error("카테고리 삭제 중 오류 발생 - ID: {}, 오류: {}", id, e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "카테고리 삭제 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
 }
