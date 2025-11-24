@@ -189,7 +189,7 @@
                     </li>
                     <th:block th:with="maxPagesToShow=5, halfRange=2,
                         startPage=${totalPages <= maxPagesToShow ? 0 : (currentPage <= halfRange ? 0 : (currentPage >= totalPages - halfRange - 1 ? totalPages - maxPagesToShow : currentPage - halfRange))},
-                        endPage=${totalPages <= 1 ? 0 : (totalPages <= maxPagesToShow ? totalPages - 1 : (currentPage <= halfRange ? maxPagesToShow - 1 : (currentPage >= totalPages - halfRange - 1 ? totalPages - 2 : currentPage + halfRange)))}">
+                        endPage=${totalPages <= 1 ? 0 : (totalPages <= maxPagesToShow ? totalPages - 1 : (currentPage <= halfRange ? maxPagesToShow - 1 : (currentPage >= totalPages - halfRange - 1 ? totalPages - 1 : currentPage + halfRange)))}">
                         <li class="page-item" th:each="pageNum : ${#numbers.sequence(startPage, endPage)}"
                             th:class="${pageNum == currentPage} ? 'page-item active' : 'page-item'">
                             <a class="page-link"
