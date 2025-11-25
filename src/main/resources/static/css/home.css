@@ -262,7 +262,6 @@
     height: 155.22px;
     border-radius: 12px;
     overflow: hidden;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -372,8 +371,6 @@
 
 .company-link:hover .company-name {
     color: var(--primary-green-dark);
-}
-    font-size: 1rem;
 }
 
 .article-metrics {
@@ -905,4 +902,93 @@
 .first-article {
     width: 100%;
     display: flex;
+}
+
+/* 방문한 카드 스타일 */
+/* 리스트 뷰의 카드는 전체 배경 변경 */
+.articles-list-container .article-card.visited-card,
+.articles-list-container .video-card.visited-card {
+    background-color: #e8e8e8 !important;
+    opacity: 0.92;
+}
+
+.articles-list-container .article-card.visited-card:hover,
+.articles-list-container .video-card.visited-card:hover {
+    background-color: #dedede !important;
+}
+
+/* 리스트 뷰의 방문한 카드 텍스트 색상 */
+.articles-list-container .article-card.visited-card h5,
+.articles-list-container .article-card.visited-card .title-link,
+.articles-list-container .video-card.visited-card h5,
+.articles-list-container .video-card.visited-card .title-link,
+.articles-list-container .video-card.visited-card .video-title-clickable {
+    color: #4a4a4a !important;
+}
+
+.articles-list-container .article-card.visited-card .company-name,
+.articles-list-container .video-card.visited-card .company-name {
+    color: #666666 !important;
+}
+
+.articles-list-container .article-card.visited-card .text-muted,
+.articles-list-container .video-card.visited-card .text-muted {
+    color: #777777 !important;
+}
+
+/* 그룹 뷰의 카드는 child-container를 제외하고 article-content와 thumbnail만 회색 처리 */
+.articles-container .article-card.visited-card .article-content,
+.articles-container .article-card.visited-card .article-thumbnail-container,
+.articles-container .video-card.visited-card .video-content,
+.articles-container .video-card.visited-card .video-thumbnail-container {
+    background-color: #e8e8e8 !important;
+    opacity: 0.92;
+}
+
+.articles-container .article-card.visited-card:hover .article-content,
+.articles-container .article-card.visited-card:hover .article-thumbnail-container,
+.articles-container .video-card.visited-card:hover .video-content,
+.articles-container .video-card.visited-card:hover .video-thumbnail-container {
+    background-color: #dedede !important;
+}
+
+/* 그룹 뷰의 방문한 카드 텍스트 색상 */
+.articles-container .article-card.visited-card .article-content h5,
+.articles-container .article-card.visited-card .article-content .title-link,
+.articles-container .video-card.visited-card .video-content h5,
+.articles-container .video-card.visited-card .video-content .title-link,
+.articles-container .video-card.visited-card .video-content .video-title-clickable {
+    color: #4a4a4a !important;
+}
+
+.articles-container .article-card.visited-card .article-content .company-name,
+.articles-container .video-card.visited-card .video-content .company-name {
+    color: #666666 !important;
+}
+
+.articles-container .article-card.visited-card .article-content .text-muted,
+.articles-container .video-card.visited-card .video-content .text-muted {
+    color: #777777 !important;
+}
+
+/* 그룹 뷰의 child 항목이 방문된 경우 */
+.child.visited-card {
+    background-color: #e0e0e0 !important;
+    opacity: 0.93;
+}
+
+.child.visited-card:hover {
+    background-color: #d5d5d5 !important;
+}
+
+/* child 항목의 텍스트 색상 */
+.child.visited-card h6,
+.child.visited-card a,
+.child.visited-card .title-link,
+.child.visited-card .video-title-clickable {
+    color: #4a4a4a !important;
+}
+
+.child.visited-card .text-muted {
+    color: #777777 !important;
 }
