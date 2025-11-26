@@ -21,6 +21,7 @@ configurations {
 
 repositories {
 	mavenCentral()
+	maven { url 'https://jitpack.io' }
 }
 
 dependencies {
@@ -76,6 +77,9 @@ dependencies {
     // WebP 이미지 변환 (scrimage - 더 간단하고 강력한 이미지 처리 라이브러리)
     implementation 'com.sksamuel.scrimage:scrimage-core:4.1.1'
     implementation 'com.sksamuel.scrimage:scrimage-webp:4.1.1'
+
+    // 한국어 형태소 분석기 (Komoran)
+    implementation 'com.github.shin285:KOMORAN:3.3.9'
 
     runtimeOnly 'com.h2database:h2'
 	compileOnly 'org.projectlombok:lombok'
