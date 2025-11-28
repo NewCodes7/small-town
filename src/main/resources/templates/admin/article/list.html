@@ -576,13 +576,23 @@
                 <!-- Term 분석 목록 테이블 -->
                 <div class="card" th:if="${currentTab == 'terms'}">
                     <div class="card-body">
-                        <div class="mb-3">
-                            <button class="btn btn-success" id="extractTermsBtn">
-                                <i class="fas fa-play me-2"></i>Term 추출 실행
-                            </button>
-                            <small class="text-muted ms-3">
-                                <i class="fas fa-info-circle"></i> 이미 분석된 article은 자동으로 건너뜁니다.
-                            </small>
+                        <div class="mb-3 d-flex justify-content-between align-items-center">
+                            <div>
+                                <button class="btn btn-success" id="extractArticleTermsBtn">
+                                    <i class="fas fa-play me-2"></i>Article Term 추출
+                                </button>
+                                <button class="btn btn-success ms-2" id="extractVideoTermsBtn">
+                                    <i class="fas fa-play me-2"></i>Video Term 추출
+                                </button>
+                                <small class="text-muted ms-3">
+                                    <i class="fas fa-info-circle"></i> 이미 분석된 항목은 자동으로 건너뜁니다.
+                                </small>
+                            </div>
+                            <div>
+                                <button class="btn btn-primary" id="manageUserDictionaryBtn">
+                                    <i class="fas fa-book me-2"></i>사용자 사전 관리
+                                </button>
+                            </div>
                         </div>
                         <div class="table-responsive">
                             <table class="table table-hover">
@@ -613,15 +623,76 @@
                                             <span th:text="${#temporals.format(article.publishedAt, 'yyyy-MM-dd')}"></span>
                                         </td>
                                         <td>
-                                            <div class="terms-container" th:data-article-id="${article.id}">
-                                                <div class="text-muted">
-                                                    <i class="fas fa-spinner fa-spin me-2"></i>로딩 중...
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div class="terms-container flex-grow-1" th:data-article-id="${article.id}">
+                                                    <div class="text-muted">
+                                                        <i class="fas fa-spinner fa-spin me-2"></i>로딩 중...
+                                                    </div>
                                                 </div>
+                                                <button class="btn btn-sm btn-outline-primary ms-2 reanalyze-terms-btn"
+                                                        th:data-article-id="${article.id}"
+                                                        th:data-article-title="${article.title}"
+                                                        title="Term 재분석">
+                                                    <i class="fas fa-sync-alt"></i>
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
                                     <tr th:if="${articlesWithTerms.empty}">
                                         <td colspan="5" class="text-center text-muted">등록된 글이 없습니다.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Video Term 분석 목록 -->
+                        <h5 class="mt-4 mb-3"><i class="fas fa-video me-2"></i>Video Term 분석</h5>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th style="width: 5%;">ID</th>
+                                        <th style="width: 25%;">제목</th>
+                                        <th style="width: 10%;">기업</th>
+                                        <th style="width: 10%;">발행일</th>
+                                        <th style="width: 50%;">Terms</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="video : ${videosWithTerms.content}">
+                                        <td th:text="${video.id}"></td>
+                                        <td>
+                                            <div>
+                                                <a th:href="${video.link}" target="_blank"
+                                                   class="text-decoration-none fw-bold" th:text="${video.title}">
+                                                </a>
+                                                <div th:if="${video.translatedTitle}" class="mt-1">
+                                                    <small class="text-info" th:text="'🌐 ' + ${video.translatedTitle}"></small>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td th:text="${video.corporation.name}"></td>
+                                        <td>
+                                            <span th:text="${#temporals.format(video.publishedAt, 'yyyy-MM-dd')}"></span>
+                                        </td>
+                                        <td>
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div class="video-terms-container flex-grow-1" th:data-video-id="${video.id}">
+                                                    <div class="text-muted">
+                                                        <i class="fas fa-spinner fa-spin me-2"></i>로딩 중...
+                                                    </div>
+                                                </div>
+                                                <button class="btn btn-sm btn-outline-primary ms-2 reanalyze-video-terms-btn"
+                                                        th:data-video-id="${video.id}"
+                                                        th:data-video-title="${video.title}"
+                                                        title="Term 재분석">
+                                                    <i class="fas fa-sync-alt"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr th:if="${videosWithTerms.empty}">
+                                        <td colspan="5" class="text-center text-muted">등록된 영상이 없습니다.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -703,7 +774,7 @@
                     <div class="card-body">
                         <div class="mb-3">
                             <h5>
-                                <i class="fas fa-chart-bar me-2"></i>Term 통계
+                                <i class="fas fa-chart-bar me-2"></i>Article Term 통계
                                 <small class="text-muted ms-2">- 가장 많이 사용된 Term 순</small>
                             </h5>
                         </div>
@@ -712,15 +783,16 @@
                                 <thead class="table-dark">
                                     <tr>
                                         <th style="width: 5%;">순위</th>
-                                        <th style="width: 30%;">Term</th>
-                                        <th style="width: 15%;">품사</th>
-                                        <th style="width: 20%;">총 빈도수</th>
-                                        <th style="width: 20%;">등장 게시글 수</th>
+                                        <th style="width: 25%;">Term</th>
+                                        <th style="width: 12%;">품사</th>
+                                        <th style="width: 15%;">총 빈도수</th>
+                                        <th style="width: 15%;">등장 게시글 수</th>
                                         <th style="width: 10%;">평균 빈도</th>
+                                        <th style="width: 18%;">액션</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr th:each="stat, iterStat : ${termStats}">
+                                    <tr th:each="stat, iterStat : ${articleTermStats}">
                                         <td>
                                             <strong th:text="${iterStat.index + 1}">1</strong>
                                         </td>
@@ -742,9 +814,76 @@
                                                 0.0
                                             </span>
                                         </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-danger delete-term-btn"
+                                                    th:data-term-id="${stat.termId}"
+                                                    th:data-term="${stat.term}"
+                                                    th:data-term-type="${stat.termType}">
+                                                <i class="fas fa-ban"></i> 불용어 등록
+                                            </button>
+                                        </td>
                                     </tr>
-                                    <tr th:if="${termStats == null || termStats.empty}">
-                                        <td colspan="6" class="text-center text-muted">통계 데이터가 없습니다. Term 추출을 먼저 실행해주세요.</td>
+                                    <tr th:if="${articleTermStats == null || articleTermStats.empty}">
+                                        <td colspan="7" class="text-center text-muted">통계 데이터가 없습니다. Term 추출을 먼저 실행해주세요.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Video Term 통계 -->
+                        <div class="mt-5">
+                            <h5>
+                                <i class="fas fa-video me-2"></i>Video Term 통계
+                                <small class="text-muted ms-2">- 가장 많이 사용된 Term 순</small>
+                            </h5>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th style="width: 5%;">순위</th>
+                                        <th style="width: 25%;">Term</th>
+                                        <th style="width: 12%;">품사</th>
+                                        <th style="width: 15%;">총 빈도수</th>
+                                        <th style="width: 15%;">등장 영상 수</th>
+                                        <th style="width: 10%;">평균 빈도</th>
+                                        <th style="width: 18%;">액션</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="stat, iterStat : ${videoTermStats}">
+                                        <td>
+                                            <strong th:text="${iterStat.index + 1}">1</strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-success fs-6" th:text="${stat.term}">Term</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary" th:text="${stat.termType}">Type</span>
+                                        </td>
+                                        <td>
+                                            <strong th:text="${stat.totalFrequency}">0</strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-info" th:text="${stat.videoCount} + '개'">0개</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-muted"
+                                                  th:text="${#numbers.formatDecimal(stat.totalFrequency * 1.0 / stat.videoCount, 1, 2)}">
+                                                0.0
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-danger delete-term-btn"
+                                                    th:data-term-id="${stat.termId}"
+                                                    th:data-term="${stat.term}"
+                                                    th:data-term-type="${stat.termType}">
+                                                <i class="fas fa-ban"></i> 불용어 등록
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr th:if="${videoTermStats == null || videoTermStats.empty}">
+                                        <td colspan="7" class="text-center text-muted">통계 데이터가 없습니다. Term 추출을 먼저 실행해주세요.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -916,6 +1055,75 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
                     <button type="button" class="btn btn-primary" id="saveTranslatedTitleBtn">저장</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 사용자 사전 관리 모달 -->
+    <div class="modal fade" id="userDictionaryModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">사용자 정의 단어 사전 관리</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        형태소 분석기가 인식하지 못하는 단어(예: '웹앱', '프론트엔드')를 등록하면 term으로 추출됩니다.
+                        <br>
+                        <strong>주의:</strong> 단어 추가/삭제 후 애플리케이션을 재시작해야 적용됩니다.
+                    </div>
+
+                    <!-- 단어 추가 폼 -->
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title">새 단어 추가</h6>
+                            <form id="addUserWordForm">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <label for="userWord" class="form-label">단어</label>
+                                        <input type="text" class="form-control" id="userWord"
+                                               placeholder="예: 웹앱" required>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="userPosTag" class="form-label">품사</label>
+                                        <select class="form-select" id="userPosTag">
+                                            <option value="NNG" selected>NNG (일반명사)</option>
+                                            <option value="NNP">NNP (고유명사)</option>
+                                            <option value="SL">SL (외래어)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-5">
+                                        <label for="userReason" class="form-label">사유 (선택)</label>
+                                        <input type="text" class="form-control" id="userReason"
+                                               placeholder="등록 사유">
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="fas fa-plus"></i> 추가
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- 사용자 단어 목록 -->
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">등록된 단어 목록 (<span id="userDictCount">0</span>개)</h6>
+                            <div id="userDictionaryList" class="table-responsive">
+                                <div class="text-center text-muted py-3">
+                                    <i class="fas fa-spinner fa-spin me-2"></i>로딩 중...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
                 </div>
             </div>
         </div>
@@ -1586,10 +1794,10 @@
 
         // ===== Term 관련 이벤트 핸들러 =====
 
-        // Term 추출 실행 버튼
-        const extractTermsBtn = document.getElementById('extractTermsBtn');
-        if (extractTermsBtn) {
-            extractTermsBtn.addEventListener('click', function() {
+        // Article Term 추출 실행 버튼
+        const extractArticleTermsBtn = document.getElementById('extractArticleTermsBtn');
+        if (extractArticleTermsBtn) {
+            extractArticleTermsBtn.addEventListener('click', function() {
                 if (confirm('모든 article의 term을 추출합니다. 이미 분석된 article은 건너뜁니다. 계속하시겠습니까?')) {
                     const btn = this;
                     const originalText = btn.innerHTML;
@@ -1627,8 +1835,87 @@
             });
         }
 
+        // Video Term 추출 실행 버튼
+        const extractVideoTermsBtn = document.getElementById('extractVideoTermsBtn');
+        if (extractVideoTermsBtn) {
+            extractVideoTermsBtn.addEventListener('click', function() {
+                if (confirm('모든 video의 term을 추출합니다. 이미 분석된 video는 건너뜁니다. 계속하시겠습니까?')) {
+                    const btn = this;
+                    const originalText = btn.innerHTML;
+
+                    // 버튼 비활성화 및 로딩 표시
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Term 추출 중...';
+
+                    fetch('/admin/videos/extract-terms', {
+                        method: 'GET'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert(data.message);
+                            // 3분 후 버튼 재활성화 및 페이지 새로고침
+                            setTimeout(() => {
+                                btn.disabled = false;
+                                btn.innerHTML = originalText;
+                                location.reload();
+                            }, 180000);
+                        } else {
+                            alert('Term 추출 실패: ' + data.message);
+                            btn.disabled = false;
+                            btn.innerHTML = originalText;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Term 추출 중 오류가 발생했습니다.');
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                    });
+                }
+            });
+        }
+
+        // Term 삭제 버튼 클릭 (불용어 등록)
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('delete-term-btn') || e.target.closest('.delete-term-btn')) {
+                const btn = e.target.classList.contains('delete-term-btn') ? e.target : e.target.closest('.delete-term-btn');
+                const termId = btn.dataset.termId;
+                const term = btn.dataset.term;
+                const termType = btn.dataset.termType;
+
+                if (confirm(`"${term}" (${termType})를 불용어로 등록하시겠습니까?\n\n이 term은 모든 article에서 삭제되며, 향후 추출되지 않습니다.`)) {
+                    const reason = prompt('불용어 등록 사유를 입력하세요 (선택사항):', '');
+
+                    fetch(`/admin/terms/${termId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            reason: reason || null
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert(data.message);
+                            location.reload();
+                        } else {
+                            alert('Term 삭제 실패: ' + data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Term 삭제 중 오류가 발생했습니다.');
+                    });
+                }
+            }
+        });
+
         // Term 로드 및 표시 (페이지 로드 시)
         document.addEventListener('DOMContentLoaded', function() {
+            // Article Term 로드
             const termsContainers = document.querySelectorAll('.terms-container');
             termsContainers.forEach(container => {
                 const articleId = container.dataset.articleId;
@@ -1667,6 +1954,344 @@
                         container.innerHTML = '<span class="badge bg-danger"><i class="fas fa-exclamation"></i> 오류</span>';
                     });
             });
+
+            // Video Term 로드
+            const videoTermsContainers = document.querySelectorAll('.video-terms-container');
+            videoTermsContainers.forEach(container => {
+                const videoId = container.dataset.videoId;
+
+                fetch(`/admin/videos/${videoId}/terms`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            if (data.terms && data.terms.length > 0) {
+                                const sortedTerms = data.terms.sort((a, b) => b.frequency - a.frequency);
+
+                                let html = '<div class="d-flex flex-wrap gap-1">';
+                                sortedTerms.forEach((term, index) => {
+                                    const badgeClass = term.frequency > 2 ? 'bg-danger' : term.frequency > 1 ? 'bg-warning text-dark' : 'bg-info';
+                                    html += `
+                                        <span class="badge ${badgeClass}" title="${term.termType}">
+                                            ${term.term} <small>x${term.frequency}</small>
+                                        </span>
+                                    `;
+                                });
+                                html += '</div>';
+                                html += `<small class="text-muted mt-1 d-block">총 ${sortedTerms.length}개 term</small>`;
+
+                                container.innerHTML = html;
+                            } else {
+                                container.innerHTML = '<span class="badge bg-secondary">Term 없음</span>';
+                            }
+                        } else {
+                            container.innerHTML = '<span class="badge bg-secondary">-</span>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error loading video terms:', error);
+                        container.innerHTML = '<span class="badge bg-danger"><i class="fas fa-exclamation"></i> 오류</span>';
+                    });
+            });
+        });
+
+        // ===== Term 재분석 기능 =====
+
+        // Article Term 재분석 버튼 클릭
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('reanalyze-terms-btn') || e.target.closest('.reanalyze-terms-btn')) {
+                const btn = e.target.classList.contains('reanalyze-terms-btn') ? e.target : e.target.closest('.reanalyze-terms-btn');
+                const articleId = btn.dataset.articleId;
+                const articleTitle = btn.dataset.articleTitle;
+
+                if (confirm(`"${articleTitle}"\n\n이 게시글의 term을 재분석하시겠습니까?`)) {
+                    const originalHtml = btn.innerHTML;
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+                    fetch(`/admin/articles/${articleId}/reanalyze-terms`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert(data.message);
+                            // Term 목록 새로고침
+                            loadTermsForArticle(articleId);
+                        } else {
+                            alert('Term 재분석 실패: ' + data.message);
+                        }
+                        btn.disabled = false;
+                        btn.innerHTML = originalHtml;
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Term 재분석 중 오류가 발생했습니다.');
+                        btn.disabled = false;
+                        btn.innerHTML = originalHtml;
+                    });
+                }
+            }
+        });
+
+        // Video Term 재분석 버튼 클릭
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('reanalyze-video-terms-btn') || e.target.closest('.reanalyze-video-terms-btn')) {
+                const btn = e.target.classList.contains('reanalyze-video-terms-btn') ? e.target : e.target.closest('.reanalyze-video-terms-btn');
+                const videoId = btn.dataset.videoId;
+                const videoTitle = btn.dataset.videoTitle;
+
+                if (confirm(`"${videoTitle}"\n\n이 영상의 term을 재분석하시겠습니까?`)) {
+                    const originalHtml = btn.innerHTML;
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+                    fetch(`/admin/videos/${videoId}/reanalyze-terms`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert(data.message);
+                            // Term 목록 새로고침
+                            loadTermsForVideo(videoId);
+                        } else {
+                            alert('Term 재분석 실패: ' + data.message);
+                        }
+                        btn.disabled = false;
+                        btn.innerHTML = originalHtml;
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Term 재분석 중 오류가 발생했습니다.');
+                        btn.disabled = false;
+                        btn.innerHTML = originalHtml;
+                    });
+                }
+            }
+        });
+
+        // 특정 Article의 Term 로드
+        function loadTermsForArticle(articleId) {
+            const container = document.querySelector(`.terms-container[data-article-id="${articleId}"]`);
+            if (!container) return;
+
+            container.innerHTML = '<div class="text-muted"><i class="fas fa-spinner fa-spin me-2"></i>로딩 중...</div>';
+
+            fetch(`/admin/articles/${articleId}/terms`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        if (data.terms && data.terms.length > 0) {
+                            const sortedTerms = data.terms.sort((a, b) => b.frequency - a.frequency);
+
+                            let html = '<div class="d-flex flex-wrap gap-1">';
+                            sortedTerms.forEach((term, index) => {
+                                const badgeClass = term.frequency > 2 ? 'bg-danger' : term.frequency > 1 ? 'bg-warning text-dark' : 'bg-info';
+                                html += `
+                                    <span class="badge ${badgeClass}" title="${term.termType}">
+                                        ${term.term} <small>x${term.frequency}</small>
+                                    </span>
+                                `;
+                            });
+                            html += '</div>';
+                            html += `<small class="text-muted mt-1 d-block">총 ${sortedTerms.length}개 term</small>`;
+
+                            container.innerHTML = html;
+                        } else {
+                            container.innerHTML = '<span class="badge bg-secondary">Term 없음</span>';
+                        }
+                    } else {
+                        container.innerHTML = '<span class="badge bg-secondary">-</span>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading terms:', error);
+                    container.innerHTML = '<span class="badge bg-danger"><i class="fas fa-exclamation"></i> 오류</span>';
+                });
+        }
+
+        // 특정 Video의 Term 로드
+        function loadTermsForVideo(videoId) {
+            const container = document.querySelector(`.video-terms-container[data-video-id="${videoId}"]`);
+            if (!container) return;
+
+            container.innerHTML = '<div class="text-muted"><i class="fas fa-spinner fa-spin me-2"></i>로딩 중...</div>';
+
+            fetch(`/admin/videos/${videoId}/terms`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        if (data.terms && data.terms.length > 0) {
+                            const sortedTerms = data.terms.sort((a, b) => b.frequency - a.frequency);
+
+                            let html = '<div class="d-flex flex-wrap gap-1">';
+                            sortedTerms.forEach((term, index) => {
+                                const badgeClass = term.frequency > 2 ? 'bg-danger' : term.frequency > 1 ? 'bg-warning text-dark' : 'bg-info';
+                                html += `
+                                    <span class="badge ${badgeClass}" title="${term.termType}">
+                                        ${term.term} <small>x${term.frequency}</small>
+                                    </span>
+                                `;
+                            });
+                            html += '</div>';
+                            html += `<small class="text-muted mt-1 d-block">총 ${sortedTerms.length}개 term</small>`;
+
+                            container.innerHTML = html;
+                        } else {
+                            container.innerHTML = '<span class="badge bg-secondary">Term 없음</span>';
+                        }
+                    } else {
+                        container.innerHTML = '<span class="badge bg-secondary">-</span>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading video terms:', error);
+                    container.innerHTML = '<span class="badge bg-danger"><i class="fas fa-exclamation"></i> 오류</span>';
+                });
+        }
+
+        // ===== 사용자 사전 관리 기능 =====
+
+        // 사용자 사전 관리 버튼 클릭
+        const manageUserDictionaryBtn = document.getElementById('manageUserDictionaryBtn');
+        if (manageUserDictionaryBtn) {
+            manageUserDictionaryBtn.addEventListener('click', function() {
+                loadUserDictionary();
+                const modal = new bootstrap.Modal(document.getElementById('userDictionaryModal'));
+                modal.show();
+            });
+        }
+
+        // 사용자 사전 로드
+        function loadUserDictionary() {
+            const listContainer = document.getElementById('userDictionaryList');
+            listContainer.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin me-2"></i>로딩 중...</div>';
+
+            fetch('/admin/user-dictionary')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('userDictCount').textContent = data.totalCount;
+
+                        if (data.userDictionaries && data.userDictionaries.length > 0) {
+                            let html = '<table class="table table-sm table-hover">';
+                            html += '<thead class="table-light">';
+                            html += '<tr><th>단어</th><th>품사</th><th>사유</th><th>등록일</th><th>액션</th></tr>';
+                            html += '</thead><tbody>';
+
+                            data.userDictionaries.forEach(dict => {
+                                const createdAt = new Date(dict.createdAt).toLocaleString('ko-KR');
+                                html += `
+                                    <tr>
+                                        <td><strong>${dict.word}</strong></td>
+                                        <td><span class="badge bg-secondary">${dict.posTag}</span></td>
+                                        <td>${dict.reason || '-'}</td>
+                                        <td><small class="text-muted">${createdAt}</small></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-danger delete-user-word-btn"
+                                                    data-word-id="${dict.id}"
+                                                    data-word="${dict.word}">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `;
+                            });
+
+                            html += '</tbody></table>';
+                            listContainer.innerHTML = html;
+                        } else {
+                            listContainer.innerHTML = '<div class="text-center text-muted py-3">등록된 단어가 없습니다.</div>';
+                        }
+                    } else {
+                        listContainer.innerHTML = '<div class="alert alert-danger">오류: ' + data.message + '</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    listContainer.innerHTML = '<div class="alert alert-danger">사용자 사전 로드 중 오류가 발생했습니다.</div>';
+                });
+        }
+
+        // 사용자 단어 추가 폼 제출
+        document.getElementById('addUserWordForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const word = document.getElementById('userWord').value.trim();
+            const posTag = document.getElementById('userPosTag').value;
+            const reason = document.getElementById('userReason').value.trim();
+
+            if (!word) {
+                alert('단어를 입력해주세요.');
+                return;
+            }
+
+            fetch('/admin/user-dictionary', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    word: word,
+                    posTag: posTag,
+                    reason: reason || null
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    // 폼 초기화
+                    document.getElementById('userWord').value = '';
+                    document.getElementById('userPosTag').value = 'NNG';
+                    document.getElementById('userReason').value = '';
+                    // 목록 새로고침
+                    loadUserDictionary();
+                } else {
+                    alert('단어 추가 실패: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('단어 추가 중 오류가 발생했습니다.');
+            });
+        });
+
+        // 사용자 단어 삭제 버튼 클릭 (이벤트 위임)
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('delete-user-word-btn') || e.target.closest('.delete-user-word-btn')) {
+                const btn = e.target.classList.contains('delete-user-word-btn') ? e.target : e.target.closest('.delete-user-word-btn');
+                const wordId = btn.dataset.wordId;
+                const word = btn.dataset.word;
+
+                if (confirm(`"${word}" 단어를 삭제하시겠습니까?\n\n애플리케이션을 재시작하면 형태소 분석에서 제외됩니다.`)) {
+                    fetch(`/admin/user-dictionary/${wordId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert(data.message);
+                            loadUserDictionary();
+                        } else {
+                            alert('단어 삭제 실패: ' + data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('단어 삭제 중 오류가 발생했습니다.');
+                    });
+                }
+            }
         });
     </script>
 </body>

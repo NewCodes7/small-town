@@ -58,7 +58,8 @@ public interface ArticleTermRepository extends JpaRepository<ArticleTerm, Long> 
      * Term 통계 조회 (많이 사용된 순)
      * Term 엔티티를 참조하여 중복 없이 통계 집계
      */
-    @Query("SELECT at.term.term as term, " +
+    @Query("SELECT at.term.id as termId, " +
+           "at.term.term as term, " +
            "at.term.termType as termType, " +
            "SUM(at.frequency) as totalFrequency, " +
            "COUNT(DISTINCT at.article.id) as articleCount " +
@@ -68,9 +69,25 @@ public interface ArticleTermRepository extends JpaRepository<ArticleTerm, Long> 
     List<TermStatistics> findTermStatistics(Pageable pageable);
 
     /**
+     * Term 통계 조회 (검색 기능 포함)
+     * Term 문자열로 검색
+     */
+    @Query("SELECT at.term.id as termId, " +
+           "at.term.term as term, " +
+           "at.term.termType as termType, " +
+           "SUM(at.frequency) as totalFrequency, " +
+           "COUNT(DISTINCT at.article.id) as articleCount " +
+           "FROM ArticleTerm at " +
+           "WHERE LOWER(at.term.term) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "GROUP BY at.term.id, at.term.term, at.term.termType " +
+           "ORDER BY SUM(at.frequency) DESC")
+    List<TermStatistics> findTermStatisticsBySearch(@Param("search") String search, Pageable pageable);
+
+    /**
      * Term 통계 인터페이스 (Projection)
      */
     interface TermStatistics {
+        Long getTermId();
         String getTerm();
         String getTermType();
         Long getTotalFrequency();

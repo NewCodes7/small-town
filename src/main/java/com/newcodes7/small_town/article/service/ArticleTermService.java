@@ -13,11 +13,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.ArticleTermRepository;
+import com.newcodes7.small_town.article.repository.StopwordRepository;
 import com.newcodes7.small_town.article.repository.TermRepository;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.ArticleTerm;
+import com.newcodes7.small_town.global.entity.Stopword;
 import com.newcodes7.small_town.global.entity.Term;
+import com.newcodes7.small_town.global.entity.VideoTerm;
 import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
+import com.newcodes7.small_town.video.repository.VideoTermRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,7 +33,9 @@ public class ArticleTermService {
 
     private final ArticleRepository articleRepository;
     private final ArticleTermRepository articleTermRepository;
+    private final VideoTermRepository videoTermRepository;
     private final TermRepository termRepository;
+    private final StopwordRepository stopwordRepository;
     private final MorphemeAnalyzer morphemeAnalyzer;
 
     /**
@@ -167,6 +173,83 @@ public class ArticleTermService {
     @Transactional(readOnly = true)
     public List<ArticleTerm> getArticleTerms(Long articleId) {
         return articleTermRepository.findByArticleId(articleId);
+    }
+
+    /**
+     * Term 삭제 및 불용어 등록
+     * 특정 term을 삭제하고, 해당 term을 불용어로 등록하여 다시 추출되지 않도록 함
+     *
+     * @param termId 삭제할 term ID
+     * @param reason 불용어 등록 사유 (선택사항)
+     * @return 삭제된 ArticleTerm 및 VideoTerm 총 개수
+     */
+    @Transactional
+    public int deleteTermAndAddToStopwords(Long termId, String reason) {
+        // Term 조회
+        Term term = termRepository.findById(termId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 Term입니다. ID: " + termId));
+
+        // 1. 해당 term을 사용하는 모든 ArticleTerm 삭제
+        List<ArticleTerm> articleTerms = articleTermRepository.findAll().stream()
+                .filter(at -> at.getTerm().getId().equals(termId))
+                .toList();
+        int articleTermCount = articleTerms.size();
+        articleTermRepository.deleteAll(articleTerms);
+
+        // 2. 해당 term을 사용하는 모든 VideoTerm 삭제
+        List<VideoTerm> videoTerms = videoTermRepository.findAll().stream()
+                .filter(vt -> vt.getTerm().getId().equals(termId))
+                .toList();
+        int videoTermCount = videoTerms.size();
+        videoTermRepository.deleteAll(videoTerms);
+
+        int totalDeletedCount = articleTermCount + videoTermCount;
+
+        // 3. Term을 불용어로 등록
+        if (!stopwordRepository.existsByTermAndTermType(term.getTerm(), term.getTermType())) {
+            Stopword stopword = Stopword.builder()
+                    .term(term.getTerm())
+                    .termType(term.getTermType())
+                    .reason(reason)
+                    .build();
+            stopwordRepository.save(stopword);
+            log.info("Term을 불용어로 등록: {} ({}), 사유: {}", term.getTerm(), term.getTermType(), reason);
+        }
+
+        // 4. Term 삭제
+        termRepository.delete(term);
+
+        // 5. 불용어 캐시 갱신
+        morphemeAnalyzer.refreshStopwordCache();
+
+        log.info("Term 삭제 완료: {} ({}), ArticleTerm {} 개, VideoTerm {} 개 삭제",
+                term.getTerm(), term.getTermType(), articleTermCount, videoTermCount);
+
+        return totalDeletedCount;
+    }
+
+    /**
+     * 특정 term 문자열을 불용어로 등록
+     *
+     * @param termStr term 문자열
+     * @param termType 품사
+     * @param reason 불용어 등록 사유
+     */
+    @Transactional
+    public void addStopword(String termStr, String termType, String reason) {
+        if (!stopwordRepository.existsByTermAndTermType(termStr, termType)) {
+            Stopword stopword = Stopword.builder()
+                    .term(termStr)
+                    .termType(termType)
+                    .reason(reason)
+                    .build();
+            stopwordRepository.save(stopword);
+
+            // 불용어 캐시 갱신
+            morphemeAnalyzer.refreshStopwordCache();
+
+            log.info("불용어 등록: {} ({}), 사유: {}", termStr, termType, reason);
+        }
     }
 
     /**

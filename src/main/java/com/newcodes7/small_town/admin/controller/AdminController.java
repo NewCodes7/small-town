@@ -29,8 +29,11 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.ArticleTermRepository;
+import com.newcodes7.small_town.article.repository.UserDictionaryRepository;
 import com.newcodes7.small_town.article.service.ArticleService;
 import com.newcodes7.small_town.article.service.ArticleTermService;
+import com.newcodes7.small_town.video.repository.VideoTermRepository;
+import com.newcodes7.small_town.video.service.VideoTermService;
 import com.newcodes7.small_town.corporation.dto.CorporationCreateDto;
 import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
 import com.newcodes7.small_town.corporation.dto.CorporationUpdateDto;
@@ -71,6 +74,9 @@ public class AdminController {
     private final VideoService videoService;
     private final ArticleTermService articleTermService;
     private final ArticleTermRepository articleTermRepository;
+    private final VideoTermService videoTermService;
+    private final VideoTermRepository videoTermRepository;
+    private final UserDictionaryRepository userDictionaryRepository;
     
     // 기업 목록 페이지
     @GetMapping("/corporations")
@@ -256,7 +262,7 @@ public class AdminController {
             corporations = Page.empty(pageable);
         }
 
-        // Term 분석 목록
+        // Term 분석 목록 (Article)
         Page<Article> articlesWithTerms;
         if (tab.equals("terms")) {
             if (search != null && !search.trim().isEmpty()) {
@@ -269,18 +275,48 @@ public class AdminController {
             articlesWithTerms = Page.empty(pageable);
         }
 
-        // Term 통계
-        List<com.newcodes7.small_town.article.repository.ArticleTermRepository.TermStatistics> termStats = null;
+        // Term 분석 목록 (Video)
+        Page<Video> videosWithTerms;
+        if (tab.equals("terms")) {
+            if (search != null && !search.trim().isEmpty()) {
+                videosWithTerms = videoRepository.findByTitleContainingIgnoreCaseAndDeletedAtIsNull(search, pageable);
+            } else {
+                videosWithTerms = videoRepository.findByDeletedAtIsNull(pageable);
+            }
+        } else {
+            videosWithTerms = Page.empty(pageable);
+        }
+
+        // Term 통계 (Article)
+        List<com.newcodes7.small_town.article.repository.ArticleTermRepository.TermStatistics> articleTermStats = null;
         if (tab.equals("stats")) {
             Pageable statsPageable = PageRequest.of(page, size);
-            termStats = articleTermRepository.findTermStatistics(statsPageable);
+            if (search != null && !search.trim().isEmpty()) {
+                articleTermStats = articleTermRepository.findTermStatisticsBySearch(search, statsPageable);
+                model.addAttribute("search", search);
+            } else {
+                articleTermStats = articleTermRepository.findTermStatistics(statsPageable);
+            }
+        }
+
+        // Term 통계 (Video)
+        List<com.newcodes7.small_town.video.repository.VideoTermRepository.TermStatistics> videoTermStats = null;
+        if (tab.equals("stats")) {
+            Pageable statsPageable = PageRequest.of(page, size);
+            if (search != null && !search.trim().isEmpty()) {
+                videoTermStats = videoTermRepository.findTermStatisticsBySearch(search, statsPageable);
+            } else {
+                videoTermStats = videoTermRepository.findTermStatistics(statsPageable);
+            }
         }
 
         model.addAttribute("articles", articles);
         model.addAttribute("videos", videos);
         model.addAttribute("corporations", corporations);
         model.addAttribute("articlesWithTerms", articlesWithTerms);
-        model.addAttribute("termStats", termStats);
+        model.addAttribute("videosWithTerms", videosWithTerms);
+        model.addAttribute("articleTermStats", articleTermStats);
+        model.addAttribute("videoTermStats", videoTermStats);
         model.addAttribute("categories", categoryRepository.findAll());
         model.addAttribute("currentTab", tab);
         return "admin/article/list";
@@ -1194,6 +1230,363 @@ public class AdminController {
             log.error("Article term 조회 중 오류 발생: {}", e.getMessage(), e);
             response.put("success", false);
             response.put("message", "Term 조회 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * Term 삭제 및 불용어 등록 API
+     *
+     * DELETE /admin/terms/{termId}
+     */
+    @DeleteMapping("/terms/{termId}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> deleteTerm(
+            @PathVariable Long termId,
+            @RequestBody(required = false) Map<String, String> request) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            String reason = request != null ? request.get("reason") : null;
+
+            int deletedCount = articleTermService.deleteTermAndAddToStopwords(termId, reason);
+
+            response.put("success", true);
+            response.put("message", String.format("Term이 삭제되고 불용어로 등록되었습니다. (ArticleTerm + VideoTerm 총 %d개 삭제)", deletedCount));
+            response.put("deletedTermCount", deletedCount);
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+
+        } catch (Exception e) {
+            log.error("Term 삭제 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Term 삭제 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 특정 Article의 Term 재분석 API
+     *
+     * POST /admin/articles/{articleId}/reanalyze-terms
+     */
+    @PostMapping("/articles/{articleId}/reanalyze-terms")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> reanalyzeArticleTerms(@PathVariable Long articleId) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            Optional<Article> articleOpt = articleRepository.findById(articleId);
+            if (articleOpt.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "Article을 찾을 수 없습니다.");
+                return ResponseEntity.notFound().build();
+            }
+
+            Article article = articleOpt.get();
+
+            // Term 재분석 및 저장
+            int termCount = articleTermService.extractAndSaveTermsForArticle(article);
+
+            response.put("success", true);
+            response.put("message", String.format("Term 재분석이 완료되었습니다. (%d개 추출)", termCount));
+            response.put("articleId", articleId);
+            response.put("termCount", termCount);
+
+            log.info("Article ID {} term 재분석 완료: {} terms", articleId, termCount);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Article ID {} term 재분석 중 오류 발생: {}", articleId, e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Term 재분석 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 사용자 정의 단어 사전 목록 조회 API
+     *
+     * GET /admin/user-dictionary
+     */
+    @GetMapping("/user-dictionary")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getUserDictionary() {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            List<com.newcodes7.small_town.global.entity.UserDictionary> userDictionaries =
+                    userDictionaryRepository.findAllOrderByCreatedAtDesc();
+
+            // DTO로 변환
+            List<Map<String, Object>> dictDataList = new ArrayList<>();
+            for (com.newcodes7.small_town.global.entity.UserDictionary userDict : userDictionaries) {
+                Map<String, Object> dictData = new HashMap<>();
+                dictData.put("id", userDict.getId());
+                dictData.put("word", userDict.getWord());
+                dictData.put("posTag", userDict.getPosTag());
+                dictData.put("reason", userDict.getReason());
+                dictData.put("createdAt", userDict.getCreatedAt());
+                dictDataList.add(dictData);
+            }
+
+            response.put("success", true);
+            response.put("userDictionaries", dictDataList);
+            response.put("totalCount", dictDataList.size());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("사용자 사전 조회 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "사용자 사전 조회 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 사용자 정의 단어 추가 API
+     *
+     * POST /admin/user-dictionary
+     */
+    @PostMapping("/user-dictionary")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> addUserDictionary(@RequestBody Map<String, String> request) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            String word = request.get("word");
+            String posTag = request.get("posTag");
+            String reason = request.get("reason");
+
+            if (word == null || word.trim().isEmpty()) {
+                response.put("success", false);
+                response.put("message", "단어는 필수 입력 항목입니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // 기본 품사는 NNG (일반명사)
+            if (posTag == null || posTag.trim().isEmpty()) {
+                posTag = "NNG";
+            }
+
+            // 중복 체크
+            if (userDictionaryRepository.existsByWord(word.trim())) {
+                response.put("success", false);
+                response.put("message", "이미 등록된 단어입니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // 사용자 단어 저장
+            com.newcodes7.small_town.global.entity.UserDictionary userDict =
+                com.newcodes7.small_town.global.entity.UserDictionary.builder()
+                    .word(word.trim())
+                    .posTag(posTag.trim())
+                    .reason(reason != null ? reason.trim() : null)
+                    .build();
+
+            com.newcodes7.small_town.global.entity.UserDictionary saved =
+                    userDictionaryRepository.save(userDict);
+
+            response.put("success", true);
+            response.put("message", "사용자 단어가 등록되었습니다. 애플리케이션을 재시작하면 형태소 분석에 적용됩니다.");
+            response.put("userDictionary", Map.of(
+                "id", saved.getId(),
+                "word", saved.getWord(),
+                "posTag", saved.getPosTag(),
+                "reason", saved.getReason() != null ? saved.getReason() : ""
+            ));
+
+            log.info("사용자 단어 등록: {} ({}), 사유: {}", word.trim(), posTag.trim(), reason);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("사용자 단어 등록 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "사용자 단어 등록 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 사용자 정의 단어 삭제 API
+     *
+     * DELETE /admin/user-dictionary/{id}
+     */
+    @DeleteMapping("/user-dictionary/{id}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> deleteUserDictionary(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // UserDictionary 존재 확인
+            com.newcodes7.small_town.global.entity.UserDictionary userDict =
+                userDictionaryRepository.findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자 단어입니다. ID: " + id));
+
+            String word = userDict.getWord();
+
+            // UserDictionary 삭제
+            userDictionaryRepository.delete(userDict);
+
+            response.put("success", true);
+            response.put("message", String.format("사용자 단어 '%s'가 삭제되었습니다. 애플리케이션을 재시작하면 형태소 분석에서 제외됩니다.", word));
+            response.put("deletedWord", word);
+
+            log.info("사용자 단어 삭제: {} (ID: {})", word, id);
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            log.warn("사용자 단어 삭제 실패 - 존재하지 않는 ID: {}", id);
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+
+        } catch (Exception e) {
+            log.error("사용자 단어 삭제 중 오류 발생 - ID: {}, 오류: {}", id, e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "사용자 단어 삭제 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * Video Term 추출 및 저장 API
+     *
+     * GET /admin/videos/extract-terms
+     */
+    @GetMapping("/videos/extract-terms")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> extractVideoTerms() {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            log.info("Video term 추출 요청 시작");
+
+            // 비동기로 실행
+            new Thread(() -> {
+                try {
+                    VideoTermService.VideoTermExtractionResult result =
+                            videoTermService.extractAndSaveAllVideoTerms();
+
+                    log.info("Video term 추출 완료: 처리={}, 건너뜀={}, 실패={}, term={}, 소요시간={}ms",
+                            result.getProcessedVideos(),
+                            result.getSkippedVideos(),
+                            result.getFailedVideos(),
+                            result.getTotalTerms(),
+                            result.getProcessingTimeMs());
+
+                } catch (Exception e) {
+                    log.error("Video term 추출 배치 작업 중 오류 발생", e);
+                }
+            }).start();
+
+            response.put("success", true);
+            response.put("message", "Video term 추출 작업이 시작되었습니다. 이미 term이 있는 video는 건너뜁니다. 로그를 확인해주세요.");
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Video term 추출 작업 시작 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Term 추출 작업 시작 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 특정 Video의 Term 조회 API
+     *
+     * GET /admin/videos/{videoId}/terms
+     */
+    @GetMapping("/videos/{videoId}/terms")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getVideoTerms(@PathVariable Long videoId) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            Optional<Video> videoOpt = videoRepository.findById(videoId);
+            if (videoOpt.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "Video를 찾을 수 없습니다.");
+                return ResponseEntity.notFound().build();
+            }
+
+            List<com.newcodes7.small_town.global.entity.VideoTerm> terms =
+                    videoTermService.getVideoTerms(videoId);
+
+            // DTO로 변환
+            List<Map<String, Object>> termDataList = new ArrayList<>();
+            for (com.newcodes7.small_town.global.entity.VideoTerm videoTerm : terms) {
+                Map<String, Object> termData = new HashMap<>();
+                termData.put("id", videoTerm.getId());
+                termData.put("term", videoTerm.getTerm().getTerm());
+                termData.put("termType", videoTerm.getTerm().getTermType());
+                termData.put("frequency", videoTerm.getFrequency());
+                termData.put("createdAt", videoTerm.getCreatedAt());
+                termDataList.add(termData);
+            }
+
+            response.put("success", true);
+            response.put("videoId", videoId);
+            response.put("terms", termDataList);
+            response.put("totalTerms", termDataList.size());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Video term 조회 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Term 조회 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 특정 Video의 Term 재분석 API
+     *
+     * POST /admin/videos/{videoId}/reanalyze-terms
+     */
+    @PostMapping("/videos/{videoId}/reanalyze-terms")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> reanalyzeVideoTerms(@PathVariable Long videoId) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            Optional<Video> videoOpt = videoRepository.findById(videoId);
+            if (videoOpt.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "Video를 찾을 수 없습니다.");
+                return ResponseEntity.notFound().build();
+            }
+
+            Video video = videoOpt.get();
+
+            // Term 재분석 및 저장
+            int termCount = videoTermService.extractAndSaveTermsForVideo(video);
+
+            response.put("success", true);
+            response.put("message", String.format("Term 재분석이 완료되었습니다. (%d개 추출)", termCount));
+            response.put("videoId", videoId);
+            response.put("termCount", termCount);
+
+            log.info("Video ID {} term 재분석 완료: {} terms", videoId, termCount);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Video ID {} term 재분석 중 오류 발생: {}", videoId, e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Term 재분석 중 오류가 발생했습니다: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
     }
