@@ -28,7 +28,9 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.article.repository.ArticleTermRepository;
 import com.newcodes7.small_town.article.service.ArticleService;
+import com.newcodes7.small_town.article.service.ArticleTermService;
 import com.newcodes7.small_town.corporation.dto.CorporationCreateDto;
 import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
 import com.newcodes7.small_town.corporation.dto.CorporationUpdateDto;
@@ -67,6 +69,8 @@ public class AdminController {
     private final ArticlePersistenceService articlePersistenceService;
     private final VideoRepository videoRepository;
     private final VideoService videoService;
+    private final ArticleTermService articleTermService;
+    private final ArticleTermRepository articleTermRepository;
     
     // 기업 목록 페이지
     @GetMapping("/corporations")
@@ -213,6 +217,8 @@ public class AdminController {
         // 기업 탭의 경우 조회수 기준 내림차순 정렬
         if (tab.equals("corporations")) {
             pageable = PageRequest.of(page, size, Sort.by("viewCount").descending().and(Sort.by("name").ascending()));
+        } else if (tab.equals("terms") || tab.equals("stats")) {
+            pageable = PageRequest.of(page, size, Sort.by("id").descending());
         } else {
             pageable = PageRequest.of(page, size, Sort.by("publishedAt").descending());
         }
@@ -250,9 +256,31 @@ public class AdminController {
             corporations = Page.empty(pageable);
         }
 
+        // Term 분석 목록
+        Page<Article> articlesWithTerms;
+        if (tab.equals("terms")) {
+            if (search != null && !search.trim().isEmpty()) {
+                articlesWithTerms = articleRepository.findByTitleContainingIgnoreCaseAndDeletedAtIsNull(search, pageable);
+                model.addAttribute("search", search);
+            } else {
+                articlesWithTerms = articleRepository.findByDeletedAtIsNull(pageable);
+            }
+        } else {
+            articlesWithTerms = Page.empty(pageable);
+        }
+
+        // Term 통계
+        List<com.newcodes7.small_town.article.repository.ArticleTermRepository.TermStatistics> termStats = null;
+        if (tab.equals("stats")) {
+            Pageable statsPageable = PageRequest.of(page, size);
+            termStats = articleTermRepository.findTermStatistics(statsPageable);
+        }
+
         model.addAttribute("articles", articles);
         model.addAttribute("videos", videos);
         model.addAttribute("corporations", corporations);
+        model.addAttribute("articlesWithTerms", articlesWithTerms);
+        model.addAttribute("termStats", termStats);
         model.addAttribute("categories", categoryRepository.findAll());
         model.addAttribute("currentTab", tab);
         return "admin/article/list";
@@ -1073,6 +1101,99 @@ public class AdminController {
             log.error("카테고리 삭제 중 오류 발생 - ID: {}, 오류: {}", id, e.getMessage(), e);
             response.put("success", false);
             response.put("message", "카테고리 삭제 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * Article Term 추출 및 저장 API
+     * 모든 article의 title과 translatedTitle에서 형태소를 분석하여 term으로 저장
+     *
+     * GET /admin/articles/extract-terms
+     */
+    @GetMapping("/articles/extract-terms")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> extractArticleTerms() {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            log.info("Article term 추출 요청 시작");
+
+            // 비동기로 실행하여 오래 걸리는 작업이 UI를 블로킹하지 않도록 함
+            new Thread(() -> {
+                try {
+                    ArticleTermService.ArticleTermExtractionResult result =
+                            articleTermService.extractAndSaveAllArticleTerms();
+
+                    log.info("Article term 추출 완료: 처리={}, 건너뜀={}, 실패={}, term={}, 소요시간={}ms",
+                            result.getProcessedArticles(),
+                            result.getSkippedArticles(),
+                            result.getFailedArticles(),
+                            result.getTotalTerms(),
+                            result.getProcessingTimeMs());
+
+                } catch (Exception e) {
+                    log.error("Article term 추출 배치 작업 중 오류 발생", e);
+                }
+            }).start();
+
+            response.put("success", true);
+            response.put("message", "Article term 추출 작업이 시작되었습니다. 이미 term이 있는 article은 건너뜁니다. 로그를 확인해주세요.");
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Article term 추출 작업 시작 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Term 추출 작업 시작 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 특정 Article의 Term 조회 API
+     *
+     * GET /admin/articles/{articleId}/terms
+     */
+    @GetMapping("/articles/{articleId}/terms")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getArticleTerms(@PathVariable Long articleId) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            Optional<Article> articleOpt = articleRepository.findById(articleId);
+            if (articleOpt.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "Article을 찾을 수 없습니다.");
+                return ResponseEntity.notFound().build();
+            }
+
+            List<com.newcodes7.small_town.global.entity.ArticleTerm> terms =
+                    articleTermService.getArticleTerms(articleId);
+
+            // DTO로 변환
+            List<Map<String, Object>> termDataList = new ArrayList<>();
+            for (com.newcodes7.small_town.global.entity.ArticleTerm articleTerm : terms) {
+                Map<String, Object> termData = new HashMap<>();
+                termData.put("id", articleTerm.getId());
+                termData.put("term", articleTerm.getTerm().getTerm());
+                termData.put("termType", articleTerm.getTerm().getTermType());
+                termData.put("frequency", articleTerm.getFrequency());
+                termData.put("createdAt", articleTerm.getCreatedAt());
+                termDataList.add(termData);
+            }
+
+            response.put("success", true);
+            response.put("articleId", articleId);
+            response.put("terms", termDataList);
+            response.put("totalTerms", termDataList.size());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Article term 조회 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Term 조회 중 오류가 발생했습니다: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
     }

@@ -63,6 +63,18 @@
                             <i class="fas fa-building me-2"></i>기업 조회수
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:classappend="${currentTab == 'terms'} ? 'active'"
+                           th:href="@{/admin/articles(tab='terms')}">
+                            <i class="fas fa-tags me-2"></i>Term 분석
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:classappend="${currentTab == 'stats'} ? 'active'"
+                           th:href="@{/admin/articles(tab='stats')}">
+                            <i class="fas fa-chart-bar me-2"></i>Term 통계
+                        </a>
+                    </li>
                 </ul>
 
                 <!-- 검색 폼 -->
@@ -558,6 +570,185 @@
                                 </li>
                             </ul>
                         </nav>
+                    </div>
+                </div>
+
+                <!-- Term 분석 목록 테이블 -->
+                <div class="card" th:if="${currentTab == 'terms'}">
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <button class="btn btn-success" id="extractTermsBtn">
+                                <i class="fas fa-play me-2"></i>Term 추출 실행
+                            </button>
+                            <small class="text-muted ms-3">
+                                <i class="fas fa-info-circle"></i> 이미 분석된 article은 자동으로 건너뜁니다.
+                            </small>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th style="width: 5%;">ID</th>
+                                        <th style="width: 25%;">제목</th>
+                                        <th style="width: 10%;">기업</th>
+                                        <th style="width: 10%;">발행일</th>
+                                        <th style="width: 50%;">Terms</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="article : ${articlesWithTerms.content}">
+                                        <td th:text="${article.id}"></td>
+                                        <td>
+                                            <div>
+                                                <a th:href="${article.link}" target="_blank"
+                                                   class="text-decoration-none fw-bold" th:text="${article.title}">
+                                                </a>
+                                                <div th:if="${article.translatedTitle}" class="mt-1">
+                                                    <small class="text-info" th:text="'🌐 ' + ${article.translatedTitle}"></small>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td th:text="${article.corporation.name}"></td>
+                                        <td>
+                                            <span th:text="${#temporals.format(article.publishedAt, 'yyyy-MM-dd')}"></span>
+                                        </td>
+                                        <td>
+                                            <div class="terms-container" th:data-article-id="${article.id}">
+                                                <div class="text-muted">
+                                                    <i class="fas fa-spinner fa-spin me-2"></i>로딩 중...
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr th:if="${articlesWithTerms.empty}">
+                                        <td colspan="5" class="text-center text-muted">등록된 글이 없습니다.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 페이지네이션 -->
+                        <nav th:if="${articlesWithTerms.totalPages > 1}">
+                            <ul class="pagination justify-content-center">
+                                <!-- 첫 페이지로 -->
+                                <li class="page-item" th:classappend="${articlesWithTerms.first} ? 'disabled'">
+                                    <a class="page-link" th:href="@{/admin/articles(page=0, tab='terms', search=${search})}">
+                                        <i class="fas fa-angle-double-left"></i>
+                                    </a>
+                                </li>
+
+                                <!-- 이전 페이지 -->
+                                <li class="page-item" th:classappend="${articlesWithTerms.first} ? 'disabled'">
+                                    <a class="page-link"
+                                       th:href="@{/admin/articles(page=${articlesWithTerms.number - 1}, tab='terms', search=${search})}">
+                                        <i class="fas fa-angle-left"></i>
+                                    </a>
+                                </li>
+
+                                <!-- 페이지 번호들 (최대 5개만 표시) -->
+                                <th:block th:with="
+                                    startPage=${articlesWithTerms.number > 2 ? articlesWithTerms.number - 2 : 0},
+                                    endPage=${articlesWithTerms.number + 2 < articlesWithTerms.totalPages - 1 ? articlesWithTerms.number + 2 : articlesWithTerms.totalPages - 1}
+                                ">
+                                    <!-- 첫 페이지가 범위에 없으면 표시 -->
+                                    <li class="page-item" th:if="${startPage > 0}">
+                                        <a class="page-link" th:href="@{/admin/articles(page=0, tab='terms', search=${search})}">1</a>
+                                    </li>
+                                    <li class="page-item disabled" th:if="${startPage > 1}">
+                                        <span class="page-link">...</span>
+                                    </li>
+
+                                    <!-- 현재 페이지 주변의 페이지들 -->
+                                    <li class="page-item"
+                                        th:each="page : ${#numbers.sequence(startPage, endPage)}"
+                                        th:classappend="${page == articlesWithTerms.number} ? 'active'">
+                                        <a class="page-link"
+                                           th:href="@{/admin/articles(page=${page}, tab='terms', search=${search})}"
+                                           th:text="${page + 1}"></a>
+                                    </li>
+
+                                    <!-- 마지막 페이지가 범위에 없으면 표시 -->
+                                    <li class="page-item disabled" th:if="${endPage < articlesWithTerms.totalPages - 2}">
+                                        <span class="page-link">...</span>
+                                    </li>
+                                    <li class="page-item" th:if="${endPage < articlesWithTerms.totalPages - 1}">
+                                        <a class="page-link"
+                                           th:href="@{/admin/articles(page=${articlesWithTerms.totalPages - 1}, tab='terms', search=${search})}"
+                                           th:text="${articlesWithTerms.totalPages}"></a>
+                                    </li>
+                                </th:block>
+
+                                <!-- 다음 페이지 -->
+                                <li class="page-item" th:classappend="${articlesWithTerms.last} ? 'disabled'">
+                                    <a class="page-link"
+                                       th:href="@{/admin/articles(page=${articlesWithTerms.number + 1}, tab='terms', search=${search})}">
+                                        <i class="fas fa-angle-right"></i>
+                                    </a>
+                                </li>
+
+                                <!-- 마지막 페이지로 -->
+                                <li class="page-item" th:classappend="${articlesWithTerms.last} ? 'disabled'">
+                                    <a class="page-link"
+                                       th:href="@{/admin/articles(page=${articlesWithTerms.totalPages - 1}, tab='terms', search=${search})}">
+                                        <i class="fas fa-angle-double-right"></i>
+                                    </a>
+                                </li>
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+
+                <!-- Term 통계 테이블 -->
+                <div class="card" th:if="${currentTab == 'stats'}">
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <h5>
+                                <i class="fas fa-chart-bar me-2"></i>Term 통계
+                                <small class="text-muted ms-2">- 가장 많이 사용된 Term 순</small>
+                            </h5>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th style="width: 5%;">순위</th>
+                                        <th style="width: 30%;">Term</th>
+                                        <th style="width: 15%;">품사</th>
+                                        <th style="width: 20%;">총 빈도수</th>
+                                        <th style="width: 20%;">등장 게시글 수</th>
+                                        <th style="width: 10%;">평균 빈도</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="stat, iterStat : ${termStats}">
+                                        <td>
+                                            <strong th:text="${iterStat.index + 1}">1</strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-primary fs-6" th:text="${stat.term}">Term</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary" th:text="${stat.termType}">Type</span>
+                                        </td>
+                                        <td>
+                                            <strong th:text="${stat.totalFrequency}">0</strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-info" th:text="${stat.articleCount} + '개'">0개</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-muted"
+                                                  th:text="${#numbers.formatDecimal(stat.totalFrequency * 1.0 / stat.articleCount, 1, 2)}">
+                                                0.0
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    <tr th:if="${termStats == null || termStats.empty}">
+                                        <td colspan="6" class="text-center text-muted">통계 데이터가 없습니다. Term 추출을 먼저 실행해주세요.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1392,6 +1583,91 @@
                 alert('카테고리 수정 중 오류가 발생했습니다.');
             });
         }
+
+        // ===== Term 관련 이벤트 핸들러 =====
+
+        // Term 추출 실행 버튼
+        const extractTermsBtn = document.getElementById('extractTermsBtn');
+        if (extractTermsBtn) {
+            extractTermsBtn.addEventListener('click', function() {
+                if (confirm('모든 article의 term을 추출합니다. 이미 분석된 article은 건너뜁니다. 계속하시겠습니까?')) {
+                    const btn = this;
+                    const originalText = btn.innerHTML;
+
+                    // 버튼 비활성화 및 로딩 표시
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Term 추출 중...';
+
+                    fetch('/admin/articles/extract-terms', {
+                        method: 'GET'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert(data.message);
+                            // 3분 후 버튼 재활성화 및 페이지 새로고침
+                            setTimeout(() => {
+                                btn.disabled = false;
+                                btn.innerHTML = originalText;
+                                location.reload();
+                            }, 180000);
+                        } else {
+                            alert('Term 추출 실패: ' + data.message);
+                            btn.disabled = false;
+                            btn.innerHTML = originalText;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Term 추출 중 오류가 발생했습니다.');
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                    });
+                }
+            });
+        }
+
+        // Term 로드 및 표시 (페이지 로드 시)
+        document.addEventListener('DOMContentLoaded', function() {
+            const termsContainers = document.querySelectorAll('.terms-container');
+            termsContainers.forEach(container => {
+                const articleId = container.dataset.articleId;
+
+                fetch(`/admin/articles/${articleId}/terms`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            if (data.terms && data.terms.length > 0) {
+                                // Term을 빈도수 기준으로 정렬
+                                const sortedTerms = data.terms.sort((a, b) => b.frequency - a.frequency);
+
+                                // Term을 뱃지로 표시
+                                let html = '<div class="d-flex flex-wrap gap-1">';
+                                sortedTerms.forEach((term, index) => {
+                                    const badgeClass = term.frequency > 2 ? 'bg-danger' : term.frequency > 1 ? 'bg-warning text-dark' : 'bg-info';
+                                    html += `
+                                        <span class="badge ${badgeClass}" title="${term.termType}">
+                                            ${term.term} <small>x${term.frequency}</small>
+                                        </span>
+                                    `;
+                                });
+                                html += '</div>';
+                                html += `<small class="text-muted mt-1 d-block">총 ${sortedTerms.length}개 term</small>`;
+
+                                container.innerHTML = html;
+                            } else {
+                                container.innerHTML = '<span class="badge bg-secondary">Term 없음</span>';
+                            }
+                        } else {
+                            container.innerHTML = '<span class="badge bg-secondary">-</span>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error loading terms:', error);
+                        container.innerHTML = '<span class="badge bg-danger"><i class="fas fa-exclamation"></i> 오류</span>';
+                    });
+            });
+        });
     </script>
 </body>
 </html>
