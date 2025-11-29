@@ -58,6 +58,18 @@ public interface VideoTermRepository extends JpaRepository<VideoTerm, Long> {
     List<TermStatistics> findTermStatisticsBySearch(@Param("search") String search, Pageable pageable);
 
     /**
+     * 자동완성을 위한 Term 검색 (빈도수 순)
+     * 사용자 입력값으로 시작하는 term을 빈도수 기준으로 정렬하여 반환
+     */
+    @Query("SELECT vt.term.term as term, " +
+           "SUM(vt.frequency) as totalFrequency " +
+           "FROM VideoTerm vt " +
+           "WHERE LOWER(vt.term.term) LIKE LOWER(CONCAT(:query, '%')) " +
+           "GROUP BY vt.term.term " +
+           "ORDER BY SUM(vt.frequency) DESC")
+    List<AutocompleteSuggestion> findAutocompleteTerms(@Param("query") String query, Pageable pageable);
+
+    /**
      * Term 통계 인터페이스 (Projection)
      */
     interface TermStatistics {
@@ -66,5 +78,13 @@ public interface VideoTermRepository extends JpaRepository<VideoTerm, Long> {
         String getTermType();
         Long getTotalFrequency();
         Long getVideoCount();
+    }
+
+    /**
+     * 자동완성 제안 인터페이스 (Projection)
+     */
+    interface AutocompleteSuggestion {
+        String getTerm();
+        Long getTotalFrequency();
     }
 }

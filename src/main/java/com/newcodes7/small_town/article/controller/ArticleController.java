@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.dto.ArticleResponseDto;
 import com.newcodes7.small_town.article.dto.CorporationDetailDto;
+import com.newcodes7.small_town.article.repository.ArticleTermRepository;
 import com.newcodes7.small_town.article.service.ArticleService;
 import com.newcodes7.small_town.article.service.LikeService;
 import com.newcodes7.small_town.article.service.UserLikeService;
@@ -66,6 +67,7 @@ public class ArticleController {
     private final CategoryRepository categoryRepository;
     private final VideoRepository videoRepository;
     private final IndustryRepository industryRepository;
+    private final ArticleTermRepository articleTermRepository;
 
     @GetMapping({"", "/"})
     public String home(
@@ -473,7 +475,53 @@ public class ArticleController {
         List<Category> categories = categoryRepository.findAll();
         return ResponseEntity.ok(categories);
     }
-    
+
+    /**
+     * 자동완성 검색어 API
+     * 사용자 입력값으로 시작하는 term과 corporation을 빈도수 순으로 반환
+     *
+     * GET /api/autocomplete?q=검색어
+     */
+    @GetMapping("/api/autocomplete")
+    @ResponseBody
+    public ResponseEntity<List<Map<String, Object>>> getAutocompleteSuggestions(
+            @RequestParam(name = "q", required = false) String query) {
+
+        List<Map<String, Object>> suggestions = new ArrayList<>();
+
+        if (query == null || query.trim().isEmpty() || query.trim().length() < 1) {
+            return ResponseEntity.ok(suggestions);
+        }
+
+        String trimmedQuery = query.trim();
+
+        // 기업 검색 (블로그가 있는 기업만, 최대 3개)
+        List<Corporation> corporations = corporationService.searchCorporationsWithArticles(trimmedQuery, 3);
+        for (Corporation corporation : corporations) {
+            Map<String, Object> item = new HashMap<>();
+            item.put("type", "corporation");
+            item.put("name", corporation.getName());
+            item.put("id", corporation.getId());
+            item.put("logoUrl", corporation.getEffectiveLogoUrl());
+            suggestions.add(item);
+        }
+
+        // Term 검색 (최대 6개)
+        PageRequest termPageRequest = PageRequest.of(0, 6);
+        List<ArticleTermRepository.AutocompleteSuggestion> articleTermSuggestions =
+                articleTermRepository.findAutocompleteTerms(trimmedQuery, termPageRequest);
+
+        for (ArticleTermRepository.AutocompleteSuggestion termSuggestion : articleTermSuggestions) {
+            Map<String, Object> item = new HashMap<>();
+            item.put("type", "term");
+            item.put("term", termSuggestion.getTerm());
+            item.put("frequency", termSuggestion.getTotalFrequency());
+            suggestions.add(item);
+        }
+
+        return ResponseEntity.ok(suggestions);
+    }
+
     private boolean isAdmin(UserDetails userDetails) {
         return userDetails.getAuthorities().stream()
                 .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"));

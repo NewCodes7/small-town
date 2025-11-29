@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import com.newcodes7.small_town.global.annotation.CachePreload;
 import org.springframework.stereotype.Service;
@@ -450,6 +451,32 @@ public class CorporationService {
         purgeCorporationCache(id);
 
         return CorporationResponseDto.from(corporation, parsingSelector);
+    }
+
+    /**
+     * 블로그가 있는 기업 검색 (자동완성용)
+     */
+    public List<Corporation> searchCorporationsWithArticles(String query, int limit) {
+        if (query == null || query.trim().isEmpty()) {
+            return List.of();
+        }
+        return corporationRepository.findCorporationsWithArticlesByNameContaining(
+                query.trim(),
+                PageRequest.of(0, limit)
+        );
+    }
+
+    /**
+     * 비디오가 있는 기업 검색 (자동완성용)
+     */
+    public List<Corporation> searchCorporationsWithVideos(String query, int limit) {
+        if (query == null || query.trim().isEmpty()) {
+            return List.of();
+        }
+        return corporationRepository.findCorporationsWithVideosByNameContaining(
+                query.trim(),
+                PageRequest.of(0, limit)
+        );
     }
 
     /**

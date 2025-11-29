@@ -3,6 +3,7 @@ package com.newcodes7.small_town.corporation.repository;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -32,4 +33,26 @@ public interface CorporationRepository extends JpaRepository<Corporation, Long>,
     @Modifying
     @Query("UPDATE Corporation c SET c.viewCount = :viewCount WHERE c.id = :corporationId")
     void updateViewCount(@Param("corporationId") Long corporationId, @Param("viewCount") int viewCount);
+
+    /**
+     * 블로그가 있는 기업 중에서 이름으로 검색 (자동완성용, 접두사 일치)
+     */
+    @Query("SELECT DISTINCT c FROM Corporation c " +
+           "JOIN Article a ON a.corporation.id = c.id " +
+           "WHERE c.deletedAt IS NULL " +
+           "AND a.deletedAt IS NULL " +
+           "AND LOWER(c.name) LIKE LOWER(CONCAT(:query, '%')) " +
+           "ORDER BY c.name ASC")
+    List<Corporation> findCorporationsWithArticlesByNameContaining(@Param("query") String query, Pageable pageable);
+
+    /**
+     * 비디오가 있는 기업 중에서 이름으로 검색 (자동완성용, 접두사 일치)
+     */
+    @Query("SELECT DISTINCT c FROM Corporation c " +
+           "JOIN Video v ON v.corporation.id = c.id " +
+           "WHERE c.deletedAt IS NULL " +
+           "AND v.deletedAt IS NULL " +
+           "AND LOWER(c.name) LIKE LOWER(CONCAT(:query, '%')) " +
+           "ORDER BY c.name ASC")
+    List<Corporation> findCorporationsWithVideosByNameContaining(@Param("query") String query, Pageable pageable);
 }
