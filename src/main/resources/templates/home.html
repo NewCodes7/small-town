@@ -1907,10 +1907,10 @@
                         return;
                     }
 
-                    // debounce: 150ms 후에 API 호출
+                    // debounce: 50ms 후에 API 호출 (빠른 반응)
                     autocompleteDebounce = setTimeout(() => {
                         fetchAutocompleteSuggestions(query);
-                    }, 150);
+                    }, 50);
                 });
 
                 // 키보드 방향키 이벤트

@@ -52,6 +52,20 @@ public class Term {
     private String termType;
 
     /**
+     * 자모 분리된 용어 (예: "리액트" -> "ㄹㅣㅇㅐㅋㅡㅌㅡ")
+     * 한글 초성 검색용
+     */
+    @Column(name = "decomposed_term", length = 300)
+    private String decomposedTerm;
+
+    /**
+     * 초성만 추출한 용어 (예: "리액트" -> "ㄹㅇㅌ", "파이썬" -> "ㅍㅇㅅ")
+     * 초성 검색용 (ㅍ 입력 시 "파이썬" 검색)
+     */
+    @Column(name = "chosung", length = 100)
+    private String chosung;
+
+    /**
      * 생성일시
      */
     @CreatedDate

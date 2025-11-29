@@ -44,6 +44,7 @@ import com.newcodes7.small_town.global.entity.Category;
 import com.newcodes7.small_town.crawler.repository.CategoryRepository;
 import com.newcodes7.small_town.video.repository.VideoRepository;
 import com.newcodes7.small_town.global.util.Client;
+import com.newcodes7.small_town.global.util.KoreanCharacterUtil;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -81,7 +82,7 @@ public class ArticleController {
             Model model) {
 
         Page<ArticleResponseDto> articles = articleService.getArticlesWithFilters(
-            keyword != null && !keyword.trim().isEmpty() ? keyword.trim() : null,
+            keyword != null && !keyword.trim().isEmpty() ? keyword.trim().toLowerCase() : null,
             regions == null ? null : regions.stream().sorted().toList(),
             page,
             size,
@@ -138,7 +139,7 @@ public class ArticleController {
         ) {
 
         Page<ArticleResponseDto> articles = articleService.getArticlesWithFilters(
-            keyword != null && !keyword.trim().isEmpty() ? keyword.trim() : null,
+            keyword != null && !keyword.trim().isEmpty() ? keyword.trim().toLowerCase() : null,
             regions,
             page,
             size,
@@ -493,7 +494,7 @@ public class ArticleController {
             return ResponseEntity.ok(suggestions);
         }
 
-        String trimmedQuery = query.trim();
+        String trimmedQuery = query.trim().toLowerCase();
 
         // 기업 검색 (블로그가 있는 기업만, 최대 3개)
         List<Corporation> corporations = corporationService.searchCorporationsWithArticles(trimmedQuery, 3);
@@ -506,10 +507,28 @@ public class ArticleController {
             suggestions.add(item);
         }
 
+        // 검색어를 자모 분해 (예: "프로제" → "ㅍㅡㄹㅗㅈㅔ")
+        String decomposedQuery = KoreanCharacterUtil.decomposeHangul(trimmedQuery);
+
+        // 한글 검색 패턴 생성 (예: "프롲" → ["프롲", "프로ㅈ"])
+        List<String> searchPatterns = KoreanCharacterUtil.generateSearchPatterns(trimmedQuery);
+
         // Term 검색 (최대 6개)
+        // 원본 검색어와 자모 분해된 검색어 둘 다 사용
         PageRequest termPageRequest = PageRequest.of(0, 6);
-        List<ArticleTermRepository.AutocompleteSuggestion> articleTermSuggestions =
-                articleTermRepository.findAutocompleteTerms(trimmedQuery, termPageRequest);
+        List<ArticleTermRepository.AutocompleteSuggestion> articleTermSuggestions;
+
+        if (searchPatterns.size() == 2) {
+            // 종성이 있는 경우: 원본, 종성분리, 자모분해 3가지 패턴
+            // 예: "프롲" → ["프롲", "프로ㅈ", "ㅍㅡㄹㅗㅈ"]
+            articleTermSuggestions = articleTermRepository.findAutocompleteTermsWithPatterns(
+                searchPatterns.get(0), decomposedQuery, termPageRequest);
+        } else {
+            // 종성이 없는 경우: 원본, 자모분해 2가지 패턴
+            // 예: "프로제" → ["프로제", "ㅍㅡㄹㅗㅈㅔ"]
+            articleTermSuggestions = articleTermRepository.findAutocompleteTermsWithPatterns(
+                trimmedQuery, decomposedQuery, termPageRequest);
+        }
 
         for (ArticleTermRepository.AutocompleteSuggestion termSuggestion : articleTermSuggestions) {
             Map<String, Object> item = new HashMap<>();

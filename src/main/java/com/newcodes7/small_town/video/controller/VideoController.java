@@ -29,6 +29,7 @@ import com.newcodes7.small_town.video.repository.VideoTermRepository;
 import com.newcodes7.small_town.video.service.VideoService;
 import com.newcodes7.small_town.video.service.VideoViewService;
 import com.newcodes7.small_town.global.util.Client;
+import com.newcodes7.small_town.global.util.KoreanCharacterUtil;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -58,7 +59,7 @@ public class VideoController {
             Model model) {
 
         Page<VideoResponseDto> videos = videoService.getVideosWithFilters(
-            keyword != null && !keyword.trim().isEmpty() ? keyword.trim() : null,
+            keyword != null && !keyword.trim().isEmpty() ? keyword.trim().toLowerCase() : null,
             regions == null ? null : regions.stream().sorted().toList(),
             page,
             size,
@@ -179,7 +180,7 @@ public class VideoController {
             return ResponseEntity.ok(suggestions);
         }
 
-        String trimmedQuery = query.trim();
+        String trimmedQuery = query.trim().toLowerCase();
 
         // 기업 검색 (비디오가 있는 기업만, 최대 3개)
         List<com.newcodes7.small_town.global.entity.Corporation> corporations =
@@ -193,10 +194,28 @@ public class VideoController {
             suggestions.add(item);
         }
 
+        // 검색어를 자모 분해 (예: "프로제" → "ㅍㅡㄹㅗㅈㅔ")
+        String decomposedQuery = KoreanCharacterUtil.decomposeHangul(trimmedQuery);
+
+        // 한글 검색 패턴 생성 (예: "프롲" → ["프롲", "프로ㅈ"])
+        List<String> searchPatterns = KoreanCharacterUtil.generateSearchPatterns(trimmedQuery);
+
         // Term 검색 (최대 6개)
+        // 원본 검색어와 자모 분해된 검색어 둘 다 사용
         PageRequest termPageRequest = PageRequest.of(0, 6);
-        List<VideoTermRepository.AutocompleteSuggestion> videoTermSuggestions =
-                videoTermRepository.findAutocompleteTerms(trimmedQuery, termPageRequest);
+        List<VideoTermRepository.AutocompleteSuggestion> videoTermSuggestions;
+
+        if (searchPatterns.size() == 2) {
+            // 종성이 있는 경우: 원본, 종성분리, 자모분해 3가지 패턴
+            // 예: "프롲" → ["프롲", "프로ㅈ", "ㅍㅡㄹㅗㅈ"]
+            videoTermSuggestions = videoTermRepository.findAutocompleteTermsWithPatterns(
+                searchPatterns.get(0), decomposedQuery, termPageRequest);
+        } else {
+            // 종성이 없는 경우: 원본, 자모분해 2가지 패턴
+            // 예: "프로제" → ["프로제", "ㅍㅡㄹㅗㅈㅔ"]
+            videoTermSuggestions = videoTermRepository.findAutocompleteTermsWithPatterns(
+                trimmedQuery, decomposedQuery, termPageRequest);
+        }
 
         for (VideoTermRepository.AutocompleteSuggestion termSuggestion : videoTermSuggestions) {
             Map<String, Object> item = new HashMap<>();

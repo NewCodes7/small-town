@@ -1187,6 +1187,51 @@ public class AdminController {
     }
 
     /**
+     * Article term 강제 재분석 (배치 작업)
+     * 모든 article에 대해 term을 강제로 다시 추출 (기존 term이 있어도 재분석)
+     *
+     * GET /admin/articles/reextract-all-terms
+     */
+    @GetMapping("/articles/reextract-all-terms")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> reextractAllArticleTerms() {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            log.info("Article term 강제 재분석 요청 시작");
+
+            // 비동기로 실행
+            new Thread(() -> {
+                try {
+                    ArticleTermService.ArticleTermExtractionResult result =
+                            articleTermService.extractAndSaveAllArticleTerms(true);
+
+                    log.info("Article term 강제 재분석 완료: 처리={}, 건너뜀={}, 실패={}, term={}, 소요시간={}ms",
+                            result.getProcessedArticles(),
+                            result.getSkippedArticles(),
+                            result.getFailedArticles(),
+                            result.getTotalTerms(),
+                            result.getProcessingTimeMs());
+
+                } catch (Exception e) {
+                    log.error("Article term 강제 재분석 배치 작업 중 오류 발생", e);
+                }
+            }).start();
+
+            response.put("success", true);
+            response.put("message", "Article term 강제 재분석 작업이 시작되었습니다. 모든 article을 재분석합니다. 로그를 확인해주세요.");
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Article term 강제 재분석 작업 시작 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Term 강제 재분석 작업 시작 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
      * 특정 Article의 Term 조회 API
      *
      * GET /admin/articles/{articleId}/terms
@@ -1499,6 +1544,51 @@ public class AdminController {
             log.error("Video term 추출 작업 시작 중 오류 발생: {}", e.getMessage(), e);
             response.put("success", false);
             response.put("message", "Term 추출 작업 시작 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * Video term 강제 재분석 (배치 작업)
+     * 모든 video에 대해 term을 강제로 다시 추출 (기존 term이 있어도 재분석)
+     *
+     * GET /admin/videos/reextract-all-terms
+     */
+    @GetMapping("/videos/reextract-all-terms")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> reextractAllVideoTerms() {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            log.info("Video term 강제 재분석 요청 시작");
+
+            // 비동기로 실행
+            new Thread(() -> {
+                try {
+                    VideoTermService.VideoTermExtractionResult result =
+                            videoTermService.extractAndSaveAllVideoTerms(true);
+
+                    log.info("Video term 강제 재분석 완료: 처리={}, 건너뜀={}, 실패={}, term={}, 소요시간={}ms",
+                            result.getProcessedVideos(),
+                            result.getSkippedVideos(),
+                            result.getFailedVideos(),
+                            result.getTotalTerms(),
+                            result.getProcessingTimeMs());
+
+                } catch (Exception e) {
+                    log.error("Video term 강제 재분석 배치 작업 중 오류 발생", e);
+                }
+            }).start();
+
+            response.put("success", true);
+            response.put("message", "Video term 강제 재분석 작업이 시작되었습니다. 모든 video를 재분석합니다. 로그를 확인해주세요.");
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Video term 강제 재분석 작업 시작 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Term 강제 재분석 작업 시작 중 오류가 발생했습니다: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
     }

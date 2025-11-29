@@ -16,6 +16,7 @@ import com.newcodes7.small_town.global.entity.Term;
 import com.newcodes7.small_town.global.entity.Video;
 import com.newcodes7.small_town.global.entity.VideoTerm;
 import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
+import com.newcodes7.small_town.global.util.KoreanCharacterUtil;
 import com.newcodes7.small_town.video.repository.VideoRepository;
 import com.newcodes7.small_town.video.repository.VideoTermRepository;
 
@@ -38,7 +39,17 @@ public class VideoTermService {
      */
     @Transactional
     public VideoTermExtractionResult extractAndSaveAllVideoTerms() {
-        log.info("모든 video term 추출 시작 (기존 term이 있는 video는 건너뜀)");
+        return extractAndSaveAllVideoTerms(false);
+    }
+
+    /**
+     * 모든 video의 term을 추출하고 저장
+     * @param forceReanalyze true면 이미 term이 있어도 재분석, false면 건너뜀
+     */
+    @Transactional
+    public VideoTermExtractionResult extractAndSaveAllVideoTerms(boolean forceReanalyze) {
+        String mode = forceReanalyze ? "강제 재분석" : "기존 term이 있는 video는 건너뜀";
+        log.info("모든 video term 추출 시작 ({})", mode);
         long startTime = System.currentTimeMillis();
 
         VideoTermExtractionResult result = new VideoTermExtractionResult();
@@ -55,8 +66,8 @@ public class VideoTermService {
 
             for (Video video : videos) {
                 try {
-                    // 이미 term이 있으면 건너뛰기
-                    if (videoTermRepository.existsByVideoId(video.getId())) {
+                    // 강제 재분석이 아니고 이미 term이 있으면 건너뛰기
+                    if (!forceReanalyze && videoTermRepository.existsByVideoId(video.getId())) {
                         result.incrementSkippedVideos();
 
                         if ((result.getProcessedVideos() + result.getSkippedVideos()) % 100 == 0) {
@@ -134,12 +145,38 @@ public class VideoTermService {
         // term 저장
         List<VideoTerm> videoTerms = new ArrayList<>();
         for (MorphemeAnalyzer.TermInfo termInfo : termMap.values()) {
+            // 한글이 포함된 경우 자모 분리 및 초성 추출
+            final String decomposed = KoreanCharacterUtil.containsHangul(termInfo.getTerm())
+                    ? KoreanCharacterUtil.decomposeHangul(termInfo.getTerm())
+                    : null;
+            final String chosung = KoreanCharacterUtil.containsHangul(termInfo.getTerm())
+                    ? KoreanCharacterUtil.extractChosung(termInfo.getTerm())
+                    : null;
+
             // Term 엔티티 찾기 또는 생성
             Term term = termRepository.findByTermAndTermType(termInfo.getTerm(), termInfo.getTermType())
+                    .map(existingTerm -> {
+                        // 기존 Term의 decomposedTerm 또는 chosung이 null이면 업데이트
+                        if ((existingTerm.getDecomposedTerm() == null && decomposed != null) ||
+                            (existingTerm.getChosung() == null && chosung != null)) {
+                            Term updatedTerm = Term.builder()
+                                    .id(existingTerm.getId())
+                                    .term(existingTerm.getTerm())
+                                    .termType(existingTerm.getTermType())
+                                    .decomposedTerm(decomposed != null ? decomposed : existingTerm.getDecomposedTerm())
+                                    .chosung(chosung != null ? chosung : existingTerm.getChosung())
+                                    .createdAt(existingTerm.getCreatedAt())
+                                    .build();
+                            return termRepository.save(updatedTerm);
+                        }
+                        return existingTerm;
+                    })
                     .orElseGet(() -> {
                         Term newTerm = Term.builder()
                                 .term(termInfo.getTerm())
                                 .termType(termInfo.getTermType())
+                                .decomposedTerm(decomposed)
+                                .chosung(chosung)
                                 .build();
                         return termRepository.save(newTerm);
                     });

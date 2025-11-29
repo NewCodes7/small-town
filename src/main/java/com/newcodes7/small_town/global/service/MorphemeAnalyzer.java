@@ -49,6 +49,11 @@ public class MorphemeAnalyzer {
                 String morph = token.getMorph();
                 String pos = token.getPos();
 
+                // 영어는 소문자로 변환
+                if (pos.equals("SL")) {
+                    morph = morph.toLowerCase();
+                }
+
                 // 필터링: 명사(NN*), 동사(VV), 영어(SL), 숫자(SN)만 추출
                 // 불용어는 제외
                 if (isValidTerm(morph, pos) && !isStopword(morph)) {
