@@ -13,6 +13,7 @@ import lombok.Data;
 public class CorporationResponseDto {
     private Long id;
     private String name;
+    private String alternateName;
     private String homeLink;
     private String blogLink;
     private String crewLink;
@@ -59,6 +60,7 @@ public class CorporationResponseDto {
         CorporationResponseDto dto = new CorporationResponseDto();
         dto.setId(corporation.getId());
         dto.setName(corporation.getName());
+        dto.setAlternateName(corporation.getAlternateName());
         dto.setHomeLink(corporation.getHomeLink());
         dto.setBlogLink(corporation.getBlogLink());
         dto.setCrewLink(corporation.getCrewLink());
@@ -91,6 +93,7 @@ public class CorporationResponseDto {
         CorporationResponseDto dto = new CorporationResponseDto();
         dto.setId(corporation.getId());
         dto.setName(corporation.getName());
+        dto.setAlternateName(corporation.getAlternateName());
         dto.setHomeLink(corporation.getHomeLink());
         dto.setBlogLink(corporation.getBlogLink());
         dto.setCrewLink(corporation.getCrewLink());

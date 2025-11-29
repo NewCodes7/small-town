@@ -34,14 +34,31 @@
                                     <span class="input-group-text" style="background: var(--secondary-green); border: 2px solid var(--border-light); color: var(--primary-green-dark);">
                                         <i class="fas fa-building"></i>
                                     </span>
-                                    <input type="text" class="form-control" id="name" th:field="*{name}" required 
+                                    <input type="text" class="form-control" id="name" th:field="*{name}" required
                                            placeholder="기업명을 입력하세요" style="border-left: none;">
                                 </div>
                                 <div th:if="${#fields.hasErrors('name')}" class="text-danger mt-2">
                                     <small><i class="fas fa-exclamation-circle me-1"></i><span th:errors="*{name}"></span></small>
                                 </div>
                             </div>
-                            
+
+                            <div class="col-md-6 mb-4">
+                                <label for="alternateName" class="form-label fw-bold">대체 기업명</label>
+                                <div class="input-group">
+                                    <span class="input-group-text" style="background: var(--secondary-green); border: 2px solid var(--border-light); color: var(--primary-green-dark);">
+                                        <i class="fas fa-tag"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="alternateName" th:field="*{alternateName}"
+                                           placeholder="대체 기업명을 입력하세요 (선택사항)" style="border-left: none;">
+                                </div>
+                                <small class="text-muted">검색 시 사용할 대체 기업명입니다. 예: "Netflix" → "넷플릭스"</small>
+                                <div th:if="${#fields.hasErrors('alternateName')}" class="text-danger mt-2">
+                                    <small><i class="fas fa-exclamation-circle me-1"></i><span th:errors="*{alternateName}"></span></small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
                             <div class="col-md-6 mb-4">
                                 <label class="form-label fw-bold">로고 이미지</label>
                                 

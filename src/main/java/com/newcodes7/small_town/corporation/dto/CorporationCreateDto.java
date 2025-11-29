@@ -19,6 +19,9 @@ public class CorporationCreateDto {
     @Size(max = 100, message = "기업명은 100자 이내여야 합니다.")
     private String name;
 
+    @Size(max = 100, message = "대체 기업명은 100자 이내여야 합니다.")
+    private String alternateName;
+
     private Integer isDomestic;
     private String homeLink;
     private String blogLink;

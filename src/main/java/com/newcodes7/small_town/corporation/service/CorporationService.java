@@ -29,6 +29,7 @@ import com.newcodes7.small_town.crawler.repository.ParsingSelectorRepository;
 import com.newcodes7.small_town.crawler.service.YouTubeService;
 import com.newcodes7.small_town.global.cache.NginxCachePurgeService;
 import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.global.util.KoreanCharacterUtil;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -99,8 +100,25 @@ public class CorporationService {
             }
         }
 
+        // 기업명 자모 분리
+        String decomposedName = KoreanCharacterUtil.decomposeHangul(dto.getName());
+        String chosungName = KoreanCharacterUtil.extractChosung(dto.getName());
+
+        // 대체 기업명 자모 분리
+        String decomposedAlternateName = null;
+        String chosungAlternateName = null;
+        if (dto.getAlternateName() != null && !dto.getAlternateName().trim().isEmpty()) {
+            decomposedAlternateName = KoreanCharacterUtil.decomposeHangul(dto.getAlternateName());
+            chosungAlternateName = KoreanCharacterUtil.extractChosung(dto.getAlternateName());
+        }
+
         Corporation corporation = Corporation.builder()
                 .name(dto.getName())
+                .alternateName(dto.getAlternateName())
+                .decomposedName(decomposedName)
+                .chosungName(chosungName)
+                .decomposedAlternateName(decomposedAlternateName)
+                .chosungAlternateName(chosungAlternateName)
                 .isDomestic(dto.getIsDomestic())
                 .homeLink(dto.getHomeLink())
                 .blogLink(dto.getBlogLink())
@@ -167,6 +185,21 @@ public class CorporationService {
         }
         
         corporation.setName(dto.getName());
+        corporation.setAlternateName(dto.getAlternateName());
+
+        // 기업명 자모 분리
+        corporation.setDecomposedName(KoreanCharacterUtil.decomposeHangul(dto.getName()));
+        corporation.setChosungName(KoreanCharacterUtil.extractChosung(dto.getName()));
+
+        // 대체 기업명 자모 분리
+        if (dto.getAlternateName() != null && !dto.getAlternateName().trim().isEmpty()) {
+            corporation.setDecomposedAlternateName(KoreanCharacterUtil.decomposeHangul(dto.getAlternateName()));
+            corporation.setChosungAlternateName(KoreanCharacterUtil.extractChosung(dto.getAlternateName()));
+        } else {
+            corporation.setDecomposedAlternateName(null);
+            corporation.setChosungAlternateName(null);
+        }
+
         corporation.setHomeLink(dto.getHomeLink());
         corporation.setBlogLink(dto.getBlogLink());
         corporation.setCrewLink(dto.getCrewLink());
@@ -274,8 +307,25 @@ public class CorporationService {
             }
         }
 
+        // 기업명 자모 분리
+        String decomposedName = KoreanCharacterUtil.decomposeHangul(dto.getName());
+        String chosungName = KoreanCharacterUtil.extractChosung(dto.getName());
+
+        // 대체 기업명 자모 분리
+        String decomposedAlternateName = null;
+        String chosungAlternateName = null;
+        if (dto.getAlternateName() != null && !dto.getAlternateName().trim().isEmpty()) {
+            decomposedAlternateName = KoreanCharacterUtil.decomposeHangul(dto.getAlternateName());
+            chosungAlternateName = KoreanCharacterUtil.extractChosung(dto.getAlternateName());
+        }
+
         Corporation corporation = Corporation.builder()
                 .name(dto.getName())
+                .alternateName(dto.getAlternateName())
+                .decomposedName(decomposedName)
+                .chosungName(chosungName)
+                .decomposedAlternateName(decomposedAlternateName)
+                .chosungAlternateName(chosungAlternateName)
                 .isDomestic(dto.getIsDomestic())
                 .homeLink(dto.getHomeLink())
                 .blogLink(dto.getBlogLink())
@@ -358,13 +408,27 @@ public class CorporationService {
         
         // 이름 중복 검사 (자기 자신 제외)
         if (dto.getName() != null && !dto.getName().trim().isEmpty()) {
-            if (!corporation.getName().equals(dto.getName()) && 
+            if (!corporation.getName().equals(dto.getName()) &&
                 corporationRepository.existsByNameAndDeletedAtIsNull(dto.getName())) {
                 throw new DuplicateCorporationNameException(dto.getName());
             }
             corporation.setName(dto.getName());
+
+            // 기업명 자모 분리
+            corporation.setDecomposedName(KoreanCharacterUtil.decomposeHangul(dto.getName()));
+            corporation.setChosungName(KoreanCharacterUtil.extractChosung(dto.getName()));
         }
-        
+
+        // 대체 기업명 업데이트
+        corporation.setAlternateName(dto.getAlternateName());
+        if (dto.getAlternateName() != null && !dto.getAlternateName().trim().isEmpty()) {
+            corporation.setDecomposedAlternateName(KoreanCharacterUtil.decomposeHangul(dto.getAlternateName()));
+            corporation.setChosungAlternateName(KoreanCharacterUtil.extractChosung(dto.getAlternateName()));
+        } else {
+            corporation.setDecomposedAlternateName(null);
+            corporation.setChosungAlternateName(null);
+        }
+
         // 기본 정보 업데이트
         if (dto.getHomeLink() != null) corporation.setHomeLink(dto.getHomeLink());
         if (dto.getBlogLink() != null) corporation.setBlogLink(dto.getBlogLink());

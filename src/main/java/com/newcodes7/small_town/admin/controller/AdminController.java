@@ -142,6 +142,7 @@ public class AdminController {
             CorporationResponseDto corporation = corporationService.getCorporationById(id);
             CorporationUpdateDto updateDto = new CorporationUpdateDto();
             updateDto.setName(corporation.getName());
+            updateDto.setAlternateName(corporation.getAlternateName());
             updateDto.setHomeLink(corporation.getHomeLink());
             updateDto.setBlogLink(corporation.getBlogLink());
             updateDto.setCrewLink(corporation.getCrewLink());

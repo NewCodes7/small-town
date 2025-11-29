@@ -12,7 +12,10 @@ public class CorporationUpdateDto {
     @NotBlank(message = "기업명은 필수입니다.")
     @Size(max = 100, message = "기업명은 100자 이내여야 합니다.")
     private String name;
-    
+
+    @Size(max = 100, message = "대체 기업명은 100자 이내여야 합니다.")
+    private String alternateName;
+
     private String homeLink;
     private String blogLink;
     private String crewLink;

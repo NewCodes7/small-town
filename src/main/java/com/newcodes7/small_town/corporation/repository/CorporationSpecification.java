@@ -28,11 +28,39 @@ public class CorporationSpecification {
             // 소프트 삭제되지 않은 것만 조회
             predicates.add(criteriaBuilder.isNull(root.get("deletedAt")));
 
-            // 검색어 필터
+            // 검색어 필터 (기업명, 대체 기업명, 자모 분리, 초성)
             if (search != null && !search.trim().isEmpty()) {
-                predicates.add(criteriaBuilder.like(
+                Predicate namePredicate = criteriaBuilder.like(
                     root.get("name"),
                     "%" + search.trim() + "%"
+                );
+                Predicate alternateNamePredicate = criteriaBuilder.like(
+                    root.get("alternateName"),
+                    "%" + search.trim() + "%"
+                );
+                Predicate decomposedNamePredicate = criteriaBuilder.like(
+                    root.get("decomposedName"),
+                    "%" + search.trim() + "%"
+                );
+                Predicate decomposedAlternateNamePredicate = criteriaBuilder.like(
+                    root.get("decomposedAlternateName"),
+                    "%" + search.trim() + "%"
+                );
+                Predicate chosungNamePredicate = criteriaBuilder.like(
+                    root.get("chosungName"),
+                    "%" + search.trim() + "%"
+                );
+                Predicate chosungAlternateNamePredicate = criteriaBuilder.like(
+                    root.get("chosungAlternateName"),
+                    "%" + search.trim() + "%"
+                );
+                predicates.add(criteriaBuilder.or(
+                    namePredicate,
+                    alternateNamePredicate,
+                    decomposedNamePredicate,
+                    decomposedAlternateNamePredicate,
+                    chosungNamePredicate,
+                    chosungAlternateNamePredicate
                 ));
             }
 

@@ -4,8 +4,10 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -496,19 +498,52 @@ public class ArticleController {
 
         String trimmedQuery = query.trim().toLowerCase();
 
+        // 검색어를 자모 분해 (예: "프로제" → "ㅍㅡㄹㅗㅈㅔ", "톳" → "ㅌㅗㅅ")
+        String decomposedQuery = KoreanCharacterUtil.decomposeHangul(trimmedQuery);
+
         // 기업 검색 (블로그가 있는 기업만, 최대 3개)
-        List<Corporation> corporations = corporationService.searchCorporationsWithArticles(trimmedQuery, 3);
+        // 원본 검색어와 자모 분해 검색어 둘 다 검색하고 중복 제거
+        Set<Long> corporationIds = new LinkedHashSet<>();
+        List<Corporation> allCorporations = new ArrayList<>();
+
+        // 1. 원본 검색어로 검색
+        List<Corporation> corporations1 = corporationService.searchCorporationsWithArticles(trimmedQuery, 3);
+        for (Corporation corp : corporations1) {
+            if (corporationIds.add(corp.getId())) {
+                allCorporations.add(corp);
+            }
+        }
+
+        // 2. 자모 분해 검색어로 검색 (한글인 경우만)
+        if (!trimmedQuery.equals(decomposedQuery)) {
+            List<Corporation> corporations2 = corporationService.searchCorporationsWithArticles(decomposedQuery, 3);
+            for (Corporation corp : corporations2) {
+                if (corporationIds.add(corp.getId()) && allCorporations.size() < 3) {
+                    allCorporations.add(corp);
+                }
+            }
+        }
+
+        // 최대 3개만 사용
+        List<Corporation> corporations = allCorporations.stream().limit(3).collect(Collectors.toList());
+
         for (Corporation corporation : corporations) {
             Map<String, Object> item = new HashMap<>();
             item.put("type", "corporation");
-            item.put("name", corporation.getName());
+
+            // 검색어와 매칭된 이름을 표시 (대체명 우선)
+            String displayName = corporation.getName();
+            if (corporation.getAlternateName() != null &&
+                !corporation.getAlternateName().isEmpty() &&
+                corporation.getDecomposedAlternateName().toLowerCase().startsWith(decomposedQuery)) {
+                displayName = corporation.getAlternateName();
+            }
+
+            item.put("name", displayName);
             item.put("id", corporation.getId());
             item.put("logoUrl", corporation.getEffectiveLogoUrl());
             suggestions.add(item);
         }
-
-        // 검색어를 자모 분해 (예: "프로제" → "ㅍㅡㄹㅗㅈㅔ")
-        String decomposedQuery = KoreanCharacterUtil.decomposeHangul(trimmedQuery);
 
         // 한글 검색 패턴 생성 (예: "프롲" → ["프롲", "프로ㅈ"])
         List<String> searchPatterns = KoreanCharacterUtil.generateSearchPatterns(trimmedQuery);

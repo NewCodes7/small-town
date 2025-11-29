@@ -36,7 +36,22 @@ public class Corporation {
     
     @Column(nullable = false, length = 100)
     private String name;
-    
+
+    @Column(name = "alternate_name", length = 100)
+    private String alternateName;
+
+    @Column(name = "decomposed_name", length = 300)
+    private String decomposedName;
+
+    @Column(name = "chosung_name", length = 100)
+    private String chosungName;
+
+    @Column(name = "decomposed_alternate_name", length = 300)
+    private String decomposedAlternateName;
+
+    @Column(name = "chosung_alternate_name", length = 100)
+    private String chosungAlternateName;
+
     @Column(name = "home_link")
     private String homeLink;
     
