@@ -25,8 +25,9 @@ public class CrawlingScheduler {
 
     /**
      * 블로그 크롤링 스케줄러
+     * 매 시간 정각에 실행
      */
-    @Scheduled(cron = "${crawler.schedule.blog.cron:0 0 2 * * ?}", zone = "Asia/Seoul")
+    @Scheduled(cron = "${crawler.schedule.blog.cron:0 0 * * * ?}", zone = "Asia/Seoul")
     public void scheduledBlogCrawling() {
         log.info("스케줄된 블로그 크롤링 작업 시작");
 
@@ -63,8 +64,9 @@ public class CrawlingScheduler {
 
     /**
      * YouTube 크롤링 스케줄러
+     * 매 시간 30분에 실행
      */
-    @Scheduled(cron = "${crawler.schedule.youtube.cron:0 30 2 * * ?}", zone = "Asia/Seoul")
+    @Scheduled(cron = "${crawler.schedule.youtube.cron:0 30 4 * * ?}", zone = "Asia/Seoul")
     public void scheduledYouTubeCrawling() {
         log.info("스케줄된 YouTube 크롤링 작업 시작");
 
