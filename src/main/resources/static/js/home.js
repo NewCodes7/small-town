@@ -326,8 +326,48 @@ function updateRegionParam(region) {
     window.location.href = url.toString();
 }
 
+// 정렬 드롭다운 초기화
+function initSortDropdown() {
+    const sortOptions = document.querySelectorAll('.sort-option');
+    const sortLabel = document.getElementById('sortLabel');
+
+    // 현재 URL에서 sort 파라미터 가져오기
+    const url = new URL(window.location.href);
+    const currentSort = url.searchParams.get('sort') || 'latest';
+
+    // 정렬 레이블 업데이트
+    const sortLabels = {
+        'relevance': '적합도순',
+        'latest': '최신순',
+        'oldest': '오래된순'
+    };
+
+    if (sortLabel) {
+        sortLabel.textContent = sortLabels[currentSort] || '최신순';
+    }
+
+    // 각 정렬 옵션에 클릭 이벤트 추가
+    sortOptions.forEach(option => {
+        option.addEventListener('click', function(e) {
+            e.preventDefault();
+            const sortType = this.getAttribute('data-sort');
+            updateSortParam(sortType);
+        });
+    });
+}
+
+// 정렬 파라미터 업데이트 및 페이지 리다이렉트
+function updateSortParam(sortType) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('sort', sortType);
+    // 페이지를 처음으로 리셋
+    url.searchParams.set('page', '0');
+    window.location.href = url.toString();
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     bindArticleEvents();
     initViewToggle();
     initRegionToggle();
+    initSortDropdown();
 });

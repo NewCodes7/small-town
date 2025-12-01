@@ -1,4 +1,4 @@
-// 배너 슬라이드 관련 변수
+f// 배너 슬라이드 관련 변수
 let currentSlide = 0;
 let totalSlides = 6; // 1 hero + 5 popular articles
 let slideInterval;
@@ -239,7 +239,7 @@ class ArticleManager {
         this.loadArticles();
     }
 
-    // 게시글을 로드하는 핵심 함수 
+    // 게시글을 로드하는 핵심 함수
     async loadArticles() {
         if (this.isLoading) return;
 
@@ -255,6 +255,11 @@ class ArticleManager {
 
             if (this.currentKeyword) {
                 params.set('keyword', this.currentKeyword);
+            }
+
+            // sort 파라미터 추가
+            if (this.currentSort && this.currentSort !== 'latest') {
+                params.set('sort', this.currentSort);
             }
 
             this.currentRegions.forEach(region => {

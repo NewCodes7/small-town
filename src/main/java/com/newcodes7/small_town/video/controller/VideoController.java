@@ -61,13 +61,19 @@ public class VideoController {
             @RequestParam(name = "category", required = false) List<String> category,
             Model model) {
 
+        // 검색어가 있을 때는 list view로 강제 변경
+        String effectiveView = view;
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            effectiveView = "list";
+        }
+
         Page<VideoResponseDto> videos = videoService.getVideosWithFilters(
             keyword != null && !keyword.trim().isEmpty() ? keyword.trim().toLowerCase() : null,
             regions == null ? null : regions.stream().sorted().toList(),
             page,
             size,
             sort,
-            view,
+            effectiveView,
             category == null ? null : category.stream().sorted().toList()
         );
 
@@ -96,7 +102,7 @@ public class VideoController {
         model.addAttribute("keyword", keyword);
         model.addAttribute("selectedRegions", regions != null ? regions : new ArrayList<>());
         model.addAttribute("corporations", corporationsWithYouTube);
-        model.addAttribute("isGrouped", view.equals("grouped"));
+        model.addAttribute("isGrouped", effectiveView.equals("grouped"));
         model.addAttribute("categories", categories);
 
         return "video";

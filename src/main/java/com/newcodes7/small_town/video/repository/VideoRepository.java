@@ -42,7 +42,16 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
            "(COALESCE(v.viewCount, 0) * 0.6 + " +
            " COALESCE(v.likeCount, 0) * 0.3) " +
            "END DESC, " +
-           "v.publishedAt DESC, v.createdAt DESC")
+           "CASE WHEN :sort = 'relevance' AND :keyword IS NOT NULL THEN " +
+           "(CASE " +
+           "  WHEN LOWER(v.title) LIKE LOWER(CONCAT(:keyword, '%')) OR LOWER(v.translatedTitle) LIKE LOWER(CONCAT(:keyword, '%')) THEN 3 " +
+           "  WHEN LOWER(v.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(v.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%')) THEN 2 " +
+           "  ELSE 1 " +
+           "END) " +
+           "END DESC, " +
+           "CASE WHEN :sort = 'oldest' THEN v.publishedAt END ASC, " +
+           "CASE WHEN :sort != 'oldest' THEN v.publishedAt END DESC, " +
+           "v.createdAt DESC")
     Page<Video> findVideosWithFilters(@Param("keyword") String keyword,
                                       @Param("domesticTypes") List<Integer> domesticTypes,
                                       @Param("sort") String sort,

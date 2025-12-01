@@ -228,6 +228,37 @@
                         </div>
                     </div>
 
+                    <!-- Sort Control (검색할 때만 표시) -->
+                    <div class="sort-controls" th:if="${keyword != null && !keyword.isEmpty()}">
+                        <div class="sort-dropdown">
+                            <button class="filter-pill dropdown-pill" type="button" id="sortDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-sort"></i>
+                                <span id="sortLabel">최신순</span>
+                                <i class="fas fa-chevron-down dropdown-arrow"></i>
+                            </button>
+                            <ul class="dropdown-menu modern-dropdown" aria-labelledby="sortDropdown">
+                                <li>
+                                    <a class="dropdown-item sort-option" href="#" data-sort="relevance">
+                                        <i class="fas fa-search me-2"></i>
+                                        <span>적합도순</span>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item sort-option" href="#" data-sort="latest">
+                                        <i class="fas fa-clock me-2"></i>
+                                        <span>최신순</span>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item sort-option" href="#" data-sort="oldest">
+                                        <i class="fas fa-history me-2"></i>
+                                        <span>오래된순</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
                     <!-- View Controls -->
                     <div class="view-controls">
                         <div class="view-toggle-container">
@@ -265,7 +296,7 @@
                 max-width: 800px;
                 margin: 0 auto;
                 position: relative;
-                z-index: 10000;
+                z-index: 1;
             }
 
             .primary-search-section {
@@ -293,7 +324,7 @@
                 box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
                 border: 2px solid transparent;
                 transition: all 0.3s ease;
-                z-index: 10001;
+                z-index: 2;
             }
 
             .search-input-container:focus-within {
@@ -353,6 +384,8 @@
                 flex-direction: column;
                 justify-content: center;
                 align-items: center;
+                position: relative;
+                z-index: 3;
             }
 
             .filter-pills-container {
@@ -362,20 +395,104 @@
                 width: 100%;
                 max-width: 700px;
                 flex-wrap: nowrap;
-                gap: 16px;
+                gap: 10px;
+                position: relative;
             }
 
             .quick-filters {
                 display: flex;
                 align-items: center;
-                flex-wrap: wrap;
-                gap: 20px;
+                flex-wrap: nowrap;
+                gap: 10px;
             }
 
             .filter-group {
                 display: flex;
                 align-items: center;
-                gap: 8px;
+                gap: 6px;
+                position: relative;
+            }
+
+            .category-filter-dropdown {
+                position: relative;
+            }
+
+            .region-toggle-container {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+            .region-toggle-btn {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                padding: 8px 12px;
+                background: white;
+                border: 2px solid #e5e7eb;
+                border-radius: 25px;
+                font-size: 14px;
+                font-weight: 600;
+                color: #6b7280;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                white-space: nowrap;
+            }
+
+            .region-toggle-btn:hover {
+                border-color: var(--primary-green);
+                color: var(--primary-green);
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
+            }
+
+            .region-toggle-btn.active {
+                background: var(--primary-green);
+                border-color: var(--primary-green);
+                color: white;
+                box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+            }
+
+            .sort-controls,
+            .view-controls {
+                display: flex;
+                align-items: center;
+            }
+
+            .view-toggle-container {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                background: white;
+                border-radius: 25px;
+                padding: 3px;
+                border: 2px solid #e5e7eb;
+            }
+
+            .view-toggle-btn {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                padding: 7px 12px;
+                background: transparent;
+                border: none;
+                border-radius: 20px;
+                font-size: 14px;
+                font-weight: 600;
+                color: #6b7280;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                white-space: nowrap;
+            }
+
+            .view-toggle-btn:hover {
+                color: var(--primary-green);
+            }
+
+            .view-toggle-btn.active {
+                background: var(--primary-green);
+                color: white;
+                box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
             }
 
             .filter-checkbox {
@@ -385,12 +502,12 @@
             .filter-pill {
                 display: flex;
                 align-items: center;
-                gap: 8px;
-                padding: 9px 12px;
+                gap: 6px;
+                padding: 8px 12px;
                 background: white;
                 border: 2px solid #e5e7eb;
                 border-radius: 25px;
-                font-size: 15px;
+                font-size: 14px;
                 font-weight: 600;
                 color: #6b7280;
                 cursor: pointer;
@@ -437,31 +554,87 @@
 
             .modern-dropdown {
                 border: none;
-                border-radius: 16px;
-                box-shadow: 0 12px 48px rgba(0, 0, 0, 0.12);
-                padding: 8px;
-                margin-top: 8px;
-                min-width: 200px;
-                max-height: 335px;
+                border-radius: 12px;
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+                padding: 6px;
+                margin-top: 6px;
+                min-width: auto;
+                width: max-content;
+                max-height: 320px;
                 overflow-y: auto;
+                z-index: 10002 !important;
+                position: relative;
+            }
+
+            /* 카테고리 드롭다운 */
+            #categoryDropdownMenu {
+                min-width: 180px;
+                max-width: 220px;
+            }
+
+            /* 정렬 드롭다운 */
+            .modern-dropdown[aria-labelledby="sortDropdown"] {
+                min-width: 140px;
+                max-width: 160px;
             }
 
             .modern-dropdown .dropdown-item {
-                border-radius: 12px;
-                padding: 12px 16px;
-                margin-bottom: 4px;
+                border-radius: 8px;
+                padding: 9px 12px;
+                margin-bottom: 2px;
                 transition: all 0.2s ease;
                 font-weight: 500;
+                font-size: 14px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .modern-dropdown .dropdown-item:last-child {
+                margin-bottom: 0;
             }
 
             .modern-dropdown .dropdown-item:hover {
                 background: var(--secondary-green);
                 color: var(--primary-green);
+                transform: translateX(2px);
             }
 
-            /* Custom scrollbar for category dropdown */
+            .modern-dropdown .dropdown-item i {
+                font-size: 14px;
+                width: 16px;
+                text-align: center;
+            }
+
+            .modern-dropdown .dropdown-divider {
+                margin: 6px 0;
+                border-top: 1px solid #e5e7eb;
+                opacity: 0.6;
+            }
+
+            /* Custom scrollbar for dropdown */
             .modern-dropdown::-webkit-scrollbar {
-                width: 6px;
+                width: 5px;
+            }
+
+            .modern-dropdown::-webkit-scrollbar-track {
+                background: #f1f5f9;
+                border-radius: 10px;
+            }
+
+            .modern-dropdown::-webkit-scrollbar-thumb {
+                background: #cbd5e1;
+                border-radius: 10px;
+            }
+
+            .modern-dropdown::-webkit-scrollbar-thumb:hover {
+                background: var(--primary-green);
+            }
+
+            /* Firefox scrollbar */
+            .modern-dropdown {
+                scrollbar-width: thin;
+                scrollbar-color: #cbd5e1 #f1f5f9;
             }
 
             /* Category option styling */
@@ -470,7 +643,7 @@
             }
 
             .category-option:hover {
-                transform: translateX(4px);
+                transform: translateX(2px);
             }
 
             /* Active category option - make icon white */
@@ -483,15 +656,16 @@
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                gap: 8px;
+                gap: 6px;
                 padding: 0;
                 background: transparent;
             }
 
             .category-option-wrapper .category-option {
                 flex: 1;
-                border-radius: 12px;
+                border-radius: 8px;
                 margin: 0;
+                padding: 9px 12px;
             }
 
             .admin-category-delete-btn {
@@ -546,28 +720,16 @@
                 transform: scale(1.1);
             }
 
-            .modern-dropdown::-webkit-scrollbar-track {
-                background: #f1f5f9;
-                border-radius: 8px;
-            }
-
-            .modern-dropdown::-webkit-scrollbar-thumb {
-                background: #cbd5e1;
-                border-radius: 8px;
-            }
-
-            .modern-dropdown::-webkit-scrollbar-thumb:hover {
-                background: var(--primary-green);
-            }
-
-            /* Firefox scrollbar */
-            .modern-dropdown {
-                scrollbar-width: thin;
-                scrollbar-color: #cbd5e1 #f1f5f9;
-            }
-
             .filter-pill i {
-                font-size: 16px;
+                font-size: 14px;
+            }
+
+            .region-toggle-btn i {
+                font-size: 14px;
+            }
+
+            .view-toggle-btn i {
+                font-size: 13px;
             }
 
             /* Responsive Design */
@@ -578,17 +740,28 @@
 
                 .filter-pills-container {
                     flex-direction: column;
-                    align-items: stretch;
-                    gap: 16px;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 12px;
                     flex-wrap: wrap;
                 }
 
                 .quick-filters {
                     justify-content: center;
-                    flex-direction: column;
+                    flex-wrap: wrap;
                     width: 100%;
+                    gap: 10px;
                 }
 
+                .filter-group {
+                    justify-content: center;
+                }
+
+                .region-toggle-container {
+                    justify-content: center;
+                }
+
+                .sort-controls,
                 .view-controls {
                     justify-content: center;
                 }
@@ -604,13 +777,31 @@
                     border-radius: 20px;
                 }
 
+                .filter-pills-container {
+                    gap: 10px;
+                }
+
+                .quick-filters {
+                    gap: 8px;
+                }
+
                 .filter-pill {
-                    padding: 10px 16px;
-                    font-size: 14px;
+                    padding: 8px 12px;
+                    font-size: 13px;
                 }
 
                 .filter-pill i {
-                    font-size: 15px;
+                    font-size: 13px;
+                }
+
+                .region-toggle-btn {
+                    padding: 7px 9px;
+                    font-size: 13px;
+                }
+
+                .view-toggle-btn {
+                    padding: 6px 9px;
+                    font-size: 12px;
                 }
 
                 .search-input-container {
@@ -639,6 +830,21 @@
                     height: 36px;
                     font-size: 12px;
                 }
+
+                .filter-pill {
+                    padding: 7px 10px;
+                    font-size: 12px;
+                }
+
+                .region-toggle-btn {
+                    padding: 6px 8px;
+                    font-size: 12px;
+                }
+
+                .view-toggle-btn {
+                    padding: 5px 8px;
+                    font-size: 11px;
+                }
             }
 
             @media (max-width: 320px) {
@@ -661,6 +867,21 @@
                 .search-input {
                     padding: 12px 0;
                     font-size: 14px;
+                }
+
+                .filter-pill {
+                    padding: 6px 8px;
+                    font-size: 11px;
+                }
+
+                .region-toggle-btn {
+                    padding: 5px 7px;
+                    font-size: 11px;
+                }
+
+                .view-toggle-btn {
+                    padding: 4px 7px;
+                    font-size: 10px;
                 }
             }
 
@@ -815,7 +1036,7 @@
                 box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
                 margin-top: 8px;
                 overflow: hidden;
-                z-index: 9999;
+                z-index: 10003;
             }
 
             .autocomplete-item {

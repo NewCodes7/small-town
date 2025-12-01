@@ -70,7 +70,7 @@ public class ArticleService {
         }
 
         if (view.equals("grouped")) {
-            return getArticlesGroupedByCorporationWithPaging(keyword, domesticTypes, category, page, size);
+            return getArticlesGroupedByCorporationWithPaging(keyword, domesticTypes, category, sort, page, size);
         }
 
         return Page.empty();
@@ -79,6 +79,7 @@ public class ArticleService {
     public Page<ArticleResponseDto> getArticlesGroupedByCorporationWithPaging(String keyword,
                                                                         List<Integer> domesticTypes,
                                                                         List<String> category,
+                                                                        String sort,
                                                                         int page, int size) {
         // 1. 전체 기업 개수 조회
         long totalCorporations = articleRepository.countDistinctCorporationsByFilters(
@@ -97,6 +98,7 @@ public class ArticleService {
             domesticTypes != null ? domesticTypes.size() : 0,
             category != null ? category : new ArrayList<>(),
             category != null ? category.size() : 0,
+            sort != null ? sort : "latest",
             offset,
             size
         );

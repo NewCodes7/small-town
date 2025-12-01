@@ -79,9 +79,20 @@ public class ArticleController {
             @RequestParam(name = "sort", defaultValue = "latest") String sort,
             @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "regions", required = false) List<String> regions,
-            @RequestParam(name = "view", defaultValue = "grouped") String view,
+            @RequestParam(name = "view", required = false) String view,
             @RequestParam(name = "category", required = false) List<String> category,
             Model model) {
+
+        // view 파라미터가 제공되지 않았을 때만 검색어에 따라 list로 강제 변경
+        String effectiveView = view;
+        if (effectiveView == null) {
+            // view 파라미터가 없을 때 기본값 설정
+            if (keyword != null && !keyword.trim().isEmpty()) {
+                effectiveView = "list";
+            } else {
+                effectiveView = "grouped";
+            }
+        }
 
         Page<ArticleResponseDto> articles = articleService.getArticlesWithFilters(
             keyword != null && !keyword.trim().isEmpty() ? keyword.trim().toLowerCase() : null,
@@ -89,7 +100,7 @@ public class ArticleController {
             page,
             size,
             sort,
-            view,
+            effectiveView,
             category == null ? null : category.stream().sorted().toList()
         );
 
@@ -121,7 +132,7 @@ public class ArticleController {
         model.addAttribute("keyword", keyword);
         model.addAttribute("selectedRegions", regions != null ? regions : new ArrayList<>());
         model.addAttribute("corporations", corporationsWithLogos);
-        model.addAttribute("isGrouped", view.equals("grouped"));
+        model.addAttribute("isGrouped", effectiveView.equals("grouped"));
         model.addAttribute("categories", categories);
         // model.addAttribute("popularArticles", popularArticles.getContent());
 

@@ -227,6 +227,37 @@
                         </div>
                     </div>
 
+                    <!-- Sort Control -->
+                    <div class="sort-controls">
+                        <div class="sort-dropdown">
+                            <button class="filter-pill dropdown-pill" type="button" id="sortDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-sort"></i>
+                                <span id="sortLabel">최신순</span>
+                                <i class="fas fa-chevron-down dropdown-arrow"></i>
+                            </button>
+                            <ul class="dropdown-menu modern-dropdown" aria-labelledby="sortDropdown">
+                                <li th:if="${keyword != null && !keyword.isEmpty()}">
+                                    <a class="dropdown-item sort-option" href="#" data-sort="relevance">
+                                        <i class="fas fa-search me-2"></i>
+                                        <span>적합도순</span>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item sort-option" href="#" data-sort="latest">
+                                        <i class="fas fa-clock me-2"></i>
+                                        <span>최신순</span>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item sort-option" href="#" data-sort="oldest">
+                                        <i class="fas fa-history me-2"></i>
+                                        <span>오래된순</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
                     <!-- View Controls -->
                     <div class="view-controls">
                         <div class="view-toggle-container">
@@ -467,7 +498,7 @@
             .quick-filters {
                 display: flex;
                 align-items: center;
-                flex-wrap: wrap;
+                flex-wrap: nowrap;
                 gap: 20px;
             }
 

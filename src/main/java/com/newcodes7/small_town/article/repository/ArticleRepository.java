@@ -57,7 +57,16 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "(COALESCE(a.viewCount, 0) * 0.6 + " +
            " COALESCE(a.likeCount, 0) * 0.3) " +
            "END DESC, " +
-           "a.publishedAt DESC, a.createdAt DESC")
+           "CASE WHEN :sort = 'relevance' AND :keyword IS NOT NULL THEN " +
+           "(CASE " +
+           "  WHEN LOWER(a.title) LIKE LOWER(CONCAT(:keyword, '%')) OR LOWER(a.translatedTitle) LIKE LOWER(CONCAT(:keyword, '%')) THEN 3 " +
+           "  WHEN LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%')) THEN 2 " +
+           "  ELSE 1 " +
+           "END) " +
+           "END DESC, " +
+           "CASE WHEN :sort = 'oldest' THEN a.publishedAt END ASC, " +
+           "CASE WHEN :sort != 'oldest' THEN a.publishedAt END DESC, " +
+           "a.createdAt DESC")
     Page<Article> findArticlesWithFilters(@Param("keyword") String keyword,
                                          @Param("domesticTypes") List<Integer> domesticTypes,
                                          @Param("sort") String sort,
@@ -123,7 +132,8 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
 
        @Query(value = "WITH filtered_articles AS ( " +
               "    SELECT a.*, c.is_domestic, cat.name as category_name, " +
-              "           ROW_NUMBER() OVER (PARTITION BY a.corporation_id ORDER BY a.published_at DESC) as rn " +
+              "           ROW_NUMBER() OVER (PARTITION BY a.corporation_id " +
+              "               ORDER BY IF(:sort = 'oldest', -UNIX_TIMESTAMP(a.published_at), UNIX_TIMESTAMP(a.published_at)) DESC) as rn " +
               "    FROM article a " +
               "    JOIN corporation c ON a.corporation_id = c.id " +
               "    LEFT JOIN category cat ON a.category_id = cat.id " +
@@ -134,23 +144,27 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
               "    AND (COALESCE(:categorySize, 0) = 0 OR cat.name IN (:category)) " +
               "), " +
               "latest_corps AS ( " +
-              "    SELECT corporation_id, MAX(published_at) as latest_published_at " +
+              "    SELECT corporation_id, " +
+              "           CASE WHEN :sort = 'oldest' THEN MIN(published_at) ELSE MAX(published_at) END as sort_published_at " +
               "    FROM filtered_articles " +
               "    GROUP BY corporation_id " +
-              "    ORDER BY latest_published_at DESC " +
+              "    ORDER BY IF(:sort = 'oldest', -UNIX_TIMESTAMP(sort_published_at), UNIX_TIMESTAMP(sort_published_at)) DESC " +
               "    LIMIT :limit OFFSET :offset " +
               ") " +
               "SELECT fa.* " +
               "FROM filtered_articles fa " +
               "JOIN latest_corps lc ON fa.corporation_id = lc.corporation_id " +
               "WHERE fa.rn <= 3 " +
-              "ORDER BY lc.latest_published_at DESC, fa.published_at DESC",
+              "ORDER BY " +
+              "    IF(:sort = 'oldest', -UNIX_TIMESTAMP(lc.sort_published_at), UNIX_TIMESTAMP(lc.sort_published_at)) DESC, " +
+              "    IF(:sort = 'oldest', -UNIX_TIMESTAMP(fa.published_at), UNIX_TIMESTAMP(fa.published_at)) DESC",
               nativeQuery = true)
        List<Article> findTop3ArticlesGroupedByCorporation(@Param("keyword") String keyword,
                                                         @Param("domesticTypes") List<Integer> domesticTypes,
                                                         @Param("domesticTypesSize") int domesticTypesSize,
                                                         @Param("category") List<String> category,
                                                         @Param("categorySize") int categorySize,
+                                                        @Param("sort") String sort,
                                                         @Param("offset") int offset,
                                                         @Param("limit") int limit);
 
