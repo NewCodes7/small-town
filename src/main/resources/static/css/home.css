@@ -1007,6 +1007,8 @@
 
 .primary-search-section {
     margin-bottom: 24px;
+    position: relative;
+    z-index: 10;
 }
 
 .search-wrapper {
@@ -1492,7 +1494,7 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
     margin-top: 8px;
     overflow: hidden;
-    z-index: 10003;
+    z-index: 10010 !important;
 }
 
 .autocomplete-item {
@@ -1851,4 +1853,11 @@
         padding: 4px 7px;
         font-size: 10px;
     }
+}
+
+/* Keyword Highlight Styles */
+.keyword-highlight {
+    color: var(--primary-green);
+    font-weight: 700;
+    background-color: transparent;
 }
