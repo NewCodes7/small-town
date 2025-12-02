@@ -1,4 +1,4 @@
-f// 배너 슬라이드 관련 변수
+// 배너 슬라이드 관련 변수
 let currentSlide = 0;
 let totalSlides = 6; // 1 hero + 5 popular articles
 let slideInterval;
