@@ -75,6 +75,12 @@
                             <i class="fas fa-chart-bar me-2"></i>Term 통계
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:classappend="${currentTab == 'searchlogs'} ? 'active'"
+                           th:href="@{/admin/articles(tab='searchlogs')}">
+                            <i class="fas fa-search me-2"></i>검색 로그
+                        </a>
+                    </li>
                 </ul>
 
                 <!-- 검색 폼 -->
@@ -986,6 +992,61 @@
             </div>
         </div>
     </div>
+
+                <!-- 검색 로그 테이블 -->
+                <div class="card" th:if="${currentTab == 'searchlogs'}">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th style="width: 5%;">ID</th>
+                                        <th style="width: 30%;">검색어</th>
+                                        <th style="width: 10%;">타입</th>
+                                        <th style="width: 15%;">IP 주소</th>
+                                        <th style="width: 25%;">User Agent</th>
+                                        <th style="width: 15%;">검색 시간</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="log : ${searchLogs.content}">
+                                        <td th:text="${log.id}"></td>
+                                        <td>
+                                            <strong th:text="${log.searchKeyword}"></strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge"
+                                                  th:classappend="${log.searchType.name() == 'ARTICLE'} ? 'bg-primary' : 'bg-success'"
+                                                  th:text="${log.searchType.name() == 'ARTICLE'} ? '기사' : '영상'">
+                                            </span>
+                                        </td>
+                                        <td th:text="${log.ipAddress}"></td>
+                                        <td>
+                                            <small th:text="${log.userAgent != null ? (log.userAgent.length() > 50 ? log.userAgent.substring(0, 50) + '...' : log.userAgent) : '-'}"></small>
+                                        </td>
+                                        <td th:text="${#temporals.format(log.createdAt, 'yyyy-MM-dd HH:mm:ss')}"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 페이징 -->
+                        <nav th:if="${searchLogs != null && searchLogs.totalPages > 1}">
+                            <ul class="pagination justify-content-center">
+                                <li class="page-item" th:classappend="${searchLogs.first} ? 'disabled'">
+                                    <a class="page-link" th:href="@{/admin/articles(tab='searchlogs', page=${searchLogs.number - 1}, size=${searchLogs.size})}">이전</a>
+                                </li>
+                                <li class="page-item" th:each="pageNum : ${#numbers.sequence(0, searchLogs.totalPages - 1)}"
+                                    th:classappend="${pageNum == searchLogs.number} ? 'active'">
+                                    <a class="page-link" th:href="@{/admin/articles(tab='searchlogs', page=${pageNum}, size=${searchLogs.size})}" th:text="${pageNum + 1}">1</a>
+                                </li>
+                                <li class="page-item" th:classappend="${searchLogs.last} ? 'disabled'">
+                                    <a class="page-link" th:href="@{/admin/articles(tab='searchlogs', page=${searchLogs.number + 1}, size=${searchLogs.size})}">다음</a>
+                                </li>
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
 
     <!-- 카테고리 수정 모달 -->
     <div class="modal fade" id="editCategoryModal" tabindex="-1">

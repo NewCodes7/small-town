@@ -47,6 +47,8 @@ import com.newcodes7.small_town.crawler.repository.CategoryRepository;
 import com.newcodes7.small_town.video.repository.VideoRepository;
 import com.newcodes7.small_town.global.util.Client;
 import com.newcodes7.small_town.global.util.KoreanCharacterUtil;
+import com.newcodes7.small_town.global.entity.SearchLog;
+import com.newcodes7.small_town.global.service.SearchLogService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -71,6 +73,7 @@ public class ArticleController {
     private final VideoRepository videoRepository;
     private final IndustryRepository industryRepository;
     private final ArticleTermRepository articleTermRepository;
+    private final SearchLogService searchLogService;
 
     @GetMapping({"", "/"})
     public String home(
@@ -81,7 +84,13 @@ public class ArticleController {
             @RequestParam(name = "regions", required = false) List<String> regions,
             @RequestParam(name = "view", required = false) String view,
             @RequestParam(name = "category", required = false) List<String> category,
+            HttpServletRequest request,
             Model model) {
+
+        // 검색 로그 저장
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            searchLogService.logSearch(keyword.trim(), SearchLog.SearchType.ARTICLE, request);
+        }
 
         // view 파라미터가 제공되지 않았을 때만 검색어에 따라 list로 강제 변경
         String effectiveView = view;

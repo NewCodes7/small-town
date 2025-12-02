@@ -33,6 +33,8 @@ import com.newcodes7.small_town.video.service.VideoService;
 import com.newcodes7.small_town.video.service.VideoViewService;
 import com.newcodes7.small_town.global.util.Client;
 import com.newcodes7.small_town.global.util.KoreanCharacterUtil;
+import com.newcodes7.small_town.global.entity.SearchLog;
+import com.newcodes7.small_town.global.service.SearchLogService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +51,7 @@ public class VideoController {
     private final CorporationService corporationService;
     private final CategoryRepository categoryRepository;
     private final VideoTermRepository videoTermRepository;
+    private final SearchLogService searchLogService;
 
     @GetMapping({"", "/"})
     public String videoHome(
@@ -59,7 +62,13 @@ public class VideoController {
             @RequestParam(name = "regions", required = false) List<String> regions,
             @RequestParam(name = "view", defaultValue = "grouped") String view,
             @RequestParam(name = "category", required = false) List<String> category,
+            HttpServletRequest request,
             Model model) {
+
+        // 검색 로그 저장
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            searchLogService.logSearch(keyword.trim(), SearchLog.SearchType.VIDEO, request);
+        }
 
         // 검색어가 있을 때는 list view로 강제 변경
         String effectiveView = view;

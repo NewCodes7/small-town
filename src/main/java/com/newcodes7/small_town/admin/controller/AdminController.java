@@ -48,6 +48,8 @@ import com.newcodes7.small_town.crawler.service.TitleTranslationService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.ArticleSummary;
 import com.newcodes7.small_town.global.entity.Video;
+import com.newcodes7.small_town.global.entity.SearchLog;
+import com.newcodes7.small_town.global.service.SearchLogService;
 import com.newcodes7.small_town.video.repository.VideoRepository;
 import com.newcodes7.small_town.video.service.VideoService;
 
@@ -77,7 +79,8 @@ public class AdminController {
     private final VideoTermService videoTermService;
     private final VideoTermRepository videoTermRepository;
     private final UserDictionaryRepository userDictionaryRepository;
-    
+    private final SearchLogService searchLogService;
+
     // 기업 목록 페이지
     @GetMapping("/corporations")
     public String corporationList(
@@ -311,6 +314,13 @@ public class AdminController {
             }
         }
 
+        // 검색 로그
+        Page<SearchLog> searchLogs = null;
+        if (tab.equals("searchlogs")) {
+            Pageable searchLogPageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+            searchLogs = searchLogService.getAllSearchLogs(searchLogPageable);
+        }
+
         model.addAttribute("articles", articles);
         model.addAttribute("videos", videos);
         model.addAttribute("corporations", corporations);
@@ -318,6 +328,7 @@ public class AdminController {
         model.addAttribute("videosWithTerms", videosWithTerms);
         model.addAttribute("articleTermStats", articleTermStats);
         model.addAttribute("videoTermStats", videoTermStats);
+        model.addAttribute("searchLogs", searchLogs);
         model.addAttribute("categories", categoryRepository.findAll());
         model.addAttribute("currentTab", tab);
         return "admin/article/list";
