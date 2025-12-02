@@ -10,6 +10,7 @@
         <meta name="robots" content="index, follow">
     </th:block>
     <link rel="stylesheet" type="text/css" th:href="@{/css/home.css}">
+    <script th:src="@{/js/searchUtils.js}"></script>
 </head>
 <body>
     <div layout:fragment="content">
@@ -2097,6 +2098,9 @@
                 }
             });
 
+            // ===== 검색 기록 관리 (searchUtils.js 사용) =====
+            const searchHistory = new SearchHistory('small_town_search_history');
+
             // ===== 자동완성 기능 =====
             const searchInput = document.getElementById('searchInput');
             const autocompleteDropdown = document.getElementById('autocompleteDropdown');
@@ -2112,6 +2116,7 @@
                     // 프로그래밍 방식으로 변경된 경우 무시
                     if (programmaticChange) {
                         programmaticChange = false;
+                        clearTimeout(autocompleteDebounce); // 이전 타이머 취소
                         return;
                     }
 
@@ -2124,7 +2129,8 @@
                     selectedIndex = -1;
 
                     if (query.length < 1) {
-                        autocompleteDropdown.style.display = 'none';
+                        // 검색어가 없으면 검색 기록 표시
+                        displaySearchHistory();
                         return;
                     }
 
@@ -2170,13 +2176,66 @@
                     }, 200);
                 });
 
-                // 포커스 얻으면 드롭다운 다시 보이기 (검색어가 있는 경우)
+                // 포커스 얻으면 드롭다운 다시 보이기
                 searchInput.addEventListener('focus', function() {
                     const query = this.value.trim();
                     if (query.length >= 1 && suggestions.length > 0) {
                         autocompleteDropdown.style.display = 'block';
+                    } else if (query.length === 0) {
+                        // 검색어가 없으면 검색 기록 표시
+                        displaySearchHistory();
                     }
                 });
+
+                // 폼 제출 시 검색 기록 저장
+                const searchForm = document.getElementById('searchForm');
+                if (searchForm) {
+                    searchForm.addEventListener('submit', function(e) {
+                        const query = searchInput.value.trim();
+                        if (query.length > 0) {
+                            searchHistory.saveHistory(query);
+                        }
+                    });
+                }
+            }
+
+            function displaySearchHistory() {
+                const history = searchHistory.getHistory().slice(0, 6);
+                if (history.length === 0) {
+                    autocompleteDropdown.style.display = 'none';
+                    return;
+                }
+
+                let html = '';
+                history.forEach((item, index) => {
+                    html += `
+                        <div class="autocomplete-item history-item" data-type="history" data-term="${item}" data-index="${index}">
+                            <i class="fas fa-clock-rotate-left" style="color: #9ca3af; margin-right: 12px;"></i>
+                            <span class="autocomplete-term">${item}</span>
+                        </div>
+                    `;
+                });
+
+                autocompleteDropdown.innerHTML = html;
+                autocompleteDropdown.style.display = 'block';
+                // selectedIndex는 여기서 리셋하지 않음 (화살표 선택 유지)
+
+                // 클릭 이벤트 등록
+                const items = autocompleteDropdown.querySelectorAll('.autocomplete-item');
+                items.forEach(item => {
+                    item.addEventListener('click', function() {
+                        const term = this.dataset.term;
+                        searchInput.value = term;
+                        searchHistory.saveHistory(term); // 검색 기록 저장
+                        autocompleteDropdown.style.display = 'none';
+                        document.getElementById('searchForm').submit();
+                    });
+                });
+
+                // 선택 상태 복원
+                if (selectedIndex >= 0 && selectedIndex < items.length) {
+                    updateSelection(items);
+                }
             }
 
             function fetchAutocompleteSuggestions(query) {
@@ -2185,47 +2244,67 @@
                     .then(data => {
                         // 최대 6개까지만 사용
                         suggestions = data.slice(0, 6);
-                        displayAutocompleteSuggestions(suggestions);
+                        displayAutocompleteSuggestions(query, suggestions);
                     })
                     .catch(error => {
                         console.error('자동완성 조회 오류:', error);
                     });
             }
 
-            function displayAutocompleteSuggestions(data) {
-                if (!data || data.length === 0) {
+            function displayAutocompleteSuggestions(query, data) {
+                // 검색 기록 필터링 (최대 2개)
+                const matchedHistory = searchHistory.filterHistory(query, 2);
+
+                let html = '';
+                let currentIndex = 0;
+
+                // 검색 기록 먼저 표시
+                matchedHistory.forEach((item) => {
+                    html += `
+                        <div class="autocomplete-item history-item" data-type="history" data-term="${item}" data-index="${currentIndex}">
+                            <i class="fas fa-clock-rotate-left" style="color: #9ca3af; margin-right: 12px;"></i>
+                            <span class="autocomplete-term">${item}</span>
+                        </div>
+                    `;
+                    currentIndex++;
+                });
+
+                // 자동완성 결과 표시
+                if (data && data.length > 0) {
+                    data.forEach((item) => {
+                        if (item.type === 'corporation') {
+                            // 기업 검색 결과
+                            html += `
+                                <div class="autocomplete-item corporation-item" data-type="corporation" data-id="${item.id}" data-name="${item.name}" data-index="${currentIndex}">
+                                    <div style="display: flex; align-items: center; gap: 12px;">
+                                        ${item.logoUrl ?
+                                            `<img src="${item.logoUrl}" alt="${item.name}" style="width: 24px; height: 24px; border-radius: 4px; object-fit: contain;">` :
+                                            `<i class="fas fa-building" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; color: var(--primary-green); font-size: 18px;"></i>`
+                                        }
+                                        <span class="autocomplete-term">${item.name}</span>
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            // Term 검색 결과
+                            html += `
+                                <div class="autocomplete-item term-item" data-type="term" data-term="${item.term}" data-index="${currentIndex}">
+                                    <span class="autocomplete-term">${item.term}</span>
+                                </div>
+                            `;
+                        }
+                        currentIndex++;
+                    });
+                }
+
+                if (html === '') {
                     autocompleteDropdown.style.display = 'none';
                     return;
                 }
 
-                let html = '';
-                data.forEach((item, index) => {
-                    if (item.type === 'corporation') {
-                        // 기업 검색 결과
-                        html += `
-                            <div class="autocomplete-item corporation-item" data-type="corporation" data-id="${item.id}" data-name="${item.name}" data-index="${index}">
-                                <div style="display: flex; align-items: center; gap: 12px;">
-                                    ${item.logoUrl ?
-                                        `<img src="${item.logoUrl}" alt="${item.name}" style="width: 24px; height: 24px; border-radius: 4px; object-fit: contain;">` :
-                                        `<i class="fas fa-building" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; color: var(--primary-green); font-size: 18px;"></i>`
-                                    }
-                                    <span class="autocomplete-term">${item.name}</span>
-                                </div>
-                            </div>
-                        `;
-                    } else {
-                        // Term 검색 결과
-                        html += `
-                            <div class="autocomplete-item term-item" data-type="term" data-term="${item.term}" data-index="${index}">
-                                <span class="autocomplete-term">${item.term}</span>
-                            </div>
-                        `;
-                    }
-                });
-
                 autocompleteDropdown.innerHTML = html;
                 autocompleteDropdown.style.display = 'block';
-                selectedIndex = -1;
+                // selectedIndex는 여기서 리셋하지 않음 (화살표 선택 유지)
 
                 // 클릭 이벤트 등록
                 const items = autocompleteDropdown.querySelectorAll('.autocomplete-item');
@@ -2236,14 +2315,20 @@
                             const corporationId = this.dataset.id;
                             window.location.href = `/corporations/${corporationId}`;
                         } else {
-                            // Term 검색
+                            // Term 또는 History 검색
                             const term = this.dataset.term;
                             searchInput.value = term;
+                            searchHistory.saveHistory(term); // 검색 기록 저장
                             autocompleteDropdown.style.display = 'none';
                             document.getElementById('searchForm').submit();
                         }
                     });
                 });
+
+                // 선택 상태 복원
+                if (selectedIndex >= 0 && selectedIndex < items.length) {
+                    updateSelection(items);
+                }
             }
 
             function updateSelection(items) {
@@ -2256,10 +2341,13 @@
                     }
                 });
 
-                // Term 항목인 경우 검색창 값 변경
+                // 항목 선택 시 검색창 값 변경
                 if (selectedIndex >= 0 && selectedIndex < items.length) {
                     const selectedItem = items[selectedIndex];
-                    if (selectedItem.dataset.type === 'term') {
+                    if (selectedItem.dataset.type === 'corporation') {
+                        programmaticChange = true; // 플래그 설정
+                        searchInput.value = selectedItem.dataset.name;
+                    } else if (selectedItem.dataset.type === 'term' || selectedItem.dataset.type === 'history') {
                         programmaticChange = true; // 플래그 설정
                         searchInput.value = selectedItem.dataset.term;
                     }
