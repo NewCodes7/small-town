@@ -34,7 +34,8 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
            "JOIN FETCH v.corporation c " +
            "LEFT JOIN FETCH v.category cat " +
            "WHERE v.deletedAt IS NULL " +
-           "AND (:keyword IS NULL OR LOWER(v.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(v.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "AND (:keyword IS NULL OR LOWER(v.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(v.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "     OR (:termBasedVideoIds IS NOT NULL AND v.id IN :termBasedVideoIds)) " +
            "AND (:domesticTypes IS NULL OR c.isDomestic IN :domesticTypes) " +
            "AND (:category IS NULL OR cat.name IN :category) " +
            "ORDER BY " +
@@ -53,6 +54,7 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
            "CASE WHEN :sort != 'oldest' THEN v.publishedAt END DESC, " +
            "v.createdAt DESC")
     Page<Video> findVideosWithFilters(@Param("keyword") String keyword,
+                                      @Param("termBasedVideoIds") List<Long> termBasedVideoIds,
                                       @Param("domesticTypes") List<Integer> domesticTypes,
                                       @Param("sort") String sort,
                                       @Param("category") List<String> category,
@@ -62,10 +64,12 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
            "JOIN FETCH v.corporation c " +
            "LEFT JOIN FETCH v.category cat " +
            "WHERE v.deletedAt IS NULL " +
-           "AND (:keyword IS NULL OR LOWER(v.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(v.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "AND (:keyword IS NULL OR LOWER(v.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(v.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "     OR (:termBasedVideoIds IS NOT NULL AND v.id IN :termBasedVideoIds)) " +
            "AND (:domesticTypes IS NULL OR c.isDomestic IN :domesticTypes) " +
            "AND (:category IS NULL OR cat.name IN :category)")
     List<Video> findVideosWithFilters(@Param("keyword") String keyword,
+                                      @Param("termBasedVideoIds") List<Long> termBasedVideoIds,
                                       @Param("domesticTypes") List<Integer> domesticTypes,
                                       @Param("category") List<String> category);
 
@@ -97,7 +101,8 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
            "    LEFT JOIN category cat ON v.category_id = cat.id " +
            "    WHERE v.deleted_at IS NULL " +
            "    AND (COALESCE(:keyword, '') = '' OR LOWER(v.title) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
-           "         OR LOWER(v.translated_title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "         OR LOWER(v.translated_title) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "         OR (:termBasedVideoIdsSize > 0 AND v.id IN (:termBasedVideoIds))) " +
            "    AND (COALESCE(:domesticTypesSize, 0) = 0 OR c.is_domestic IN (:domesticTypes)) " +
            "    AND (COALESCE(:categorySize, 0) = 0 OR cat.name IN (:category)) " +
            "), " +
@@ -115,6 +120,8 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
            "ORDER BY lc.latest_published_at DESC, fv.published_at DESC",
            nativeQuery = true)
     List<Video> findTop3VideosGroupedByCorporation(@Param("keyword") String keyword,
+                                                   @Param("termBasedVideoIds") List<Long> termBasedVideoIds,
+                                                   @Param("termBasedVideoIdsSize") int termBasedVideoIdsSize,
                                                    @Param("domesticTypes") List<Integer> domesticTypes,
                                                    @Param("domesticTypesSize") int domesticTypesSize,
                                                    @Param("category") List<String> category,

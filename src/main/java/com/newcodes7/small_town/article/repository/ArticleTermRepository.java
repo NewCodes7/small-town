@@ -55,35 +55,56 @@ public interface ArticleTermRepository extends JpaRepository<ArticleTerm, Long> 
     List<Long> findArticleIdsByTerms(@Param("terms") List<String> terms);
 
     /**
+     * 여러 term ID로 article 검색용 (OR 조건)
+     * 유의어 검색에 사용
+     */
+    @Query("SELECT DISTINCT at.article.id FROM ArticleTerm at WHERE at.term.id IN :termIds")
+    List<Long> findArticleIdsByTermIds(@Param("termIds") List<Long> termIds);
+
+    /**
      * Term 통계 조회 (많이 사용된 순)
      * Term 엔티티를 참조하여 중복 없이 통계 집계
+     * Pageable의 sort를 통해 정렬 가능 (frequency, createdAt)
      */
     @Query("SELECT at.term.id as termId, " +
            "at.term.term as term, " +
            "at.term.termType as termType, " +
            "at.term.decomposedTerm as decomposedTerm, " +
+           "at.term.createdAt as createdAt, " +
            "SUM(at.frequency) as totalFrequency, " +
            "COUNT(DISTINCT at.article.id) as articleCount " +
            "FROM ArticleTerm at " +
-           "GROUP BY at.term.id, at.term.term, at.term.termType, at.term.decomposedTerm " +
-           "ORDER BY SUM(at.frequency) DESC")
+           "GROUP BY at.term.id, at.term.term, at.term.termType, at.term.decomposedTerm, at.term.createdAt")
     List<TermStatistics> findTermStatistics(Pageable pageable);
 
     /**
      * Term 통계 조회 (검색 기능 포함)
      * Term 문자열로 검색
+     * Pageable의 sort를 통해 정렬 가능 (frequency, createdAt)
      */
     @Query("SELECT at.term.id as termId, " +
            "at.term.term as term, " +
            "at.term.termType as termType, " +
            "at.term.decomposedTerm as decomposedTerm, " +
+           "at.term.createdAt as createdAt, " +
            "SUM(at.frequency) as totalFrequency, " +
            "COUNT(DISTINCT at.article.id) as articleCount " +
            "FROM ArticleTerm at " +
            "WHERE LOWER(at.term.term) LIKE LOWER(CONCAT('%', :search, '%')) " +
-           "GROUP BY at.term.id, at.term.term, at.term.termType, at.term.decomposedTerm " +
-           "ORDER BY SUM(at.frequency) DESC")
+           "GROUP BY at.term.id, at.term.term, at.term.termType, at.term.decomposedTerm, at.term.createdAt")
     List<TermStatistics> findTermStatisticsBySearch(@Param("search") String search, Pageable pageable);
+
+    /**
+     * Term 통계 총 개수 조회
+     */
+    @Query("SELECT COUNT(DISTINCT at.term.id) FROM ArticleTerm at")
+    long countDistinctTerms();
+
+    /**
+     * Term 통계 총 개수 조회 (검색 포함)
+     */
+    @Query("SELECT COUNT(DISTINCT at.term.id) FROM ArticleTerm at WHERE LOWER(at.term.term) LIKE LOWER(CONCAT('%', :search, '%'))")
+    long countDistinctTermsBySearch(@Param("search") String search);
 
     /**
      * 자동완성을 위한 Term 검색 (빈도수 순)
@@ -131,6 +152,7 @@ public interface ArticleTermRepository extends JpaRepository<ArticleTerm, Long> 
         String getTerm();
         String getTermType();
         String getDecomposedTerm();
+        java.time.LocalDateTime getCreatedAt();
         Long getTotalFrequency();
         Long getArticleCount();
     }

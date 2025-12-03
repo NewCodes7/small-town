@@ -154,32 +154,7 @@ public class VideoTermService {
                     : null;
 
             // Term 엔티티 찾기 또는 생성
-            Term term = termRepository.findByTermAndTermType(termInfo.getTerm(), termInfo.getTermType())
-                    .map(existingTerm -> {
-                        // 기존 Term의 decomposedTerm 또는 chosung이 null이면 업데이트
-                        if ((existingTerm.getDecomposedTerm() == null && decomposed != null) ||
-                            (existingTerm.getChosung() == null && chosung != null)) {
-                            Term updatedTerm = Term.builder()
-                                    .id(existingTerm.getId())
-                                    .term(existingTerm.getTerm())
-                                    .termType(existingTerm.getTermType())
-                                    .decomposedTerm(decomposed != null ? decomposed : existingTerm.getDecomposedTerm())
-                                    .chosung(chosung != null ? chosung : existingTerm.getChosung())
-                                    .createdAt(existingTerm.getCreatedAt())
-                                    .build();
-                            return termRepository.save(updatedTerm);
-                        }
-                        return existingTerm;
-                    })
-                    .orElseGet(() -> {
-                        Term newTerm = Term.builder()
-                                .term(termInfo.getTerm())
-                                .termType(termInfo.getTermType())
-                                .decomposedTerm(decomposed)
-                                .chosung(chosung)
-                                .build();
-                        return termRepository.save(newTerm);
-                    });
+            Term term = findOrCreateTerm(termInfo.getTerm(), termInfo.getTermType(), decomposed, chosung);
 
             // VideoTerm 생성 (Term 엔티티 참조)
             VideoTerm videoTerm = VideoTerm.builder()
@@ -196,6 +171,50 @@ public class VideoTermService {
         }
 
         return videoTerms.size();
+    }
+
+    /**
+     * Term을 찾거나 생성 (동시성 처리)
+     * Unique constraint violation 발생 시 재조회
+     */
+    private Term findOrCreateTerm(String termText, String termType, String decomposed, String chosung) {
+        try {
+            return termRepository.findByTermAndTermType(termText, termType)
+                    .map(existingTerm -> {
+                        // 기존 Term의 decomposedTerm 또는 chosung이 null이면 업데이트
+                        boolean needsUpdate = false;
+                        if (existingTerm.getDecomposedTerm() == null && decomposed != null) {
+                            existingTerm.updateDecomposedTerm(decomposed);
+                            needsUpdate = true;
+                        }
+                        if (existingTerm.getChosung() == null && chosung != null) {
+                            existingTerm.updateChosung(chosung);
+                            needsUpdate = true;
+                        }
+                        // JPA dirty checking으로 자동 업데이트
+                        return existingTerm;
+                    })
+                    .orElseGet(() -> {
+                        try {
+                            Term newTerm = Term.builder()
+                                    .term(termText)
+                                    .termType(termType)
+                                    .decomposedTerm(decomposed)
+                                    .chosung(chosung)
+                                    .build();
+                            return termRepository.save(newTerm);
+                        } catch (Exception e) {
+                            // Unique constraint violation 등으로 insert 실패 시 재조회
+                            log.debug("Term insert 실패, 재조회: term={}, type={}", termText, termType);
+                            return termRepository.findByTermAndTermType(termText, termType)
+                                    .orElseThrow(() -> new IllegalStateException(
+                                            "Term을 생성하거나 조회할 수 없습니다: " + termText));
+                        }
+                    });
+        } catch (Exception e) {
+            log.error("Term 조회/생성 중 오류: term={}, type={}, error={}", termText, termType, e.getMessage());
+            throw e;
+        }
     }
 
     /**

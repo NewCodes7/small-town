@@ -49,7 +49,8 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "LEFT JOIN FETCH a.articleTags at " +
            "LEFT JOIN FETCH at.tag " +
            "WHERE a.deletedAt IS NULL " +
-           "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "     OR (:termBasedArticleIds IS NOT NULL AND a.id IN :termBasedArticleIds)) " +
            "AND (:domesticTypes IS NULL OR c.isDomestic IN :domesticTypes) " +
            "AND (:category IS NULL OR cat.name IN :category) " +
            "ORDER BY " +
@@ -68,6 +69,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "CASE WHEN :sort != 'oldest' THEN a.publishedAt END DESC, " +
            "a.createdAt DESC")
     Page<Article> findArticlesWithFilters(@Param("keyword") String keyword,
+                                         @Param("termBasedArticleIds") List<Long> termBasedArticleIds,
                                          @Param("domesticTypes") List<Integer> domesticTypes,
                                          @Param("sort") String sort,
                                          @Param("category") List<String> category,
@@ -79,10 +81,12 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "LEFT JOIN FETCH a.articleTags at " +
            "LEFT JOIN FETCH at.tag " +
            "WHERE a.deletedAt IS NULL " +
-           "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "     OR (:termBasedArticleIds IS NOT NULL AND a.id IN :termBasedArticleIds)) " +
            "AND (:domesticTypes IS NULL OR c.isDomestic IN :domesticTypes) " +
            "AND (:category IS NULL OR cat.name IN :category)")
     List<Article> findArticlesWithFilters(@Param("keyword") String keyword,
+                                         @Param("termBasedArticleIds") List<Long> termBasedArticleIds,
                                          @Param("domesticTypes") List<Integer> domesticTypes,
                                          @Param("category") List<String> category);                       
     
@@ -110,10 +114,12 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
        @Query("SELECT COUNT(DISTINCT a.corporation) FROM Article a " +
               "LEFT JOIN a.category cat " +
               "WHERE a.deletedAt IS NULL " +
-              "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+              "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(a.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+              "     OR (:termBasedArticleIds IS NOT NULL AND a.id IN :termBasedArticleIds)) " +
               "AND (:domesticTypesSize = 0 OR a.corporation.isDomestic IN :domesticTypes) " +
               "AND (:categorySize = 0 OR cat.name IN :category)")
        long countDistinctCorporationsByFilters(@Param("keyword") String keyword,
+                                          @Param("termBasedArticleIds") List<Long> termBasedArticleIds,
                                           @Param("domesticTypes") List<Integer> domesticTypes,
                                           @Param("domesticTypesSize") int domesticTypesSize,
                                           @Param("category") List<String> category,
@@ -139,7 +145,8 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
               "    LEFT JOIN category cat ON a.category_id = cat.id " +
               "    WHERE a.deleted_at IS NULL " +
               "    AND (COALESCE(:keyword, '') = '' OR LOWER(a.title) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
-              "         OR LOWER(a.translated_title) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+              "         OR LOWER(a.translated_title) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+              "         OR (:termBasedArticleIdsSize > 0 AND a.id IN (:termBasedArticleIds))) " +
               "    AND (COALESCE(:domesticTypesSize, 0) = 0 OR c.is_domestic IN (:domesticTypes)) " +
               "    AND (COALESCE(:categorySize, 0) = 0 OR cat.name IN (:category)) " +
               "), " +
@@ -160,6 +167,8 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
               "    IF(:sort = 'oldest', -UNIX_TIMESTAMP(fa.published_at), UNIX_TIMESTAMP(fa.published_at)) DESC",
               nativeQuery = true)
        List<Article> findTop3ArticlesGroupedByCorporation(@Param("keyword") String keyword,
+                                                        @Param("termBasedArticleIds") List<Long> termBasedArticleIds,
+                                                        @Param("termBasedArticleIdsSize") int termBasedArticleIdsSize,
                                                         @Param("domesticTypes") List<Integer> domesticTypes,
                                                         @Param("domesticTypesSize") int domesticTypesSize,
                                                         @Param("category") List<String> category,

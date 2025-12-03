@@ -76,6 +76,12 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" th:classappend="${currentTab == 'synonyms'} ? 'active'"
+                           th:href="@{/admin/articles(tab='synonyms')}">
+                            <i class="fas fa-link me-2"></i>유의어 관리
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" th:classappend="${currentTab == 'searchlogs'} ? 'active'"
                            th:href="@{/admin/articles(tab='searchlogs')}">
                             <i class="fas fa-search me-2"></i>검색 로그
@@ -784,24 +790,34 @@
                 <!-- Term 통계 테이블 -->
                 <div class="card" th:if="${currentTab == 'stats'}">
                     <div class="card-body">
-                        <div class="mb-3">
-                            <h5>
+                        <div class="mb-3 d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
                                 <i class="fas fa-chart-bar me-2"></i>Article Term 통계
-                                <small class="text-muted ms-2">- 가장 많이 사용된 Term 순</small>
                             </h5>
+                            <div class="d-flex gap-2 align-items-center">
+                                <button class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#batchRecommendModal">
+                                    <i class="fas fa-magic"></i> AI 일괄 추천
+                                </button>
+                                <label class="mb-0 me-2">정렬:</label>
+                                <select class="form-select form-select-sm" style="width: auto;" id="termSortSelect">
+                                    <option value="frequency" th:selected="${currentSort == 'frequency'}">빈도수 높은순</option>
+                                    <option value="latest" th:selected="${currentSort == 'latest'}">최신순</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="table-responsive">
                             <table class="table table-hover">
                                 <thead class="table-dark">
                                     <tr>
-                                        <th style="width: 5%;">순위</th>
-                                        <th style="width: 25%;">Term</th>
-                                        <th style="width: 12%;">품사</th>
-                                        <th style="width: 15%;">총 빈도수</th>
-                                        <th style="width: 15%;">등장 게시글 수</th>
-                                        <th style="width: 15%;">자모 분리</th>
-                                        <th style="width: 10%;">평균 빈도</th>
-                                        <th style="width: 18%;">액션</th>
+                                        <th style="width: 3%;">순위</th>
+                                        <th style="width: 15%;">Term</th>
+                                        <th style="width: 8%;">품사</th>
+                                        <th style="width: 20%;">유의어</th>
+                                        <th style="width: 10%;">총 빈도수</th>
+                                        <th style="width: 10%;">게시글 수</th>
+                                        <th style="width: 12%;">자모 분리</th>
+                                        <th style="width: 7%;">평균</th>
+                                        <th style="width: 15%;">액션</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -814,6 +830,11 @@
                                         </td>
                                         <td>
                                             <span class="badge bg-secondary" th:text="${stat.termType}">Type</span>
+                                        </td>
+                                        <td>
+                                            <div class="synonym-cell" th:data-term-id="${stat.termId}">
+                                                <small class="text-muted">로딩 중...</small>
+                                            </div>
                                         </td>
                                         <td>
                                             <strong th:text="${stat.totalFrequency}">0</strong>
@@ -831,20 +852,46 @@
                                             </span>
                                         </td>
                                         <td>
+                                            <button class="btn btn-sm btn-info edit-synonyms-btn me-1"
+                                                    th:data-term-id="${stat.termId}"
+                                                    th:data-term="${stat.term}">
+                                                <i class="fas fa-link"></i>
+                                            </button>
                                             <button class="btn btn-sm btn-danger delete-term-btn"
                                                     th:data-term-id="${stat.termId}"
                                                     th:data-term="${stat.term}"
                                                     th:data-term-type="${stat.termType}">
-                                                <i class="fas fa-ban"></i> 불용어 등록
+                                                <i class="fas fa-ban"></i>
                                             </button>
                                         </td>
                                     </tr>
                                     <tr th:if="${articleTermStats == null || articleTermStats.empty}">
-                                        <td colspan="7" class="text-center text-muted">통계 데이터가 없습니다. Term 추출을 먼저 실행해주세요.</td>
+                                        <td colspan="9" class="text-center text-muted">통계 데이터가 없습니다. Term 추출을 먼저 실행해주세요.</td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
+
+                        <!-- Article Term 페이징 -->
+                        <nav th:if="${articleTermTotalPages > 0}">
+                            <ul class="pagination justify-content-center mt-4">
+                                <li class="page-item" th:classappend="${currentPage == 0} ? 'disabled'">
+                                    <a class="page-link" th:href="@{/admin/articles(tab='stats', page=${currentPage - 1}, size=${pageSize}, sort=${currentSort}, search=${search})}" aria-label="Previous">
+                                        <span aria-hidden="true">&laquo;</span>
+                                    </a>
+                                </li>
+                                <th:block th:each="i : ${#numbers.sequence(0, articleTermTotalPages - 1)}">
+                                    <li class="page-item" th:if="${i < 10 || (i >= currentPage - 5 && i <= currentPage + 5)}" th:classappend="${i == currentPage} ? 'active'">
+                                        <a class="page-link" th:href="@{/admin/articles(tab='stats', page=${i}, size=${pageSize}, sort=${currentSort}, search=${search})}" th:text="${i + 1}">1</a>
+                                    </li>
+                                </th:block>
+                                <li class="page-item" th:classappend="${currentPage >= articleTermTotalPages - 1} ? 'disabled'">
+                                    <a class="page-link" th:href="@{/admin/articles(tab='stats', page=${currentPage + 1}, size=${pageSize}, sort=${currentSort}, search=${search})}" aria-label="Next">
+                                        <span aria-hidden="true">&raquo;</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </nav>
 
                         <!-- Video Term 통계 -->
                         <div class="mt-5">
@@ -857,14 +904,15 @@
                             <table class="table table-hover">
                                 <thead class="table-dark">
                                     <tr>
-                                        <th style="width: 5%;">순위</th>
-                                        <th style="width: 25%;">Term</th>
-                                        <th style="width: 12%;">품사</th>
-                                        <th style="width: 15%;">총 빈도수</th>
-                                        <th style="width: 15%;">등장 영상 수</th>
-                                        <th style="width: 15%;">자모 분리</th>
-                                        <th style="width: 10%;">평균 빈도</th>
-                                        <th style="width: 18%;">액션</th>
+                                        <th style="width: 3%;">순위</th>
+                                        <th style="width: 15%;">Term</th>
+                                        <th style="width: 8%;">품사</th>
+                                        <th style="width: 20%;">유의어</th>
+                                        <th style="width: 10%;">총 빈도수</th>
+                                        <th style="width: 10%;">영상 수</th>
+                                        <th style="width: 12%;">자모 분리</th>
+                                        <th style="width: 7%;">평균</th>
+                                        <th style="width: 15%;">액션</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -877,6 +925,11 @@
                                         </td>
                                         <td>
                                             <span class="badge bg-secondary" th:text="${stat.termType}">Type</span>
+                                        </td>
+                                        <td>
+                                            <div class="synonym-cell" th:data-term-id="${stat.termId}">
+                                                <small class="text-muted">로딩 중...</small>
+                                            </div>
                                         </td>
                                         <td>
                                             <strong th:text="${stat.totalFrequency}">0</strong>
@@ -894,20 +947,46 @@
                                             </span>
                                         </td>
                                         <td>
+                                            <button class="btn btn-sm btn-info edit-synonyms-btn me-1"
+                                                    th:data-term-id="${stat.termId}"
+                                                    th:data-term="${stat.term}">
+                                                <i class="fas fa-link"></i>
+                                            </button>
                                             <button class="btn btn-sm btn-danger delete-term-btn"
                                                     th:data-term-id="${stat.termId}"
                                                     th:data-term="${stat.term}"
                                                     th:data-term-type="${stat.termType}">
-                                                <i class="fas fa-ban"></i> 불용어 등록
+                                                <i class="fas fa-ban"></i>
                                             </button>
                                         </td>
                                     </tr>
                                     <tr th:if="${videoTermStats == null || videoTermStats.empty}">
-                                        <td colspan="7" class="text-center text-muted">통계 데이터가 없습니다. Term 추출을 먼저 실행해주세요.</td>
+                                        <td colspan="9" class="text-center text-muted">통계 데이터가 없습니다. Term 추출을 먼저 실행해주세요.</td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
+
+                        <!-- Video Term 페이징 -->
+                        <nav th:if="${videoTermTotalPages > 0}">
+                            <ul class="pagination justify-content-center mt-4">
+                                <li class="page-item" th:classappend="${currentPage == 0} ? 'disabled'">
+                                    <a class="page-link" th:href="@{/admin/articles(tab='stats', page=${currentPage - 1}, size=${pageSize}, sort=${currentSort}, search=${search})}" aria-label="Previous">
+                                        <span aria-hidden="true">&laquo;</span>
+                                    </a>
+                                </li>
+                                <th:block th:each="i : ${#numbers.sequence(0, videoTermTotalPages - 1)}">
+                                    <li class="page-item" th:if="${i < 10 || (i >= currentPage - 5 && i <= currentPage + 5)}" th:classappend="${i == currentPage} ? 'active'">
+                                        <a class="page-link" th:href="@{/admin/articles(tab='stats', page=${i}, size=${pageSize}, sort=${currentSort}, search=${search})}" th:text="${i + 1}">1</a>
+                                    </li>
+                                </th:block>
+                                <li class="page-item" th:classappend="${currentPage >= videoTermTotalPages - 1} ? 'disabled'">
+                                    <a class="page-link" th:href="@{/admin/articles(tab='stats', page=${currentPage + 1}, size=${pageSize}, sort=${currentSort}, search=${search})}" aria-label="Next">
+                                        <span aria-hidden="true">&raquo;</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </nav>
                     </div>
                 </div>
             </div>
@@ -992,6 +1071,140 @@
             </div>
         </div>
     </div>
+
+    <!-- 유의어 추가 모달 -->
+    <div class="modal fade" id="addSynonymModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">유의어 추가</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="term1Search" class="form-label">첫 번째 Term</label>
+                        <input type="text" class="form-control" id="term1Search" placeholder="검색...">
+                        <select class="form-select mt-2" id="term1Select" size="5">
+                            <option value="">검색 결과가 여기에 표시됩니다</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="term2Search" class="form-label">두 번째 Term</label>
+                        <input type="text" class="form-control" id="term2Search" placeholder="검색...">
+                        <select class="form-select mt-2" id="term2Select" size="5">
+                            <option value="">검색 결과가 여기에 표시됩니다</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="button" class="btn btn-primary" id="saveSynonymBtn">저장</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 일괄 유의어 추천 모달 -->
+    <div class="modal fade" id="batchRecommendModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">AI 일괄 유의어 추천</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="batchLimit" class="form-label">처리할 term 개수</label>
+                        <input type="number" class="form-control" id="batchLimit" value="10" min="1" max="50">
+                        <small class="text-muted">유의어가 없는 term 중에서 처리할 개수를 지정하세요 (최대 50개)</small>
+                    </div>
+                    <button type="button" class="btn btn-primary" id="startBatchRecommendBtn">
+                        <i class="fas fa-magic"></i> 일괄 추천 시작
+                    </button>
+                    <hr>
+                    <div id="batchRecommendResults">
+                        <p class="text-muted">추천 시작 버튼을 클릭하세요.</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 유의어 편집 모달 (Term 통계에서 사용) -->
+    <div class="modal fade" id="editSynonymsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">유의어 관리: <span id="editSynonymTermName"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <h6>기존 유의어</h6>
+                        <div id="existingSynonymsList" class="mb-3">
+                            <small class="text-muted">로딩 중...</small>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="mb-3">
+                        <h6>유의어 추가</h6>
+                        <input type="text" class="form-control mb-2" id="newSynonymInput"
+                               placeholder="유의어 입력 (존재하지 않는 term도 가능)">
+                        <button type="button" class="btn btn-sm btn-success" id="addNewSynonymBtn">
+                            <i class="fas fa-plus"></i> 추가
+                        </button>
+                        <button type="button" class="btn btn-sm btn-warning" id="recommendSynonymsBtn">
+                            <i class="fas fa-magic"></i> AI 추천
+                        </button>
+                    </div>
+                    <div id="recommendedSynonyms" class="mt-3" style="display: none;">
+                        <h6>추천 유의어</h6>
+                        <div id="recommendedSynonymsList"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+                <!-- 유의어 관리 테이블 -->
+                <div class="card" th:if="${currentTab == 'synonyms'}">
+                    <div class="card-body">
+                        <div class="mb-3 d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-link me-2"></i>유의어 관리
+                            </h5>
+                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addSynonymModal">
+                                <i class="fas fa-plus me-2"></i>유의어 추가
+                            </button>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th style="width: 5%;">ID</th>
+                                        <th style="width: 30%;">Term 1</th>
+                                        <th style="width: 5%;">↔</th>
+                                        <th style="width: 30%;">Term 2</th>
+                                        <th style="width: 20%;">등록일</th>
+                                        <th style="width: 10%;">액션</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="synonymTableBody">
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted">로딩 중...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- 검색 로그 테이블 -->
                 <div class="card" th:if="${currentTab == 'searchlogs'}">
@@ -1208,6 +1421,17 @@
     <script>
         let currentArticleId = null;
         let currentArticleData = null;
+
+        // Term 통계 정렬 드롭다운 핸들러
+        const termSortSelect = document.getElementById('termSortSelect');
+        if (termSortSelect) {
+            termSortSelect.addEventListener('change', function() {
+                const urlParams = new URLSearchParams(window.location.search);
+                urlParams.set('sort', this.value);
+                urlParams.set('page', '0'); // 정렬 변경 시 첫 페이지로
+                window.location.search = urlParams.toString();
+            });
+        }
 
         // 글 편집 버튼 클릭
         document.addEventListener('click', function(e) {
@@ -2436,6 +2660,551 @@
                         alert('단어 삭제 중 오류가 발생했습니다.');
                     });
                 }
+            }
+        });
+
+        // ========== 유의어 관리 ==========
+
+        // 유의어 목록 로드
+        function loadSynonyms() {
+            fetch('/admin/term-synonyms')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const tbody = document.getElementById('synonymTableBody');
+                        if (data.synonyms.length === 0) {
+                            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">등록된 유의어가 없습니다.</td></tr>';
+                        } else {
+                            tbody.innerHTML = data.synonyms.map(syn => `
+                                <tr>
+                                    <td>${syn.id}</td>
+                                    <td><span class="badge bg-primary">${syn.term1}</span> <small class="text-muted">(${syn.term1Type})</small></td>
+                                    <td class="text-center">↔</td>
+                                    <td><span class="badge bg-primary">${syn.term2}</span> <small class="text-muted">(${syn.term2Type})</small></td>
+                                    <td>${new Date(syn.createdAt).toLocaleString()}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-danger delete-synonym-btn" data-synonym-id="${syn.id}">
+                                            <i class="fas fa-trash"></i> 삭제
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('');
+                        }
+                    } else {
+                        console.error('유의어 목록 로드 실패:', data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('synonymTableBody').innerHTML =
+                        '<tr><td colspan="6" class="text-center text-danger">로드 중 오류가 발생했습니다.</td></tr>';
+                });
+        }
+
+        // 페이지가 synonyms 탭일 때 유의어 목록 로드
+        const currentTab = new URLSearchParams(window.location.search).get('tab');
+        if (currentTab === 'synonyms') {
+            loadSynonyms();
+        }
+
+        // Term 검색 함수
+        function searchTerms(query, selectId) {
+            if (query.length < 1) {
+                return;
+            }
+
+            fetch(`/admin/terms/search?q=${encodeURIComponent(query)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const select = document.getElementById(selectId);
+                        select.innerHTML = data.terms.map(term =>
+                            `<option value="${term.id}">${term.term} (${term.termType})</option>`
+                        ).join('');
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        // Term 검색 입력 이벤트
+        const term1Search = document.getElementById('term1Search');
+        const term2Search = document.getElementById('term2Search');
+
+        if (term1Search) {
+            term1Search.addEventListener('input', function() {
+                searchTerms(this.value, 'term1Select');
+            });
+        }
+
+        if (term2Search) {
+            term2Search.addEventListener('input', function() {
+                searchTerms(this.value, 'term2Select');
+            });
+        }
+
+        // 유의어 저장
+        const saveSynonymBtn = document.getElementById('saveSynonymBtn');
+        if (saveSynonymBtn) {
+            saveSynonymBtn.addEventListener('click', function() {
+                const term1Id = document.getElementById('term1Select').value;
+                const term2Id = document.getElementById('term2Select').value;
+
+                if (!term1Id || !term2Id) {
+                    alert('두 개의 term을 모두 선택해주세요.');
+                    return;
+                }
+
+                fetch('/admin/term-synonyms', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        termId1: parseInt(term1Id),
+                        termId2: parseInt(term2Id)
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message);
+                        bootstrap.Modal.getInstance(document.getElementById('addSynonymModal')).hide();
+                        loadSynonyms();
+
+                        // 입력 초기화
+                        document.getElementById('term1Search').value = '';
+                        document.getElementById('term2Search').value = '';
+                        document.getElementById('term1Select').innerHTML = '<option value="">검색 결과가 여기에 표시됩니다</option>';
+                        document.getElementById('term2Select').innerHTML = '<option value="">검색 결과가 여기에 표시됩니다</option>';
+                    } else {
+                        alert('유의어 추가 실패: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('유의어 추가 중 오류가 발생했습니다.');
+                });
+            });
+        }
+
+        // 유의어 삭제
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('delete-synonym-btn') || e.target.closest('.delete-synonym-btn')) {
+                const btn = e.target.classList.contains('delete-synonym-btn') ? e.target : e.target.closest('.delete-synonym-btn');
+                const synonymId = btn.dataset.synonymId;
+
+                if (confirm('이 유의어 관계를 삭제하시겠습니까?')) {
+                    fetch(`/admin/term-synonyms/${synonymId}`, {
+                        method: 'DELETE'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert(data.message);
+                            loadSynonyms();
+                        } else {
+                            alert('유의어 삭제 실패: ' + data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('유의어 삭제 중 오류가 발생했습니다.');
+                    });
+                }
+            }
+        });
+
+        // ========== Term 통계 탭 - 유의어 표시 ==========
+        let currentEditTermId = null;
+        let currentEditTermName = null;
+
+        // Term 통계 탭일 때 유의어 로드
+        if (currentTab === 'stats') {
+            // 페이지 로드 후 모든 synonym-cell에 대해 유의어 로드
+            document.querySelectorAll('.synonym-cell').forEach(cell => {
+                const termId = parseInt(cell.dataset.termId);
+                console.log('[Init] Loading synonyms for cell with termId:', termId);
+                loadSynonymsForCell(termId, cell);
+            });
+        }
+
+        // 각 셀에 대해 유의어 로드
+        function loadSynonymsForCell(termId, cell) {
+            console.log('[loadSynonymsForCell] Loading synonyms for termId:', termId);
+
+            fetch(`/admin/term-synonyms`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log('[loadSynonymsForCell] API Response:', data);
+
+                    if (data.success) {
+                        // 현재 termId와 관련된 유의어 필터링
+                        const synonyms = data.synonyms.filter(syn => {
+                            const matches = syn.term1Id == termId || syn.term2Id == termId;
+                            if (matches) {
+                                console.log('[loadSynonymsForCell] Found synonym for termId', termId, ':', syn);
+                            }
+                            return matches;
+                        });
+
+                        console.log('[loadSynonymsForCell] Filtered synonyms for termId', termId, ':', synonyms);
+
+                        if (synonyms.length === 0) {
+                            cell.innerHTML = '<small class="text-muted">-</small>';
+                        } else {
+                            const synonymTerms = synonyms.map(syn => {
+                                const synonymTerm = syn.term1Id == termId ? syn.term2 : syn.term1;
+                                return `<span class="badge bg-secondary me-1">${synonymTerm}</span>`;
+                            }).join('');
+                            cell.innerHTML = synonymTerms;
+                        }
+                    } else {
+                        console.error('[loadSynonymsForCell] API returned success:false');
+                        cell.innerHTML = '<small class="text-danger">로드 실패</small>';
+                    }
+                })
+                .catch(error => {
+                    console.error('[loadSynonymsForCell] Error:', error);
+                    cell.innerHTML = '<small class="text-danger">오류</small>';
+                });
+        }
+
+        // 유의어 편집 버튼 클릭
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('edit-synonyms-btn') || e.target.closest('.edit-synonyms-btn')) {
+                const btn = e.target.classList.contains('edit-synonyms-btn') ? e.target : e.target.closest('.edit-synonyms-btn');
+                currentEditTermId = btn.dataset.termId;
+                currentEditTermName = btn.dataset.term;
+
+                document.getElementById('editSynonymTermName').textContent = currentEditTermName;
+
+                // 기존 유의어 로드
+                loadExistingSynonyms(currentEditTermId);
+
+                // 추천 숨기기
+                document.getElementById('recommendedSynonyms').style.display = 'none';
+
+                // 모달 표시
+                const modal = new bootstrap.Modal(document.getElementById('editSynonymsModal'));
+                modal.show();
+            }
+        });
+
+        // 기존 유의어 로드
+        function loadExistingSynonyms(termId) {
+            fetch(`/admin/term-synonyms`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const synonyms = data.synonyms.filter(syn =>
+                            syn.term1Id == termId || syn.term2Id == termId
+                        );
+
+                        const container = document.getElementById('existingSynonymsList');
+                        if (synonyms.length === 0) {
+                            container.innerHTML = '<small class="text-muted">등록된 유의어가 없습니다.</small>';
+                        } else {
+                            container.innerHTML = synonyms.map(syn => {
+                                const synonymTerm = syn.term1Id == termId ? syn.term2 : syn.term1;
+                                return `
+                                    <span class="badge bg-primary me-2 mb-2">
+                                        ${synonymTerm}
+                                        <button class="btn-close btn-close-white btn-sm ms-2"
+                                                onclick="deleteSynonymFromModal(${syn.id})" style="font-size: 0.6rem;"></button>
+                                    </span>
+                                `;
+                            }).join('');
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('existingSynonymsList').innerHTML =
+                        '<small class="text-danger">로드 중 오류가 발생했습니다.</small>';
+                });
+        }
+
+        // 모달에서 유의어 삭제
+        window.deleteSynonymFromModal = function(synonymId) {
+            if (confirm('이 유의어 관계를 삭제하시겠습니까?')) {
+                fetch(`/admin/term-synonyms/${synonymId}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        loadExistingSynonyms(currentEditTermId);
+                        // 테이블도 업데이트
+                        const cell = document.querySelector(`.synonym-cell[data-term-id="${currentEditTermId}"]`);
+                        if (cell) {
+                            loadSynonymsForCell(currentEditTermId, cell);
+                        }
+                    } else {
+                        alert('삭제 실패: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('삭제 중 오류가 발생했습니다.');
+                });
+            }
+        };
+
+        // 유의어 추가 버튼
+        const addNewSynonymBtn = document.getElementById('addNewSynonymBtn');
+        if (addNewSynonymBtn) {
+            addNewSynonymBtn.addEventListener('click', function() {
+                const newSynonym = document.getElementById('newSynonymInput').value.trim();
+
+                if (!newSynonym) {
+                    alert('유의어를 입력해주세요.');
+                    return;
+                }
+
+                fetch('/admin/term-synonyms', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        termId1: parseInt(currentEditTermId),
+                        termString2: newSynonym
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message);
+                        document.getElementById('newSynonymInput').value = '';
+                        loadExistingSynonyms(currentEditTermId);
+
+                        // 테이블도 업데이트
+                        const cell = document.querySelector(`.synonym-cell[data-term-id="${currentEditTermId}"]`);
+                        if (cell) {
+                            loadSynonymsForCell(currentEditTermId, cell);
+                        }
+                    } else {
+                        alert('추가 실패: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('추가 중 오류가 발생했습니다.');
+                });
+            });
+        }
+
+        // AI 유의어 추천 버튼
+        const recommendSynonymsBtn = document.getElementById('recommendSynonymsBtn');
+        if (recommendSynonymsBtn) {
+            recommendSynonymsBtn.addEventListener('click', function() {
+                const btn = this;
+                const originalText = btn.innerHTML;
+
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 추천 중...';
+
+                fetch('/admin/term-synonyms/recommend', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        term: currentEditTermName
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const container = document.getElementById('recommendedSynonyms');
+                        const listDiv = document.getElementById('recommendedSynonymsList');
+
+                        if (data.recommendations.length === 0) {
+                            listDiv.innerHTML = '<small class="text-muted">추천 결과가 없습니다.</small>';
+                        } else {
+                            listDiv.innerHTML = data.recommendations.map(syn => `
+                                <button class="btn btn-sm btn-outline-primary me-2 mb-2 add-recommended-syn-btn"
+                                        data-synonym="${syn}">
+                                    <i class="fas fa-plus"></i> ${syn}
+                                </button>
+                            `).join('');
+                        }
+
+                        container.style.display = 'block';
+                    } else {
+                        alert('추천 실패: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('추천 중 오류가 발생했습니다.');
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                });
+            });
+        }
+
+        // 추천된 유의어 추가 버튼 클릭
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('add-recommended-syn-btn') || e.target.closest('.add-recommended-syn-btn')) {
+                const btn = e.target.classList.contains('add-recommended-syn-btn') ? e.target : e.target.closest('.add-recommended-syn-btn');
+                const synonym = btn.dataset.synonym;
+
+                fetch('/admin/term-synonyms', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        termId1: parseInt(currentEditTermId),
+                        termString2: synonym
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // 버튼 제거
+                        btn.remove();
+
+                        // 기존 유의어 목록 업데이트
+                        loadExistingSynonyms(currentEditTermId);
+
+                        // 테이블도 업데이트
+                        const cell = document.querySelector(`.synonym-cell[data-term-id="${currentEditTermId}"]`);
+                        if (cell) {
+                            loadSynonymsForCell(currentEditTermId, cell);
+                        }
+
+                        // 성공 메시지
+                        alert(`'${synonym}' 유의어가 추가되었습니다.`);
+                    } else {
+                        alert('추가 실패: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('추가 중 오류가 발생했습니다.');
+                });
+            }
+        });
+
+        // ========== 일괄 유의어 추천 ==========
+        const startBatchRecommendBtn = document.getElementById('startBatchRecommendBtn');
+        if (startBatchRecommendBtn) {
+            startBatchRecommendBtn.addEventListener('click', function() {
+                const btn = this;
+                const originalText = btn.innerHTML;
+                const limit = parseInt(document.getElementById('batchLimit').value);
+
+                if (limit < 1 || limit > 50) {
+                    alert('1~50 사이의 값을 입력해주세요.');
+                    return;
+                }
+
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 처리 중...';
+
+                const resultsDiv = document.getElementById('batchRecommendResults');
+                resultsDiv.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin fa-2x"></i><p class="mt-2">AI가 유의어를 추천하고 있습니다. 잠시만 기다려주세요...</p></div>';
+
+                fetch('/admin/term-synonyms/batch-recommend', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        limit: limit
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const recommendations = data.recommendations;
+                        const processedCount = data.processedCount;
+
+                        if (processedCount === 0) {
+                            resultsDiv.innerHTML = '<div class="alert alert-info">유의어가 없는 term이 없습니다!</div>';
+                        } else {
+                            let html = `<div class="alert alert-success">총 ${processedCount}개 term에 대한 유의어 추천 완료!</div>`;
+                            html += '<div class="table-responsive"><table class="table table-sm">';
+                            html += '<thead><tr><th>Term</th><th>추천 유의어</th><th>액션</th></tr></thead><tbody>';
+
+                            for (const [term, synonyms] of Object.entries(recommendations)) {
+                                if (synonyms.length > 0) {
+                                    html += `<tr>
+                                        <td><strong>${term}</strong></td>
+                                        <td>${synonyms.join(', ')}</td>
+                                        <td>
+                                            ${synonyms.map(syn => `
+                                                <button class="btn btn-sm btn-success batch-add-syn-btn"
+                                                        data-term="${term}" data-synonym="${syn}">
+                                                    <i class="fas fa-plus"></i>
+                                                </button>
+                                            `).join('')}
+                                        </td>
+                                    </tr>`;
+                                } else {
+                                    html += `<tr>
+                                        <td><strong>${term}</strong></td>
+                                        <td colspan="2"><small class="text-muted">추천 결과 없음</small></td>
+                                    </tr>`;
+                                }
+                            }
+
+                            html += '</tbody></table></div>';
+                            resultsDiv.innerHTML = html;
+                        }
+                    } else {
+                        resultsDiv.innerHTML = `<div class="alert alert-danger">오류: ${data.message}</div>`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    resultsDiv.innerHTML = '<div class="alert alert-danger">일괄 추천 중 오류가 발생했습니다.</div>';
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                });
+            });
+        }
+
+        // 일괄 추천 결과에서 유의어 추가
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('batch-add-syn-btn') || e.target.closest('.batch-add-syn-btn')) {
+                const btn = e.target.classList.contains('batch-add-syn-btn') ? e.target : e.target.closest('.batch-add-syn-btn');
+                const term = btn.dataset.term;
+                const synonym = btn.dataset.synonym;
+
+                fetch('/admin/term-synonyms', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        termString1: term,
+                        termString2: synonym
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        btn.innerHTML = '<i class="fas fa-check"></i>';
+                        btn.classList.remove('btn-success');
+                        btn.classList.add('btn-secondary');
+                        btn.disabled = true;
+
+                        alert(`'${term}' ↔ '${synonym}' 유의어가 추가되었습니다.`);
+                    } else {
+                        alert('추가 실패: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('추가 중 오류가 발생했습니다.');
+                });
             }
         });
     </script>

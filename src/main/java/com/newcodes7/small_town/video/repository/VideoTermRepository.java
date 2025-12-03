@@ -31,33 +31,54 @@ public interface VideoTermRepository extends JpaRepository<VideoTerm, Long> {
     boolean existsByVideoId(Long videoId);
 
     /**
+     * 여러 term ID로 video 검색용 (OR 조건)
+     * 유의어 검색에 사용
+     */
+    @Query("SELECT DISTINCT vt.video.id FROM VideoTerm vt WHERE vt.term.id IN :termIds")
+    List<Long> findVideoIdsByTermIds(@Param("termIds") List<Long> termIds);
+
+    /**
      * Term 통계 조회 (많이 사용된 순)
+     * Pageable의 sort를 통해 정렬 가능 (frequency, createdAt)
      */
     @Query("SELECT vt.term.id as termId, " +
            "vt.term.term as term, " +
            "vt.term.termType as termType, " +
            "vt.term.decomposedTerm as decomposedTerm, " +
+           "vt.term.createdAt as createdAt, " +
            "SUM(vt.frequency) as totalFrequency, " +
            "COUNT(DISTINCT vt.video.id) as videoCount " +
            "FROM VideoTerm vt " +
-           "GROUP BY vt.term.id, vt.term.term, vt.term.termType, vt.term.decomposedTerm " +
-           "ORDER BY SUM(vt.frequency) DESC")
+           "GROUP BY vt.term.id, vt.term.term, vt.term.termType, vt.term.decomposedTerm, vt.term.createdAt")
     List<TermStatistics> findTermStatistics(Pageable pageable);
 
     /**
      * Term 통계 조회 (검색 기능 포함)
+     * Pageable의 sort를 통해 정렬 가능 (frequency, createdAt)
      */
     @Query("SELECT vt.term.id as termId, " +
            "vt.term.term as term, " +
            "vt.term.termType as termType, " +
            "vt.term.decomposedTerm as decomposedTerm, " +
+           "vt.term.createdAt as createdAt, " +
            "SUM(vt.frequency) as totalFrequency, " +
            "COUNT(DISTINCT vt.video.id) as videoCount " +
            "FROM VideoTerm vt " +
            "WHERE LOWER(vt.term.term) LIKE LOWER(CONCAT('%', :search, '%')) " +
-           "GROUP BY vt.term.id, vt.term.term, vt.term.termType, vt.term.decomposedTerm " +
-           "ORDER BY SUM(vt.frequency) DESC")
+           "GROUP BY vt.term.id, vt.term.term, vt.term.termType, vt.term.decomposedTerm, vt.term.createdAt")
     List<TermStatistics> findTermStatisticsBySearch(@Param("search") String search, Pageable pageable);
+
+    /**
+     * Term 통계 총 개수 조회
+     */
+    @Query("SELECT COUNT(DISTINCT vt.term.id) FROM VideoTerm vt")
+    long countDistinctTerms();
+
+    /**
+     * Term 통계 총 개수 조회 (검색 포함)
+     */
+    @Query("SELECT COUNT(DISTINCT vt.term.id) FROM VideoTerm vt WHERE LOWER(vt.term.term) LIKE LOWER(CONCAT('%', :search, '%'))")
+    long countDistinctTermsBySearch(@Param("search") String search);
 
     /**
      * 자동완성을 위한 Term 검색 (빈도수 순)
@@ -105,6 +126,7 @@ public interface VideoTermRepository extends JpaRepository<VideoTerm, Long> {
         String getTerm();
         String getTermType();
         String getDecomposedTerm();
+        java.time.LocalDateTime getCreatedAt();
         Long getTotalFrequency();
         Long getVideoCount();
     }

@@ -18,14 +18,19 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.article.dto.CorporationDto;
 import com.newcodes7.small_town.article.repository.CorporationRepository;
+import com.newcodes7.small_town.article.repository.TermRepository;
+import com.newcodes7.small_town.article.service.TermSynonymService;
 import com.newcodes7.small_town.crawler.repository.CategoryRepository;
 import com.newcodes7.small_town.global.entity.Category;
 import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.global.entity.Term;
 import com.newcodes7.small_town.global.entity.Video;
+import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
 import com.newcodes7.small_town.video.dto.GroupedVideosDto;
 import com.newcodes7.small_town.video.dto.VideoListResponseDto;
 import com.newcodes7.small_town.video.dto.VideoResponseDto;
 import com.newcodes7.small_town.video.repository.VideoRepository;
+import com.newcodes7.small_town.video.repository.VideoTermRepository;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -36,13 +41,25 @@ public class VideoService {
     private final VideoRepository videoRepository;
     private final CorporationRepository corporationRepository;
     private final CategoryRepository categoryRepository;
+    private final VideoTermRepository videoTermRepository;
+    private final TermRepository termRepository;
+    private final TermSynonymService termSynonymService;
+    private final MorphemeAnalyzer morphemeAnalyzer;
 
     public VideoService(VideoRepository videoRepository,
                        @Qualifier("articleCorporationRepository") CorporationRepository corporationRepository,
-                       CategoryRepository categoryRepository) {
+                       CategoryRepository categoryRepository,
+                       VideoTermRepository videoTermRepository,
+                       TermRepository termRepository,
+                       TermSynonymService termSynonymService,
+                       MorphemeAnalyzer morphemeAnalyzer) {
         this.videoRepository = videoRepository;
         this.corporationRepository = corporationRepository;
         this.categoryRepository = categoryRepository;
+        this.videoTermRepository = videoTermRepository;
+        this.termRepository = termRepository;
+        this.termSynonymService = termSynonymService;
+        this.morphemeAnalyzer = morphemeAnalyzer;
     }
 
     @Cacheable(value = "corporationVideos",
@@ -61,26 +78,34 @@ public class VideoService {
             }
         }
 
+        // 키워드가 있으면 유의어를 포함한 Term 기반 검색을 위한 Video ID 조회
+        List<Long> termBasedVideoIds = null;
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            termBasedVideoIds = getVideoIdsByKeywordWithSynonyms(keyword);
+        }
+
         if (view.equals("list")) {
             Pageable pageable = PageRequest.of(page, size);
-            Page<Video> videos = videoRepository.findVideosWithFilters(keyword, domesticTypes, sort, category, pageable);
+            Page<Video> videos = videoRepository.findVideosWithFilters(keyword, termBasedVideoIds, domesticTypes, sort, category, pageable);
             return videos.map(VideoListResponseDto::new);
         }
 
         if (view.equals("grouped")) {
-            return getVideosGroupedByCorporationWithPaging(keyword, domesticTypes, category, page, size);
+            return getVideosGroupedByCorporationWithPaging(keyword, termBasedVideoIds, domesticTypes, category, page, size);
         }
 
         return Page.empty();
     }
 
     public Page<VideoResponseDto> getVideosGroupedByCorporationWithPaging(String keyword,
+                                                                           List<Long> termBasedVideoIds,
                                                                            List<Integer> domesticTypes,
                                                                            List<String> category,
                                                                            int page, int size) {
         // 1. 전체 기업 개수 조회 (비디오가 있는 기업만)
         List<Video> allVideos = videoRepository.findVideosWithFilters(
             keyword,
+            termBasedVideoIds,
             domesticTypes != null ? domesticTypes : new ArrayList<>(),
             category != null ? category : new ArrayList<>()
         );
@@ -93,6 +118,8 @@ public class VideoService {
         // 2. 비디오 조회 (페이징 없이 모두 가져옴)
         List<Video> videos = videoRepository.findTop3VideosGroupedByCorporation(
             keyword,
+            termBasedVideoIds != null ? termBasedVideoIds : new ArrayList<>(),
+            termBasedVideoIds != null ? termBasedVideoIds.size() : 0,
             domesticTypes != null ? domesticTypes : new ArrayList<>(),
             domesticTypes != null ? domesticTypes.size() : 0,
             category != null ? category : new ArrayList<>(),
@@ -269,5 +296,61 @@ public class VideoService {
         video.softDelete();
         videoRepository.save(video);
         log.info("영상 삭제 완료 - ID: {}", videoId);
+    }
+
+    /**
+     * 키워드로부터 유의어를 포함한 Term 기반 Video ID 목록 조회
+     *
+     * @param keyword 검색 키워드
+     * @return 유의어를 포함한 Term과 연결된 Video ID 목록
+     */
+    private List<Long> getVideoIdsByKeywordWithSynonyms(String keyword) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return null;
+        }
+
+        // 1. 키워드를 형태소 분석하여 Term 추출
+        Map<String, MorphemeAnalyzer.TermInfo> termMap = morphemeAnalyzer.extractTerms(keyword);
+
+        if (termMap.isEmpty()) {
+            return null;
+        }
+
+        // 2. 추출된 Term들의 ID 조회 (termType 무관하게 모든 매칭되는 term 찾기)
+        List<Long> termIds = new ArrayList<>();
+        for (MorphemeAnalyzer.TermInfo termInfo : termMap.values()) {
+            // 원래 term으로 검색
+            List<Term> terms = termRepository.findByTerm(termInfo.getTerm());
+
+            // 찾지 못했고 영어인 경우, 대소문자 변형도 시도
+            if (terms.isEmpty() && termInfo.getTermType().equals("SL")) {
+                String term = termInfo.getTerm();
+                // 소문자로 시도
+                terms = termRepository.findByTerm(term.toLowerCase());
+                // 대문자로 시도
+                if (terms.isEmpty()) {
+                    terms = termRepository.findByTerm(term.toUpperCase());
+                }
+            }
+
+            // 모든 매칭된 term의 ID 추가
+            terms.forEach(term -> termIds.add(term.getId()));
+        }
+
+        if (termIds.isEmpty()) {
+            return null;
+        }
+
+        // 3. 유의어를 포함한 전체 Term ID 목록 조회
+        List<Long> expandedTermIds = termSynonymService.expandTermIdsWithSynonyms(termIds);
+
+        if (expandedTermIds.isEmpty()) {
+            return null;
+        }
+
+        // 4. Term ID 목록으로 Video ID 조회
+        List<Long> videoIds = videoTermRepository.findVideoIdsByTermIds(expandedTermIds);
+
+        return videoIds.isEmpty() ? null : videoIds;
     }
 }

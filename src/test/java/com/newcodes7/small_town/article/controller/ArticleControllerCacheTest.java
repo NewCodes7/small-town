@@ -117,11 +117,11 @@ public class ArticleControllerCacheTest {
             .andExpect(model().attributeExists("articles"))
             .andReturn();
 
-        // then 
+        // then
         verify(articleRepository, times(1))
             .findTop3ArticlesGroupedByCorporation(
-                isNull(), anyList(), anyInt(), anyList(), 
-                anyInt(), anyInt(), anyInt());
+                isNull(), anyList(), anyInt(), anyList(), anyInt(), anyList(),
+                anyInt(), any(), anyInt(), anyInt());
     }
 
     @Test
@@ -141,7 +141,7 @@ public class ArticleControllerCacheTest {
         // then - 매번 DB 호출됨을 검증
         verify(articleRepository, times(2))
             .findTop3ArticlesGroupedByCorporation(
-                any(), anyList(), anyInt(), anyList(), anyInt(), anyInt(), anyInt());
+                any(), anyList(), anyInt(), anyList(), anyInt(), anyList(), anyInt(), any(), anyInt(), anyInt());
     }
 
     @Test
@@ -160,7 +160,7 @@ public class ArticleControllerCacheTest {
 
         // then 
         verify(articleRepository, times(1))
-            .findArticlesWithFilters(any(), any(), any(), any(), any());
+            .findArticlesWithFilters(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -185,7 +185,7 @@ public class ArticleControllerCacheTest {
             .andReturn();
         verify(articleRepository, times(5))
             .findTop3ArticlesGroupedByCorporation(
-                isNull(), anyList(), anyInt(), anyList(), 
-                anyInt(), anyInt(), anyInt());
+                isNull(), anyList(), anyInt(), anyList(), anyInt(), anyList(),
+                anyInt(), any(), anyInt(), anyInt());
     }
 }

@@ -71,4 +71,18 @@ public class Term {
     @CreatedDate
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    /**
+     * decomposedTerm 업데이트
+     */
+    public void updateDecomposedTerm(String decomposedTerm) {
+        this.decomposedTerm = decomposedTerm;
+    }
+
+    /**
+     * chosung 업데이트
+     */
+    public void updateChosung(String chosung) {
+        this.chosung = chosung;
+    }
 }

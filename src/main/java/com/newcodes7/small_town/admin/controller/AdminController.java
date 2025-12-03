@@ -80,6 +80,9 @@ public class AdminController {
     private final VideoTermRepository videoTermRepository;
     private final UserDictionaryRepository userDictionaryRepository;
     private final SearchLogService searchLogService;
+    private final com.newcodes7.small_town.article.service.TermSynonymService termSynonymService;
+    private final com.newcodes7.small_town.article.repository.TermRepository termRepository;
+    private final com.newcodes7.small_town.article.service.OpenAIService openAIService;
 
     // 기업 목록 페이지
     @GetMapping("/corporations")
@@ -220,6 +223,7 @@ public class AdminController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "articles") String tab,
+            @RequestParam(defaultValue = "frequency") String sort,
             Model model) {
 
         Pageable pageable;
@@ -227,8 +231,16 @@ public class AdminController {
         // 기업 탭의 경우 조회수 기준 내림차순 정렬
         if (tab.equals("corporations")) {
             pageable = PageRequest.of(page, size, Sort.by("viewCount").descending().and(Sort.by("name").ascending()));
-        } else if (tab.equals("terms") || tab.equals("stats")) {
+        } else if (tab.equals("terms")) {
             pageable = PageRequest.of(page, size, Sort.by("id").descending());
+        } else if (tab.equals("stats")) {
+            // Term 통계 탭의 정렬 처리
+            if (sort.equals("latest")) {
+                pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+            } else {
+                // 기본값: 빈도수 내림차순
+                pageable = PageRequest.of(page, size, Sort.by("totalFrequency").descending());
+            }
         } else {
             pageable = PageRequest.of(page, size, Sort.by("publishedAt").descending());
         }
@@ -293,24 +305,28 @@ public class AdminController {
 
         // Term 통계 (Article)
         List<com.newcodes7.small_town.article.repository.ArticleTermRepository.TermStatistics> articleTermStats = null;
+        long articleTermStatsTotal = 0;
         if (tab.equals("stats")) {
-            Pageable statsPageable = PageRequest.of(page, size);
             if (search != null && !search.trim().isEmpty()) {
-                articleTermStats = articleTermRepository.findTermStatisticsBySearch(search, statsPageable);
+                articleTermStats = articleTermRepository.findTermStatisticsBySearch(search, pageable);
+                articleTermStatsTotal = articleTermRepository.countDistinctTermsBySearch(search);
                 model.addAttribute("search", search);
             } else {
-                articleTermStats = articleTermRepository.findTermStatistics(statsPageable);
+                articleTermStats = articleTermRepository.findTermStatistics(pageable);
+                articleTermStatsTotal = articleTermRepository.countDistinctTerms();
             }
         }
 
         // Term 통계 (Video)
         List<com.newcodes7.small_town.video.repository.VideoTermRepository.TermStatistics> videoTermStats = null;
+        long videoTermStatsTotal = 0;
         if (tab.equals("stats")) {
-            Pageable statsPageable = PageRequest.of(page, size);
             if (search != null && !search.trim().isEmpty()) {
-                videoTermStats = videoTermRepository.findTermStatisticsBySearch(search, statsPageable);
+                videoTermStats = videoTermRepository.findTermStatisticsBySearch(search, pageable);
+                videoTermStatsTotal = videoTermRepository.countDistinctTermsBySearch(search);
             } else {
-                videoTermStats = videoTermRepository.findTermStatistics(statsPageable);
+                videoTermStats = videoTermRepository.findTermStatistics(pageable);
+                videoTermStatsTotal = videoTermRepository.countDistinctTerms();
             }
         }
 
@@ -321,16 +337,27 @@ public class AdminController {
             searchLogs = searchLogService.getAllSearchLogs(searchLogPageable);
         }
 
+        // 페이지 수 계산
+        int articleTermTotalPages = articleTermStatsTotal > 0 ? (int) Math.ceil((double) articleTermStatsTotal / size) : 0;
+        int videoTermTotalPages = videoTermStatsTotal > 0 ? (int) Math.ceil((double) videoTermStatsTotal / size) : 0;
+
         model.addAttribute("articles", articles);
         model.addAttribute("videos", videos);
         model.addAttribute("corporations", corporations);
         model.addAttribute("articlesWithTerms", articlesWithTerms);
         model.addAttribute("videosWithTerms", videosWithTerms);
         model.addAttribute("articleTermStats", articleTermStats);
+        model.addAttribute("articleTermStatsTotal", articleTermStatsTotal);
+        model.addAttribute("articleTermTotalPages", articleTermTotalPages);
         model.addAttribute("videoTermStats", videoTermStats);
+        model.addAttribute("videoTermStatsTotal", videoTermStatsTotal);
+        model.addAttribute("videoTermTotalPages", videoTermTotalPages);
         model.addAttribute("searchLogs", searchLogs);
         model.addAttribute("categories", categoryRepository.findAll());
         model.addAttribute("currentTab", tab);
+        model.addAttribute("currentSort", sort);
+        model.addAttribute("currentPage", page);
+        model.addAttribute("pageSize", size);
         return "admin/article/list";
     }
 
@@ -1689,6 +1716,307 @@ public class AdminController {
             log.error("Video ID {} term 재분석 중 오류 발생: {}", videoId, e.getMessage(), e);
             response.put("success", false);
             response.put("message", "Term 재분석 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 모든 유의어 관계 조회 API
+     *
+     * GET /admin/term-synonyms
+     */
+    @GetMapping("/term-synonyms")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getAllSynonyms() {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            List<com.newcodes7.small_town.global.entity.TermSynonym> synonyms = termSynonymService.getAllSynonyms();
+
+            // DTO로 변환
+            List<Map<String, Object>> synonymDataList = new ArrayList<>();
+            for (com.newcodes7.small_town.global.entity.TermSynonym synonym : synonyms) {
+                Map<String, Object> synonymData = new HashMap<>();
+                synonymData.put("id", synonym.getId());
+                synonymData.put("term1Id", synonym.getTerm().getId());
+                synonymData.put("term1", synonym.getTerm().getTerm());
+                synonymData.put("term1Type", synonym.getTerm().getTermType());
+                synonymData.put("term2Id", synonym.getSynonymTerm().getId());
+                synonymData.put("term2", synonym.getSynonymTerm().getTerm());
+                synonymData.put("term2Type", synonym.getSynonymTerm().getTermType());
+                synonymData.put("createdAt", synonym.getCreatedAt());
+                synonymDataList.add(synonymData);
+            }
+
+            response.put("success", true);
+            response.put("synonyms", synonymDataList);
+            response.put("totalCount", synonymDataList.size());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("유의어 목록 조회 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "유의어 목록 조회 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 유의어 관계 추가 API (ID 기반)
+     *
+     * POST /admin/term-synonyms
+     */
+    @PostMapping("/term-synonyms")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> addSynonym(@RequestBody Map<String, Object> request) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            com.newcodes7.small_town.global.entity.TermSynonym synonym = null;
+
+            // ID 기반 (termId1 + termId2)
+            if (request.containsKey("termId1") && request.containsKey("termId2")) {
+                Long termId1 = ((Number) request.get("termId1")).longValue();
+                Long termId2 = ((Number) request.get("termId2")).longValue();
+
+                synonym = termSynonymService.addSynonym(termId1, termId2);
+            }
+            // 문자열 기반 (termString1 + termString2)
+            else if (request.containsKey("termString1") && request.containsKey("termString2")) {
+                String termString1 = (String) request.get("termString1");
+                String termString2 = (String) request.get("termString2");
+
+                if (termString1 == null || termString1.trim().isEmpty() ||
+                    termString2 == null || termString2.trim().isEmpty()) {
+                    response.put("success", false);
+                    response.put("message", "두 개의 term 문자열이 필요합니다.");
+                    return ResponseEntity.badRequest().body(response);
+                }
+
+                synonym = termSynonymService.addSynonymByTermString(termString1.trim(), termString2.trim());
+            }
+            // 혼합 형태 (termId1 + termString2)
+            else if (request.containsKey("termId1") && request.containsKey("termString2")) {
+                Long termId1 = ((Number) request.get("termId1")).longValue();
+                String termString2 = (String) request.get("termString2");
+
+                if (termString2 == null || termString2.trim().isEmpty()) {
+                    response.put("success", false);
+                    response.put("message", "term 문자열이 필요합니다.");
+                    return ResponseEntity.badRequest().body(response);
+                }
+
+                // termId1으로 term 조회
+                com.newcodes7.small_town.global.entity.Term term1 = termRepository.findById(termId1)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 term입니다. ID: " + termId1));
+
+                // termString2로 유의어 관계 생성
+                synonym = termSynonymService.addSynonymByTermString(term1.getTerm(), termString2.trim());
+            }
+            // 혼합 형태 (termString1 + termId2)
+            else if (request.containsKey("termString1") && request.containsKey("termId2")) {
+                String termString1 = (String) request.get("termString1");
+                Long termId2 = ((Number) request.get("termId2")).longValue();
+
+                if (termString1 == null || termString1.trim().isEmpty()) {
+                    response.put("success", false);
+                    response.put("message", "term 문자열이 필요합니다.");
+                    return ResponseEntity.badRequest().body(response);
+                }
+
+                // termId2로 term 조회
+                com.newcodes7.small_town.global.entity.Term term2 = termRepository.findById(termId2)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 term입니다. ID: " + termId2));
+
+                // termString1으로 유의어 관계 생성
+                synonym = termSynonymService.addSynonymByTermString(termString1.trim(), term2.getTerm());
+            }
+            else {
+                response.put("success", false);
+                response.put("message", "termId1/termId2, termString1/termString2, 또는 혼합 형태가 필요합니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            if (synonym != null) {
+                response.put("success", true);
+                response.put("message", "유의어 관계가 성공적으로 추가되었습니다.");
+                response.put("synonymId", synonym.getId());
+                response.put("term1", synonym.getTerm().getTerm());
+                response.put("term2", synonym.getSynonymTerm().getTerm());
+            } else {
+                response.put("success", false);
+                response.put("message", "유의어 추가에 실패했습니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+
+        } catch (Exception e) {
+            log.error("유의어 추가 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "유의어 추가 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 유의어 관계 삭제 API
+     *
+     * DELETE /admin/term-synonyms/{id}
+     */
+    @DeleteMapping("/term-synonyms/{id}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> deleteSynonym(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            termSynonymService.deleteSynonym(id);
+
+            response.put("success", true);
+            response.put("message", "유의어 관계가 성공적으로 삭제되었습니다.");
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+
+        } catch (Exception e) {
+            log.error("유의어 삭제 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "유의어 삭제 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * Term 검색 API (유의어 관리 UI용)
+     *
+     * GET /admin/terms/search?q=검색어
+     */
+    @GetMapping("/terms/search")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> searchTerms(@RequestParam String q) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            List<com.newcodes7.small_town.global.entity.Term> terms = termRepository.findAll().stream()
+                .filter(term -> term.getTerm().toLowerCase().contains(q.toLowerCase()))
+                .limit(20)
+                .toList();
+
+            // DTO로 변환
+            List<Map<String, Object>> termDataList = new ArrayList<>();
+            for (com.newcodes7.small_town.global.entity.Term term : terms) {
+                Map<String, Object> termData = new HashMap<>();
+                termData.put("id", term.getId());
+                termData.put("term", term.getTerm());
+                termData.put("termType", term.getTermType());
+                termDataList.add(termData);
+            }
+
+            response.put("success", true);
+            response.put("terms", termDataList);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Term 검색 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Term 검색 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * OpenAI를 통한 유의어 추천 API
+     *
+     * POST /admin/term-synonyms/recommend
+     */
+    @PostMapping("/term-synonyms/recommend")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> recommendSynonyms(@RequestBody Map<String, String> request) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            String term = request.get("term");
+
+            if (term == null || term.trim().isEmpty()) {
+                response.put("success", false);
+                response.put("message", "term이 필요합니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            log.info("OpenAI 유의어 추천 요청: {}", term);
+
+            List<String> recommendations = openAIService.recommendSynonyms(term.trim());
+
+            response.put("success", true);
+            response.put("term", term);
+            response.put("recommendations", recommendations);
+            response.put("count", recommendations.size());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("유의어 추천 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "유의어 추천 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 유의어가 없는 term들을 일괄 추천
+     *
+     * POST /admin/term-synonyms/batch-recommend
+     */
+    @PostMapping("/term-synonyms/batch-recommend")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> batchRecommendSynonyms(@RequestBody Map<String, Integer> request) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            Integer limit = request.getOrDefault("limit", 10);
+
+            log.info("일괄 유의어 추천 시작 (limit: {})", limit);
+
+            // 1. 모든 term 조회
+            List<com.newcodes7.small_town.global.entity.Term> allTerms = termRepository.findAll();
+
+            // 2. 유의어가 없는 term 필터링
+            List<String> termsWithoutSynonyms = new ArrayList<>();
+            for (com.newcodes7.small_town.global.entity.Term term : allTerms) {
+                List<com.newcodes7.small_town.global.entity.TermSynonym> relations =
+                    termSynonymService.getSynonymRelations(term.getId());
+
+                if (relations.isEmpty() && termsWithoutSynonyms.size() < limit) {
+                    termsWithoutSynonyms.add(term.getTerm());
+                }
+            }
+
+            log.info("유의어가 없는 term {} 개 발견", termsWithoutSynonyms.size());
+
+            // 3. OpenAI로 일괄 추천
+            Map<String, List<String>> recommendations = openAIService.batchRecommendSynonyms(termsWithoutSynonyms);
+
+            response.put("success", true);
+            response.put("processedCount", termsWithoutSynonyms.size());
+            response.put("recommendations", recommendations);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("일괄 유의어 추천 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "일괄 추천 중 오류가 발생했습니다: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
     }
