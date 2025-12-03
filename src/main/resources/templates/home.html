@@ -158,6 +158,17 @@
                             </button>
                             <!-- 자동완성 드롭다운 -->
                             <div id="autocompleteDropdown" class="autocomplete-dropdown" style="display: none;"></div>
+
+                            <!-- Search Enhanced Badge -->
+                            <div id="searchEnhancedBadge" class="search-enhanced-badge" style="display: none;">
+                                <button class="badge-close" onclick="dismissSearchEnhancedBadge(event)" title="닫기">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                                <div class="badge-content">
+                                    <span class="badge-emoji">🔍</span>
+                                    <span class="badge-text">검색 기능이<br>업그레이드 됐어요!</span>
+                                </div>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -1462,6 +1473,57 @@
                     searchInput.value = lastInputValue;
                 }
             }
+
+            // Search Enhanced Badge 초기화
+            function initSearchEnhancedBadge() {
+                const badge = document.getElementById('searchEnhancedBadge');
+
+                if (!badge) return;
+
+                // localStorage에서 badge dismiss 상태 확인
+                const isBadgeDismissed = localStorage.getItem('searchEnhancedBadgeDismissed') === 'true';
+
+                if (!isBadgeDismissed) {
+                    // 500ms 지연 후 badge 표시
+                    setTimeout(() => {
+                        badge.style.display = 'flex';
+                        badge.classList.add('badge-show');
+                    }, 500);
+                }
+            }
+
+            // Search Enhanced Badge 닫기
+            function dismissSearchEnhancedBadge(event) {
+                if (event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+
+                const badge = document.getElementById('searchEnhancedBadge');
+
+                if (!badge) return;
+
+                // fade out 애니메이션 적용
+                badge.classList.remove('badge-show');
+                badge.classList.add('badge-hide');
+
+                // 애니메이션 완료 후 숨김
+                setTimeout(() => {
+                    badge.style.display = 'none';
+                    badge.classList.remove('badge-hide');
+                }, 300);
+
+                // localStorage에 dismiss 상태 저장
+                localStorage.setItem('searchEnhancedBadgeDismissed', 'true');
+            }
+
+            // 페이지 로드 시 badge 초기화
+            document.addEventListener('DOMContentLoaded', function() {
+                initSearchEnhancedBadge();
+            });
+
+            // 전역 함수로 등록 (HTML onclick에서 호출)
+            window.dismissSearchEnhancedBadge = dismissSearchEnhancedBadge;
         </script>
     </div>
 </body>
