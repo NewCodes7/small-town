@@ -66,6 +66,15 @@ public class Term {
     private String chosung;
 
     /**
+     * 번역 상태
+     * - null: 번역 추천을 받지 않음
+     * - true: 번역이 존재하고 유의어로 등록됨
+     * - false: 번역 추천을 받았지만 선택되지 않음 (다음 추천에서 제외)
+     */
+    @Column(name = "has_translation")
+    private Boolean hasTranslation;
+
+    /**
      * 생성일시
      */
     @CreatedDate
@@ -84,5 +93,12 @@ public class Term {
      */
     public void updateChosung(String chosung) {
         this.chosung = chosung;
+    }
+
+    /**
+     * 번역 상태 업데이트
+     */
+    public void updateHasTranslation(Boolean hasTranslation) {
+        this.hasTranslation = hasTranslation;
     }
 }

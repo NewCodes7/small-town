@@ -2202,21 +2202,37 @@ public class AdminController {
             // 1. 모든 term 조회
             List<com.newcodes7.small_town.global.entity.Term> allTerms = termRepository.findAll();
 
-            // 2. 유의어가 없는 term 필터링
+            // 2. 유의어가 없고, 이전에 거부되지 않은 term 필터링
             List<String> termsWithoutSynonyms = new ArrayList<>();
+            List<Long> selectedTermIds = new ArrayList<>();
             for (com.newcodes7.small_town.global.entity.Term term : allTerms) {
+                // hasTranslation이 false면 이미 추천받았지만 선택되지 않은 것 -> 제외
+                if (Boolean.FALSE.equals(term.getHasTranslation())) {
+                    continue;
+                }
+
                 List<com.newcodes7.small_town.global.entity.TermSynonym> relations =
                     termSynonymService.getSynonymRelations(term.getId());
 
                 if (relations.isEmpty() && termsWithoutSynonyms.size() < limit) {
                     termsWithoutSynonyms.add(term.getTerm());
+                    selectedTermIds.add(term.getId());
                 }
             }
 
-            log.info("유의어가 없는 term {} 개 발견", termsWithoutSynonyms.size());
+            log.info("유의어가 없는 term {} 개 발견 (이전 거부 term 제외)", termsWithoutSynonyms.size());
 
             // 3. DeepL로 일괄 추천
             Map<String, List<String>> recommendations = deeplService.batchRecommendSynonyms(termsWithoutSynonyms);
+
+            // 4. 추천받은 term들을 hasTranslation=false로 설정 (기본값: 선택되지 않음)
+            for (Long termId : selectedTermIds) {
+                com.newcodes7.small_town.global.entity.Term term = termRepository.findById(termId).orElse(null);
+                if (term != null) {
+                    term.updateHasTranslation(false);
+                    termRepository.save(term);
+                }
+            }
 
             response.put("success", true);
             response.put("processedCount", termsWithoutSynonyms.size());

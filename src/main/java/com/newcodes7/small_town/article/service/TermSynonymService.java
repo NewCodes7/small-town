@@ -67,7 +67,13 @@ public class TermSynonymService {
 
         TermSynonym saved = termSynonymRepository.save(synonym);
 
-        log.info("유의어 관계 추가: '{}' ↔ '{}'", smallerTerm.getTerm(), largerTerm.getTerm());
+        // 유의어 관계가 생성되면 두 term 모두 hasTranslation=true로 설정
+        term1.updateHasTranslation(true);
+        term2.updateHasTranslation(true);
+        termRepository.save(term1);
+        termRepository.save(term2);
+
+        log.info("유의어 관계 추가: '{}' ↔ '{}' (hasTranslation=true 설정)", smallerTerm.getTerm(), largerTerm.getTerm());
 
         return saved;
     }
