@@ -31,6 +31,19 @@ public interface VideoTermRepository extends JpaRepository<VideoTerm, Long> {
     boolean existsByVideoId(Long videoId);
 
     /**
+     * 특정 term ID를 가진 모든 VideoTerm 삭제
+     */
+    @Modifying
+    @Query("DELETE FROM VideoTerm vt WHERE vt.term.id = :termId")
+    int deleteByTermId(@Param("termId") Long termId);
+
+    /**
+     * 특정 term ID를 가진 VideoTerm 개수 조회
+     */
+    @Query("SELECT COUNT(vt) FROM VideoTerm vt WHERE vt.term.id = :termId")
+    int countByTermId(@Param("termId") Long termId);
+
+    /**
      * 여러 term ID로 video 검색용 (OR 조건)
      * 유의어 검색에 사용
      */

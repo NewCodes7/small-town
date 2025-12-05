@@ -43,6 +43,19 @@ public interface ArticleTermRepository extends JpaRepository<ArticleTerm, Long> 
     void deleteAll();
 
     /**
+     * 특정 term ID를 가진 모든 ArticleTerm 삭제
+     */
+    @Modifying
+    @Query("DELETE FROM ArticleTerm at WHERE at.term.id = :termId")
+    int deleteByTermId(@Param("termId") Long termId);
+
+    /**
+     * 특정 term ID를 가진 ArticleTerm 개수 조회
+     */
+    @Query("SELECT COUNT(at) FROM ArticleTerm at WHERE at.term.id = :termId")
+    int countByTermId(@Param("termId") Long termId);
+
+    /**
      * 특정 term(문자열)으로 article 검색용 (향후 검색 기능에 사용)
      */
     @Query("SELECT DISTINCT at.article.id FROM ArticleTerm at WHERE at.term.term = :term")

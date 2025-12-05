@@ -19,7 +19,6 @@ import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.ArticleTerm;
 import com.newcodes7.small_town.global.entity.Stopword;
 import com.newcodes7.small_town.global.entity.Term;
-import com.newcodes7.small_town.global.entity.VideoTerm;
 import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
 import com.newcodes7.small_town.global.util.KoreanCharacterUtil;
 import com.newcodes7.small_town.video.repository.VideoTermRepository;
@@ -226,19 +225,13 @@ public class ArticleTermService {
         Term term = termRepository.findById(termId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 Term입니다. ID: " + termId));
 
-        // 1. 해당 term을 사용하는 모든 ArticleTerm 삭제
-        List<ArticleTerm> articleTerms = articleTermRepository.findAll().stream()
-                .filter(at -> at.getTerm().getId().equals(termId))
-                .toList();
-        int articleTermCount = articleTerms.size();
-        articleTermRepository.deleteAll(articleTerms);
+        // 1. 해당 term을 사용하는 모든 ArticleTerm 삭제 (최적화된 쿼리 사용)
+        int articleTermCount = articleTermRepository.countByTermId(termId);
+        articleTermRepository.deleteByTermId(termId);
 
-        // 2. 해당 term을 사용하는 모든 VideoTerm 삭제
-        List<VideoTerm> videoTerms = videoTermRepository.findAll().stream()
-                .filter(vt -> vt.getTerm().getId().equals(termId))
-                .toList();
-        int videoTermCount = videoTerms.size();
-        videoTermRepository.deleteAll(videoTerms);
+        // 2. 해당 term을 사용하는 모든 VideoTerm 삭제 (최적화된 쿼리 사용)
+        int videoTermCount = videoTermRepository.countByTermId(termId);
+        videoTermRepository.deleteByTermId(termId);
 
         int totalDeletedCount = articleTermCount + videoTermCount;
 
@@ -251,6 +244,8 @@ public class ArticleTermService {
                     .build();
             stopwordRepository.save(stopword);
             log.info("Term을 불용어로 등록: {} ({}), 사유: {}", term.getTerm(), term.getTermType(), reason);
+        } else {
+            log.info("Term이 이미 불용어로 등록되어 있음: {} ({})", term.getTerm(), term.getTermType());
         }
 
         // 4. Term 삭제
