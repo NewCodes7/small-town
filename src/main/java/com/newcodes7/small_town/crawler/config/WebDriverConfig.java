@@ -56,6 +56,17 @@ public class WebDriverConfig {
         options.addArguments("--ignore-ssl-errors");
         options.addArguments("--allow-running-insecure-content");
 
+        // 메모리 효율성 개선 옵션들 (Chrome 안정성 유지하면서 최적화)
+        options.addArguments("--disable-software-rasterizer");  // SW 렌더링 비활성화
+        options.addArguments("--disable-webgl");                // WebGL 비활성화
+        options.addArguments("--disable-web-security");         // 보안 기능 비활성화 (메모리 절약)
+        options.addArguments("--disable-cache");                // 캐시 비활성화
+        options.addArguments("--disable-application-cache");
+        options.addArguments("--disk-cache-size=0");            // 디스크 캐시 크기 0
+
+        // 주의: --single-process는 Chrome 크래시 유발 가능하므로 제거
+        // 주의: --no-zygote는 headless 모드에서 문제 발생 가능하므로 제거
+
         options.setPageLoadStrategy(PageLoadStrategy.EAGER);
         
         // 자동화 감지 방지
@@ -83,55 +94,40 @@ public class WebDriverConfig {
     public void forceCloseWebDriver(WebDriver driver) {
         if (driver == null) return;
 
-        int chromeCountBefore = countChromeProcesses();
-        log.debug("WebDriver 종료 시작 - 현재 Chrome 프로세스: {}개", chromeCountBefore);
+        log.debug("WebDriver 종료 시작");
 
         try {
             driver.quit();
             log.info("driver.quit() 호출 완료");
         } catch (Exception e) {
-            log.error("driver.quit() 실패: {}", e.getMessage());
+            log.warn("driver.quit() 실패 (무시하고 계속): {}", e.getMessage());
         }
 
-        // quit() 후 실제로 프로세스가 종료되었는지 확인
+        // quit() 후 프로세스 종료 대기
         try {
-            Thread.sleep(1000); // 프로세스 종료 대기
+            Thread.sleep(1000);
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
         }
 
-        int chromeCountAfter = countChromeProcesses();
-        log.info("WebDriver 종료 후 Chrome 프로세스: {}개 (변화: {} → {})",
-                 chromeCountAfter, chromeCountBefore, chromeCountAfter);
-
-        // 프로세스가 남아있으면 강제 종료
-        if (chromeCountAfter > 0) {
-            log.warn("Chrome 프로세스가 {}개 남아있음 - 강제 종료 시도", chromeCountAfter);
-            killZombieChromeProcesses();
-
-            // 강제 종료 후 재확인
-            try {
-                Thread.sleep(500);
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-            }
-
-            int finalCount = countChromeProcesses();
-            if (finalCount > 0) {
-                log.error("강제 종료 후에도 Chrome 프로세스 {}개 남음 - 메모리 누수 위험", finalCount);
-            } else {
-                log.info("좀비 Chrome 프로세스 강제 종료 완료");
-            }
+        // Chrome 프로세스가 남아있는지 확인 (카운트만, 강제 종료 안 함)
+        int remainingProcesses = countChromeProcesses();
+        if (remainingProcesses > 0) {
+            log.warn("Chrome 프로세스 {}개가 남아있습니다. JVM 종료 시 정리됩니다.", remainingProcesses);
+            // 강제 종료 시도하지 않음 - 크롤링은 이미 완료되었으므로 안전하게 skip
+        } else {
+            log.debug("모든 Chrome 프로세스가 정상 종료되었습니다.");
         }
     }
 
     /**
      * 현재 실행 중인 Chrome 관련 프로세스 개수 확인
+     * Zombie 프로세스는 제외하고 실제 실행 중인 프로세스만 카운트
      */
     private int countChromeProcesses() {
         try {
             Process process = Runtime.getRuntime().exec(new String[]{
-                "sh", "-c", "ps aux | grep -E 'chrome|chromedriver' | grep -v grep | wc -l"
+                "sh", "-c", "ps aux | grep -E 'chrome|chromedriver' | grep -v grep | grep -v '<defunct>' | wc -l"
             });
 
             BufferedReader reader = new BufferedReader(
@@ -148,25 +144,30 @@ public class WebDriverConfig {
     }
 
     /**
-     * 좀비 Chrome 프로세스 강제 종료
+     * 좀비가 아닌 실제 Chrome 프로세스만 강제 종료
+     * Zombie 프로세스는 이미 죽어있어서 kill 불가능하므로 제외
      */
     private void killZombieChromeProcesses() {
         try {
-            // Chrome 프로세스 종료
+            // Zombie가 아닌 Chrome 프로세스만 종료 (State가 Z가 아닌 것만)
+            // awk로 defunct가 아닌 프로세스의 PID만 추출하여 kill
             Process killChrome = Runtime.getRuntime().exec(new String[]{
-                "sh", "-c", "pkill -9 -f chrome"
+                "sh", "-c",
+                "ps aux | grep -E 'chrome|chromedriver' | grep -v grep | grep -v '<defunct>' | awk '{print $2}' | xargs -r kill -9"
             });
-            killChrome.waitFor();
 
-            // ChromeDriver도 종료
-            Process killDriver = Runtime.getRuntime().exec(new String[]{
-                "pkill", "-9", "-f", "chromedriver"
-            });
-            killDriver.waitFor();
+            // Timeout 설정 (최대 3초 대기)
+            boolean finished = killChrome.waitFor(3, java.util.concurrent.TimeUnit.SECONDS);
 
-            log.info("좀비 Chrome/ChromeDriver 프로세스 강제 종료 명령 실행");
+            if (!finished) {
+                log.warn("Chrome 프로세스 강제 종료 시간 초과 (3초) - 프로세스 강제 중단");
+                killChrome.destroyForcibly();
+            } else {
+                log.info("실제 Chrome/ChromeDriver 프로세스 강제 종료 완료");
+            }
         } catch (Exception e) {
-            log.error("좀비 프로세스 강제 종료 실패: {}", e.getMessage());
+            log.warn("Chrome 프로세스 강제 종료 중 오류 (무시하고 계속): {}", e.getMessage());
+            // 오류가 나도 크롤링은 계속 진행
         }
     }
 }
