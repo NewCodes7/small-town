@@ -2294,19 +2294,31 @@
                     .then(data => {
                         if (data.success) {
                             if (data.terms && data.terms.length > 0) {
-                                // Term을 빈도수 기준으로 정렬
-                                const sortedTerms = data.terms.sort((a, b) => b.frequency - a.frequency);
+                                // Term을 score 기준으로 정렬
+                                const sortedTerms = data.terms.sort((a, b) => (b.score || 0) - (a.score || 0));
 
-                                // Term을 뱃지로 표시
+                                // Term을 뱃지로 표시 (클릭 가능)
                                 let html = '<div class="d-flex flex-wrap gap-1">';
                                 sortedTerms.forEach((term, index) => {
-                                    const badgeClass = term.frequency > 2 ? 'bg-danger' : term.frequency > 1 ? 'bg-warning text-dark' : 'bg-info';
+                                    const scorePercent = ((term.score || 0) * 100).toFixed(0);
+                                    const badgeClass = (term.score || 0) > 0.7 ? 'bg-danger' : (term.score || 0) > 0.4 ? 'bg-warning text-dark' : 'bg-info';
                                     html += `
-                                        <span class="badge ${badgeClass}" title="${term.termType}">
-                                            ${term.term} <small>x${term.frequency}</small>
+                                        <span class="badge ${badgeClass} term-badge-editable"
+                                              style="cursor: pointer;"
+                                              data-article-id="${articleId}"
+                                              data-article-term-id="${term.id}"
+                                              data-term-id="${term.termId}"
+                                              data-term="${term.term}"
+                                              data-score="${term.score || 0}"
+                                              data-frequency="${term.frequency}"
+                                              title="클릭하여 수정/삭제 (${term.termType})">
+                                            ${term.term} <small>score: ${scorePercent}%</small>
                                         </span>
                                     `;
                                 });
+                                html += `<button class="btn btn-sm btn-success add-term-btn" data-article-id="${articleId}">
+                                            <i class="fas fa-plus"></i> Term 추가
+                                         </button>`;
                                 html += '</div>';
                                 html += `<small class="text-muted mt-1 d-block">총 ${sortedTerms.length}개 term</small>`;
 
@@ -2457,17 +2469,29 @@
                 .then(data => {
                     if (data.success) {
                         if (data.terms && data.terms.length > 0) {
-                            const sortedTerms = data.terms.sort((a, b) => b.frequency - a.frequency);
+                            const sortedTerms = data.terms.sort((a, b) => (b.score || 0) - (a.score || 0));
 
                             let html = '<div class="d-flex flex-wrap gap-1">';
                             sortedTerms.forEach((term, index) => {
-                                const badgeClass = term.frequency > 2 ? 'bg-danger' : term.frequency > 1 ? 'bg-warning text-dark' : 'bg-info';
+                                const scorePercent = ((term.score || 0) * 100).toFixed(0);
+                                const badgeClass = (term.score || 0) > 0.7 ? 'bg-danger' : (term.score || 0) > 0.4 ? 'bg-warning text-dark' : 'bg-info';
                                 html += `
-                                    <span class="badge ${badgeClass}" title="${term.termType}">
-                                        ${term.term} <small>x${term.frequency}</small>
+                                    <span class="badge ${badgeClass} term-badge-editable"
+                                          style="cursor: pointer;"
+                                          data-article-id="${articleId}"
+                                          data-article-term-id="${term.id}"
+                                          data-term-id="${term.termId}"
+                                          data-term="${term.term}"
+                                          data-score="${term.score || 0}"
+                                          data-frequency="${term.frequency}"
+                                          title="클릭하여 수정/삭제 (${term.termType})">
+                                        ${term.term} <small>score: ${scorePercent}%</small>
                                     </span>
                                 `;
                             });
+                            html += `<button class="btn btn-sm btn-success add-term-btn" data-article-id="${articleId}">
+                                        <i class="fas fa-plus"></i> Term 추가
+                                     </button>`;
                             html += '</div>';
                             html += `<small class="text-muted mt-1 d-block">총 ${sortedTerms.length}개 term</small>`;
 
@@ -3207,6 +3231,132 @@
                 });
             }
         });
+
+        // ===== Article Term CRUD 기능 =====
+
+        // Term 클릭 시 수정/삭제 모달 열기
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('term-badge-editable') || e.target.closest('.term-badge-editable')) {
+                const badge = e.target.classList.contains('term-badge-editable') ? e.target : e.target.closest('.term-badge-editable');
+                const articleId = badge.dataset.articleId;
+                const articleTermId = badge.dataset.articleTermId;
+                const term = badge.dataset.term;
+                const score = parseFloat(badge.dataset.score);
+                const frequency = parseInt(badge.dataset.frequency);
+
+                openEditTermModal(articleId, articleTermId, term, score, frequency);
+            }
+        });
+
+        // Term 추가 버튼 클릭
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('add-term-btn') || e.target.closest('.add-term-btn')) {
+                const btn = e.target.classList.contains('add-term-btn') ? e.target : e.target.closest('.add-term-btn');
+                const articleId = btn.dataset.articleId;
+
+                openAddTermModal(articleId);
+            }
+        });
+
+        // Term 추가 모달 열기
+        function openAddTermModal(articleId) {
+            const termInput = prompt('추가할 Term을 입력하세요:');
+            if (!termInput || termInput.trim() === '') return;
+
+            const scoreInput = prompt('Score를 입력하세요 (0.0 ~ 1.0):', '0.5');
+            if (scoreInput === null) return;
+
+            const score = parseFloat(scoreInput);
+            if (isNaN(score) || score < 0 || score > 1) {
+                alert('Score는 0.0에서 1.0 사이의 숫자여야 합니다.');
+                return;
+            }
+
+            fetch(`/admin/articles/${articleId}/terms`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    term: termInput.trim(),
+                    score: score,
+                    frequency: 1
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    loadTermsForArticle(articleId);
+                } else {
+                    alert('Term 추가 실패: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Term 추가 중 오류가 발생했습니다.');
+            });
+        }
+
+        // Term 수정/삭제 모달 열기
+        function openEditTermModal(articleId, articleTermId, term, score, frequency) {
+            const action = confirm(`Term: ${term}\nScore: ${(score * 100).toFixed(0)}%\nFrequency: ${frequency}\n\n수정하려면 [확인], 삭제하려면 [취소]를 누르세요.`);
+
+            if (action) {
+                // 수정
+                const newScoreInput = prompt(`새로운 Score를 입력하세요 (0.0 ~ 1.0):`, score.toString());
+                if (newScoreInput === null) return;
+
+                const newScore = parseFloat(newScoreInput);
+                if (isNaN(newScore) || newScore < 0 || newScore > 1) {
+                    alert('Score는 0.0에서 1.0 사이의 숫자여야 합니다.');
+                    return;
+                }
+
+                fetch(`/admin/articles/${articleId}/terms/${articleTermId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        score: newScore
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message);
+                        loadTermsForArticle(articleId);
+                    } else {
+                        alert('Term 수정 실패: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Term 수정 중 오류가 발생했습니다.');
+                });
+            } else {
+                // 삭제
+                if (confirm(`정말로 Term '${term}'을 삭제하시겠습니까?`)) {
+                    fetch(`/admin/articles/${articleId}/terms/${articleTermId}`, {
+                        method: 'DELETE'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert(data.message);
+                            loadTermsForArticle(articleId);
+                        } else {
+                            alert('Term 삭제 실패: ' + data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Term 삭제 중 오류가 발생했습니다.');
+                    });
+                }
+            }
+        }
     </script>
 </body>
 </html>

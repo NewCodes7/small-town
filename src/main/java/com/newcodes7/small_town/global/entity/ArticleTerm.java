@@ -62,6 +62,13 @@ public class ArticleTerm {
     @Builder.Default
     private Integer frequency = 1;
 
+    /**
+     * 정규화된 점수 (0~1 사이)
+     * 빈도수를 기반으로 계산된 상대적 중요도
+     */
+    @Column(name = "score")
+    private Double score;
+
     @CreatedDate
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

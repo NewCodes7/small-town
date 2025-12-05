@@ -1296,9 +1296,11 @@ public class AdminController {
             for (com.newcodes7.small_town.global.entity.ArticleTerm articleTerm : terms) {
                 Map<String, Object> termData = new HashMap<>();
                 termData.put("id", articleTerm.getId());
+                termData.put("termId", articleTerm.getTerm().getId());
                 termData.put("term", articleTerm.getTerm().getTerm());
                 termData.put("termType", articleTerm.getTerm().getTermType());
                 termData.put("frequency", articleTerm.getFrequency());
+                termData.put("score", articleTerm.getScore());
                 termData.put("createdAt", articleTerm.getCreatedAt());
                 termDataList.add(termData);
             }
@@ -1314,6 +1316,215 @@ public class AdminController {
             log.error("Article term 조회 중 오류 발생: {}", e.getMessage(), e);
             response.put("success", false);
             response.put("message", "Term 조회 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * Article에 Term 추가 API
+     *
+     * POST /admin/articles/{articleId}/terms
+     */
+    @PostMapping("/articles/{articleId}/terms")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> addArticleTerm(
+            @PathVariable Long articleId,
+            @RequestBody Map<String, Object> request) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // Article 존재 확인
+            Article article = articleRepository.findById(articleId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 Article입니다. ID: " + articleId));
+
+            String termString = (String) request.get("term");
+            Double score = request.get("score") != null ? ((Number) request.get("score")).doubleValue() : 0.5;
+            Integer frequency = request.get("frequency") != null ? ((Number) request.get("frequency")).intValue() : 1;
+
+            if (termString == null || termString.trim().isEmpty()) {
+                response.put("success", false);
+                response.put("message", "Term 문자열이 필요합니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // Term 생성 또는 조회
+            List<com.newcodes7.small_town.global.entity.Term> existingTerms =
+                    termRepository.findByTerm(termString.trim());
+            com.newcodes7.small_town.global.entity.Term term;
+
+            if (!existingTerms.isEmpty()) {
+                // 기존 term 사용
+                term = existingTerms.get(0);
+            } else {
+                // 새로운 term 생성
+                term = com.newcodes7.small_town.global.entity.Term.builder()
+                        .term(termString.trim())
+                        .termType("NNG") // 기본값: 일반 명사
+                        .build();
+                term = termRepository.save(term);
+            }
+
+            // ArticleTerm 생성
+            com.newcodes7.small_town.global.entity.ArticleTerm articleTerm =
+                    com.newcodes7.small_town.global.entity.ArticleTerm.builder()
+                            .article(article)
+                            .term(term)
+                            .frequency(frequency)
+                            .score(score)
+                            .build();
+
+            articleTermRepository.save(articleTerm);
+
+            response.put("success", true);
+            response.put("message", "Term이 성공적으로 추가되었습니다.");
+            response.put("articleTermId", articleTerm.getId());
+            response.put("term", term.getTerm());
+            response.put("score", score);
+
+            log.info("Article ID {}에 Term '{}' 추가 완료 (score: {})", articleId, term.getTerm(), score);
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+
+        } catch (Exception e) {
+            log.error("ArticleTerm 추가 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Term 추가 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * ArticleTerm 수정 API (score, frequency 수정)
+     *
+     * PUT /admin/articles/{articleId}/terms/{articleTermId}
+     */
+    @PutMapping("/articles/{articleId}/terms/{articleTermId}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> updateArticleTerm(
+            @PathVariable Long articleId,
+            @PathVariable Long articleTermId,
+            @RequestBody Map<String, Object> request) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // ArticleTerm 존재 확인
+            com.newcodes7.small_town.global.entity.ArticleTerm articleTerm =
+                    articleTermRepository.findById(articleTermId)
+                            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 ArticleTerm입니다. ID: " + articleTermId));
+
+            // Article ID 일치 확인
+            if (!articleTerm.getArticle().getId().equals(articleId)) {
+                response.put("success", false);
+                response.put("message", "ArticleTerm이 해당 Article에 속하지 않습니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // score, frequency 업데이트
+            if (request.containsKey("score")) {
+                Double score = ((Number) request.get("score")).doubleValue();
+                articleTerm = com.newcodes7.small_town.global.entity.ArticleTerm.builder()
+                        .id(articleTerm.getId())
+                        .article(articleTerm.getArticle())
+                        .term(articleTerm.getTerm())
+                        .frequency(articleTerm.getFrequency())
+                        .score(score)
+                        .createdAt(articleTerm.getCreatedAt())
+                        .build();
+            }
+
+            if (request.containsKey("frequency")) {
+                Integer frequency = ((Number) request.get("frequency")).intValue();
+                articleTerm = com.newcodes7.small_town.global.entity.ArticleTerm.builder()
+                        .id(articleTerm.getId())
+                        .article(articleTerm.getArticle())
+                        .term(articleTerm.getTerm())
+                        .frequency(frequency)
+                        .score(articleTerm.getScore())
+                        .createdAt(articleTerm.getCreatedAt())
+                        .build();
+            }
+
+            articleTermRepository.save(articleTerm);
+
+            response.put("success", true);
+            response.put("message", "ArticleTerm이 성공적으로 수정되었습니다.");
+            response.put("articleTermId", articleTerm.getId());
+            response.put("score", articleTerm.getScore());
+            response.put("frequency", articleTerm.getFrequency());
+
+            log.info("ArticleTerm ID {} 수정 완료 (score: {}, frequency: {})",
+                    articleTermId, articleTerm.getScore(), articleTerm.getFrequency());
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+
+        } catch (Exception e) {
+            log.error("ArticleTerm 수정 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "ArticleTerm 수정 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * ArticleTerm 삭제 API
+     *
+     * DELETE /admin/articles/{articleId}/terms/{articleTermId}
+     */
+    @DeleteMapping("/articles/{articleId}/terms/{articleTermId}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> deleteArticleTerm(
+            @PathVariable Long articleId,
+            @PathVariable Long articleTermId) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // ArticleTerm 존재 확인
+            com.newcodes7.small_town.global.entity.ArticleTerm articleTerm =
+                    articleTermRepository.findById(articleTermId)
+                            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 ArticleTerm입니다. ID: " + articleTermId));
+
+            // Article ID 일치 확인
+            if (!articleTerm.getArticle().getId().equals(articleId)) {
+                response.put("success", false);
+                response.put("message", "ArticleTerm이 해당 Article에 속하지 않습니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            String termName = articleTerm.getTerm().getTerm();
+
+            // ArticleTerm 삭제
+            articleTermRepository.delete(articleTerm);
+
+            response.put("success", true);
+            response.put("message", String.format("Term '%s'가 성공적으로 삭제되었습니다.", termName));
+            response.put("deletedTerm", termName);
+
+            log.info("ArticleTerm ID {} 삭제 완료 (term: {})", articleTermId, termName);
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+
+        } catch (Exception e) {
+            log.error("ArticleTerm 삭제 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "ArticleTerm 삭제 중 오류가 발생했습니다: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
     }

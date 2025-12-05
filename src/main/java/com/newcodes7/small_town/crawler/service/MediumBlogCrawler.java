@@ -435,4 +435,53 @@ public class MediumBlogCrawler implements BlogCrawler {
             default: return 1;
         }
     }
+
+    /**
+     * 특정 article의 본문 추출
+     * article link에 직접 접속하여 body 태그의 텍스트를 추출
+     *
+     * @param articleUrl article의 URL
+     * @param driver WebDriver 인스턴스
+     * @return 본문 텍스트 (실패 시 빈 문자열)
+     */
+    public String extractArticleContent(String articleUrl, WebDriver driver) {
+        if (articleUrl == null || articleUrl.trim().isEmpty()) {
+            log.warn("본문 추출 실패: URL이 비어있음");
+            return "";
+        }
+
+        try {
+            log.debug("본문 추출 시작: {}", articleUrl);
+
+            // article 페이지로 이동
+            driver.get(articleUrl);
+
+            // 페이지 로딩 대기 (2초)
+            Thread.sleep(2000);
+
+            // HTML 소스 가져오기
+            String pageSource = driver.getPageSource();
+            Document doc = Jsoup.parse(pageSource);
+
+            // body 태그에서 텍스트 추출
+            Element body = doc.selectFirst("body");
+            if (body == null) {
+                log.warn("본문 추출 실패: body 태그를 찾을 수 없음 - {}", articleUrl);
+                return "";
+            }
+
+            String content = body.text();
+            log.debug("본문 추출 완료: {} (길이: {}자)", articleUrl, content.length());
+
+            return content;
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("본문 추출 중 인터럽트 발생: {}", articleUrl, e);
+            return "";
+        } catch (Exception e) {
+            log.error("본문 추출 실패: {} - {}", articleUrl, e.getMessage(), e);
+            return "";
+        }
+    }
 }

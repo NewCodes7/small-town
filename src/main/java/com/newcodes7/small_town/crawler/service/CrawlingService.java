@@ -3,12 +3,17 @@ package com.newcodes7.small_town.crawler.service;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.openqa.selenium.WebDriver;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 
+import com.newcodes7.small_town.article.repository.ArticleTermRepository;
+import com.newcodes7.small_town.article.repository.TermRepository;
 import com.newcodes7.small_town.crawler.config.WebDriverConfig;
 import com.newcodes7.small_town.crawler.dto.CrawlResult;
 import com.newcodes7.small_town.crawler.dto.CrawlingStats;
@@ -21,8 +26,11 @@ import com.newcodes7.small_town.crawler.repository.CrawlerCorporationRepository;
 import com.newcodes7.small_town.crawler.repository.CrawlerVideoRepository;
 import com.newcodes7.small_town.global.cache.NginxCachePurgeService;
 import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.ArticleTerm;
 import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.global.entity.Term;
 import com.newcodes7.small_town.global.entity.Video;
+import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +50,9 @@ public class CrawlingService {
     private final VideoPersistenceService videoPersistenceService;
     private final NginxCachePurgeService nginxCachePurgeService;
     private final OpenaiService openaiService;
+    private final MorphemeAnalyzer morphemeAnalyzer;
+    private final TermRepository termRepository;
+    private final ArticleTermRepository articleTermRepository;
 
     /**
      * 모든 기업의 블로그만 크롤링 (동기 처리)
@@ -315,7 +326,12 @@ public class CrawlingService {
         // 중복 제거 및 저장
         for (Article article : blogArticles) {
             if (!crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(article.getLink()).isPresent()) {
+                // Article 저장 및 AI 분석
                 articlePersistenceService.saveArticleWithAnalysis(article, corporation, blogCrawler);
+
+                // 본문에서 Term 추출 및 저장
+                extractAndSaveTerms(article, blogCrawler, driver);
+
                 newArticles.add(article);
             }
         }
@@ -413,5 +429,105 @@ public class CrawlingService {
                 .totalNewArticles(totalNewArticles)
                 .lastCrawledAt(LocalDateTime.now())
                 .build();
+    }
+
+    /**
+     * 본문에서 Term을 추출하여 저장
+     */
+    private void extractAndSaveTerms(Article article, BlogCrawler crawler, WebDriver driver) {
+        try {
+            // 본문 추출 지원 여부 확인 (DefaultBlogCrawler 또는 MediumBlogCrawler)
+            String content = null;
+
+            if (crawler instanceof DefaultBlogCrawler) {
+                DefaultBlogCrawler defaultCrawler = (DefaultBlogCrawler) crawler;
+                content = defaultCrawler.extractArticleContent(article.getLink(), driver);
+            } else if (crawler instanceof MediumBlogCrawler) {
+                MediumBlogCrawler mediumCrawler = (MediumBlogCrawler) crawler;
+                content = mediumCrawler.extractArticleContent(article.getLink(), driver);
+            } else {
+                log.debug("Term 추출 건너뜀 - 지원하지 않는 크롤러: {}", crawler.getClass().getSimpleName());
+                return;
+            }
+
+            // 본문 추출 결과 확인
+            if (content == null || content.trim().isEmpty()) {
+                log.warn("Term 추출 건너뜀 - 본문이 비어있음: {}", article.getTitle());
+                return;
+            }
+
+            log.info("본문 추출 성공 - Article: {}, 본문 길이: {}자", article.getTitle(), content.length());
+
+            // 형태소 분석을 통해 Term 추출
+            Map<String, MorphemeAnalyzer.TermInfo> termInfoMap = morphemeAnalyzer.extractTerms(content);
+            if (termInfoMap.isEmpty()) {
+                log.warn("Term 추출 결과 없음 - Article: {}", article.getTitle());
+                return;
+            }
+
+            log.info("형태소 분석 완료 - Article: {}, 추출된 Term 수: {}개", article.getTitle(), termInfoMap.size());
+
+            // 빈도수 기반 점수 계산 (최댓값 기준 정규화)
+            int maxFrequency = termInfoMap.values().stream()
+                    .mapToInt(MorphemeAnalyzer.TermInfo::getFrequency)
+                    .max()
+                    .orElse(1);
+
+            // 점수 내림차순 정렬 후 상위 5개 선택
+            List<MorphemeAnalyzer.TermInfo> topTerms = termInfoMap.values().stream()
+                    .sorted(Comparator.comparingInt(MorphemeAnalyzer.TermInfo::getFrequency).reversed())
+                    .limit(5)
+                    .collect(Collectors.toList());
+
+            log.info("상위 5개 Term 선택 완료 - Article: {}", article.getTitle());
+
+            // ArticleTerm 생성 및 저장
+            List<ArticleTerm> articleTerms = new ArrayList<>();
+            for (MorphemeAnalyzer.TermInfo termInfo : topTerms) {
+                try {
+                    // Term 조회 또는 생성
+                    Term term = termRepository.findByTermAndTermType(termInfo.getTerm(), termInfo.getTermType())
+                            .orElseGet(() -> {
+                                Term newTerm = Term.builder()
+                                        .term(termInfo.getTerm())
+                                        .termType(termInfo.getTermType())
+                                        .build();
+                                return termRepository.save(newTerm);
+                            });
+
+                    // 정규화된 점수 계산 (0~1 사이)
+                    double score = (double) termInfo.getFrequency() / maxFrequency;
+
+                    // ArticleTerm 생성
+                    ArticleTerm articleTerm = ArticleTerm.builder()
+                            .article(article)
+                            .term(term)
+                            .frequency(termInfo.getFrequency())
+                            .score(score)
+                            .build();
+
+                    articleTerms.add(articleTerm);
+
+                    log.debug("ArticleTerm 생성 - Term: {}, Frequency: {}, Score: {:.2f}",
+                            termInfo.getTerm(), termInfo.getFrequency(), score);
+
+                } catch (Exception e) {
+                    log.error("ArticleTerm 생성 실패 - Term: {}, 오류: {}",
+                            termInfo.getTerm(), e.getMessage(), e);
+                }
+            }
+
+            // 배치 저장
+            if (!articleTerms.isEmpty()) {
+                articleTermRepository.saveAll(articleTerms);
+                log.info("ArticleTerm 저장 완료 - Article: {}, 저장된 Term 수: {}개",
+                        article.getTitle(), articleTerms.size());
+            }
+
+        } catch (Exception e) {
+            log.error("Term 추출 및 저장 중 오류 발생 - Article: {}, 오류: {}",
+                    article.getTitle(), e.getMessage(), e);
+            // Term 추출 실패는 크롤링을 중단시키지 않음
+        }
     }
 }
