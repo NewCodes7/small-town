@@ -82,7 +82,7 @@ public class AdminController {
     private final SearchLogService searchLogService;
     private final com.newcodes7.small_town.article.service.TermSynonymService termSynonymService;
     private final com.newcodes7.small_town.article.repository.TermRepository termRepository;
-    private final com.newcodes7.small_town.article.service.OpenAIService openAIService;
+    private final com.newcodes7.small_town.article.service.DeeplService deeplService;
 
     // 기업 목록 페이지
     @GetMapping("/corporations")
@@ -1936,7 +1936,7 @@ public class AdminController {
     }
 
     /**
-     * OpenAI를 통한 유의어 추천 API
+     * DeepL을 통한 유의어 추천 API
      *
      * POST /admin/term-synonyms/recommend
      */
@@ -1954,9 +1954,9 @@ public class AdminController {
                 return ResponseEntity.badRequest().body(response);
             }
 
-            log.info("OpenAI 유의어 추천 요청: {}", term);
+            log.info("DeepL 유의어 추천 요청: {}", term);
 
-            List<String> recommendations = openAIService.recommendSynonyms(term.trim());
+            List<String> recommendations = deeplService.recommendSynonyms(term.trim());
 
             response.put("success", true);
             response.put("term", term);
@@ -2004,8 +2004,8 @@ public class AdminController {
 
             log.info("유의어가 없는 term {} 개 발견", termsWithoutSynonyms.size());
 
-            // 3. OpenAI로 일괄 추천
-            Map<String, List<String>> recommendations = openAIService.batchRecommendSynonyms(termsWithoutSynonyms);
+            // 3. DeepL로 일괄 추천
+            Map<String, List<String>> recommendations = deeplService.batchRecommendSynonyms(termsWithoutSynonyms);
 
             response.put("success", true);
             response.put("processedCount", termsWithoutSynonyms.size());

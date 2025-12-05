@@ -23,6 +23,7 @@ services:
       - OPENAI_MY_PROJECT_ID=${OPENAI_MY_PROJECT_ID}
       - OPENAI_WEBHOOK_SECRET=${OPENAI_WEBHOOK_SECRET}
       - YOUTUBE_API_KEY=${YOUTUBE_API_KEY}
+      - DEEPL_API_KEY=${DEEPL_API_KEY}
     expose:
       - "8080"
     healthcheck:
