@@ -56,7 +56,12 @@ public class DeeplService {
 
             List<String> synonyms = new ArrayList<>();
             if (translated != null && !translated.trim().isEmpty()) {
-                synonyms.add(translated.trim());
+                String result = translated.trim();
+                // 영어로 번역된 경우 소문자로 변환
+                if (targetLang.equals("EN")) {
+                    result = result.toLowerCase();
+                }
+                synonyms.add(result);
             }
             return synonyms;
 
