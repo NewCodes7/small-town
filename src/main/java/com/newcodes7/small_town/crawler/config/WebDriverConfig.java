@@ -110,11 +110,11 @@ public class WebDriverConfig {
             Thread.currentThread().interrupt();
         }
 
-        // Chrome 프로세스가 남아있는지 확인 (카운트만, 강제 종료 안 함)
+        // Chrome 프로세스가 남아있는지 확인하고 강제 종료
         int remainingProcesses = countChromeProcesses();
         if (remainingProcesses > 0) {
-            log.warn("Chrome 프로세스 {}개가 남아있습니다. JVM 종료 시 정리됩니다.", remainingProcesses);
-            // 강제 종료 시도하지 않음 - 크롤링은 이미 완료되었으므로 안전하게 skip
+            log.warn("Chrome 프로세스 {}개가 남아있습니다. 강제 종료를 시도합니다.", remainingProcesses);
+            killZombieChromeProcesses();
         } else {
             log.debug("모든 Chrome 프로세스가 정상 종료되었습니다.");
         }
@@ -126,9 +126,10 @@ public class WebDriverConfig {
      */
     private int countChromeProcesses() {
         try {
-            Process process = Runtime.getRuntime().exec(new String[]{
+            ProcessBuilder processBuilder = new ProcessBuilder(
                 "sh", "-c", "ps aux | grep -E 'chrome|chromedriver' | grep -v grep | grep -v '<defunct>' | wc -l"
-            });
+            );
+            Process process = processBuilder.start();
 
             BufferedReader reader = new BufferedReader(
                 new InputStreamReader(process.getInputStream()));
@@ -151,10 +152,11 @@ public class WebDriverConfig {
         try {
             // Zombie가 아닌 Chrome 프로세스만 종료 (State가 Z가 아닌 것만)
             // awk로 defunct가 아닌 프로세스의 PID만 추출하여 kill
-            Process killChrome = Runtime.getRuntime().exec(new String[]{
+            ProcessBuilder processBuilder = new ProcessBuilder(
                 "sh", "-c",
                 "ps aux | grep -E 'chrome|chromedriver' | grep -v grep | grep -v '<defunct>' | awk '{print $2}' | xargs -r kill -9"
-            });
+            );
+            Process killChrome = processBuilder.start();
 
             // Timeout 설정 (최대 3초 대기)
             boolean finished = killChrome.waitFor(3, java.util.concurrent.TimeUnit.SECONDS);
