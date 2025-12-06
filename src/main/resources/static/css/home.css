@@ -1008,7 +1008,6 @@
 .primary-search-section {
     margin-bottom: 24px;
     position: relative;
-    z-index: 10;
 }
 
 .search-wrapper {
