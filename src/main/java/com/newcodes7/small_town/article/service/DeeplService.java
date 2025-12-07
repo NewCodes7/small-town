@@ -146,4 +146,42 @@ public class DeeplService {
 
         return result;
     }
+
+    /**
+     * 영어 제목을 한국어로 번역
+     *
+     * @param title 원본 제목 (영어)
+     * @return 번역된 제목 (한국어)
+     */
+    public String translateTitle(String title) {
+        try {
+            // 영어 -> 한국어 번역
+            String translated = callDeepL(title, "KO");
+
+            if (translated != null && !translated.trim().isEmpty()) {
+                return translated.trim();
+            }
+
+            // 번역 실패시 원본 반환
+            log.warn("DeepL 번역 결과가 비어있음, 원본 제목 반환: {}", title);
+            return title;
+
+        } catch (Exception e) {
+            log.error("DeepL 제목 번역 중 오류 발생: {} - {}", title, e.getMessage(), e);
+            return title; // 오류 발생시 원본 제목 반환
+        }
+    }
+
+    /**
+     * 텍스트에 한국어가 포함되어 있는지 확인
+     *
+     * @param text 확인할 텍스트
+     * @return 한국어 포함 여부
+     */
+    public boolean containsKorean(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+        return text.matches(".*[ㄱ-ㅎㅏ-ㅣ가-힣]+.*");
+    }
 }
