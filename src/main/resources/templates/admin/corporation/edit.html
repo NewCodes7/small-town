@@ -21,6 +21,10 @@
         <div class="card" style="border-radius: 20px; border: none; box-shadow: var(--shadow-md);">
             <div class="card-body p-5">
                 <form th:action="@{'/admin/corporations/' + ${corporationId}}" th:object="${corporation}" method="post" enctype="multipart/form-data">
+                    <!-- Hidden fields to preserve page and search -->
+                    <input type="hidden" name="page" th:value="${page}" />
+                    <input type="hidden" name="search" th:value="${search}" />
+
                     <!-- Basic Information -->
                     <div class="mb-5">
                         <h4 class="mb-4" style="color: var(--primary-green); font-weight: 700;">

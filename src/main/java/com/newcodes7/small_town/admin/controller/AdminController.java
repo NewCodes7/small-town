@@ -143,7 +143,11 @@ public class AdminController {
     
     // 기업 수정 폼 페이지
     @GetMapping("/corporations/{id}/edit")
-    public String corporationEditForm(@PathVariable Long id, Model model) {
+    public String corporationEditForm(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(required = false) String search,
+            Model model) {
         try {
             CorporationResponseDto corporation = corporationService.getCorporationById(id);
             CorporationUpdateDto updateDto = new CorporationUpdateDto();
@@ -161,11 +165,24 @@ public class AdminController {
             updateDto.setThumbnail(corporation.getThumbnail());
             updateDto.setPublish(corporation.getPublish());
             updateDto.setPublishFormat(corporation.getPublishFormat());
+            updateDto.setPaginationType(corporation.getPaginationType());
+            updateDto.setPageUrlPattern(corporation.getPageUrlPattern());
+            updateDto.setNextPageSelector(corporation.getNextPageSelector());
+            updateDto.setMaxPages(corporation.getMaxPages());
             updateDto.setEffectiveLogoUrl(corporation.getEffectiveLogoUrl());
-            
+
+            // 업종 ID 리스트 설정 (업종 이름 -> 업종 ID로 변환)
+            List<Integer> industryIds = industryRepository.findAll().stream()
+                .filter(industry -> corporation.getIndustries().contains(industry.getName()))
+                .map(industry -> industry.getId())
+                .collect(java.util.stream.Collectors.toList());
+            updateDto.setIndustryIds(industryIds);
+
             model.addAttribute("corporation", updateDto);
             model.addAttribute("corporationId", id);
             model.addAttribute("industries", industryRepository.findAll());
+            model.addAttribute("page", page);
+            model.addAttribute("search", search);
             return "admin/corporation/edit";
         } catch (CorporationException e) {
             return "redirect:/admin/corporations";
@@ -178,16 +195,20 @@ public class AdminController {
             @PathVariable Long id,
             @Valid @ModelAttribute("corporation") CorporationUpdateDto dto,
             @RequestParam(value = "logoFile", required = false) MultipartFile logoFile,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(required = false) String search,
             BindingResult bindingResult,
             Model model,
             RedirectAttributes redirectAttributes) {
-        
+
         if (bindingResult.hasErrors()) {
             model.addAttribute("corporationId", id);
             model.addAttribute("industries", industryRepository.findAll());
+            model.addAttribute("page", page);
+            model.addAttribute("search", search);
             return "admin/corporation/edit";
         }
-        
+
         try {
             if (logoFile != null && !logoFile.isEmpty()) {
                 corporationService.updateCorporationWithLogo(id, dto, logoFile);
@@ -195,11 +216,19 @@ public class AdminController {
                 corporationService.updateCorporation(id, dto);
             }
             redirectAttributes.addFlashAttribute("successMessage", "기업 정보가 성공적으로 수정되었습니다.");
-            return "redirect:/admin/corporations";
+
+            // 원래 페이지와 검색어로 리다이렉트
+            String redirectUrl = "redirect:/admin/corporations?page=" + page;
+            if (search != null && !search.trim().isEmpty()) {
+                redirectUrl += "&search=" + search;
+            }
+            return redirectUrl;
         } catch (Exception e) {
             model.addAttribute("errorMessage", e.getMessage());
             model.addAttribute("corporationId", id);
             model.addAttribute("industries", industryRepository.findAll());
+            model.addAttribute("page", page);
+            model.addAttribute("search", search);
             return "admin/corporation/edit";
         }
     }
