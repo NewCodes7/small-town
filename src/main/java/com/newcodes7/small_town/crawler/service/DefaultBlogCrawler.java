@@ -62,7 +62,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
     public List<Article> crawl(WebDriver driver, Corporation corporation) throws CrawlerException {
         List<Article> articles = new ArrayList<>();
         parsingSelector = parsingSelectorRepository.findByCorporationIdOrDefault(corporation.getId());
-        
+
         try {
             articles = crawlHtmlContent(driver, corporation);
             log.info("기본 크롤러 완료 - 기업: {}, 수집된 글: {}개", corporation.getName(), articles.size());
@@ -73,7 +73,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
             log.error("기본 크롤러 예상치 못한 오류 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
             throw new CrawlerException("CRAWLER_UNEXPECTED_ERROR", "Unexpected error in DefaultBlogCrawler for corporation: " + corporation.getName(), e) {};
         }
-        
+
         return articles;
     }
 
@@ -82,64 +82,84 @@ public class DefaultBlogCrawler implements BlogCrawler {
      */
     private List<Article> crawlHtmlContent(WebDriver driver, Corporation corporation) throws CrawlerException, IOException {
         List<Article> articles = new ArrayList<>();
-        
+
         try {
             driver.get(corporation.getBlogLink());
             Thread.sleep(5000);
 
             // 스크롤 시뮬레이션
-            JavascriptExecutor js = (JavascriptExecutor) driver;
-            Random random = new Random();
-            int maxScrollAttempts = 50; // 최대 스크롤 횟수 제한
-            int scrollCount = 0;
-            long previousHeight = 0;
-            int noChangeCount = 0;
+            performScrollSimulation(driver);
 
-            while (scrollCount < maxScrollAttempts) {
-                long currentPos = (long) js.executeScript("return window.scrollY + window.innerHeight;");
-                long totalHeight = (long) js.executeScript("return document.body.scrollHeight;");
-
-                if (currentPos >= totalHeight) {
-                    break; // 페이지 끝 도달
-                }
-
-                // 높이 변화 감지 (무한 스크롤 대응)
-                if (totalHeight == previousHeight) {
-                    noChangeCount++;
-                    if (noChangeCount >= 3) {
-                        break; // 3번 연속 높이 변화 없으면 종료
-                    }
-                } else {
-                    noChangeCount = 0;
-                    previousHeight = totalHeight;
-                }
-
-                // 랜덤 스크롤
-                int scrollAmount = 200 + random.nextInt(300);
-                js.executeScript("window.scrollBy(0, " + scrollAmount + ")");
-
-                Thread.sleep(500 + random.nextInt(1000));
-                scrollCount++;
-            }
-            
+            // 페이지에서 article 파싱
             String pageSource = driver.getPageSource();
-            Document doc = Jsoup.parse(pageSource);
+            articles = parseArticlesFromPage(pageSource, corporation);
 
-            // 다양한 CSS 선택자로 아티클 찾기
-            Elements articleElements = doc.select(parsingSelector.getArticle());
-            for (Element element : articleElements) {
-                try {
-                    Article article = parseArticle(element, corporation);
-                    if (article != null) {
-                        articles.add(article);
-                    }
-                } catch (Exception e) {
-                    log.warn("기본 크롤러 개별 아티클 파싱 실패: {}", e.getMessage());
-                }
-            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw CrawlerTimeoutException.pageLoadTimeout(corporation.getBlogLink(), 2);
+        }
+
+        return articles;
+    }
+
+    /**
+     * 스크롤 시뮬레이션 수행
+     * 무한 스크롤 페이지에서 모든 콘텐츠를 로드하기 위해 사용
+     */
+    private void performScrollSimulation(WebDriver driver) throws InterruptedException {
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+        Random random = new Random();
+        int maxScrollAttempts = 50; // 최대 스크롤 횟수 제한
+        int scrollCount = 0;
+        long previousHeight = 0;
+        int noChangeCount = 0;
+
+        while (scrollCount < maxScrollAttempts) {
+            long currentPos = (long) js.executeScript("return window.scrollY + window.innerHeight;");
+            long totalHeight = (long) js.executeScript("return document.body.scrollHeight;");
+
+            if (currentPos >= totalHeight) {
+                break; // 페이지 끝 도달
+            }
+
+            // 높이 변화 감지 (무한 스크롤 대응)
+            if (totalHeight == previousHeight) {
+                noChangeCount++;
+                if (noChangeCount >= 3) {
+                    break; // 3번 연속 높이 변화 없으면 종료
+                }
+            } else {
+                noChangeCount = 0;
+                previousHeight = totalHeight;
+            }
+
+            // 랜덤 스크롤
+            int scrollAmount = 200 + random.nextInt(300);
+            js.executeScript("window.scrollBy(0, " + scrollAmount + ")");
+
+            Thread.sleep(500 + random.nextInt(1000));
+            scrollCount++;
+        }
+    }
+
+    /**
+     * 페이지 소스에서 Article 목록 파싱
+     */
+    private List<Article> parseArticlesFromPage(String pageSource, Corporation corporation) {
+        List<Article> articles = new ArrayList<>();
+        Document doc = Jsoup.parse(pageSource);
+
+        // 다양한 CSS 선택자로 아티클 찾기
+        Elements articleElements = doc.select(parsingSelector.getArticle());
+        for (Element element : articleElements) {
+            try {
+                Article article = parseArticle(element, corporation);
+                if (article != null) {
+                    articles.add(article);
+                }
+            } catch (Exception e) {
+                log.warn("기본 크롤러 개별 아티클 파싱 실패: {}", e.getMessage());
+            }
         }
 
         return articles;
@@ -732,4 +752,139 @@ public class DefaultBlogCrawler implements BlogCrawler {
             return "";
         }
     }
+
+    /**
+     * 모든 페이지 크롤링 (Admin 전용)
+     */
+    @Override
+    public List<Article> crawlAllPages(WebDriver driver, Corporation corporation) throws CrawlerException {
+        parsingSelector = parsingSelectorRepository.findByCorporationIdOrDefault(corporation.getId());
+
+        // 페이지네이션 타입이 NONE이거나 null이면 첫 페이지만 크롤링
+        if (parsingSelector.getPaginationType() == null || "NONE".equals(parsingSelector.getPaginationType())) {
+            log.info("페이지네이션 타입이 NONE - 첫 페이지만 크롤링: {}", corporation.getName());
+            return crawl(driver, corporation);
+        }
+
+        List<Article> allArticles = new ArrayList<>();
+        int currentPage = 1;
+        Integer maxPages = parsingSelector.getMaxPages();
+        String paginationType = parsingSelector.getPaginationType();
+
+        log.info("전체 페이지 크롤링 시작 - 기업: {}, 타입: {}, 최대 페이지: {}",
+                corporation.getName(), paginationType, maxPages != null ? maxPages : "무제한");
+
+        try {
+            while (true) {
+                // 페이지 URL 생성 및 이동
+                String pageUrl = buildPageUrl(corporation.getBlogLink(), currentPage);
+                log.info("페이지 {} 크롤링 시작: {}", currentPage, pageUrl);
+
+                driver.get(pageUrl);
+                Thread.sleep(5000); // 페이지 로드 대기
+
+                // 스크롤 시뮬레이션
+                performScrollSimulation(driver);
+
+                // 페이지에서 article 파싱
+                String pageSource = driver.getPageSource();
+                List<Article> pageArticles = parseArticlesFromPage(pageSource, corporation);
+                log.debug("발견된 article 요소 수: {}", pageArticles.size());
+
+                if (pageArticles.isEmpty()) {
+                    log.info("페이지 {}에서 글을 찾지 못함 - 크롤링 종료", currentPage);
+                    break;
+                }
+
+                allArticles.addAll(pageArticles);
+                log.info("페이지 {} 크롤링 완료: {}개 글 수집 (총 {}개)", currentPage, pageArticles.size(), allArticles.size());
+
+                // 최대 페이지 체크
+                if (maxPages != null && currentPage >= maxPages) {
+                    log.info("최대 페이지 {}에 도달 - 크롤링 종료", maxPages);
+                    break;
+                }
+
+                // 다음 페이지 존재 여부 확인
+                if (!hasNextPage(driver, paginationType)) {
+                    log.info("다음 페이지가 없음 - 크롤링 종료");
+                    break;
+                }
+
+                currentPage++;
+                Thread.sleep(2000); // 페이지 간 딜레이
+            }
+
+            log.info("전체 페이지 크롤링 완료 - 기업: {}, 총 페이지: {}, 총 글: {}개",
+                    corporation.getName(), currentPage, allArticles.size());
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new CrawlerException("CRAWLER_INTERRUPTED", "Crawling interrupted", e) {};
+        } catch (CrawlerException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("전체 페이지 크롤링 중 오류 - 기업: {}", corporation.getName(), e);
+            throw new CrawlerException("CRAWLER_ERROR", "Error during multi-page crawling", e) {};
+        }
+
+        return allArticles;
+    }
+
+    /**
+     * 페이지 URL 생성
+     */
+    private String buildPageUrl(String baseUrl, int pageNumber) {
+        // baseUrl에서 /page/숫자 패턴 제거 (정규화)
+        // 예: https://techblog.lycorp.co.jp/ko/page/1 -> https://techblog.lycorp.co.jp/ko
+        String normalizedBaseUrl = baseUrl.replaceAll("\\/page\\/\\d+", "");
+
+        String paginationType = parsingSelector.getPaginationType();
+        String pattern = parsingSelector.getPageUrlPattern();
+
+        if ("URL_PARAMETER".equals(paginationType) && pattern != null) {
+            String pageParam = pattern.replace("{page}", String.valueOf(pageNumber));
+            // URL에 이미 쿼리 파라미터가 있는지 확인
+            if (pattern.startsWith("?")) {
+                // 쿼리 파라미터 형식
+                if (normalizedBaseUrl.contains("?")) {
+                    return normalizedBaseUrl + "&" + pageParam.substring(1);
+                } else {
+                    return normalizedBaseUrl + pageParam;
+                }
+            } else if (pattern.startsWith("/")) {
+                // 경로 형식
+                return normalizedBaseUrl + pattern.replace("{page}", String.valueOf(pageNumber));
+            } else {
+                // 기본적으로 쿼리 파라미터로 추가
+                return normalizedBaseUrl + (normalizedBaseUrl.contains("?") ? "&" : "?") + pageParam;
+            }
+        }
+
+        // 기본값: 쿼리 파라미터로 추가
+        return normalizedBaseUrl + (normalizedBaseUrl.contains("?") ? "&" : "?") + "page=" + pageNumber;
+    }
+
+    /**
+     * 다음 페이지 존재 여부 확인
+     */
+    private boolean hasNextPage(WebDriver driver, String paginationType) {
+        if ("NEXT_BUTTON".equals(paginationType)) {
+            try {
+                String nextPageSelector = parsingSelector.getNextPageSelector();
+                if (nextPageSelector != null && !nextPageSelector.trim().isEmpty()) {
+                    Document doc = Jsoup.parse(driver.getPageSource());
+                    Elements nextButtons = doc.select(nextPageSelector);
+                    return !nextButtons.isEmpty();
+                }
+            } catch (Exception e) {
+                log.warn("다음 페이지 버튼 확인 실패: {}", e.getMessage());
+            }
+            return false;
+        }
+
+        // URL_PARAMETER와 INFINITE_SCROLL은 항상 true (빈 페이지로 감지)
+        return true;
+    }
+
 }

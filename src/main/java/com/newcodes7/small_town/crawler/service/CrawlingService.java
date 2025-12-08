@@ -530,4 +530,91 @@ public class CrawlingService {
             // Term 추출 실패는 크롤링을 중단시키지 않음
         }
     }
+
+    /**
+     * 특정 기업의 모든 페이지 크롤링 (Admin 전용)
+     * @param corporationId 기업 ID
+     * @return 크롤링 결과
+     */
+    public CrawlResult crawlAllPagesForCorporation(Long corporationId) {
+        log.info("Admin 전체 페이지 크롤링 시작 - 기업 ID: {}", corporationId);
+
+        Corporation corporation = crawlerCorporationRepository.findByIdAndNotDeleted(corporationId);
+        if (corporation == null) {
+            throw new CorporationCrawlingException(corporationId);
+        }
+
+        WebDriver driver = null;
+        try {
+            driver = webDriverConfig.createWebDriver();
+            BlogCrawler crawler = selectCrawler(corporation.getBlogLink());
+
+            log.info("Admin 전체 페이지 크롤링 - 기업: {}, 크롤러: {}",
+                    corporation.getName(), crawler.getProviderName());
+
+            // crawlAllPages 호출
+            List<Article> articles = crawler.crawlAllPages(driver, corporation);
+            List<Article> newArticles = new ArrayList<>();
+
+            // 중복 체크 및 저장 (캐시 작업 없이)
+            for (Article article : articles) {
+                if (!crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(article.getLink()).isPresent()) {
+                    // Article 저장 및 AI 분석 (캐시 작업 없음)
+                    articlePersistenceService.saveArticleWithAnalysisNoCache(article, corporation, crawler);
+
+                    // 전체 페이지 크롤링 시에는 Term 분석 생략 (성능 최적화)
+
+                    newArticles.add(article);
+                }
+            }
+
+            log.info("Admin 전체 페이지 크롤링 완료 - 기업: {}, 수집: {}개, 신규: {}개",
+                    corporation.getName(), articles.size(), newArticles.size());
+
+            return CrawlResult.success(corporation, newArticles, newArticles.size());
+
+        } catch (Exception e) {
+            log.error("Admin 전체 페이지 크롤링 실패 - 기업: {}, 오류: {}",
+                    corporation.getName(), e.getMessage(), e);
+            return CrawlResult.failure(corporation, "크롤링 실행 실패: " + e.getMessage());
+        } finally {
+            if (driver != null) {
+                webDriverConfig.forceCloseWebDriver(driver);
+            }
+        }
+    }
+
+    /**
+     * 모든 기업의 모든 페이지 크롤링 (Admin 전용)
+     * @return 크롤링 결과 목록
+     */
+    public List<CrawlResult> crawlAllPagesForAllCorporations() {
+        log.info("Admin 전체 기업 전체 페이지 크롤링 시작");
+
+        List<Corporation> corporations = crawlerCorporationRepository.findAllWithBlogLink();
+        List<CrawlResult> results = new ArrayList<>();
+
+        for (Corporation corporation : corporations) {
+            try {
+                CrawlResult result = crawlAllPagesForCorporation(corporation.getId());
+                results.add(result);
+
+                log.info("기업 전체 페이지 크롤링 완료 - {}: {}/{} 진행",
+                        corporation.getName(), results.size(), corporations.size());
+
+                // 기업 간 딜레이
+                Thread.sleep(3000);
+            } catch (Exception e) {
+                log.error("전체 페이지 크롤링 실패 - 기업: {}", corporation.getName(), e);
+                results.add(CrawlResult.failure(corporation, "크롤링 실행 실패: " + e.getMessage()));
+            }
+        }
+
+        log.info("Admin 전체 기업 전체 페이지 크롤링 완료 - 총 기업: {}개", corporations.size());
+
+        // 크롤링 완료 후 선택적 캐시 purge
+        purgeCacheForCrawlResults(results);
+
+        return results;
+    }
 }

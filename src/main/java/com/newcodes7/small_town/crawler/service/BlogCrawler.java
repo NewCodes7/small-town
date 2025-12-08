@@ -12,6 +12,18 @@ public interface BlogCrawler {
     boolean canHandle(String blogUrl);
     List<Article> crawl(WebDriver driver, Corporation corporation) throws CrawlerException;
     String getProviderName();
+
+    /**
+     * 모든 페이지 크롤링 (Admin 전용)
+     * 기본 구현은 첫 페이지만 크롤링 (하위 호환성)
+     * @param driver WebDriver 인스턴스
+     * @param corporation 기업 정보
+     * @return 크롤링된 글 목록
+     * @throws CrawlerException 크롤링 중 오류 발생 시
+     */
+    default List<Article> crawlAllPages(WebDriver driver, Corporation corporation) throws CrawlerException {
+        return crawl(driver, corporation);
+    }
     
     /**
      * 이미지 업로드 처리 (중복이 아닌 경우에만 호출)

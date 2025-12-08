@@ -32,6 +32,10 @@ public class CorporationResponseDto {
     private String thumbnail;
     private String publish;
     private String publishFormat;
+    private String paginationType;
+    private String pageUrlPattern;
+    private String nextPageSelector;
+    private Integer maxPages;
     private List<String> industries;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -78,6 +82,10 @@ public class CorporationResponseDto {
         dto.setThumbnail(parsingSelector.getThumbnail());
         dto.setPublish(parsingSelector.getPublish());
         dto.setPublishFormat(parsingSelector.getPublishFormat());
+        dto.setPaginationType(parsingSelector.getPaginationType());
+        dto.setPageUrlPattern(parsingSelector.getPageUrlPattern());
+        dto.setNextPageSelector(parsingSelector.getNextPageSelector());
+        dto.setMaxPages(parsingSelector.getMaxPages());
         dto.setArticleCount(0L); // Default article count
         dto.setCreatedAt(corporation.getCreatedAt());
         dto.setUpdatedAt(corporation.getUpdatedAt());

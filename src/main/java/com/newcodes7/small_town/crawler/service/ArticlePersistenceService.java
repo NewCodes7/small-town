@@ -40,6 +40,21 @@ public class ArticlePersistenceService {
     @CacheEvict(value = "corporationArticles", allEntries = true)
     @CachePreload
     public void saveArticleWithAnalysis(Article article, Corporation corporation, BlogCrawler crawler) throws IOException {
+        saveArticleInternal(article, corporation, crawler);
+    }
+
+    /**
+     * 전체 페이지 크롤링용 - Article 저장 및 AI 분석 (캐시 작업 없음)
+     */
+    @Transactional
+    public void saveArticleWithAnalysisNoCache(Article article, Corporation corporation, BlogCrawler crawler) throws IOException {
+        saveArticleInternal(article, corporation, crawler);
+    }
+
+    /**
+     * Article 저장 및 AI 분석 내부 로직
+     */
+    private void saveArticleInternal(Article article, Corporation corporation, BlogCrawler crawler) throws IOException {
         // 이미지 업로드 처리
         crawler.processImageUpload(article, corporation);
 

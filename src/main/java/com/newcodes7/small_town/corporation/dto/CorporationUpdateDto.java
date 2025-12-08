@@ -23,12 +23,18 @@ public class CorporationUpdateDto {
     private String effectiveLogoUrl; // 읽기 전용 필드 (폼에서 표시용)
     private String youtubeUrl;
     private String baseUrl;
-    private String article; 
+    private String article;
     private String title;
     private String link;
     private String thumbnail;
     private String publish;
     private String publishFormat;
-    
+
+    // 페이지네이션 설정
+    private String paginationType;
+    private String pageUrlPattern;
+    private String nextPageSelector;
+    private Integer maxPages;
+
     private List<Integer> industryIds;
 }

@@ -39,8 +39,20 @@ public class ParsingSelector {
 
     private String publish;
 
-    @Column(name = "publish_format") 
+    @Column(name = "publish_format")
     private String publishFormat;
+
+    @Column(name = "pagination_type")
+    private String paginationType; // "NONE", "URL_PARAMETER", "NEXT_BUTTON", "INFINITE_SCROLL"
+
+    @Column(name = "page_url_pattern")
+    private String pageUrlPattern; // 예: "?page={page}", "/page/{page}"
+
+    @Column(name = "next_page_selector")
+    private String nextPageSelector; // "다음" 버튼 CSS 셀렉터
+
+    @Column(name = "max_pages")
+    private Integer maxPages; // 크롤링할 최대 페이지 수 (null이면 무제한)
 
     public static ParsingSelector defaultSelector(Long id) {
         return ParsingSelector.builder()
@@ -51,6 +63,10 @@ public class ParsingSelector {
             .thumbnail("img[src]")
             .publish("time, [datetime], [class*='date'], [class*='time']")
             .publishFormat("yyyy-MM-dd")
+            .paginationType("NONE")
+            .pageUrlPattern(null)
+            .nextPageSelector(null)
+            .maxPages(null)
             .corporationId(id)
             .build();
     }

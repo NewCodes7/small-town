@@ -74,6 +74,14 @@
                                     </a></li>
                                     <li><hr class="dropdown-divider"></li>
                                     <li>
+                                        <button type="button" class="dropdown-item text-primary crawl-btn"
+                                                th:data-corp-id="${corp.id}"
+                                                th:data-corp-name="${corp.name}">
+                                            <i class="fas fa-sync-alt me-2"></i>전체 페이지 크롤링
+                                        </button>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
                                         <form th:action="@{'/admin/corporations/' + ${corp.id} + '/delete'}" method="post" style="margin: 0;">
                                             <button type="submit" class="dropdown-item text-danger" 
                                                     onclick="return confirm('정말 삭제하시겠습니까?')">
@@ -156,5 +164,88 @@
             </ul>
         </nav>
     </div>
+
+    <!-- JavaScript for crawling -->
+    <script>
+        // 개별 기업 크롤링 버튼 이벤트 리스너
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.crawl-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const corpId = this.getAttribute('data-corp-id');
+                    const corpName = this.getAttribute('data-corp-name');
+
+                    if (!confirm(`"${corpName}" 기업의 모든 페이지를 크롤링하시겠습니까?\n\n설정된 페이지네이션 규칙에 따라 전체 페이지를 크롤링합니다.`)) {
+                        return;
+                    }
+
+                    const originalContent = this.innerHTML;
+                    this.disabled = true;
+                    this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>크롤링 중...';
+
+                    fetch(`/admin/crawling/corporation/${corpId}/crawl-all`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        this.disabled = false;
+                        this.innerHTML = originalContent;
+
+                        if (data.success) {
+                            alert(`크롤링 완료!\n\n신규 글: ${data.newArticles}개`);
+                            window.location.reload();
+                        } else {
+                            alert(`크롤링 실패\n\n오류: ${data.errorMessage || '알 수 없는 오류'}`);
+                        }
+                    })
+                    .catch(error => {
+                        this.disabled = false;
+                        this.innerHTML = originalContent;
+                        alert(`크롤링 실패\n\n오류: ${error.message}`);
+                    });
+                });
+            });
+
+            // 전체 크롤링 버튼 이벤트 리스너
+            const crawlAllBtn = document.getElementById('crawl-all-btn');
+            if (crawlAllBtn) {
+                crawlAllBtn.addEventListener('click', function() {
+                    if (!confirm('모든 기업의 모든 페이지를 크롤링하시겠습니까?\n\n시간이 오래 걸릴 수 있습니다.')) {
+                        return;
+                    }
+
+                    const originalContent = this.innerHTML;
+                    this.disabled = true;
+                    this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>전체 크롤링 중...';
+
+                    fetch('/admin/crawling/crawl-all', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        this.disabled = false;
+                        this.innerHTML = originalContent;
+
+                        const total = data.reduce((sum, r) => sum + (r.newArticles || 0), 0);
+                        const successCount = data.filter(r => r.success).length;
+                        const failureCount = data.length - successCount;
+
+                        alert(`전체 크롤링 완료!\n\n성공: ${successCount}개\n실패: ${failureCount}개\n신규 글: ${total}개`);
+                        window.location.reload();
+                    })
+                    .catch(error => {
+                        this.disabled = false;
+                        this.innerHTML = originalContent;
+                        alert(`크롤링 실패\n\n오류: ${error.message}`);
+                    });
+                });
+            }
+        });
+    </script>
 </section>
 </html>

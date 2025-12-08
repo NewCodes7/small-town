@@ -29,14 +29,20 @@ public class CorporationCreateDto {
     private String logoUrl;
     private String youtubeUrl;
 
-    // 블로그 글 파싱을 위해 필요한 속성 
+    // 블로그 글 파싱을 위해 필요한 속성
     private String baseUrl;
-    private String article; 
+    private String article;
     private String title;
     private String link;
     private String thumbnail;
     private String publish;
     private String publishFormat;
-    
+
+    // 페이지네이션 설정
+    private String paginationType;
+    private String pageUrlPattern;
+    private String nextPageSelector;
+    private Integer maxPages;
+
     private List<Integer> industryIds;
 }

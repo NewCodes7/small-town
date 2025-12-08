@@ -243,7 +243,68 @@
                             </div>
                         </div>
                     </div>
-                    
+
+                    <!-- Pagination Settings -->
+                    <div class="mb-5">
+                        <h4 class="mb-4" style="color: var(--primary-green); font-weight: 700;">
+                            <i class="fas fa-list-ol me-2"></i>페이지네이션 설정
+                        </h4>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-4">
+                                <label for="paginationType" class="form-label fw-bold">페이지네이션 타입</label>
+                                <div class="input-group">
+                                    <span class="input-group-text" style="background: var(--secondary-green); border: 2px solid var(--border-light); color: var(--primary-green-dark);">
+                                        <i class="fas fa-cog"></i>
+                                    </span>
+                                    <select class="form-control" id="paginationType" th:field="*{paginationType}" style="border-left: none;">
+                                        <option value="NONE">없음 (첫 페이지만)</option>
+                                        <option value="URL_PARAMETER">URL 파라미터</option>
+                                        <option value="NEXT_BUTTON">다음 버튼</option>
+                                        <option value="INFINITE_SCROLL">무한 스크롤</option>
+                                    </select>
+                                </div>
+                                <small class="text-muted">크롤링 시 여러 페이지를 탐색하는 방법을 선택하세요</small>
+                            </div>
+
+                            <div class="col-md-6 mb-4">
+                                <label for="maxPages" class="form-label fw-bold">최대 페이지 수</label>
+                                <div class="input-group">
+                                    <span class="input-group-text" style="background: var(--secondary-green); border: 2px solid var(--border-light); color: var(--primary-green-dark);">
+                                        <i class="fas fa-hashtag"></i>
+                                    </span>
+                                    <input type="number" class="form-control" id="maxPages" th:field="*{maxPages}"
+                                           placeholder="비워두면 무제한" style="border-left: none;" min="1">
+                                </div>
+                                <small class="text-muted">크롤링할 최대 페이지 수 (관리자 전체 크롤링 시 사용)</small>
+                            </div>
+
+                            <div class="col-md-6 mb-4">
+                                <label for="pageUrlPattern" class="form-label fw-bold">페이지 URL 패턴</label>
+                                <div class="input-group">
+                                    <span class="input-group-text" style="background: var(--secondary-green); border: 2px solid var(--border-light); color: var(--primary-green-dark);">
+                                        <i class="fas fa-link"></i>
+                                    </span>
+                                    <input class="form-control" id="pageUrlPattern" th:field="*{pageUrlPattern}"
+                                           placeholder="예: ?page={page} 또는 /page/{page}" style="border-left: none;">
+                                </div>
+                                <small class="text-muted">URL_PARAMETER 타입 선택 시 사용. {page}는 페이지 번호로 대체됩니다</small>
+                            </div>
+
+                            <div class="col-md-6 mb-4">
+                                <label for="nextPageSelector" class="form-label fw-bold">다음 페이지 셀렉터</label>
+                                <div class="input-group">
+                                    <span class="input-group-text" style="background: var(--secondary-green); border: 2px solid var(--border-light); color: var(--primary-green-dark);">
+                                        <i class="fas fa-mouse-pointer"></i>
+                                    </span>
+                                    <input class="form-control" id="nextPageSelector" th:field="*{nextPageSelector}"
+                                           placeholder="예: .pagination .next, a[rel='next']" style="border-left: none;">
+                                </div>
+                                <small class="text-muted">NEXT_BUTTON 타입 선택 시 사용. 다음 버튼의 CSS 셀렉터</small>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Industries -->
                     <div class="mb-5">
                         <h4 class="mb-4" style="color: var(--primary-green); font-weight: 700;">
