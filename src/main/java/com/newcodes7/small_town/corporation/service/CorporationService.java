@@ -544,6 +544,38 @@ public class CorporationService {
     }
 
     /**
+     * 특정 기업의 모든 글 삭제 (소프트 삭제)
+     */
+    @Transactional
+    @CacheEvict(value = "corporationArticles", allEntries = true)
+    @CachePreload
+    public void deleteAllArticles(Long corporationId) {
+        if (corporationId == null || corporationId <= 0) {
+            throw new InvalidParameterException("corporationId", corporationId);
+        }
+
+        Corporation corporation = corporationRepository.findActiveById(corporationId)
+                .orElseThrow(() -> new CorporationNotFoundException(corporationId));
+
+        // 해당 기업의 모든 글을 조회하고 소프트 삭제
+        List<com.newcodes7.small_town.global.entity.Article> articles =
+            corporation.getArticles().stream()
+                .filter(article -> article.getDeletedAt() == null)
+                .collect(java.util.stream.Collectors.toList());
+
+        log.info("기업 {} 의 글 삭제 시작 - 총 {}개", corporation.getName(), articles.size());
+
+        for (com.newcodes7.small_town.global.entity.Article article : articles) {
+            article.softDelete();
+        }
+
+        log.info("기업 {} 의 글 삭제 완료 - 총 {}개", corporation.getName(), articles.size());
+
+        // Nginx 캐시 purge
+        purgeCorporationCache(corporationId);
+    }
+
+    /**
      * Corporation 관련 Nginx 캐시를 purge합니다.
      * - 해당 corporation 상세 페이지 캐시 삭제
      * - home 페이지 캐시 삭제 (기업 목록에 영향)

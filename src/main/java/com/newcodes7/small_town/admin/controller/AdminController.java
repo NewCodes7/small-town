@@ -245,6 +245,18 @@ public class AdminController {
         return "redirect:/admin/corporations";
     }
 
+    // 기업의 모든 글 삭제 처리
+    @PostMapping("/corporations/{id}/delete-all-articles")
+    public String deleteAllArticles(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+        try {
+            corporationService.deleteAllArticles(id);
+            redirectAttributes.addFlashAttribute("successMessage", "기업의 모든 글이 성공적으로 삭제되었습니다.");
+        } catch (CorporationException e) {
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+        }
+        return "redirect:/admin/corporations/" + id + "/edit";
+    }
+
     // 글 목록 페이지
     @GetMapping("/articles")
     public String articleList(
