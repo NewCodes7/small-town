@@ -58,7 +58,8 @@ public class SecurityConfig {
         http
             .csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> cors.configurationSource(corsConfigurationSource))
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            // IF_REQUIRED: 로그인 리다이렉트를 위한 세션 사용, OAuth2 로그인에서도 필요
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
             .authorizeHttpRequests(authz -> authz
                 .requestMatchers("/api/auth/**", "/auth/**", "/api/user-info", "/api/auth/me").permitAll()
                 .requestMatchers("/", "/home", "/articles/**", "/about", "/corporations", "/corporations/**", "/video").permitAll()

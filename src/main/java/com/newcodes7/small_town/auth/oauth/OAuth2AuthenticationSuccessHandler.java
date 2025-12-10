@@ -1,11 +1,13 @@
 package com.newcodes7.small_town.auth.oauth;
 
+import com.newcodes7.small_town.auth.config.CustomAuthenticationEntryPoint;
 import com.newcodes7.small_town.auth.entity.User;
 import com.newcodes7.small_town.auth.jwt.JwtTokenProvider;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
@@ -19,27 +21,39 @@ import java.io.IOException;
 public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     private final JwtTokenProvider tokenProvider;
-    
+
     @Value("${app.jwt.access-token-expiration:86400000}")
     private long accessTokenExpiration;
-    
+
     @Value("${app.jwt.refresh-token-expiration:604800000}")
     private long refreshTokenExpiration;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
                                         Authentication authentication) throws IOException, ServletException {
-        
+
         User user = (User) authentication.getPrincipal();
-        
+
         String accessToken = tokenProvider.generateAccessToken(user.getEmail());
         String refreshToken = tokenProvider.generateRefreshToken(user.getEmail());
-        
+
         // 쿠키에 토큰 설정
         setTokenCookies(response, accessToken, refreshToken);
-        
-        // 홈페이지로 리디렉션
-        getRedirectStrategy().sendRedirect(request, response, "/");
+
+        // 세션에서 원래 요청 URL 확인
+        HttpSession session = request.getSession(false);
+        String redirectUrl = "/";
+        if (session != null) {
+            String savedRedirectUrl = (String) session.getAttribute(CustomAuthenticationEntryPoint.REDIRECT_URL_SESSION_ATTRIBUTE);
+            if (savedRedirectUrl != null && !savedRedirectUrl.isEmpty()) {
+                redirectUrl = savedRedirectUrl;
+                // 세션에서 제거
+                session.removeAttribute(CustomAuthenticationEntryPoint.REDIRECT_URL_SESSION_ATTRIBUTE);
+            }
+        }
+
+        // 원래 요청했던 페이지 또는 홈페이지로 리디렉션
+        getRedirectStrategy().sendRedirect(request, response, redirectUrl);
     }
     
     private void setTokenCookies(HttpServletResponse response, String accessToken, String refreshToken) {
