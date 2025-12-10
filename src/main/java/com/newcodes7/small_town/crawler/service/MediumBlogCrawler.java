@@ -16,12 +16,20 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.openqa.selenium.By;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import com.newcodes7.small_town.crawler.entity.ParsingSelector;
 import com.newcodes7.small_town.crawler.exception.CrawlerException;
 import com.newcodes7.small_town.crawler.exception.CrawlerTimeoutException;
+import com.newcodes7.small_town.crawler.repository.ParsingSelectorRepository;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.util.TimeUtil;
@@ -33,9 +41,12 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 public class MediumBlogCrawler implements BlogCrawler {
-    
+
     private final Random random = new Random();
     private final S3ImageService s3ImageService;
+    private final ParsingSelectorRepository parsingSelectorRepository;
+    private ParsingSelector parsingSelector;
+    private final ObjectMapper objectMapper = new ObjectMapper();
     
     @Override
     public boolean canHandle(String blogUrl) {
@@ -55,31 +66,8 @@ public class MediumBlogCrawler implements BlogCrawler {
         try {
             // Medium bot 감지 우회를 위한 추가 설정
             setupAntiDetection(driver);
-            
-            // driver.get(corporation.getBlogLink() + "/archive");
-            
-            // 페이지 로딩 완료 확인 및 bot 감지 체크
-            // if (checkForBotDetection(driver)) {
-            //     log.warn("Bot 감지 페이지 발견, 우회 시도 중...");
-            //     handleBotDetection(driver);
-            // }
-            
-            // // 인간처럼 페이지 스크롤링
-            // simulateHumanBehavior(driver);
-            
-            // String pageSource = driver.getPageSource();
-            // Document doc = Jsoup.parse(pageSource);
-            // List<Element> timebucketElements = doc.select("div[class*='timebucket']");
-            // for (Element timebucket : timebucketElements) {
-            //     String link = timebucket.selectFirst("a").attr("href");
-            //     articles.addAll(crawlHtmlWithInfiniteScroll(driver, corporation, link));
-            //     // 2초 ~ 8초 사이의 랜덤 딜레이 (더 긴 딜레이)
-            //     int delay = 2000 + random.nextInt(6000);
-            //     Thread.sleep(delay);
-            // }
 
             articles = crawlHtmlWithInfiniteScroll(driver, corporation, corporation.getBlogLink());
-
 
             log.info("Medium HTML 크롤링 완료 - 기업: {}, 수집된 글: {}개", corporation.getName(), articles.size());
         } catch (CrawlerException e) {
@@ -95,38 +83,33 @@ public class MediumBlogCrawler implements BlogCrawler {
     
     private List<Article> crawlHtmlWithInfiniteScroll(WebDriver driver, Corporation corporation, String link) throws CrawlerException, IOException {
         List<Article> articles = new ArrayList<>();
-        
+
         try {
             driver.get(link);
 
             // 인간처럼 페이지 행동 시뮬레이션
             simulateHumanBehavior(driver);
 
-            String pageSource = driver.getPageSource();
-            Document doc = Jsoup.parse(pageSource);
+            // JavaScript 실행 완료 대기
+            waitForJavaScriptToLoad(driver);
 
-            // Files.writeString(Path.of("medium_page.html"), pageSource); 디버깅용
+            // ✅ window.__APOLLO_STATE__에서 데이터 추출 (Medium의 내부 데이터 구조)
+            JavascriptExecutor js = (JavascriptExecutor) driver;
+            String apolloStateJson = (String) js.executeScript(
+                "return JSON.stringify(window.__APOLLO_STATE__ || {});"
+            );
 
-            Elements articleElements = doc.select("article[data-testid='post-preview']");
-
-            log.info("{} 발견된 Medium 아티클 요소 수: {}", link, articleElements.size());
-            
-            for (Element element : articleElements) {
-                try {
-                    Article article = parseArticleFromElement(element, corporation, driver);
-                    if (article != null) {
-                        if (articles.stream().anyMatch(a -> a.getTitle().equals(article.getTitle()))) {
-                            articles.remove(articles.stream()
-                                                    .filter(a -> a.getTitle().equals(article.getTitle()))
-                                                    .findFirst()
-                                                    .orElse(null));
-                        }
-                        articles.add(article);
-                    }
-                } catch (Exception e) {
-                    log.warn("Medium 아티클 파싱 실패: {}", e.getMessage());
-                }
+            if (apolloStateJson == null || apolloStateJson.equals("{}")) {
+                log.warn("APOLLO_STATE를 찾을 수 없습니다: {}", link);
+                return articles;
             }
+
+            log.info("APOLLO_STATE JSON 추출 완료: {} bytes", apolloStateJson.length());
+
+            // JSON 파싱 및 Article 추출
+            articles = parseArticlesFromApolloState(apolloStateJson, corporation);
+
+            log.info("{} - APOLLO_STATE에서 추출한 아티클 수: {}", link, articles.size());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw CrawlerTimeoutException.pageLoadTimeout(link, 10);
@@ -238,18 +221,56 @@ public class MediumBlogCrawler implements BlogCrawler {
     }
     
     /**
+     * JavaScript 실행 완료 대기
+     * document.readyState가 'complete'이고, 모든 Ajax 요청이 완료될 때까지 대기
+     */
+    private void waitForJavaScriptToLoad(WebDriver driver) {
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+        WebDriverWait wait = new WebDriverWait(driver, java.time.Duration.ofSeconds(30));
+
+        // 1. document.readyState가 'complete'가 될 때까지 대기
+        wait.until(webDriver -> js.executeScript("return document.readyState").equals("complete"));
+        log.debug("document.readyState = complete");
+
+        // 2. jQuery가 있으면 jQuery.active가 0이 될 때까지 대기 (Ajax 요청 완료)
+        try {
+            Boolean jQueryActive = (Boolean) js.executeScript(
+                "return typeof jQuery !== 'undefined' && jQuery.active === 0"
+            );
+            if (jQueryActive != null && !jQueryActive) {
+                wait.until(webDriver ->
+                    (Boolean) js.executeScript("return jQuery.active === 0")
+                );
+                log.debug("jQuery.active = 0");
+            }
+        } catch (Exception e) {
+            // jQuery가 없으면 무시
+            log.debug("jQuery 없음 또는 확인 실패");
+        }
+
+        // 3. 추가 렌더링 대기 (React 렌더링 완료를 위해)
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        log.info("JavaScript 실행 완료 대기 종료");
+    }
+
+    /**
      * Bot 감지 우회를 위한 추가 설정
      */
     private void setupAntiDetection(WebDriver driver) {
         JavascriptExecutor js = (JavascriptExecutor) driver;
-        
+
         // navigator.webdriver 속성 제거
         js.executeScript("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})");
-        
+
         // Chrome 자동화 관련 속성들 제거
         js.executeScript("Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]})");
         js.executeScript("Object.defineProperty(navigator, 'languages', {get: () => ['ko-KR', 'ko', 'en-US', 'en']})");
-        
+
         // User-Agent를 더 자연스럽게 설정
         js.executeScript("Object.defineProperty(navigator, 'userAgent', {get: () => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'})");
     }
@@ -297,7 +318,7 @@ public class MediumBlogCrawler implements BlogCrawler {
         JavascriptExecutor js = (JavascriptExecutor) driver;
         
         // 페이지 로딩 대기 (2-4초)
-        Thread.sleep(2000 + random.nextInt(2000));
+        Thread.sleep(10000 + random.nextInt(2000));
         
         // 스크롤 시뮬레이션
         for (int i = 0; i < 3; i++) {
@@ -456,12 +477,17 @@ public class MediumBlogCrawler implements BlogCrawler {
             // article 페이지로 이동
             driver.get(articleUrl);
 
-            // 페이지 로딩 대기 (2초)
-            Thread.sleep(2000);
+            // ✅ WebDriverWait를 사용하여 body 요소가 렌더링될 때까지 명시적으로 대기
+            WebDriverWait wait = new WebDriverWait(driver, java.time.Duration.ofSeconds(20));
+            wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
 
-            // HTML 소스 가져오기
-            String pageSource = driver.getPageSource();
-            Document doc = Jsoup.parse(pageSource);
+            // JavaScript 실행 완료 대기
+            waitForJavaScriptToLoad(driver);
+
+            // ✅ JavaScript로 현재 렌더링된 DOM 가져오기
+            JavascriptExecutor js = (JavascriptExecutor) driver;
+            String currentHtml = (String) js.executeScript("return document.documentElement.outerHTML;");
+            Document doc = Jsoup.parse(currentHtml);
 
             // body 태그에서 텍스트 추출
             Element body = doc.selectFirst("body");
@@ -475,13 +501,580 @@ public class MediumBlogCrawler implements BlogCrawler {
 
             return content;
 
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            log.error("본문 추출 중 인터럽트 발생: {}", articleUrl, e);
-            return "";
         } catch (Exception e) {
             log.error("본문 추출 실패: {} - {}", articleUrl, e.getMessage(), e);
             return "";
+        }
+    }
+
+    /**
+     * 모든 페이지 크롤링 (Admin 전용)
+     */
+    @Override
+    public List<Article> crawlAllPages(WebDriver driver, Corporation corporation) throws CrawlerException {
+        parsingSelector = parsingSelectorRepository.findByCorporationIdOrDefault(corporation.getId());
+
+        // Medium은 기본적으로 무한스크롤 방식 사용
+        // 페이지네이션 타입이 null, NONE, INFINITE_SCROLL이면 무한스크롤 크롤링
+        if (parsingSelector.getPaginationType() == null
+            || "NONE".equals(parsingSelector.getPaginationType())
+            || "INFINITE_SCROLL".equals(parsingSelector.getPaginationType())) {
+            log.info("페이지네이션 타입이 {} - 무한스크롤 크롤링: {}",
+                    parsingSelector.getPaginationType(), corporation.getName());
+            return crawlWithInfiniteScroll(driver, corporation);
+        }
+
+        List<Article> allArticles = new ArrayList<>();
+        int currentPage = 1;
+        Integer maxPages = parsingSelector.getMaxPages();
+        String paginationType = parsingSelector.getPaginationType();
+
+        log.info("전체 페이지 크롤링 시작 - 기업: {}, 타입: {}, 최대 페이지: {}",
+                corporation.getName(), paginationType, maxPages != null ? maxPages : "무제한");
+
+        try {
+            // Medium bot 감지 우회를 위한 추가 설정
+            setupAntiDetection(driver);
+
+            while (true) {
+                // 페이지 URL 생성 및 이동
+                String pageUrl = buildPageUrl(corporation.getBlogLink(), currentPage);
+                log.info("페이지 {} 크롤링 시작: {}", currentPage, pageUrl);
+
+                List<Article> pageArticles = crawlHtmlWithInfiniteScroll(driver, corporation, pageUrl);
+                log.debug("발견된 article 수: {}", pageArticles.size());
+
+                if (pageArticles.isEmpty()) {
+                    log.info("페이지 {}에서 글을 찾지 못함 - 크롤링 종료", currentPage);
+                    break;
+                }
+
+                allArticles.addAll(pageArticles);
+                log.info("페이지 {} 크롤링 완료: {}개 글 수집 (총 {}개)", currentPage, pageArticles.size(), allArticles.size());
+
+                // 최대 페이지 체크
+                if (maxPages != null && currentPage >= maxPages) {
+                    log.info("최대 페이지 {}에 도달 - 크롤링 종료", maxPages);
+                    break;
+                }
+
+                // 다음 페이지 존재 여부 확인
+                if (!hasNextPage(driver, paginationType)) {
+                    log.info("다음 페이지가 없음 - 크롤링 종료");
+                    break;
+                }
+
+                currentPage++;
+                Thread.sleep(2000 + random.nextInt(2000)); // 페이지 간 딜레이 (2-4초)
+            }
+
+            log.info("전체 페이지 크롤링 완료 - 기업: {}, 총 페이지: {}, 총 글: {}개",
+                    corporation.getName(), currentPage, allArticles.size());
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new CrawlerException("CRAWLER_INTERRUPTED", "Crawling interrupted", e) {};
+        } catch (CrawlerException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("전체 페이지 크롤링 중 오류 - 기업: {}", corporation.getName(), e);
+            throw new CrawlerException("CRAWLER_ERROR", "Error during multi-page crawling", e) {};
+        }
+
+        return allArticles;
+    }
+
+    /**
+     * 페이지 URL 생성
+     */
+    private String buildPageUrl(String baseUrl, int pageNumber) {
+        // baseUrl에서 /page/숫자 패턴 제거 (정규화)
+        String normalizedBaseUrl = baseUrl.replaceAll("\\/page\\/\\d+", "");
+
+        String paginationType = parsingSelector.getPaginationType();
+        String pattern = parsingSelector.getPageUrlPattern();
+
+        if ("URL_PARAMETER".equals(paginationType) && pattern != null) {
+            String pageParam = pattern.replace("{page}", String.valueOf(pageNumber));
+            // URL에 이미 쿼리 파라미터가 있는지 확인
+            if (pattern.startsWith("?")) {
+                // 쿼리 파라미터 형식
+                if (normalizedBaseUrl.contains("?")) {
+                    return normalizedBaseUrl + "&" + pageParam.substring(1);
+                } else {
+                    return normalizedBaseUrl + pageParam;
+                }
+            } else if (pattern.startsWith("/")) {
+                // 경로 형식
+                return normalizedBaseUrl + pattern.replace("{page}", String.valueOf(pageNumber));
+            } else {
+                // 기본적으로 쿼리 파라미터로 추가
+                return normalizedBaseUrl + (normalizedBaseUrl.contains("?") ? "&" : "?") + pageParam;
+            }
+        }
+
+        // 기본값: 쿼리 파라미터로 추가
+        return normalizedBaseUrl + (normalizedBaseUrl.contains("?") ? "&" : "?") + "page=" + pageNumber;
+    }
+
+    /**
+     * 다음 페이지 존재 여부 확인
+     */
+    private boolean hasNextPage(WebDriver driver, String paginationType) {
+        if ("NEXT_BUTTON".equals(paginationType)) {
+            try {
+                String nextPageSelector = parsingSelector.getNextPageSelector();
+                if (nextPageSelector != null && !nextPageSelector.trim().isEmpty()) {
+                    // ✅ JavaScript로 현재 렌더링된 DOM 가져오기
+                    JavascriptExecutor js = (JavascriptExecutor) driver;
+                    String currentHtml = (String) js.executeScript("return document.documentElement.outerHTML;");
+                    Document doc = Jsoup.parse(currentHtml);
+                    Elements nextButtons = doc.select(nextPageSelector);
+                    return !nextButtons.isEmpty();
+                }
+            } catch (Exception e) {
+                log.warn("다음 페이지 버튼 확인 실패: {}", e.getMessage());
+            }
+            return false;
+        }
+
+        // URL_PARAMETER는 항상 true (빈 페이지로 감지)
+        return true;
+    }
+
+    /**
+     * 무한스크롤 크롤링 (페이지 끝까지)
+     * 하이브리드 방식: 첫 로드는 Apollo State, 스크롤 후에는 DOM 파싱
+     */
+    private List<Article> crawlWithInfiniteScroll(WebDriver driver, Corporation corporation) throws CrawlerException {
+        java.util.Set<String> collectedLinks = new java.util.HashSet<>();
+        List<Article> allArticles = new ArrayList<>();
+
+        try {
+            // Medium bot 감지 우회
+            setupAntiDetection(driver);
+
+            driver.get(corporation.getBlogLink());
+
+            // 인간처럼 행동 (페이지 로딩 대기 포함)
+            simulateHumanBehavior(driver);
+
+            // JavaScript 실행 완료 대기
+            waitForJavaScriptToLoad(driver);
+
+            JavascriptExecutor js = (JavascriptExecutor) driver;
+
+            // ✅ 첫 로드: APOLLO_STATE에서 데이터 추출
+            String apolloStateJson = (String) js.executeScript(
+                "return JSON.stringify(window.__APOLLO_STATE__ || {});"
+            );
+
+            if (apolloStateJson != null && !apolloStateJson.equals("{}")) {
+                log.info("첫 로드 - APOLLO_STATE JSON 추출 완료: {} bytes", apolloStateJson.length());
+                List<Article> initialArticles = parseArticlesFromApolloState(apolloStateJson, corporation);
+
+                // 링크 중복 방지를 위해 Set에 추가
+                for (Article article : initialArticles) {
+                    if (article.getLink() != null && !collectedLinks.contains(article.getLink())) {
+                        collectedLinks.add(article.getLink());
+                        allArticles.add(article);
+                    }
+                }
+
+                log.info("첫 로드 완료 - APOLLO_STATE에서 {}개 수집", initialArticles.size());
+            }
+
+            int maxScrollAttempts = 50; // 최대 스크롤 횟수 (안전장치)
+            int noNewArticlesCount = 0;  // 새 article이 없는 연속 횟수
+            int scrollCount = 0;
+
+            log.info("Medium 무한스크롤 크롤링 시작 - 기업: {}", corporation.getName());
+
+            while (scrollCount < maxScrollAttempts) {
+                // 페이지 끝까지 스크롤
+                scrollToBottom(driver);
+
+                // 새 콘텐츠 로딩 대기 (스크롤 후 Medium이 새 글을 로드하는 시간)
+                Thread.sleep(3000 + random.nextInt(2000)); // 3-5초 대기
+
+                // 스크롤 전 수집된 글 개수
+                int beforeCount = collectedLinks.size();
+
+                // ✅ 스크롤 후: DOM에서 새로운 article 요소 파싱
+                String currentHtml = (String) js.executeScript("return document.documentElement.outerHTML;");
+                Document doc = Jsoup.parse(currentHtml);
+                Elements articleElements = doc.select("article");
+
+                log.debug("스크롤 {}: DOM에서 발견된 article 요소 수: {}", scrollCount + 1, articleElements.size());
+
+                for (Element element : articleElements) {
+                    try {
+                        Article article = parseArticleFromElement(element, corporation, driver);
+                        if (article != null && article.getLink() != null && !collectedLinks.contains(article.getLink())) {
+                            collectedLinks.add(article.getLink());
+                            allArticles.add(article);
+                        }
+                    } catch (Exception e) {
+                        log.debug("Article 파싱 실패: {}", e.getMessage());
+                    }
+                }
+
+                // 스크롤 후 수집된 글 개수
+                int afterCount = collectedLinks.size();
+
+                // 새로운 article이 추가되었는지 확인
+                if (afterCount == beforeCount) {
+                    noNewArticlesCount++;
+                    log.debug("스크롤 {}: 새로운 article 없음 ({}/3)", scrollCount + 1, noNewArticlesCount);
+                    if (noNewArticlesCount >= 3) {
+                        log.info("연속 3번 새 article 없음 - 크롤링 종료");
+                        break;
+                    }
+                } else {
+                    int newCount = afterCount - beforeCount;
+                    noNewArticlesCount = 0;
+                    log.info("스크롤 {}: 새로운 article {}개 발견 (총 {}개)", scrollCount + 1, newCount, afterCount);
+                }
+
+                scrollCount++;
+            }
+
+            if (scrollCount >= maxScrollAttempts) {
+                log.warn("최대 스크롤 횟수 {}회 도달 - 크롤링 종료", maxScrollAttempts);
+            }
+
+            log.info("Medium 무한스크롤 크롤링 완료 - 기업: {}, 총 스크롤: {}회, 총 글: {}개",
+                    corporation.getName(), scrollCount, allArticles.size());
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw CrawlerTimeoutException.pageLoadTimeout(corporation.getBlogLink(), 10);
+        } catch (Exception e) {
+            log.error("Medium 무한스크롤 크롤링 중 오류 - 기업: {}", corporation.getName(), e);
+            throw new CrawlerException("CRAWLER_ERROR", "Error during Medium infinite scroll crawling", e) {};
+        }
+
+        return allArticles;
+    }
+
+    /**
+     * 페이지 끝까지 스크롤 (점진적 스크롤 + 로딩 대기)
+     */
+    private void scrollToBottom(WebDriver driver) throws InterruptedException {
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+
+        // 현재 스크롤 높이 저장
+        Long lastHeight = (Long) js.executeScript("return document.body.scrollHeight");
+
+        // 점진적 스크롤 (여러 단계로 나눠서 스크롤)
+        // Medium의 lazy loading을 트리거하기 위해 천천히 스크롤
+        for (int i = 0; i < 5; i++) {
+            // 현재 높이의 일부씩 스크롤 (20%씩)
+            js.executeScript("window.scrollBy(0, document.body.scrollHeight / 5)");
+            Thread.sleep(300 + random.nextInt(200)); // 300-500ms 대기
+        }
+
+        // 완전히 끝까지 스크롤
+        js.executeScript("window.scrollTo(0, document.body.scrollHeight)");
+
+        // 새 콘텐츠 로딩 대기 (높이 변화 감지)
+        int waitAttempts = 0;
+        int maxWaitAttempts = 10; // 최대 5초 대기 (10 * 500ms)
+
+        while (waitAttempts < maxWaitAttempts) {
+            Thread.sleep(500);
+            Long newHeight = (Long) js.executeScript("return document.body.scrollHeight");
+
+            // 높이가 변했으면 새 콘텐츠가 로드된 것
+            if (!newHeight.equals(lastHeight)) {
+                log.debug("스크롤 높이 변화 감지: {} -> {}", lastHeight, newHeight);
+                lastHeight = newHeight;
+
+                // 추가 콘텐츠가 더 로드될 수 있으므로 조금 더 대기
+                Thread.sleep(1000);
+                break;
+            }
+
+            waitAttempts++;
+        }
+
+        if (waitAttempts >= maxWaitAttempts) {
+            log.debug("스크롤 높이 변화 없음 - 더 이상 로드할 콘텐츠가 없을 수 있음");
+        }
+    }
+
+    /**
+     * 현재 페이지에서 article 파싱 (중복 제거)
+     * JavaScript로 현재 렌더링된 DOM을 가져와서 파싱
+     */
+    private List<Article> parseArticlesFromCurrentPage(WebDriver driver, Corporation corporation, java.util.Set<String> collectedLinks) {
+        List<Article> newArticles = new ArrayList<>();
+
+        // ✅ 핵심: JavaScript로 현재 렌더링된 DOM의 HTML을 가져옴
+        // driver.getPageSource()는 초기 HTML만 반환하지만,
+        // document.documentElement.outerHTML은 현재 렌더링된 DOM을 반환
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+        String currentHtml = (String) js.executeScript("return document.documentElement.outerHTML;");
+
+        Document doc = Jsoup.parse(currentHtml);
+
+        // Medium article 셀렉터
+        Elements articleElements = doc.select("article[data-testid='post-preview']");
+
+        log.info("발견된 Medium 아티클 요소 수: {}", articleElements.size());
+
+        for (Element element : articleElements) {
+            try {
+                Article article = parseArticleFromElement(element, corporation, driver);
+                if (article != null && article.getLink() != null && !collectedLinks.contains(article.getLink())) {
+                    collectedLinks.add(article.getLink());
+                    newArticles.add(article);
+                    log.debug("새 article 추가: {}", article.getTitle());
+                } else if (article != null && article.getLink() != null) {
+                    log.debug("중복 article 스킵: {}", article.getLink());
+                } else if (article != null) {
+                    log.debug("링크가 없는 article 스킵");
+                } else {
+                    log.debug("파싱 결과가 null인 article");
+                }
+            } catch (Exception e) {
+                log.warn("Medium 아티클 파싱 실패: {}", e.getMessage());
+            }
+        }
+
+        log.info("현재 페이지에서 추가된 새 article 수: {}", newArticles.size());
+
+        return newArticles;
+    }
+
+    /**
+     * HTML 파일 저장 (디버깅용)
+     */
+    private void saveHtmlToFile(String html, String corporationName, String methodName) {
+        try {
+            // debug_html 디렉토리 생성
+            Path debugDir = Path.of("debug_html");
+            if (!Files.exists(debugDir)) {
+                Files.createDirectories(debugDir);
+            }
+
+            // 파일명: medium_{corporationName}_{methodName}_{timestamp}.html
+            String timestamp = java.time.LocalDateTime.now()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+            String sanitizedName = corporationName.replaceAll("[^a-zA-Z0-9가-힣]", "_");
+            String fileName = String.format("medium_%s_%s_%s.html", sanitizedName, methodName, timestamp);
+            Path filePath = debugDir.resolve(fileName);
+
+            // HTML 저장
+            Files.writeString(filePath, html);
+            log.info("Medium HTML 저장 완료: {}", filePath);
+
+        } catch (Exception e) {
+            log.warn("Medium HTML 저장 실패: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * window.__APOLLO_STATE__에서 Article 목록 파싱
+     */
+    private List<Article> parseArticlesFromApolloState(String apolloStateJson, Corporation corporation) {
+        return parseArticlesFromApolloStateWithDedup(apolloStateJson, corporation, null);
+    }
+
+    /**
+     * window.__APOLLO_STATE__에서 Article 목록 파싱 (중복 제거 지원)
+     * @param apolloStateJson Apollo State JSON
+     * @param corporation 기업 정보
+     * @param collectedPostIds 이미 수집한 Post ID Set (null이면 중복 체크 안 함)
+     * @return 새로 파싱된 Article 목록
+     */
+    private List<Article> parseArticlesFromApolloStateWithDedup(
+            String apolloStateJson,
+            Corporation corporation,
+            java.util.Set<String> collectedPostIds) {
+        List<Article> articles = new ArrayList<>();
+
+        try {
+            // JSON 파싱
+            JsonNode root = objectMapper.readTree(apolloStateJson);
+
+            // Publication ID 찾기 (ROOT_QUERY에서)
+            JsonNode rootQuery = root.get("ROOT_QUERY");
+            if (rootQuery == null) {
+                log.warn("ROOT_QUERY를 찾을 수 없습니다");
+                return articles;
+            }
+
+            // Publication 참조 찾기
+            String publicationRef = null;
+            java.util.Iterator<String> publicationKeys = rootQuery.fieldNames();
+            while (publicationKeys.hasNext()) {
+                String key = publicationKeys.next();
+                if (key.contains("publicationByRef") || key.contains("collectionByDomainOrSlug")) {
+                    JsonNode refNode = rootQuery.get(key).get("__ref");
+                    if (refNode != null) {
+                        publicationRef = refNode.asText();
+                        break;
+                    }
+                }
+            }
+
+            if (publicationRef == null) {
+                log.warn("Publication 참조를 찾을 수 없습니다");
+                return articles;
+            }
+
+            log.debug("Publication 참조 찾음: {}", publicationRef);
+
+            // Publication 객체에서 posts 찾기
+            JsonNode publication = root.get(publicationRef);
+            if (publication == null) {
+                log.warn("Publication 객체를 찾을 수 없습니다: {}", publicationRef);
+                return articles;
+            }
+
+            // publicationPostsConnection 찾기
+            JsonNode postsConnection = null;
+            java.util.Iterator<String> publicationFieldNames = publication.fieldNames();
+            while (publicationFieldNames.hasNext()) {
+                String key = publicationFieldNames.next();
+                if (key.contains("publicationPostsConnection")) {
+                    postsConnection = publication.get(key);
+                    break;
+                }
+            }
+
+            if (postsConnection == null) {
+                log.warn("publicationPostsConnection을 찾을 수 없습니다");
+                return articles;
+            }
+
+            // edges 배열에서 Post 추출
+            JsonNode edges = postsConnection.get("edges");
+            if (edges == null || !edges.isArray()) {
+                log.warn("edges 배열을 찾을 수 없습니다");
+                return articles;
+            }
+
+            log.debug("Post edges 찾음: {}개", edges.size());
+
+            // 각 edge에서 Post 참조 추출
+            for (JsonNode edge : edges) {
+                try {
+                    JsonNode nodeRef = edge.get("node").get("__ref");
+                    if (nodeRef == null) continue;
+
+                    String postRef = nodeRef.asText();
+
+                    // 중복 체크 (collectedPostIds가 null이 아닌 경우)
+                    if (collectedPostIds != null) {
+                        // Post ID 추출 (예: "Post:abc123" -> "abc123")
+                        String postId = postRef.replace("Post:", "");
+                        if (collectedPostIds.contains(postId)) {
+                            log.debug("중복 Post 스킵: {}", postId);
+                            continue;
+                        }
+                        collectedPostIds.add(postId);
+                    }
+
+                    JsonNode postNode = root.get(postRef);
+                    if (postNode == null) continue;
+
+                    Article article = parseArticleFromApolloPost(postNode, root, corporation);
+                    if (article != null) {
+                        articles.add(article);
+                        log.debug("Article 파싱 완료: {}", article.getTitle());
+                    }
+                } catch (Exception e) {
+                    log.warn("Post 파싱 실패: {}", e.getMessage());
+                }
+            }
+
+        } catch (Exception e) {
+            log.error("APOLLO_STATE 파싱 실패: {}", e.getMessage(), e);
+        }
+
+        return articles;
+    }
+
+    /**
+     * Apollo State의 Post 노드에서 Article 생성
+     */
+    private Article parseArticleFromApolloPost(JsonNode postNode, JsonNode root, Corporation corporation) {
+        try {
+            // 제목
+            String title = postNode.get("title").asText();
+            if (title == null || title.isEmpty()) return null;
+
+            // URL
+            String link = "";
+            JsonNode mediumUrlNode = postNode.get("mediumUrl");
+            if (mediumUrlNode != null) {
+                link = mediumUrlNode.asText();
+            } else {
+                // uniqueSlug로 URL 생성
+                JsonNode uniqueSlugNode = postNode.get("uniqueSlug");
+                if (uniqueSlugNode != null) {
+                    link = "https://medium.com/" + uniqueSlugNode.asText();
+                }
+            }
+
+            if (link.isEmpty()) return null;
+
+            // 썸네일 이미지
+            String thumbnailImage = "";
+            JsonNode previewImageRef = postNode.get("previewImage");
+            if (previewImageRef != null) {
+                JsonNode imageRefNode = previewImageRef.get("__ref");
+                if (imageRefNode != null) {
+                    String imageRef = imageRefNode.asText();
+                    JsonNode imageNode = root.get(imageRef);
+                    if (imageNode != null) {
+                        String imageId = imageNode.get("id").asText();
+                        // Medium 이미지 URL 생성
+                        thumbnailImage = "https://miro.medium.com/v2/resize:fit:1200/" + imageId;
+                    }
+                }
+            }
+
+            // 발행일
+            LocalDateTime publishedAt;
+            JsonNode firstPublishedAtNode = postNode.get("firstPublishedAt");
+            if (firstPublishedAtNode != null) {
+                long timestamp = firstPublishedAtNode.asLong();
+                // milliseconds timestamp를 LocalDateTime으로 변환
+                publishedAt = LocalDateTime.ofInstant(
+                    java.time.Instant.ofEpochMilli(timestamp),
+                    ZoneId.of("Asia/Seoul")
+                );
+            } else {
+                publishedAt = TimeUtil.nowInSeoul();
+            }
+
+            // 요약 (extendedPreviewContent의 subtitle)
+            String summary = "";
+            JsonNode extendedPreviewNode = postNode.get("extendedPreviewContent");
+            if (extendedPreviewNode != null) {
+                JsonNode subtitleNode = extendedPreviewNode.get("subtitle");
+                if (subtitleNode != null) {
+                    summary = subtitleNode.asText();
+                }
+            }
+
+            return Article.builder()
+                    .corporation(corporation)
+                    .title(title)
+                    .summary(summary)
+                    .link(link)
+                    .thumbnailImage(thumbnailImage)
+                    .publishedAt(publishedAt)
+                    .viewCount(0)
+                    .likeCount(0)
+                    .build();
+
+        } catch (Exception e) {
+            log.warn("Apollo Post 파싱 오류: {}", e.getMessage());
+            return null;
         }
     }
 }

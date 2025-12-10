@@ -766,6 +766,12 @@ public class DefaultBlogCrawler implements BlogCrawler {
             return crawl(driver, corporation);
         }
 
+        // INFINITE_SCROLL 타입이면 무한스크롤 전용 로직 사용
+        if ("INFINITE_SCROLL".equals(parsingSelector.getPaginationType())) {
+            log.info("페이지네이션 타입이 INFINITE_SCROLL - 무한스크롤 크롤링: {}", corporation.getName());
+            return crawlWithInfiniteScroll(driver, corporation);
+        }
+
         List<Article> allArticles = new ArrayList<>();
         int currentPage = 1;
         Integer maxPages = parsingSelector.getMaxPages();
@@ -883,8 +889,103 @@ public class DefaultBlogCrawler implements BlogCrawler {
             return false;
         }
 
-        // URL_PARAMETER와 INFINITE_SCROLL은 항상 true (빈 페이지로 감지)
+        // URL_PARAMETER는 항상 true (빈 페이지로 감지)
         return true;
+    }
+
+    /**
+     * 무한스크롤 크롤링
+     */
+    private List<Article> crawlWithInfiniteScroll(WebDriver driver, Corporation corporation) throws CrawlerException {
+        java.util.Set<String> collectedLinks = new java.util.HashSet<>();
+        List<Article> allArticles = new ArrayList<>();
+
+        try {
+            driver.get(corporation.getBlogLink());
+            Thread.sleep(5000); // 초기 페이지 로딩 대기
+
+            int maxScrollAttempts = 100; // 최대 스크롤 횟수 (안전장치)
+            int noNewArticlesCount = 0;  // 새 article이 없는 연속 횟수
+            int scrollCount = 0;
+
+            log.info("무한스크롤 크롤링 시작 - 기업: {}", corporation.getName());
+
+            while (scrollCount < maxScrollAttempts) {
+                // 현재 페이지에서 article 수집
+                int beforeCount = collectedLinks.size();
+                List<Article> newArticles = parseArticlesFromCurrentPage(driver, corporation, collectedLinks);
+                allArticles.addAll(newArticles);
+                int afterCount = collectedLinks.size();
+
+                // 새로운 article이 추가되었는지 확인
+                if (afterCount == beforeCount) {
+                    noNewArticlesCount++;
+                    log.debug("스크롤 {}: 새로운 article 없음 ({}/3)", scrollCount + 1, noNewArticlesCount);
+                    if (noNewArticlesCount >= 3) {
+                        log.info("연속 3번 새 article 없음 - 크롤링 종료");
+                        break;
+                    }
+                } else {
+                    int newCount = afterCount - beforeCount;
+                    noNewArticlesCount = 0;
+                    log.info("스크롤 {}: 새로운 article {}개 발견 (총 {}개)", scrollCount + 1, newCount, afterCount);
+                }
+
+                // 페이지 끝까지 스크롤
+                scrollToBottom(driver);
+                Thread.sleep(2000 + random.nextInt(1000)); // 새 콘텐츠 로딩 대기
+
+                scrollCount++;
+            }
+
+            if (scrollCount >= maxScrollAttempts) {
+                log.warn("최대 스크롤 횟수 {}회 도달 - 크롤링 종료", maxScrollAttempts);
+            }
+
+            log.info("무한스크롤 크롤링 완료 - 기업: {}, 총 스크롤: {}회, 총 글: {}개",
+                    corporation.getName(), scrollCount, allArticles.size());
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw CrawlerTimeoutException.pageLoadTimeout(corporation.getBlogLink(), 10);
+        } catch (Exception e) {
+            log.error("무한스크롤 크롤링 중 오류 - 기업: {}", corporation.getName(), e);
+            throw new CrawlerException("CRAWLER_ERROR", "Error during infinite scroll crawling", e) {};
+        }
+
+        return allArticles;
+    }
+
+    /**
+     * 페이지 끝까지 스크롤
+     */
+    private void scrollToBottom(WebDriver driver) {
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+        js.executeScript("window.scrollTo(0, document.body.scrollHeight)");
+    }
+
+    /**
+     * 현재 페이지에서 article 파싱 (중복 제거)
+     */
+    private List<Article> parseArticlesFromCurrentPage(WebDriver driver, Corporation corporation, java.util.Set<String> collectedLinks) {
+        List<Article> newArticles = new ArrayList<>();
+        String pageSource = driver.getPageSource();
+        Document doc = Jsoup.parse(pageSource);
+
+        Elements articleElements = doc.select(parsingSelector.getArticle());
+        for (Element element : articleElements) {
+            try {
+                Article article = parseArticle(element, corporation);
+                if (article != null && article.getLink() != null && !collectedLinks.contains(article.getLink())) {
+                    collectedLinks.add(article.getLink());
+                    newArticles.add(article);
+                }
+            } catch (Exception e) {
+                log.warn("기본 크롤러 개별 아티클 파싱 실패: {}", e.getMessage());
+            }
+        }
+
+        return newArticles;
     }
 
 }

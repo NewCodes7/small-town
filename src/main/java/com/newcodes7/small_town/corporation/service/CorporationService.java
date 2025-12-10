@@ -139,10 +139,14 @@ public class CorporationService {
                 .thumbnail(dto.getThumbnail())
                 .publish(dto.getPublish())
                 .publishFormat(dto.getPublishFormat())
+                .paginationType(dto.getPaginationType())
+                .pageUrlPattern(dto.getPageUrlPattern())
+                .nextPageSelector(dto.getNextPageSelector())
+                .maxPages(dto.getMaxPages())
                 .build();
 
         parsingSelectorRepository.save(parsingSelector);
-        
+
         // 업종 관계 설정
         if (dto.getIndustryIds() != null && !dto.getIndustryIds().isEmpty()) {
             List<Industry> industries = industryRepository.findAllById(dto.getIndustryIds());
@@ -249,6 +253,10 @@ public class CorporationService {
         parsingSelector.setThumbnail(dto.getThumbnail());
         parsingSelector.setPublish(dto.getPublish());
         parsingSelector.setPublishFormat(dto.getPublishFormat());
+        parsingSelector.setPaginationType(dto.getPaginationType());
+        parsingSelector.setPageUrlPattern(dto.getPageUrlPattern());
+        parsingSelector.setNextPageSelector(dto.getNextPageSelector());
+        parsingSelector.setMaxPages(dto.getMaxPages());
         parsingSelectorRepository.save(parsingSelector);
 
         // Nginx 캐시 purge
@@ -346,6 +354,10 @@ public class CorporationService {
                 .thumbnail(dto.getThumbnail())
                 .publish(dto.getPublish())
                 .publishFormat(dto.getPublishFormat())
+                .paginationType(dto.getPaginationType())
+                .pageUrlPattern(dto.getPageUrlPattern())
+                .nextPageSelector(dto.getNextPageSelector())
+                .maxPages(dto.getMaxPages())
                 .build();
 
         parsingSelectorRepository.save(parsingSelector);
@@ -509,6 +521,10 @@ public class CorporationService {
         parsingSelector.setThumbnail(dto.getThumbnail());
         parsingSelector.setPublish(dto.getPublish());
         parsingSelector.setPublishFormat(dto.getPublishFormat());
+        parsingSelector.setPaginationType(dto.getPaginationType());
+        parsingSelector.setPageUrlPattern(dto.getPageUrlPattern());
+        parsingSelector.setNextPageSelector(dto.getNextPageSelector());
+        parsingSelector.setMaxPages(dto.getMaxPages());
         parsingSelectorRepository.save(parsingSelector);
 
         // Nginx 캐시 purge

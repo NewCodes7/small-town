@@ -29,12 +29,14 @@ public class WebDriverConfig {
         ChromeOptions options = new ChromeOptions();
 
         // GUI 없이 백그라운드에서 실행하도록 설정
-        options.addArguments("--headless=new");
+        if (webDriverProperties.isHeadless()) {
+            options.addArguments("--headless=new");
+        }
 
-        // 해외 블로그의 경우 한국 시간으로 보기 위해 설정 
+        // 해외 블로그의 경우 한국 시간으로 보기 위해 설정
         options.addArguments("--timezone=Asia/Seoul");
 
-        // TODO: 권한 문제로 인해 필요하지만, 보안 문제로 개선 필요 
+        // TODO: 권한 문제로 인해 필요하지만, 보안 문제로 개선 필요
         options.addArguments("--no-sandbox");
         // 도커(Docker)와 같은 컨테이너 환경에서 메모리 부족 문제를 방지하기 위해 사용
         options.addArguments("--disable-dev-shm-usage");
@@ -45,16 +47,42 @@ public class WebDriverConfig {
         // 특정 User-Agent를 필요로 하는 웹사이트에 접속할 때 사용
         options.addArguments("--user-agent=" + webDriverProperties.getUserAgent());
 
-        // Medium bot 감지 우회를 위한 추가 옵션들
+        // ===== Medium bot 감지 우회를 위한 강화된 옵션들 =====
+        // Automation 플래그 제거 (가장 중요)
         options.addArguments("--disable-blink-features=AutomationControlled");
+
+        // 확장 프로그램 비활성화
         options.addArguments("--disable-extensions");
         options.addArguments("--disable-plugins");
+
+        // 초기 실행 관련
         options.addArguments("--no-first-run");
         options.addArguments("--disable-default-apps");
+
+        // 팝업 및 인증서
         options.addArguments("--disable-popup-blocking");
         options.addArguments("--ignore-certificate-errors");
         options.addArguments("--ignore-ssl-errors");
         options.addArguments("--allow-running-insecure-content");
+
+        // 추가 bot 감지 우회 옵션들
+        options.addArguments("--disable-web-security");
+        options.addArguments("--disable-features=IsolateOrigins,site-per-process");
+        options.addArguments("--allow-insecure-localhost");
+        options.addArguments("--disable-infobars");
+        options.addArguments("--disable-logging");
+        options.addArguments("--disable-login-animations");
+        options.addArguments("--disable-notifications");
+        options.addArguments("--disable-background-timer-throttling");
+        options.addArguments("--disable-backgrounding-occluded-windows");
+        options.addArguments("--disable-renderer-backgrounding");
+        options.addArguments("--disable-features=TranslateUI");
+        options.addArguments("--disable-ipc-flooding-protection");
+        options.addArguments("--enable-features=NetworkService,NetworkServiceInProcess");
+
+        // 언어 설정 (한국어 + 영어)
+        options.addArguments("--lang=ko-KR");
+        options.addArguments("--accept-lang=ko-KR,ko,en-US,en");
 
         // 메모리 효율성 개선 옵션들 (Chrome 안정성 유지하면서 최적화)
         options.addArguments("--disable-software-rasterizer");  // SW 렌더링 비활성화
@@ -67,17 +95,22 @@ public class WebDriverConfig {
         // 주의: --single-process는 Chrome 크래시 유발 가능하므로 제거
         // 주의: --no-zygote는 headless 모드에서 문제 발생 가능하므로 제거
 
-        options.setPageLoadStrategy(PageLoadStrategy.EAGER);
-        
-        // 자동화 감지 방지
+        options.setPageLoadStrategy(PageLoadStrategy.NORMAL);
+
+        // 자동화 감지 방지 (가장 중요!)
         options.setExperimentalOption("useAutomationExtension", false);
-        options.setExperimentalOption("excludeSwitches", new String[]{"enable-automation"});
-        
+        options.setExperimentalOption("excludeSwitches", new String[]{"enable-automation", "enable-logging"});
+
         // 추가 preferences 설정
         Map<String, Object> prefs = new HashMap<>();
         prefs.put("profile.default_content_setting_values.notifications", 2); // 알림 차단
         prefs.put("profile.default_content_settings.popups", 0); // 팝업 차단
-        prefs.put("profile.managed_default_content_settings.images", 2); // 이미지 차단
+        // 이미지 로딩 활성화 (bot 감지 우회를 위해)
+        prefs.put("profile.managed_default_content_settings.images", 1); // 이미지 허용으로 변경
+        prefs.put("credentials_enable_service", false);
+        prefs.put("profile.password_manager_enabled", false);
+        // DevTools 자동 열림 방지
+        prefs.put("devtools.preferences.currentDockState", "\"undocked\"");
         options.setExperimentalOption("prefs", prefs);
 
         ChromeDriver driver = new ChromeDriver(options);

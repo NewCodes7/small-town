@@ -38,6 +38,9 @@
                         </form>
                     </div>
                     <div class="col-md-4 text-end">
+                        <button type="button" class="btn btn-success me-2" id="crawl-all-btn">
+                            <i class="fas fa-sync-alt me-2"></i>전체 크롤링
+                        </button>
                         <a th:href="@{/admin/corporations/new}" class="btn btn-primary">
                             <i class="fas fa-plus me-2"></i>기업 등록
                         </a>
@@ -69,7 +72,7 @@
                                     <i class="fas fa-ellipsis-v"></i>
                                 </button>
                                 <ul class="dropdown-menu">
-                                    <li><a class="dropdown-item" th:href="@{'/admin/corporations/' + ${corp.id} + '/edit'}">
+                                    <li><a class="dropdown-item" th:href="@{'/admin/corporations/' + ${corp.id} + '/edit'(page=${corporations.number}, search=${search})}">
                                         <i class="fas fa-edit me-2"></i>수정
                                     </a></li>
                                     <li><hr class="dropdown-divider"></li>
@@ -83,7 +86,7 @@
                                     <li><hr class="dropdown-divider"></li>
                                     <li>
                                         <form th:action="@{'/admin/corporations/' + ${corp.id} + '/delete'}" method="post" style="margin: 0;">
-                                            <button type="submit" class="dropdown-item text-danger" 
+                                            <button type="submit" class="dropdown-item text-danger"
                                                     onclick="return confirm('정말 삭제하시겠습니까?')">
                                                 <i class="fas fa-trash me-2"></i>삭제
                                             </button>
