@@ -1,5 +1,7 @@
-package com.newcodes7.small_town.crawler.service;
+package com.newcodes7.small_town.crawler.persistence;
 
+import com.newcodes7.small_town.crawler.crawler.BlogCrawler;
+import com.newcodes7.small_town.crawler.integration.openai.OpenaiService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;

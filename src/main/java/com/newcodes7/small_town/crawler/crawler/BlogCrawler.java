@@ -1,10 +1,11 @@
-package com.newcodes7.small_town.crawler.service;
+package com.newcodes7.small_town.crawler.crawler;
 
 import java.util.List;
 
 import org.openqa.selenium.WebDriver;
 
 import com.newcodes7.small_town.crawler.exception.CrawlerException;
+import com.newcodes7.small_town.crawler.integration.robotstxt.RobotsTxtService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 

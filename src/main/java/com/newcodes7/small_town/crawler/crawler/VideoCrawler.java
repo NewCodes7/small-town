@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.crawler.service;
+package com.newcodes7.small_town.crawler.crawler;
 
 import java.util.List;
 

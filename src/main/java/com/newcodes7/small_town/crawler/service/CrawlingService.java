@@ -31,6 +31,14 @@ import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.entity.Term;
 import com.newcodes7.small_town.global.entity.Video;
 import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
+import com.newcodes7.small_town.crawler.crawler.BlogCrawler;
+import com.newcodes7.small_town.crawler.crawler.VideoCrawler;
+import com.newcodes7.small_town.crawler.crawler.DefaultBlogCrawler;
+import com.newcodes7.small_town.crawler.crawler.MediumBlogCrawler;
+import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
+import com.newcodes7.small_town.crawler.persistence.VideoPersistenceService;
+import com.newcodes7.small_town.crawler.integration.openai.OpenaiService;
+import com.newcodes7.small_town.crawler.integration.robotstxt.RobotsTxtService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

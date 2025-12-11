@@ -1,5 +1,6 @@
-package com.newcodes7.small_town.crawler.service;
+package com.newcodes7.small_town.crawler.crawler;
 
+import com.newcodes7.small_town.crawler.integration.storage.S3ImageService;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

@@ -6,7 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.newcodes7.small_town.crawler.service.S3ImageService;
+import com.newcodes7.small_town.crawler.integration.storage.S3ImageService;
 
 import javax.imageio.ImageIO;
 import java.awt.*;

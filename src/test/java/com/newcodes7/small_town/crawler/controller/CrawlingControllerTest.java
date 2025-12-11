@@ -57,7 +57,7 @@ import com.newcodes7.small_town.crawler.dto.OpenAiResponse;
 import com.newcodes7.small_town.crawler.dto.YouTubeVideo;
 import com.newcodes7.small_town.crawler.entity.ParsingSelector;
 import com.newcodes7.small_town.crawler.repository.ParsingSelectorRepository;
-import com.newcodes7.small_town.crawler.service.YouTubeService;
+import com.newcodes7.small_town.crawler.integration.youtube.YouTubeService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.entity.Video;

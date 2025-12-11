@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.crawler.service;
+package com.newcodes7.small_town.crawler.integration.robotstxt;
 
 import com.newcodes7.small_town.crawler.dto.RobotsTxtRule;
 import lombok.extern.slf4j.Slf4j;

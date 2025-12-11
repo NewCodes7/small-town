@@ -1,5 +1,6 @@
-package com.newcodes7.small_town.crawler.service;
+package com.newcodes7.small_town.crawler.integration.translation;
 
+import com.newcodes7.small_town.crawler.persistence.VideoPersistenceService;
 import java.util.List;
 
 import org.springframework.stereotype.Service;

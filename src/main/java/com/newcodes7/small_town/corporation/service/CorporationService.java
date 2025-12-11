@@ -26,7 +26,7 @@ import com.newcodes7.small_town.corporation.repository.CorporationSpecification;
 import com.newcodes7.small_town.corporation.repository.IndustryRepository;
 import com.newcodes7.small_town.crawler.entity.ParsingSelector;
 import com.newcodes7.small_town.crawler.repository.ParsingSelectorRepository;
-import com.newcodes7.small_town.crawler.service.YouTubeService;
+import com.newcodes7.small_town.crawler.integration.youtube.YouTubeService;
 import com.newcodes7.small_town.global.cache.NginxCachePurgeService;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.util.KoreanCharacterUtil;

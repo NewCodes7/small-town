@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.crawler.service;
+package com.newcodes7.small_town.crawler.integration.youtube;
 
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.json.jackson2.JacksonFactory;

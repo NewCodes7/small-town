@@ -1,9 +1,9 @@
 package com.newcodes7.small_town.crawler.controller;
 
 import com.newcodes7.small_town.crawler.dto.CrawlResult;
-import com.newcodes7.small_town.crawler.service.ArticlePersistenceService;
+import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
 import com.newcodes7.small_town.crawler.service.CrawlingService;
-import com.newcodes7.small_town.crawler.service.TitleTranslationService;
+import com.newcodes7.small_town.crawler.integration.translation.TitleTranslationService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

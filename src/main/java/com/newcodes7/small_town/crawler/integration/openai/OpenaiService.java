@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.crawler.service;
+package com.newcodes7.small_town.crawler.integration.openai;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.crawler.service;
+package com.newcodes7.small_town.crawler.integration.storage;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.ObjectMetadata;

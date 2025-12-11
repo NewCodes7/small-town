@@ -1,5 +1,7 @@
-package com.newcodes7.small_town.crawler.service;
+package com.newcodes7.small_town.crawler.crawler;
 
+import com.newcodes7.small_town.crawler.integration.youtube.YouTubeService;
+import com.newcodes7.small_town.crawler.integration.storage.S3ImageService;
 import com.newcodes7.small_town.crawler.dto.YouTubeVideo;
 import com.newcodes7.small_town.crawler.exception.CrawlerException;
 import com.newcodes7.small_town.crawler.exception.NetworkAccessException;

@@ -31,8 +31,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.CorporationRepository;
-import com.newcodes7.small_town.crawler.service.ArticlePersistenceService;
-import com.newcodes7.small_town.crawler.service.DefaultBlogCrawler;
+import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
+import com.newcodes7.small_town.crawler.crawler.DefaultBlogCrawler;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.utils.ArticleCreator;

@@ -1,5 +1,6 @@
-package com.newcodes7.small_town.crawler.service;
+package com.newcodes7.small_town.crawler.crawler;
 
+import com.newcodes7.small_town.crawler.integration.storage.S3ImageService;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
