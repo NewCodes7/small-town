@@ -48,7 +48,7 @@
             <onMismatch>DENY</onMismatch>
         </filter>
         <encoder>
-            <pattern>${FILE_LOG_PATTERN}%ex{full}</pattern>
+            <pattern>${FILE_LOG_PATTERN}%ex{10}</pattern>
             <charset>UTF-8</charset>
         </encoder>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
@@ -83,7 +83,7 @@
             <onMismatch>DENY</onMismatch>
         </filter>
         <encoder>
-            <pattern>${FILE_LOG_PATTERN}%ex{full}</pattern>
+            <pattern>${FILE_LOG_PATTERN}%ex{10}</pattern>
             <charset>UTF-8</charset>
         </encoder>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">

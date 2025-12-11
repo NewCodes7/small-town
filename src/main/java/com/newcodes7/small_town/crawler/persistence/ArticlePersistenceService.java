@@ -167,10 +167,9 @@ public class ArticlePersistenceService {
                 log.info("AI 분석 완료: {}", article.getTitle());
             } catch (Exception e) {
                 failureCount++;
-                String errorMsg = String.format("글 ID %d (%s) 분석 실패: %s",
-                    article.getId(), article.getTitle(), e.getMessage());
-                errors.add(errorMsg);
-                log.error(errorMsg, e);
+                errors.add(String.format("글 ID %d (%s) 분석 실패: %s",
+                    article.getId(), article.getTitle(), e.getMessage()));
+                log.error("글 ID {} ({}) 분석 실패", article.getId(), article.getTitle(), e);
             }
         }
 
