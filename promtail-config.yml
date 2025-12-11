@@ -1,0 +1,98 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Blue 인스턴스 - 전체 로그
+  - job_name: small-town-blue
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: small-town
+          instance: blue
+          level: all
+          __path__: /logs/blue/small-town.log
+
+  # Blue 인스턴스 - 에러 로그
+  - job_name: small-town-blue-error
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: small-town
+          instance: blue
+          level: error
+          __path__: /logs/blue/small-town-error.log
+
+  # Blue 인스턴스 - 크롤러 로그
+  - job_name: crawler-blue
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: crawler
+          instance: blue
+          level: all
+          __path__: /logs/blue/crawler.log
+
+  # Blue 인스턴스 - 크롤러 에러 로그
+  - job_name: crawler-blue-error
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: crawler
+          instance: blue
+          level: error
+          __path__: /logs/blue/crawler-error.log
+
+  # Green 인스턴스 - 전체 로그
+  - job_name: small-town-green
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: small-town
+          instance: green
+          level: all
+          __path__: /logs/green/small-town.log
+
+  # Green 인스턴스 - 에러 로그
+  - job_name: small-town-green-error
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: small-town
+          instance: green
+          level: error
+          __path__: /logs/green/small-town-error.log
+
+  # Green 인스턴스 - 크롤러 로그
+  - job_name: crawler-green
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: crawler
+          instance: green
+          level: all
+          __path__: /logs/green/crawler.log
+
+  # Green 인스턴스 - 크롤러 에러 로그
+  - job_name: crawler-green-error
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: crawler
+          instance: green
+          level: error
+          __path__: /logs/green/crawler-error.log

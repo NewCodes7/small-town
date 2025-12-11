@@ -89,6 +89,29 @@ services:
       - GF_SMTP_STARTTLS_POLICY=
     restart: always
 
+  loki:
+    image: grafana/loki:2.9.3
+    container_name: loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - app-network
+    restart: always
+
+  promtail:
+    image: grafana/promtail:2.9.3
+    container_name: promtail
+    volumes:
+      - ./logs:/logs:ro
+      - ./promtail-config.yml:/etc/promtail/config.yml:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - app-network
+    restart: always
+    depends_on:
+      - loki
+
   node-exporter:
     image: prom/node-exporter:latest
     container_name: node-exporter
