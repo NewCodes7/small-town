@@ -130,7 +130,7 @@ public class NginxCachePurgeService {
                 log.warn("캐시 purge 응답 이상: {} - 상태코드: {}", path, response.getStatusCode());
             }
         } catch (Exception e) {
-            log.error("캐시 purge 요청 실패: {} - 오류: {}", path, e.getMessage());
+            log.error("캐시 purge 요청 실패: {} - 오류: {}", path, e.getMessage().substring(0, 10));
             throw new RuntimeException("캐시 purge 실패: " + path, e);
         }
     }
