@@ -140,50 +140,6 @@ public class CrawlingService {
     }
 
     /**
-     * 모든 기업의 블로그 및 YouTube 모두 크롤링 (동기 처리)
-     */
-    public List<CrawlResult> crawlAll() {
-        List<Corporation> corporations = crawlerCorporationRepository.findAllWithBlogLinkOrYoutubeChannel();
-        log.info("전체 크롤링 시작 - 대상 기업: {}개 (블로그 및 YouTube 포함)", corporations.size());
-
-        List<CrawlResult> results = new ArrayList<>();
-
-        // 기업별로 WebDriver를 새로 생성하여 메모리 누적 방지
-        for (Corporation corporation : corporations) {
-            WebDriver driver = null;
-            try {
-                driver = webDriverConfig.createWebDriver();
-                CrawlResult result = crawlSingleBlog(corporation.getId(), driver);
-                results.add(result);
-
-                log.info("기업 크롤링 완료 - {}: {}/{} 진행", corporation.getName(),
-                    results.size(), corporations.size());
-
-            } catch (Exception e) {
-                log.error("기업 ID {} 크롤링 중 오류 발생: {}", corporation.getId(), e.getMessage(), e);
-                results.add(CrawlResult.failure(corporation, "크롤링 실행 실패: " + e.getMessage()));
-            } finally {
-                if (driver != null) {
-                    webDriverConfig.forceCloseWebDriver(driver);
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        log.warn("메모리 정리 대기 중 인터럽트 발생");
-                    }
-                }
-            }
-        }
-
-        log.info("전체 크롤링 완료 - 처리된 기업: {}개", results.size());
-
-        // 크롤링 완료 후 선택적 캐시 purge
-        purgeCacheForCrawlResults(results);
-
-        return results;
-    }
-
-    /**
      * 크롤링 결과에 따라 선택적으로 캐시 purge
      * - 신규 글이 추가된 corporation만 개별 purge
      * - 전체적으로 신규 글이 1개 이상이면 home 페이지 purge

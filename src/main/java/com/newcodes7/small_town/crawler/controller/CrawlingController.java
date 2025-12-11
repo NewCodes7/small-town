@@ -25,40 +25,6 @@ public class CrawlingController {
     private final CrawlingService crawlingService;
     private final ArticlePersistenceService articlePersistenceService;
     private final VideoPersistenceService videoPersistenceService;
-    
-    /**
-     * 모든 기업의 블로그 및 YouTube 모두 크롤링 실행
-     */
-    @GetMapping("/all")
-    public ResponseEntity<Map<String, Object>> crawlAll() {
-        try {
-            log.info("전체 크롤링 API 호출 (블로그 + YouTube)");
-            List<CrawlResult> results = crawlingService.crawlAll();
-
-            long successCount = results.stream()
-                    .filter(CrawlResult::isSuccess)
-                    .count();
-
-            long totalNewArticles = results.stream()
-                    .filter(CrawlResult::isSuccess)
-                    .mapToLong(CrawlResult::getNewArticles)
-                    .sum();
-
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "message", "전체 크롤링이 완료되었습니다.",
-                "totalCorporations", results.size(),
-                "successCount", successCount,
-                "failureCount", results.size() - successCount,
-                "totalNewArticles", totalNewArticles,
-                "results", results
-            ));
-
-        } catch (Exception e) {
-            log.error("전체 크롤링 API 오류", e);
-            throw e;
-        }
-    }
 
     /**
      * 모든 기업의 블로그만 크롤링 실행
