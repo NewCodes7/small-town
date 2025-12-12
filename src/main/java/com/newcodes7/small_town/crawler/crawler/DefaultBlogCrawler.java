@@ -414,10 +414,18 @@ public class DefaultBlogCrawler implements BlogCrawler {
      * dd MMM yyyy 형식 파싱
      */
     private LocalDateTime parseDayMonthYearFormat(String dateText) {
-        dateText = dateText.replaceAll("[^a-zA-Z0-9\\s]", "").trim();
+        // "dd MMM yyyy" 패턴 추출 (예: "30 Jun 2025")
+        Pattern pattern = Pattern.compile("(\\d{1,2}\\s+[A-Za-z]{3}\\s+\\d{4})");
+        Matcher matcher = pattern.matcher(dateText);
+
+        if (!matcher.find()) {
+            throw new IllegalArgumentException("dd MMM yyyy 형식을 찾을 수 없습니다: " + dateText);
+        }
+
+        String extractedDate = matcher.group(1).trim();
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH);
-        LocalDate date = LocalDate.parse(dateText, formatter);
+        LocalDate date = LocalDate.parse(extractedDate, formatter);
         return TimeUtil.dateWithSeoulTime(date);
     }
 
