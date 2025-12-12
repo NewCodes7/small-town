@@ -308,8 +308,16 @@ public class DefaultBlogCrawler implements BlogCrawler {
      */
     private LocalDateTime parsePublishedDate(Element element) {
         Element publishElement = element.selectFirst(parsingSelector.getPublish());
-        String publishFormat = parsingSelector.getPublishFormat();
+        if (publishElement == null) {
+            throw new IllegalStateException("발행일 요소를 찾을 수 없습니다. 셀렉터: " + parsingSelector.getPublish());
+        }
+
         String dateText = publishElement.text().trim();
+        if (dateText.isEmpty()) {
+            throw new IllegalArgumentException("발행일 텍스트가 비어있습니다. 요소: " + publishElement.outerHtml());
+        }
+
+        String publishFormat = parsingSelector.getPublishFormat();
         LocalDateTime publishedAt;
 
         if (publishFormat.equals("yyyy.MM.dd")
