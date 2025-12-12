@@ -124,7 +124,7 @@
             <appender-ref ref="ERROR_FILE"/>
         </root>
         <logger name="com.newcodes7.small_town" level="INFO"/>
-        <logger name="com.newcodes7.small_town.crawler" level="DEBUG" additivity="false">
+        <logger name="com.newcodes7.small_town.crawler" level="INFO" additivity="false">
             <appender-ref ref="CRAWLER_FILE"/>
             <appender-ref ref="CRAWLER_ERROR_FILE"/>
             <appender-ref ref="CONSOLE"/>
