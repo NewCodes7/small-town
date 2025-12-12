@@ -316,6 +316,9 @@ public class DefaultBlogCrawler implements BlogCrawler {
             || publishFormat.equals("yyyy.M.dd")
             || publishFormat.equals("yyyy-MM-dd")) {
             publishedAt = parseKoreanDateFormat(dateText);
+        } else if (publishFormat.equals("yyyy년 MM월 dd일")
+            || publishFormat.equals("yyyy년 M월 d일")) {
+            publishedAt = parseKoreanYearMonthDayFormat(dateText);
         } else if (publishFormat.equals("ISO8601")) {
             publishedAt = parseISO8601Format(publishElement);
         } else if (publishFormat.equals("MMM d, yyyy")
@@ -350,6 +353,24 @@ public class DefaultBlogCrawler implements BlogCrawler {
     }
 
     /**
+     * 한국어 날짜 형식 파싱 (yyyy년 MM월 dd일)
+     */
+    private LocalDateTime parseKoreanYearMonthDayFormat(String dateText) {
+        try {
+            // "yyyy년 MM월 dd일" 또는 "yyyy년 M월 d일" 형식 파싱
+            DateTimeFormatter formatter = new DateTimeFormatterBuilder()
+                    .appendPattern("[yyyy년 M월 d일][yyyy년 MM월 dd일]")
+                    .toFormatter(Locale.KOREAN);
+            LocalDate date = LocalDate.parse(dateText.trim(), formatter);
+            return TimeUtil.dateWithSeoulTime(date);
+        } catch (DateTimeParseException e) {
+            log.warn("한국어 날짜 형식 파싱 실패: {} - {}", dateText, e.getMessage());
+            // 파싱 실패 시 현재 날짜 반환
+            return LocalDateTime.now();
+        }
+    }
+
+    /**
      * ISO8601 형식 파싱
      */
     private LocalDateTime parseISO8601Format(Element publishElement) {
@@ -380,7 +401,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
      * dd MMM yyyy 형식 파싱
      */
     private LocalDateTime parseDayMonthYearFormat(String dateText) {
-        dateText = dateText.replaceAll("[^a-zA-Z0-9\\s]", "");
+        dateText = dateText.replaceAll("[^a-zA-Z0-9\\s]", "").trim();
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH);
         LocalDate date = LocalDate.parse(dateText, formatter);
