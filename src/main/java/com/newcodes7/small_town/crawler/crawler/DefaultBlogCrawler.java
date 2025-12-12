@@ -282,20 +282,23 @@ public class DefaultBlogCrawler implements BlogCrawler {
         String baseUrl = parsingSelector.getBaseUrl();
 
         // 토스 블로그: Next.js 특수 처리
-        if (baseUrl.contains("toss")) {
-            Elements imgElements = imgElement.parent().select("img[alt*='thumbnail']");
-            if (imgElements.size() > 1) {
-                imgElement = imgElements.get(1);
+        if (baseUrl != null && baseUrl.contains("toss")) {
+            Element parent = imgElement.parent();
+            if (parent != null) {
+                Elements imgElements = parent.select("img[alt*='thumbnail']");
+                if (imgElements.size() > 1) {
+                    imgElement = imgElements.get(1);
+                }
             }
         }
 
         // NHN Cloud, KT Cloud: CSS background-image
-        if (baseUrl.contains("nhncloud") || baseUrl.contains("ktcloud")) {
+        if (baseUrl != null && (baseUrl.contains("nhncloud") || baseUrl.contains("ktcloud"))) {
             return extractCssImgUrl(imgElement.attr("style"));
         }
 
         // 강남언니: srcset 속성
-        if (baseUrl.contains("gangnamunni")) {
+        if (baseUrl != null && baseUrl.contains("gangnamunni")) {
             return imgElement.attr("srcset");
         }
 
@@ -318,6 +321,10 @@ public class DefaultBlogCrawler implements BlogCrawler {
         }
 
         String publishFormat = parsingSelector.getPublishFormat();
+        if (publishFormat == null) {
+            throw new IllegalStateException("publishFormat이 설정되지 않았습니다.");
+        }
+
         LocalDateTime publishedAt;
 
         if (publishFormat.equals("yyyy.MM.dd")
