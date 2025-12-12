@@ -357,11 +357,16 @@ public class DefaultBlogCrawler implements BlogCrawler {
      */
     private LocalDateTime parseKoreanYearMonthDayFormat(String dateText) {
         try {
+            // 날짜 부분만 추출 (yyyy년 MM월 dd일 패턴)
+            Pattern pattern = Pattern.compile("(\\d{4}년\\s*\\d{1,2}월\\s*\\d{1,2}일)");
+            Matcher matcher = pattern.matcher(dateText);
+            String extractedDate = matcher.find() ? matcher.group(1) : dateText.trim();
+
             // "yyyy년 MM월 dd일" 또는 "yyyy년 M월 d일" 형식 파싱
             DateTimeFormatter formatter = new DateTimeFormatterBuilder()
                     .appendPattern("[yyyy년 M월 d일][yyyy년 MM월 dd일]")
                     .toFormatter(Locale.KOREAN);
-            LocalDate date = LocalDate.parse(dateText.trim(), formatter);
+            LocalDate date = LocalDate.parse(extractedDate, formatter);
             return TimeUtil.dateWithSeoulTime(date);
         } catch (DateTimeParseException e) {
             log.warn("한국어 날짜 형식 파싱 실패: {} - {}", dateText, e.getMessage());
