@@ -68,10 +68,17 @@ public class DefaultBlogCrawler implements BlogCrawler {
             articles = crawlHtmlContent(driver, corporation);
             log.info("기본 크롤러 완료 - 기업: {}, 수집된 글: {}개", corporation.getName(), articles.size());
         } catch (CrawlerException e) {
-            log.error("기본 크롤러 실패 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage());
+            log.error("기본 크롤러 실패 - 기업: {}, 블로그: {}, 오류 타입: {}, 오류: {}",
+                    corporation.getName(), corporation.getBlogLink(), e.getClass().getSimpleName(), e.getMessage(), e);
             throw e;
         } catch (Exception e) {
-            log.error("기본 크롤러 예상치 못한 오류 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
+            log.error("기본 크롤러 예상치 못한 오류 - 기업: {}, 블로그: {}, 오류 타입: {}, 오류 메시지: {}, 상세 정보: {}",
+                    corporation.getName(),
+                    corporation.getBlogLink(),
+                    e.getClass().getName(),
+                    e.getMessage(),
+                    e.getCause() != null ? "원인: " + e.getCause().getMessage() : "원인 없음",
+                    e);
             throw new CrawlerException("CRAWLER_UNEXPECTED_ERROR", "Unexpected error in DefaultBlogCrawler for corporation: " + corporation.getName(), e) {};
         }
 
@@ -159,7 +166,8 @@ public class DefaultBlogCrawler implements BlogCrawler {
                     articles.add(article);
                 }
             } catch (Exception e) {
-                log.warn("기본 크롤러 개별 아티클 파싱 실패: {}", e.getMessage());
+                log.warn("기본 크롤러 개별 아티클 파싱 실패 - 오류 타입: {}, 오류: {}, HTML: {}",
+                        e.getClass().getSimpleName(), e.getMessage(), element.outerHtml().substring(0, Math.min(200, element.outerHtml().length())), e);
             }
         }
 
@@ -194,8 +202,11 @@ public class DefaultBlogCrawler implements BlogCrawler {
                     .build();
 
         } catch (Exception e) {
-            log.warn("기본 크롤러 아티클 파싱 오류: {}", e.getMessage());
-            e.printStackTrace();
+            log.warn("기본 크롤러 아티클 파싱 오류 - 오류 타입: {}, 오류: {}, 요소 HTML: {}",
+                    e.getClass().getSimpleName(),
+                    e.getMessage(),
+                    element.outerHtml().substring(0, Math.min(300, element.outerHtml().length())),
+                    e);
             return null;
         }
     }
@@ -1031,7 +1042,8 @@ public class DefaultBlogCrawler implements BlogCrawler {
                     newArticles.add(article);
                 }
             } catch (Exception e) {
-                log.warn("기본 크롤러 개별 아티클 파싱 실패: {}", e.getMessage());
+                log.warn("기본 크롤러 개별 아티클 파싱 실패 (무한스크롤) - 오류 타입: {}, 오류: {}, HTML: {}",
+                        e.getClass().getSimpleName(), e.getMessage(), element.outerHtml().substring(0, Math.min(200, element.outerHtml().length())), e);
             }
         }
 
