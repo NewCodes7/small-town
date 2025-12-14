@@ -104,7 +104,7 @@ public class CrawlingScheduler {
     /**
      * 제목 번역 및 AI 카테고리 분류 스케줄러
      */
-    @Scheduled(cron = "${crawler.schedule.analysis.cron:0 0 5 * * ?}", zone = "Asia/Seoul")
+    // @Scheduled(cron = "${crawler.schedule.analysis.cron:0 0 5 * * ?}", zone = "Asia/Seoul")
     public void scheduledTranslationAndAnalysis() {
         log.info("스케줄된 번역 및 AI 분석 작업 시작");
 
