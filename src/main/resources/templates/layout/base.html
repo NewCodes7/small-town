@@ -58,12 +58,12 @@
 <body>
     <!-- Navigation -->
     <nav class="navbar navbar-light">
-        <div class="container" style="justify-content: flex-start !important;">
-            <a class="navbar-brand" th:href="@{/}">
-                <i class="fas"></i> NewCodes
-            </a>
-            <div class="navbar-nav-wrapper" style="display: flex; align-items: center;">
-                <ul class="navbar-nav ms-4" style="display: flex !important; flex-direction: row; align-items: center; gap: 0.5rem; margin: 0;">
+        <div class="container navbar-container">
+            <div class="navbar-left">
+                <a class="navbar-brand" th:href="@{/}">
+                    <i class="fas"></i> NewCodes
+                </a>
+                <ul class="navbar-nav ms-4">
                     <li class="nav-item">
                         <a class="nav-link" th:href="@{/}" data-nav="blog">
                             <i class="fas fa-blog me-1"></i>블로그
@@ -99,34 +99,34 @@
                             <i class="fas fa-cog me-1"></i>관리
                         </a>
                     </li>
-                    
+                </ul>
+            </div>
+
+            <!-- Right side navigation -->
+            <div class="navbar-right">
+                <ul class="navbar-nav">
                     <!-- 인증되지 않은 사용자 -->
-                    <!-- <li class="nav-item" id="unauthenticatedLoginMenu" style="display: none;">
-                        <a class="nav-link" th:href="@{/auth/login}">
+                    <li class="nav-item" id="unauthenticatedLoginMenu" style="display: none;">
+                        <a class="nav-link login-btn" th:href="@{/auth/login}">
                             <i class="fas fa-sign-in-alt me-1"></i>로그인
                         </a>
                     </li>
-                    <li class="nav-item" id="unauthenticatedSignupMenu" style="display: none;">
-                        <a class="nav-link" th:href="@{/auth/signup}">
-                            <i class="fas fa-user-plus me-1"></i>회원가입
-                        </a>
-                    </li> -->
-                    
+
                     <!-- 인증된 사용자 -->
-                    <!-- <li class="nav-item dropdown" id="authenticatedMenu" style="display: none;">
+                    <li class="nav-item dropdown" id="authenticatedMenu" style="display: none;">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-user me-1"></i><span id="userNickname">사용자</span>
                         </a>
-                        <ul class="dropdown-menu">
+                        <ul class="dropdown-menu dropdown-menu-end">
                             <li><a class="dropdown-item" th:href="@{/auth/profile}">
                                 <i class="fas fa-user me-2"></i>마이페이지
                             </a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="#" onclick="logout()">
+                            <li><a class="dropdown-item" href="#" onclick="logout(); return false;">
                                 <i class="fas fa-sign-out-alt me-2"></i>로그아웃
                             </a></li>
                         </ul>
-                    </li> -->
+                    </li>
                 </ul>
             </div>
         </div>
@@ -227,16 +227,23 @@
             align-items: center;
         }
 
-        .navbar > .container {
+        .navbar-container {
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            justify-content: flex-start !important;
             width: 100%;
         }
 
-        .navbar-nav-wrapper {
+        .navbar-left {
             display: flex;
             align-items: center;
+            flex: 1;
+        }
+
+        .navbar-right {
+            display: flex;
+            align-items: center;
+            margin-left: auto;
         }
 
         .navbar-nav {
@@ -245,6 +252,8 @@
             align-items: center;
             gap: 0.5rem;
             margin: 0;
+            padding: 0;
+            list-style: none;
         }
 
         /* 활성 네비게이션 아이템 스타일 */
@@ -265,27 +274,69 @@
             border-radius: 2px;
         }
 
+        /* 로그인 버튼 스타일 */
+        .nav-link.login-btn {
+            background: var(--secondary-green);
+            color: var(--primary-green-dark) !important;
+            border: 1px solid var(--primary-green);
+            border-radius: 8px;
+            font-weight: 600;
+            padding: 0.4rem 1rem !important;
+            transition: all 0.2s ease;
+        }
+
+        .nav-link.login-btn:hover {
+            background: var(--primary-green);
+            color: white !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+        }
+
         /* 모바일 대응 */
         @media (max-width: 768px) {
+            .navbar-container {
+                gap: 0.5rem;
+            }
+
+            .navbar-left {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+            }
+
             .navbar-brand {
                 font-size: 1.1rem;
+                flex-shrink: 0;
             }
 
             .navbar-nav {
                 gap: 0.25rem;
             }
 
+            .navbar-left .navbar-nav {
+                flex-wrap: nowrap;
+            }
+
             .nav-link {
                 font-size: 0.85rem;
                 padding: 0.4rem 0.5rem !important;
+                white-space: nowrap;
             }
 
             .nav-link i {
                 font-size: 0.9rem;
             }
+
+            .nav-link.login-btn {
+                padding: 0.3rem 0.6rem !important;
+                font-size: 0.85rem;
+            }
         }
 
         @media (max-width: 576px) {
+            .navbar-container {
+                gap: 0.3rem;
+            }
+
             .navbar-brand {
                 font-size: 1rem;
             }
@@ -302,9 +353,22 @@
             .nav-link i {
                 margin-right: 0.1rem !important;
             }
+
+            .nav-link.login-btn {
+                padding: 0.25rem 0.5rem !important;
+                font-size: 0.75rem;
+            }
+
+            .navbar-right {
+                flex-shrink: 0;
+            }
         }
 
         @media (max-width: 400px) {
+            .navbar-container {
+                gap: 0.2rem;
+            }
+
             .navbar-brand {
                 font-size: 0.9rem;
             }
@@ -316,6 +380,172 @@
 
             .nav-link i {
                 display: none; /* Hide icons on very small screens */
+            }
+
+            .nav-link.login-btn {
+                padding: 0.2rem 0.4rem !important;
+                font-size: 0.7rem;
+            }
+
+            .nav-link.login-btn i {
+                display: inline; /* Keep icon for login button */
+            }
+
+            .navbar-right {
+                flex-shrink: 0;
+            }
+        }
+
+        /* User Dropdown Styles - Modern & Floating */
+        .navbar-right .nav-item.dropdown {
+            position: relative;
+        }
+
+        /* Dropdown Toggle Button */
+        .navbar-right .dropdown-toggle {
+            background: linear-gradient(135deg, var(--secondary-green) 0%, #f0fdf4 100%);
+            color: var(--primary-green-dark) !important;
+            border: 2px solid var(--primary-green);
+            border-radius: 12px;
+            font-weight: 600;
+            padding: 0.5rem 1rem !important;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(34, 197, 94, 0.15);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .navbar-right .dropdown-toggle:hover {
+            background: linear-gradient(135deg, var(--primary-green) 0%, var(--primary-green-light) 100%);
+            color: white !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(34, 197, 94, 0.3);
+        }
+
+        .navbar-right .dropdown-toggle::after {
+            margin-left: 0;
+            vertical-align: middle;
+            border-top-color: currentColor;
+            transition: transform 0.3s ease;
+        }
+
+        .navbar-right .dropdown-toggle[aria-expanded="true"]::after {
+            transform: rotate(180deg);
+        }
+
+        /* Dropdown Menu - Absolute Positioned (Float Effect) */
+        .navbar-right .dropdown-menu {
+            position: absolute !important;
+            top: calc(100% + 8px) !important;
+            right: 0 !important;
+            left: auto !important;
+            margin: 0 !important;
+            padding: 8px !important;
+            border: none !important;
+            border-radius: 16px !important;
+            background: white !important;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+            min-width: 200px !important;
+            z-index: 1050 !important;
+            transform-origin: top right;
+            animation: dropdownSlideIn 0.2s ease-out;
+        }
+
+        @keyframes dropdownSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-8px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        /* Dropdown Items */
+        .navbar-right .dropdown-item {
+            padding: 12px 16px !important;
+            border-radius: 10px !important;
+            font-weight: 600 !important;
+            color: var(--text-dark) !important;
+            transition: all 0.2s ease !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+        }
+
+        .navbar-right .dropdown-item:hover {
+            background: var(--secondary-green) !important;
+            color: var(--primary-green-dark) !important;
+            transform: translateX(4px);
+        }
+
+        .navbar-right .dropdown-item i {
+            width: 20px;
+            text-align: center;
+            font-size: 0.95rem;
+            color: var(--primary-green);
+            transition: transform 0.2s ease;
+        }
+
+        .navbar-right .dropdown-item:hover i {
+            transform: scale(1.1);
+        }
+
+        /* Dropdown Divider */
+        .navbar-right .dropdown-divider {
+            margin: 6px 8px !important;
+            border-top: 1px solid var(--border-light) !important;
+            opacity: 0.6;
+        }
+
+        /* User Icon in Dropdown Toggle */
+        .navbar-right .dropdown-toggle i.fa-user {
+            font-size: 1rem;
+            color: var(--primary-green);
+        }
+
+        .navbar-right .dropdown-toggle:hover i.fa-user {
+            color: white;
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .navbar-right .dropdown-toggle {
+                padding: 0.4rem 0.8rem !important;
+                font-size: 0.9rem;
+                border-radius: 10px;
+            }
+
+            .navbar-right .dropdown-menu {
+                min-width: 180px !important;
+                top: calc(100% + 6px) !important;
+            }
+
+            .navbar-right .dropdown-item {
+                padding: 10px 14px !important;
+                font-size: 0.9rem !important;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .navbar-right .dropdown-toggle {
+                padding: 0.35rem 0.7rem !important;
+                font-size: 0.85rem;
+            }
+
+            .navbar-right .dropdown-menu {
+                min-width: 160px !important;
+            }
+
+            .navbar-right .dropdown-item {
+                padding: 9px 12px !important;
+                font-size: 0.85rem !important;
+            }
+
+            .navbar-right .dropdown-item i {
+                font-size: 0.85rem;
             }
         }
 
@@ -603,63 +833,76 @@
         }
 
         // 페이지 로드 시 인증 상태 확인
-        // document.addEventListener('DOMContentLoaded', function() {
-        //     checkAuthStatus();
-        // });
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuthStatus();
+        });
 
-        // async function checkAuthStatus() {
-        //     try {
-        //         const response = await fetch('/api/auth/me', {
-        //             method: 'GET',
-        //             credentials: 'include'
-        //         });
-                
-        //         const unauthenticatedLoginMenu = document.getElementById('unauthenticatedLoginMenu');
-        //         const unauthenticatedSignupMenu = document.getElementById('unauthenticatedSignupMenu');
-        //         const authenticatedMenu = document.getElementById('authenticatedMenu');
-        //         const userNickname = document.getElementById('userNickname');
-        //         const adminMenu = document.getElementById('adminMenu');
-                
-        //         if (response.ok) {
-        //             // 로그인 상태
-        //             const user = await response.json();
-        //             userNickname.textContent = user.nickname;
-        //             unauthenticatedLoginMenu.style.display = 'none';
-        //             unauthenticatedSignupMenu.style.display = 'none';
-        //             authenticatedMenu.style.display = 'block';
-                    
-        //             // ADMIN 역할 확인
-        //             if (user.role === 'ADMIN') {
-        //                 adminMenu.style.display = 'block';
-        //             } else {
-        //                 adminMenu.style.display = 'none';
-        //             }
-        //         } else {
-        //             // 비로그인 상태
-        //             unauthenticatedLoginMenu.style.display = 'block';
-        //             unauthenticatedSignupMenu.style.display = 'block';
-        //             authenticatedMenu.style.display = 'none';
-        //             adminMenu.style.display = 'none';
-        //         }
-        //     } catch (error) {
-        //         console.error('인증 상태 확인 중 오류:', error);
-        //         // 오류 시 비로그인 상태로 처리
-        //         document.getElementById('unauthenticatedLoginMenu').style.display = 'block';
-        //         document.getElementById('unauthenticatedSignupMenu').style.display = 'block';
-        //         document.getElementById('authenticatedMenu').style.display = 'none';
-        //         document.getElementById('adminMenu').style.display = 'none';
-        //     }
-        // }
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch('/api/user-info', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+
+                const unauthenticatedLoginMenu = document.getElementById('unauthenticatedLoginMenu');
+                const authenticatedMenu = document.getElementById('authenticatedMenu');
+                const userNickname = document.getElementById('userNickname');
+                const adminMenu = document.getElementById('adminMenu');
+
+                if (response.ok) {
+                    const data = await response.json();
+
+                    if (data.authenticated) {
+                        // 로그인 상태
+                        userNickname.textContent = '';
+                        unauthenticatedLoginMenu.style.display = 'none';
+                        authenticatedMenu.style.display = 'block';
+
+                        // ADMIN 역할 확인
+                        if (data.isAdmin) {
+                            adminMenu.style.display = 'block';
+                        } else {
+                            adminMenu.style.display = 'none';
+                        }
+                    } else {
+                        // 비로그인 상태
+                        unauthenticatedLoginMenu.style.display = 'block';
+                        authenticatedMenu.style.display = 'none';
+                        adminMenu.style.display = 'none';
+                    }
+                } else {
+                    // 비로그인 상태
+                    unauthenticatedLoginMenu.style.display = 'block';
+                    authenticatedMenu.style.display = 'none';
+                    adminMenu.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('인증 상태 확인 중 오류:', error);
+                // 오류 시 비로그인 상태로 처리
+                document.getElementById('unauthenticatedLoginMenu').style.display = 'block';
+                document.getElementById('authenticatedMenu').style.display = 'none';
+                document.getElementById('adminMenu').style.display = 'none';
+            }
+        }
         
         async function logout() {
             try {
-                await fetch('/api/auth/logout', {
+                const response = await fetch('/api/auth/logout', {
                     method: 'POST',
                     credentials: 'include' // 쿠키 포함
                 });
+
+                if (response.ok) {
+                    // 로그아웃 성공 시 홈으로 이동 (강제 새로고침)
+                    window.location.href = '/?t=' + new Date().getTime();
+                } else {
+                    console.error('로그아웃 실패:', response.status);
+                    // 실패해도 홈으로 이동
+                    window.location.href = '/';
+                }
             } catch (error) {
                 console.error('로그아웃 중 오류 발생:', error);
-            } finally {
+                // 오류 발생해도 홈으로 이동
                 window.location.href = '/';
             }
         }
