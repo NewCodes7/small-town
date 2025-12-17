@@ -228,13 +228,18 @@ public class DefaultBlogCrawler implements BlogCrawler {
         Element linkElement = element.selectFirst(parsingSelector.getLink());
         if (linkElement == null) return null;
 
+        // SK devocean 블로그 특수 처리
+        String baseUrl = parsingSelector.getBaseUrl();
+        if (baseUrl != null && baseUrl.contains("devocean.sk.com")) {
+            return parseDevoceanLink(baseUrl, linkElement);
+        }
+
         String link = linkElement.attr("href");
         if (link.isEmpty()) return null;
 
         // 상대 경로를 절대 경로로 변환
         if (!link.startsWith("http")) {
             if (link.startsWith("/")) {
-                String baseUrl = parsingSelector.getBaseUrl();
                 if (baseUrl.endsWith("/")) {
                     baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
                 }
@@ -245,6 +250,37 @@ public class DefaultBlogCrawler implements BlogCrawler {
         }
 
         return link;
+    }
+
+    /**
+     * SK devocean 블로그 링크 파싱
+     * onclick="goDetail(this,'167975',event)" 형태에서 ID 추출
+     * data-board-type="techBlog" 속성에서 boardType 추출
+     */
+    private String parseDevoceanLink(String baseUrl, Element linkElement) {
+        try {
+            // onclick 속성에서 ID 추출
+            String onclick = linkElement.attr("onclick");
+            if (onclick == null || onclick.isEmpty()) return null;
+
+            // onclick="goDetail(this,'167975',event)" 패턴에서 '167975' 추출
+            Pattern idPattern = Pattern.compile("goDetail\\(this,'([^']+)'");
+            Matcher idMatcher = idPattern.matcher(onclick);
+            if (!idMatcher.find()) return null;
+            String id = idMatcher.group(1);
+
+            // data-board-type 속성에서 boardType 추출
+            String boardType = linkElement.attr("data-board-type");
+            if (boardType == null || boardType.isEmpty()) return null;
+
+            // URL 구성: https://devocean.sk.com/blog/techBoardDetail.do?ID=167975&boardType=techBlog
+            return baseUrl + "?ID=" + id + "&boardType=" + boardType;
+
+        } catch (Exception e) {
+            log.warn("SK devocean 링크 파싱 실패 - 오류: {}, 요소: {}",
+                    e.getMessage(), linkElement.outerHtml().substring(0, Math.min(200, linkElement.outerHtml().length())));
+            return null;
+        }
     }
 
     /**
@@ -303,8 +339,17 @@ public class DefaultBlogCrawler implements BlogCrawler {
             }
         }
 
-        // NHN Cloud, KT Cloud: CSS background-image
-        if (baseUrl != null && (baseUrl.contains("nhncloud") || baseUrl.contains("ktcloud"))) {
+        // KT Cloud: data-tiara-image 속성 우선, 없으면 CSS background-image
+        if (baseUrl != null && baseUrl.contains("ktcloud")) {
+            String dataTiaraImage = imgElement.attr("data-tiara-image");
+            if (dataTiaraImage != null && !dataTiaraImage.isEmpty()) {
+                return dataTiaraImage;
+            }
+            return extractCssImgUrl(imgElement.attr("style"));
+        }
+
+        // NHN Cloud: CSS background-image
+        if (baseUrl != null && baseUrl.contains("nhncloud")) {
             return extractCssImgUrl(imgElement.attr("style"));
         }
 
@@ -342,6 +387,9 @@ public class DefaultBlogCrawler implements BlogCrawler {
             || publishFormat.equals("yyyy.M.dd")
             || publishFormat.equals("yyyy-MM-dd")) {
             publishedAt = parseKoreanDateFormat(dateText);
+        } else if (publishFormat.equals("yy.MM.dd")
+            || publishFormat.equals("yy.M.dd")) {
+            publishedAt = parseShortYearKoreanDateFormat(dateText);
         } else if (publishFormat.equals("yyyy년 MM월 dd일")
             || publishFormat.equals("yyyy년 M월 d일")) {
             publishedAt = parseKoreanYearMonthDayFormat(dateText);
@@ -376,6 +424,30 @@ public class DefaultBlogCrawler implements BlogCrawler {
     private LocalDateTime parseKoreanDateFormat(String dateText) {
         String cleanDateText = extractDateOnly(dateText);
         return TimeUtil.dateWithSeoulTime(parseDate(cleanDateText));
+    }
+
+    /**
+     * 짧은 년도 한국 날짜 형식 파싱 (yy.MM.dd)
+     * 예: 25.12.04 -> 2025-12-04
+     */
+    private LocalDateTime parseShortYearKoreanDateFormat(String dateText) {
+        try {
+            String cleanDateText = extractDateOnly(dateText);
+
+            // yy.MM.dd 또는 yy.M.d 형식 파싱
+            DateTimeFormatter formatter = new DateTimeFormatterBuilder()
+                    .appendPattern("[yy.M.d][yy.MM.dd]")
+                    .parseDefaulting(ChronoField.HOUR_OF_DAY, 0)
+                    .parseDefaulting(ChronoField.MINUTE_OF_HOUR, 0)
+                    .parseDefaulting(ChronoField.SECOND_OF_MINUTE, 0)
+                    .toFormatter(Locale.KOREAN);
+
+            LocalDate date = LocalDate.parse(cleanDateText, formatter);
+            return TimeUtil.dateWithSeoulTime(date);
+        } catch (DateTimeParseException e) {
+            log.warn("짧은 년도 날짜 형식 파싱 실패: {} - {}", dateText, e.getMessage());
+            return LocalDateTime.now();
+        }
     }
 
     /**
