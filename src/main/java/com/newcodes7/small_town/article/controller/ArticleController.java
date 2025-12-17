@@ -202,42 +202,57 @@ public class ArticleController {
     //     return ResponseEntity.ok(result);
     // }
     
-    // @PostMapping("/api/articles/{articleId}/like")
-    // @ResponseBody
-    // public ResponseEntity<Map<String, Object>> toggleLike(@PathVariable Long articleId,
-    //                                                      @AuthenticationPrincipal UserDetails userDetails) {
-    //     if (userDetails == null) {
-    //         return ResponseEntity.status(401).build();
-    //     }
-        
-    //     boolean isLiked = userLikeService.toggleLike(articleId, userDetails.getUsername());
-    //     long likeCount = userLikeService.getLikeCount(articleId);
-        
-    //     Map<String, Object> response = new HashMap<>();
-    //     response.put("isLiked", isLiked);
-    //     response.put("likeCount", likeCount);
-        
-    //     return ResponseEntity.ok(response);
-    // }
-    
-    // @GetMapping("/api/articles/{articleId}/like-status")
-    // @ResponseBody
-    // public ResponseEntity<Map<String, Object>> getLikeStatus(@PathVariable Long articleId,
-    //                                                        @AuthenticationPrincipal UserDetails userDetails) {
-    //     boolean hasLiked = false;
-    //     if (userDetails != null) {
-    //         hasLiked = userLikeService.hasLiked(articleId, userDetails.getUsername());
-    //     }
-        
-    //     long likeCount = userLikeService.getLikeCount(articleId);
-        
-    //     Map<String, Object> response = new HashMap<>();
-    //     response.put("hasLiked", hasLiked);
-    //     response.put("likeCount", likeCount);
-    //     response.put("authenticated", userDetails != null);
-        
-    //     return ResponseEntity.ok(response);
-    // }
+    @PostMapping("/api/articles/{articleId}/like")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> toggleLike(@PathVariable Long articleId,
+                                                         @AuthenticationPrincipal UserDetails userDetails,
+                                                         HttpServletRequest request) {
+        String ipAddress = Client.getClientIpAddress(request);
+        boolean isLiked;
+
+        if (userDetails != null) {
+            // 인증된 사용자
+            isLiked = userLikeService.toggleLike(articleId, userDetails.getUsername());
+        } else {
+            // 익명 사용자 (IP 기반)
+            isLiked = userLikeService.toggleLikeByIp(articleId, ipAddress);
+        }
+
+        long likeCount = userLikeService.getLikeCount(articleId);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("isLiked", isLiked);
+        response.put("likeCount", likeCount);
+        response.put("authenticated", userDetails != null);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/api/articles/{articleId}/like-status")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getLikeStatus(@PathVariable Long articleId,
+                                                           @AuthenticationPrincipal UserDetails userDetails,
+                                                           HttpServletRequest request) {
+        String ipAddress = Client.getClientIpAddress(request);
+        boolean hasLiked = false;
+
+        if (userDetails != null) {
+            // 인증된 사용자
+            hasLiked = userLikeService.hasLiked(articleId, userDetails.getUsername());
+        } else {
+            // 익명 사용자 (IP 기반)
+            hasLiked = userLikeService.hasLikedByIp(articleId, ipAddress);
+        }
+
+        long likeCount = userLikeService.getLikeCount(articleId);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("hasLiked", hasLiked);
+        response.put("likeCount", likeCount);
+        response.put("authenticated", userDetails != null);
+
+        return ResponseEntity.ok(response);
+    }
     
     @PostMapping("/api/articles/{articleId}/view")
     @ResponseBody

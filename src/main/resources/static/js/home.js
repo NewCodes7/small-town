@@ -20,33 +20,26 @@ function likeButton() {
         btn.addEventListener('click', async function(e) {
             e.preventDefault();
             e.stopPropagation();
-            
+
             const articleId = this.getAttribute('data-article-id');
             const likeIcon = this.querySelector('.like-icon');
             const likeCount = this.querySelector('.like-count');
-            
+
             try {
                 const response = await fetch(`/api/articles/${articleId}/like`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    credentials: 'same-origin',
-                    redirect: 'manual'
+                    credentials: 'same-origin'
                 });
-                
-                if (response.status === 401 || response.status === 0) {
-                    // 인증되지 않은 사용자 (401) 또는 수동 리다이렉트로 인한 opaque response (0)
-                    showLoginPopup();
-                    return;
-                }
-                
+
                 if (response.ok) {
                     const data = await response.json();
-                    
+
                     // 좋아요 수 업데이트
                     likeCount.textContent = data.likeCount;
-                    
+
                     // 좋아요 상태에 따른 스타일 변경
                     if (data.isLiked) {
                         this.classList.add('liked');
@@ -74,9 +67,9 @@ async function initPagination() {
             element.title = formatDate(dateString);
         }
     });
-    
+
     // 좋아요 상태 로드
-    // loadLikeStatuses();
+    loadLikeStatuses();
     
     // 떠다니는 로고는 CSS에서 위치가 고정되므로 JavaScript 설정 불필요
     

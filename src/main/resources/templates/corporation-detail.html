@@ -148,6 +148,10 @@
                                        th:attr="data-date=${article.publishedAt}"
                                        th:title="${article.publishedAt}"
                                        th:text="${article.publishedAt}">2024-01-01</small>
+                                <button class="like-button" th:attr="data-article-id=${article.id}">
+                                    <i class="fas fa-heart like-icon"></i>
+                                    <span class="like-count" th:text="${article.likeCount}">0</span>
+                                </button>
                             </div>
                         </div>
 
@@ -359,9 +363,10 @@
             function bindArticleCardEvents() {
                 document.querySelectorAll('.article-card').forEach(card => {
                     card.addEventListener('click', (e) => {
-                        // 관리자 버튼을 클릭한 경우는 기본 동작 허용
+                        // 관리자 버튼이나 좋아요 버튼을 클릭한 경우는 기본 동작 허용
                         if (e.target.closest('.admin-delete-btn') ||
-                            e.target.closest('.admin-edit-btn')) {
+                            e.target.closest('.admin-edit-btn') ||
+                            e.target.closest('.like-button')) {
                             return; // 기본 동작 허용
                         }
 

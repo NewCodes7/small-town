@@ -75,8 +75,8 @@ public class SecurityConfig {
                 // 카테고리 목록 조회는 모든 사용자 허용
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/categories").permitAll()
                 
-                // 좋아요 관련 API - 좋아요 토글은 인증 필요, 상태 조회는 모든 사용자 허용
-                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/articles/*/like").authenticated()
+                // 좋아요 관련 API - 모든 사용자 허용 (익명 사용자는 IP 기반)
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/articles/*/like").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/articles/*/like-status").permitAll()
                 // 조회수 증가 및 상태 조회는 모든 사용자 허용
                 .requestMatchers("/api/articles/*/view").permitAll()

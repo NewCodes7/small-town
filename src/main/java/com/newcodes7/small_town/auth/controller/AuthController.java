@@ -82,9 +82,17 @@ public class AuthController {
     }
     
     @PostMapping("/logout")
-    public ResponseEntity<String> logout(HttpServletResponse response) {
+    public ResponseEntity<String> logout(HttpServletResponse response,
+                                        jakarta.servlet.http.HttpServletRequest request) {
+        // 세션 무효화
+        jakarta.servlet.http.HttpSession session = request.getSession(false);
+        if (session != null) {
+            session.invalidate();
+        }
+
         // 쿠키 삭제
         clearTokenCookies(response);
+
         return ResponseEntity.ok("로그아웃되었습니다.");
     }
     
@@ -137,7 +145,7 @@ public class AuthController {
         accessTokenCookie.setPath("/");
         accessTokenCookie.setMaxAge(0);
         response.addCookie(accessTokenCookie);
-        
+
         // Refresh Token 쿠키 삭제
         Cookie refreshTokenCookie = new Cookie("refreshToken", null);
         refreshTokenCookie.setHttpOnly(true);
@@ -145,5 +153,13 @@ public class AuthController {
         refreshTokenCookie.setPath("/");
         refreshTokenCookie.setMaxAge(0);
         response.addCookie(refreshTokenCookie);
+
+        // JSESSIONID 쿠키 삭제
+        Cookie jsessionIdCookie = new Cookie("JSESSIONID", null);
+        jsessionIdCookie.setHttpOnly(true);
+        jsessionIdCookie.setSecure(false);
+        jsessionIdCookie.setPath("/");
+        jsessionIdCookie.setMaxAge(0);
+        response.addCookie(jsessionIdCookie);
     }
 }
