@@ -335,18 +335,18 @@
                                     <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;" th:text="${article.corporation.name}">Company</span>
                                 </a>
                             </div>
-                            <div class="d-flex align-items-center gap-3">
+                            <div class="d-flex align-items-center gap-2">
                                 <small class="text-muted relative-time"
                                     th:attr="data-date=${article.publishedAt}"
                                     th:title="${article.publishedAt}"
-                                    th:text="${article.publishedAt}">2024-01-01</small>
+                                    th:text="${article.publishedAt}" 
+                                    style="white-space: nowrap;">2024-01-01</small>
                                 <!-- <span class="text-muted d-flex align-items-center" style="font-size: 0.85rem;">
                                     <i class="fas fa-eye me-1"></i> <span class="view-count" th:text="${article.viewCount}">0</span>
                                 </span> -->
                                 <button class="like-button"
                                         th:attr="data-article-id=${article.id}">
                                     <i class="fas fa-heart like-icon"></i>
-                                    <span class="like-count" th:text="${article.likeCount}">0</span>
                                 </button>
                             </div>
                         </div>
@@ -411,8 +411,8 @@
                                         <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;" th:text="${group.corporation.name}"></span>
                                     </a>
                                 </div>
-                                <div class="d-flex align-items-center gap-3">
-                                    <small class="text-muted relative-time" th:attr="data-date=${firstArticle.publishedAt}" th:title="${firstArticle.publishedAt}" th:text="${firstArticle.publishedAt}"></small>
+                                <div class="d-flex align-items-center gap-2">
+                                    <small class="text-muted relative-time" th:attr="data-date=${firstArticle.publishedAt}" th:title="${firstArticle.publishedAt}" th:text="${firstArticle.publishedAt}" style="white-space: nowrap;"></small>
                                     <button class="like-button"
                                             th:attr="data-article-id=${firstArticle.id}">
                                         <i class="fas fa-heart like-icon"></i>
@@ -448,8 +448,8 @@
                                     </a>
                                 </h6>
                                 <span class="child-date d-flex align-items-center flex-wrap">
-                                    <span class="d-flex align-items-center gap-3">
-                                        <small class="text-muted relative-time" th:attr="data-date=${child.publishedAt}" th:title="${child.publishedAt}" th:text="${child.publishedAt}"></small>
+                                    <span class="d-flex align-items-center gap-2">
+                                        <small class="text-muted relative-time" th:attr="data-date=${child.publishedAt}" th:title="${child.publishedAt}" th:text="${child.publishedAt}" style="white-space: nowrap;"></small>
                                         <button class="like-button"
                                                 th:attr="data-article-id=${child.id}">
                                             <i class="fas fa-heart like-icon"></i>
@@ -1119,6 +1119,7 @@
         <script th:src="@{/js/userAuth.js}"></script>
         <script th:src="@{/js/adminControls.js}"></script>
         <script th:src="@{/js/visitedHistory.js}"></script>
+        <script th:src="@{/js/articleLikeButton.js}"></script>
 
         <!-- Floating Feedback Widget Script -->
         <script>

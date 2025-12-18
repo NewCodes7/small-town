@@ -555,6 +555,10 @@
                                 <span class="child-date d-flex align-items-center flex-wrap">
                                     <span class="d-flex align-items-center gap-3">
                                         <small class="text-muted relative-time" th:attr="data-date=${child.publishedAt}" th:title="${child.publishedAt}" th:text="${child.publishedAt}"></small>
+                                        <button class="like-button"
+                                            th:attr="data-video-id=${child.id}">
+                                            <i class="fas fa-heart like-icon"></i>
+                                        </button>
                                     </span>
                                 </span>
                             </div>
@@ -1266,9 +1270,6 @@
                             if (response.ok) {
                                 const data = await response.json();
 
-                                // 좋아요 수 업데이트
-                                likeCount.textContent = data.likeCount;
-
                                 // 좋아요 상태에 따른 스타일 변경 및 localStorage 동기화
                                 if (data.isLiked) {
                                     this.classList.add('liked');
@@ -1315,10 +1316,6 @@
                                 if (data.hasLiked) {
                                     btn.classList.add('liked');
                                 }
-
-                                // 좋아요 수 업데이트
-                                const likeCount = btn.querySelector('.like-count');
-                                likeCount.textContent = data.likeCount;
                             }
                         } else {
                             // 비로그인 사용자: localStorage에서 조회

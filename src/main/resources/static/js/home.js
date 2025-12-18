@@ -1,5 +1,4 @@
 function bindArticleEvents() {
-    likeButton();
     initPagination();
     bindMoreButtonEvents();
 }
@@ -132,48 +131,6 @@ async function migrateVideoLikesFromLocalStorage() {
     }
 }
 
-// 좋아요 버튼 클릭 이벤트
-function likeButton() {
-    document.querySelectorAll('.like-button').forEach(btn => {
-        btn.addEventListener('click', async function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            const articleId = this.getAttribute('data-article-id');
-            const likeIcon = this.querySelector('.like-icon');
-            const likeCount = this.querySelector('.like-count');
-
-            try {
-                const response = await fetch(`/api/articles/${articleId}/like`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    credentials: 'same-origin'
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-
-                    // 좋아요 수 업데이트
-                    likeCount.textContent = data.likeCount;
-
-                    // 좋아요 상태에 따른 스타일 변경 및 localStorage 동기화
-                    if (data.isLiked) {
-                        this.classList.add('liked');
-                        addToLikedArticles(articleId);
-                    } else {
-                        this.classList.remove('liked');
-                        removeFromLikedArticles(articleId);
-                    }
-                }
-            } catch (error) {
-                console.error('좋아요 처리 중 오류 발생:', error);
-            }
-        });
-    });
-}
-
 // 페이지 로드 후 상대 시간 적용 및 좋아요 상태 로드
 async function initPagination() {
     // 사용자 정보 로드
@@ -187,9 +144,6 @@ async function initPagination() {
             element.title = formatDate(dateString);
         }
     });
-
-    // 좋아요 상태 로드
-    loadLikeStatuses();
     
     // 떠다니는 로고는 CSS에서 위치가 고정되므로 JavaScript 설정 불필요
     
@@ -303,54 +257,6 @@ function showLoginPopup() {
         }
     } else {
         console.error('loginModal 엘리먼트를 찾을 수 없습니다');
-    }
-}
-
-// 페이지 로드 시 좋아요 상태 확인
-async function loadLikeStatuses() {
-    const likeButtons = document.querySelectorAll('.like-button');
-
-    // 사용자 인증 상태 확인
-    let userInfo = null;
-    try {
-        const response = await fetch('/api/user-info', { credentials: 'include' });
-        if (response.ok) {
-            userInfo = await response.json();
-        }
-    } catch (error) {
-        console.error('사용자 정보 로드 중 오류 발생:', error);
-    }
-
-    for (const btn of likeButtons) {
-        const articleId = parseInt(btn.getAttribute('data-article-id'));
-
-        try {
-            if (userInfo && userInfo.authenticated) {
-                // 로그인 사용자: 서버에서 조회
-                const response = await fetch(`/api/articles/${articleId}/like-status`, {
-                    credentials: 'same-origin'
-                });
-                if (response.ok) {
-                    const data = await response.json();
-
-                    if (data.hasLiked) {
-                        btn.classList.add('liked');
-                    }
-
-                    // 좋아요 수 업데이트
-                    const likeCount = btn.querySelector('.like-count');
-                    likeCount.textContent = data.likeCount;
-                }
-            } else {
-                // 비로그인 사용자: localStorage에서 조회
-                const likedIds = getLikedArticleIds();
-                if (likedIds.includes(articleId)) {
-                    btn.classList.add('liked');
-                }
-            }
-        } catch (error) {
-            console.error('좋아요 상태 로드 중 오류 발생:', error);
-        }
     }
 }
 

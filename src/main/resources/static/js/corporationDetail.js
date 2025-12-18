@@ -84,9 +84,6 @@ document.querySelectorAll('.like-button').forEach(btn => {
             if (response.ok) {
                 const data = await response.json();
                 
-                // 좋아요 수 업데이트
-                likeCount.textContent = data.likeCount;
-                
                 // 좋아요 상태에 따른 스타일 변경
                 if (data.isLiked) {
                     this.classList.add('liked');
