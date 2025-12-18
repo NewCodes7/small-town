@@ -479,7 +479,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
     private LocalDateTime parseISO8601Format(Element publishElement) {
         String datetime = publishElement.attr("datetime");
         ZonedDateTime zonedDateTime = ZonedDateTime.parse(datetime);
-        return zonedDateTime.toLocalDateTime();
+        return TimeUtil.toSeoulTime(zonedDateTime);
     }
 
     /**
@@ -776,7 +776,8 @@ public class DefaultBlogCrawler implements BlogCrawler {
             publishedDate = entry.getUpdatedDate();
         }
         if (publishedDate != null) {
-            publishedAt = publishedDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+            ZonedDateTime zonedDateTime = publishedDate.toInstant().atZone(ZoneId.of("Asia/Seoul"));
+            publishedAt = zonedDateTime.toLocalDateTime();
         }
         
         return Article.builder()
