@@ -83,6 +83,7 @@ public class AdminController {
     private final com.newcodes7.small_town.article.service.TermSynonymService termSynonymService;
     private final com.newcodes7.small_town.article.repository.TermRepository termRepository;
     private final com.newcodes7.small_town.article.service.DeeplService deeplService;
+    private final com.newcodes7.small_town.auth.repository.UserRepository userRepository;
 
     // 기업 목록 페이지
     @GetMapping("/corporations")
@@ -378,6 +379,18 @@ public class AdminController {
             searchLogs = searchLogService.getAllSearchLogs(searchLogPageable);
         }
 
+        // 회원 목록
+        Page<com.newcodes7.small_town.auth.entity.User> users = null;
+        if (tab.equals("users")) {
+            Pageable userPageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+            if (search != null && !search.trim().isEmpty()) {
+                users = userRepository.findByEmailOrNicknameContaining(search, userPageable);
+                model.addAttribute("search", search);
+            } else {
+                users = userRepository.findAll(userPageable);
+            }
+        }
+
         // 페이지 수 계산
         int articleTermTotalPages = articleTermStatsTotal > 0 ? (int) Math.ceil((double) articleTermStatsTotal / size) : 0;
         int videoTermTotalPages = videoTermStatsTotal > 0 ? (int) Math.ceil((double) videoTermStatsTotal / size) : 0;
@@ -394,6 +407,7 @@ public class AdminController {
         model.addAttribute("videoTermStatsTotal", videoTermStatsTotal);
         model.addAttribute("videoTermTotalPages", videoTermTotalPages);
         model.addAttribute("searchLogs", searchLogs);
+        model.addAttribute("users", users);
         model.addAttribute("categories", categoryRepository.findAll());
         model.addAttribute("currentTab", tab);
         model.addAttribute("currentSort", sort);
