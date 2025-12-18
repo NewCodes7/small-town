@@ -356,11 +356,10 @@ public class MediumBlogCrawler implements BlogCrawler {
                 
                 int month = getMonthNumber(monthStr);
 
+                // Medium의 날짜는 UTC 기준이므로 한국 시간으로 변환
                 LocalDateTime parsedDate = LocalDateTime.of(year, month, day, 0, 0);
-                ZonedDateTime koreanTime = parsedDate.atZone(ZoneId.of("UTC")).withZoneSameInstant(ZoneId.of("Asia/Seoul"));
-                LocalDateTime adjustedDate = koreanTime.toLocalDateTime();
-                
-                return adjustedDate;
+                ZonedDateTime utcTime = parsedDate.atZone(ZoneId.of("UTC"));
+                return TimeUtil.toSeoulTime(utcTime);
             } catch (Exception e) {
                 log.debug("Absolute date parsing failed: {}", text);
             }

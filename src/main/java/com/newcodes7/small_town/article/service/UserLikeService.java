@@ -1,5 +1,6 @@
 package com.newcodes7.small_town.article.service;
 
+import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.entity.LikeLog;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.LikeLogRepository;
@@ -10,6 +11,10 @@ import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
 import com.newcodes7.small_town.article.exception.UserNotFoundException;
 import com.newcodes7.small_town.article.exception.InvalidParameterException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -129,5 +134,73 @@ public class UserLikeService {
         return likeLogRepository.existsByIpAddressAndArticleIdAndDeletedAtIsNull(
             ipAddress, articleId
         );
+    }
+
+    /**
+     * 사용자가 좋아요한 아티클 목록 조회 (페이지네이션)
+     */
+    @Transactional(readOnly = true)
+    public Page<ArticleListResponseDto> getLikedArticles(String userEmail, int page, int size) {
+        User user = userRepository.findByEmailAndDeletedAtIsNull(userEmail)
+            .orElseThrow(() -> new UserNotFoundException(userEmail));
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Article> articles = likeLogRepository.findLikedArticlesByUserId(user.getId(), pageable);
+
+        return articles.map(ArticleListResponseDto::new);
+    }
+
+    /**
+     * localStorage에서 좋아요 목록 마이그레이션 (로그인 시)
+     */
+    public com.newcodes7.small_town.article.dto.MigrationResultDto migrateLikesFromLocalStorage(String userEmail, java.util.List<Long> articleIds) {
+        java.util.List<com.newcodes7.small_town.article.dto.MigrationResultDto.MigratedItemDto> migratedItems = new java.util.ArrayList<>();
+
+        if (articleIds == null || articleIds.isEmpty()) {
+            return new com.newcodes7.small_town.article.dto.MigrationResultDto(0, migratedItems);
+        }
+
+        User user = userRepository.findByEmailAndDeletedAtIsNull(userEmail)
+            .orElseThrow(() -> new UserNotFoundException(userEmail));
+
+        for (Long articleId : articleIds) {
+            try {
+                // 이미 좋아요가 있는지 확인
+                boolean alreadyLiked = likeLogRepository.existsByUserIdAndArticleIdAndDeletedAtIsNull(
+                    user.getId(), articleId
+                );
+
+                if (!alreadyLiked) {
+                    // 아티클이 존재하는지 확인
+                    Optional<Article> articleOpt = articleRepository.findById(articleId);
+                    if (articleOpt.isPresent()) {
+                        Article article = articleOpt.get();
+
+                        // 좋아요 생성
+                        LikeLog likeLog = new LikeLog(user, article);
+                        likeLogRepository.save(likeLog);
+
+                        // 마이그레이션된 아티클 정보 추가
+                        String title = article.getTranslatedTitle() != null && !article.getTranslatedTitle().isEmpty()
+                            ? article.getTranslatedTitle()
+                            : article.getTitle();
+                        migratedItems.add(new com.newcodes7.small_town.article.dto.MigrationResultDto.MigratedItemDto(
+                            article.getId(),
+                            title,
+                            "article"
+                        ));
+
+                        // 좋아요 수 업데이트
+                        long likeCount = likeLogRepository.countByArticleIdAndDeletedAtIsNull(articleId);
+                        articleRepository.updateLikeCount(articleId, (int) likeCount);
+                    }
+                }
+            } catch (Exception e) {
+                // 개별 아티클 마이그레이션 실패 시 로그만 남기고 계속 진행
+                System.err.println("Failed to migrate like for article " + articleId + ": " + e.getMessage());
+            }
+        }
+
+        return new com.newcodes7.small_town.article.dto.MigrationResultDto(migratedItems.size(), migratedItems);
     }
 }

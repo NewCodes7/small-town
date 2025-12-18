@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
 import com.newcodes7.small_town.corporation.service.CorporationService;
@@ -48,6 +49,7 @@ public class VideoController {
 
     private final VideoService videoService;
     private final VideoViewService videoViewService;
+    private final com.newcodes7.small_town.video.service.VideoLikeService videoLikeService;
     private final CorporationService corporationService;
     private final CategoryRepository categoryRepository;
     private final VideoTermRepository videoTermRepository;
@@ -78,12 +80,12 @@ public class VideoController {
 
         Page<VideoResponseDto> videos = videoService.getVideosWithFilters(
             keyword != null && !keyword.trim().isEmpty() ? keyword.trim().toLowerCase() : null,
-            regions == null ? null : regions.stream().sorted().toList(),
+            regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
             page,
             size,
             sort,
             effectiveView,
-            category == null ? null : category.stream().sorted().toList()
+            category == null || category.isEmpty() ? null : category.stream().sorted().toList()
         );
 
         log.info("필터 조건: keyword='{}', regions={}, {}개의 영상 조회",
@@ -144,6 +146,83 @@ public class VideoController {
         response.put("authenticated", userDetails != null);
 
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 영상 좋아요 토글 API
+     */
+    @PostMapping("/api/videos/{videoId}/like")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> toggleLike(@PathVariable Long videoId,
+                                                         @AuthenticationPrincipal UserDetails userDetails,
+                                                         HttpServletRequest request) {
+        String ipAddress = Client.getClientIpAddress(request);
+        boolean isLiked;
+
+        if (userDetails != null) {
+            // 인증된 사용자
+            isLiked = videoLikeService.toggleLike(videoId, userDetails.getUsername());
+        } else {
+            // 익명 사용자 (IP 기반)
+            isLiked = videoLikeService.toggleLikeByIp(videoId, ipAddress);
+        }
+
+        long likeCount = videoLikeService.getLikeCount(videoId);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("isLiked", isLiked);
+        response.put("likeCount", likeCount);
+        response.put("authenticated", userDetails != null);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 영상 좋아요 상태 조회 API
+     */
+    @GetMapping("/api/videos/{videoId}/like-status")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getLikeStatus(@PathVariable Long videoId,
+                                                           @AuthenticationPrincipal UserDetails userDetails,
+                                                           HttpServletRequest request) {
+        String ipAddress = Client.getClientIpAddress(request);
+        boolean hasLiked = false;
+
+        if (userDetails != null) {
+            // 인증된 사용자
+            hasLiked = videoLikeService.hasLiked(videoId, userDetails.getUsername());
+        } else {
+            // 익명 사용자 (IP 기반)
+            hasLiked = videoLikeService.hasLikedByIp(videoId, ipAddress);
+        }
+
+        long likeCount = videoLikeService.getLikeCount(videoId);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("hasLiked", hasLiked);
+        response.put("likeCount", likeCount);
+        response.put("authenticated", userDetails != null);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * localStorage 좋아요 마이그레이션 API
+     */
+    @PostMapping("/api/videos/migrate-likes")
+    @ResponseBody
+    public ResponseEntity<com.newcodes7.small_town.article.dto.MigrationResultDto> migrateLikesFromLocalStorage(
+            @RequestBody List<Long> videoIds,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        if (userDetails == null) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED).build();
+        }
+
+        com.newcodes7.small_town.article.dto.MigrationResultDto result =
+            videoLikeService.migrateLikesFromLocalStorage(userDetails.getUsername(), videoIds);
+
+        return ResponseEntity.ok(result);
     }
 
     /**

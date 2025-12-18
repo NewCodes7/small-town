@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.dto.ArticleResponseDto;
 import com.newcodes7.small_town.article.dto.CorporationDetailDto;
+import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.ArticleTermRepository;
 import com.newcodes7.small_town.article.service.ArticleService;
 import com.newcodes7.small_town.article.service.LikeService;
@@ -63,7 +64,7 @@ import java.util.stream.Collectors;
 @Controller
 @RequiredArgsConstructor
 public class ArticleController {
-    
+
     private final ArticleService articleService;
     private final LikeService likeService;
     private final UserLikeService userLikeService;
@@ -74,6 +75,10 @@ public class ArticleController {
     private final IndustryRepository industryRepository;
     private final ArticleTermRepository articleTermRepository;
     private final SearchLogService searchLogService;
+    private final ArticleRepository articleRepository;
+    private final com.newcodes7.small_town.auth.repository.UserRepository userRepository;
+    private final com.newcodes7.small_town.article.repository.LikeLogRepository likeLogRepository;
+    private final com.newcodes7.small_town.video.repository.VideoLikeLogRepository videoLikeLogRepository;
 
     @GetMapping({"", "/"})
     public String home(
@@ -105,12 +110,12 @@ public class ArticleController {
 
         Page<ArticleResponseDto> articles = articleService.getArticlesWithFilters(
             keyword != null && !keyword.trim().isEmpty() ? keyword.trim().toLowerCase() : null,
-            regions == null ? null : regions.stream().sorted().toList(),
+            regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
             page,
             size,
             sort,
             effectiveView,
-            category == null ? null : category.stream().sorted().toList()
+            category == null || category.isEmpty() ? null : category.stream().sorted().toList()
         );
 
         log.info("필터 조건: keyword='{}', regions={}, {}개의 글 조회",
@@ -162,12 +167,12 @@ public class ArticleController {
 
         Page<ArticleResponseDto> articles = articleService.getArticlesWithFilters(
             keyword != null && !keyword.trim().isEmpty() ? keyword.trim().toLowerCase() : null,
-            regions,
+            regions == null || regions.isEmpty() ? null : regions,
             page,
             size,
             sort,
             view,
-            category
+            category == null || category.isEmpty() ? null : category
         );
 
         Map<String, Object> response = new HashMap<>();
@@ -609,6 +614,145 @@ public class ArticleController {
         }
 
         return ResponseEntity.ok(suggestions);
+    }
+
+    // 좋아요 페이지 렌더링
+    @GetMapping("/liked-articles")
+    public String likedArticles(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @AuthenticationPrincipal UserDetails userDetails,
+            Model model) {
+
+        model.addAttribute("currentPage", page);
+        model.addAttribute("pageSize", size);
+        model.addAttribute("isAuthenticated", userDetails != null);
+
+        return "liked-articles";
+    }
+
+    // 로그인 사용자 좋아요 목록 API (아티클 + 비디오 통합)
+    @GetMapping("/api/liked-items")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getLikedItems(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        User user = userRepository.findByEmailAndDeletedAtIsNull(userDetails.getUsername())
+            .orElse(null);
+
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        // 아티클 좋아요 조회
+        java.util.List<com.newcodes7.small_town.article.entity.LikeLog> articleLikes =
+            likeLogRepository.findLikedArticlesWithTimestampByUserId(user.getId());
+
+        // 비디오 좋아요 조회
+        java.util.List<com.newcodes7.small_town.video.entity.VideoLikeLog> videoLikes =
+            videoLikeLogRepository.findLikedVideosWithTimestampByUserId(user.getId());
+
+        // LikedItemDto로 변환
+        java.util.List<com.newcodes7.small_town.article.dto.LikedItemDto> allItems = new java.util.ArrayList<>();
+
+        for (com.newcodes7.small_town.article.entity.LikeLog like : articleLikes) {
+            allItems.add(new com.newcodes7.small_town.article.dto.LikedItemDto(
+                like.getArticle(), like.getCreatedAt()));
+        }
+
+        for (com.newcodes7.small_town.video.entity.VideoLikeLog like : videoLikes) {
+            allItems.add(new com.newcodes7.small_town.article.dto.LikedItemDto(
+                like.getVideo(), like.getCreatedAt()));
+        }
+
+        // 좋아요 시간순으로 정렬 (최신순)
+        allItems.sort((a, b) -> b.getLikedAt().compareTo(a.getLikedAt()));
+
+        // 페이지네이션 적용
+        int start = page * size;
+        int end = Math.min(start + size, allItems.size());
+        java.util.List<com.newcodes7.small_town.article.dto.LikedItemDto> pagedItems =
+            start < allItems.size() ? allItems.subList(start, end) : java.util.Collections.emptyList();
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("content", pagedItems);
+        response.put("currentPage", page);
+        response.put("totalPages", (int) Math.ceil((double) allItems.size() / size));
+        response.put("totalElements", allItems.size());
+        response.put("hasNext", end < allItems.size());
+        response.put("hasPrevious", page > 0);
+
+        return ResponseEntity.ok(response);
+    }
+
+    // 로그인 사용자 좋아요 목록 API (아티클만 - 하위 호환성)
+    @GetMapping("/api/articles/liked")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getLikedArticles(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        Page<ArticleListResponseDto> articles = userLikeService.getLikedArticles(
+            userDetails.getUsername(), page, size);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("content", articles.getContent());
+        response.put("currentPage", page);
+        response.put("totalPages", articles.getTotalPages());
+        response.put("totalElements", articles.getTotalElements());
+        response.put("hasNext", articles.hasNext());
+        response.put("hasPrevious", articles.hasPrevious());
+
+        return ResponseEntity.ok(response);
+    }
+
+    // ID 배치 조회 API (비로그인 사용자용)
+    @GetMapping("/api/articles/batch")
+    @ResponseBody
+    public ResponseEntity<List<ArticleListResponseDto>> getArticlesByIds(
+            @RequestParam List<Long> ids) {
+
+        if (ids == null || ids.isEmpty()) {
+            return ResponseEntity.ok(java.util.Collections.emptyList());
+        }
+
+        // 최대 100개로 제한
+        List<Long> limitedIds = ids.stream().limit(100).collect(java.util.stream.Collectors.toList());
+
+        List<Article> articles = articleRepository.findAllByIdIn(limitedIds);
+        List<ArticleListResponseDto> dtos = articles.stream()
+            .map(ArticleListResponseDto::new)
+            .collect(java.util.stream.Collectors.toList());
+
+        return ResponseEntity.ok(dtos);
+    }
+
+    // localStorage 좋아요 마이그레이션 API
+    @PostMapping("/api/articles/migrate-likes")
+    @ResponseBody
+    public ResponseEntity<com.newcodes7.small_town.article.dto.MigrationResultDto> migrateLikesFromLocalStorage(
+            @RequestBody List<Long> articleIds,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        com.newcodes7.small_town.article.dto.MigrationResultDto result =
+            userLikeService.migrateLikesFromLocalStorage(userDetails.getUsername(), articleIds);
+
+        return ResponseEntity.ok(result);
     }
 
     private boolean isAdmin(UserDetails userDetails) {

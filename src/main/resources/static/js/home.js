@@ -14,6 +14,124 @@ function bindMoreButtonEvents() {
     })
 }
 
+// localStorage 유틸리티
+const LIKED_ARTICLES_KEY = 'likedArticles';
+
+function getLikedArticleIds() {
+    try {
+        const stored = localStorage.getItem(LIKED_ARTICLES_KEY);
+        return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+        console.error('Error reading liked articles:', error);
+        return [];
+    }
+}
+
+function saveLikedArticleIds(ids) {
+    try {
+        localStorage.setItem(LIKED_ARTICLES_KEY, JSON.stringify(ids));
+    } catch (error) {
+        console.error('Error saving liked articles:', error);
+    }
+}
+
+function addToLikedArticles(articleId) {
+    const likedIds = getLikedArticleIds();
+    const numericId = parseInt(articleId);
+    if (!likedIds.includes(numericId)) {
+        likedIds.push(numericId);
+        saveLikedArticleIds(likedIds);
+    }
+}
+
+function removeFromLikedArticles(articleId) {
+    const likedIds = getLikedArticleIds();
+    const numericId = parseInt(articleId);
+    const filtered = likedIds.filter(id => id !== numericId);
+    saveLikedArticleIds(filtered);
+}
+
+// localStorage 좋아요 마이그레이션 (블로그)
+async function migrateLikesFromLocalStorage() {
+    try {
+        const stored = localStorage.getItem(LIKED_ARTICLES_KEY);
+
+        if (!stored) {
+            return null; // 저장된 좋아요가 없으면 null 반환
+        }
+
+        const likedIds = JSON.parse(stored);
+
+        if (!likedIds || likedIds.length === 0) {
+            return null; // 빈 배열이면 null 반환
+        }
+
+        // 마이그레이션 API 호출
+        const response = await fetch('/api/articles/migrate-likes', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(likedIds)
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            console.log(`Successfully migrated ${data.totalCount} article likes`);
+            // 마이그레이션 성공 후 localStorage 클리어
+            localStorage.removeItem(LIKED_ARTICLES_KEY);
+            return data;
+        }
+        return null;
+    } catch (error) {
+        console.error('Failed to migrate article likes:', error);
+        // 마이그레이션 실패해도 로그인은 계속 진행
+        return null;
+    }
+}
+
+// localStorage 좋아요 마이그레이션 (유튜브)
+async function migrateVideoLikesFromLocalStorage() {
+    try {
+        const LIKED_VIDEOS_KEY = 'likedVideos';
+        const stored = localStorage.getItem(LIKED_VIDEOS_KEY);
+
+        if (!stored) {
+            return null; // 저장된 좋아요가 없으면 null 반환
+        }
+
+        const likedIds = JSON.parse(stored);
+
+        if (!likedIds || likedIds.length === 0) {
+            return null; // 빈 배열이면 null 반환
+        }
+
+        // 마이그레이션 API 호출
+        const response = await fetch('/video/api/videos/migrate-likes', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(likedIds)
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            console.log(`Successfully migrated ${data.totalCount} video likes`);
+            // 마이그레이션 성공 후 localStorage 클리어
+            localStorage.removeItem(LIKED_VIDEOS_KEY);
+            return data;
+        }
+        return null;
+    } catch (error) {
+        console.error('Failed to migrate video likes:', error);
+        // 마이그레이션 실패해도 로그인은 계속 진행
+        return null;
+    }
+}
+
 // 좋아요 버튼 클릭 이벤트
 function likeButton() {
     document.querySelectorAll('.like-button').forEach(btn => {
@@ -40,11 +158,13 @@ function likeButton() {
                     // 좋아요 수 업데이트
                     likeCount.textContent = data.likeCount;
 
-                    // 좋아요 상태에 따른 스타일 변경
+                    // 좋아요 상태에 따른 스타일 변경 및 localStorage 동기화
                     if (data.isLiked) {
                         this.classList.add('liked');
+                        addToLikedArticles(articleId);
                     } else {
                         this.classList.remove('liked');
+                        removeFromLikedArticles(articleId);
                     }
                 }
             } catch (error) {
@@ -81,11 +201,11 @@ async function initPagination() {
     if (loginForm) {
         loginForm.addEventListener('submit', async function(e) {
             e.preventDefault();
-            
+
             const email = document.getElementById('modalEmail').value;
             const password = document.getElementById('modalPassword').value;
             const messageDiv = document.getElementById('loginMessage');
-            
+
             try {
                 const response = await fetch('/api/auth/login', {
                     method: 'POST',
@@ -95,16 +215,42 @@ async function initPagination() {
                     credentials: 'same-origin',
                     body: JSON.stringify({ email, password })
                 });
-                
+
                 if (response.ok) {
+                    // localStorage에 저장된 좋아요 마이그레이션 (블로그 + 유튜브)
+                    const [articleResult, videoResult] = await Promise.all([
+                        migrateLikesFromLocalStorage(),
+                        migrateVideoLikesFromLocalStorage()
+                    ]);
+
                     messageDiv.textContent = '로그인 성공! 페이지를 새로고침합니다.';
                     messageDiv.className = 'alert alert-success';
                     messageDiv.classList.remove('d-none');
-                    
-                    // 로그인 성공 후 페이지 새로고침하여 인증 상태 반영
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1000);
+
+                    // 마이그레이션 결과 모달 표시
+                    if ((articleResult?.totalCount || 0) + (videoResult?.totalCount || 0) > 0) {
+                        setTimeout(() => {
+                            // 로그인 모달 닫기
+                            const loginModal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
+                            if (loginModal) {
+                                loginModal.hide();
+                            }
+
+                            // 마이그레이션 결과 모달 표시
+                            showMigrationModal(articleResult, videoResult);
+
+                            // 모달 닫힐 때 페이지 새로고침
+                            const migrationModalEl = document.getElementById('migrationModal');
+                            migrationModalEl.addEventListener('hidden.bs.modal', function () {
+                                window.location.reload();
+                            }, { once: true });
+                        }, 1000);
+                    } else {
+                        // 마이그레이션된 항목이 없으면 바로 새로고침
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                    }
                 } else {
                     const data = await response.json();
                     messageDiv.textContent = data.message || '로그인에 실패했습니다.';
@@ -163,26 +309,44 @@ function showLoginPopup() {
 // 페이지 로드 시 좋아요 상태 확인
 async function loadLikeStatuses() {
     const likeButtons = document.querySelectorAll('.like-button');
-    
+
+    // 사용자 인증 상태 확인
+    let userInfo = null;
+    try {
+        const response = await fetch('/api/user-info', { credentials: 'include' });
+        if (response.ok) {
+            userInfo = await response.json();
+        }
+    } catch (error) {
+        console.error('사용자 정보 로드 중 오류 발생:', error);
+    }
+
     for (const btn of likeButtons) {
-        const articleId = btn.getAttribute('data-article-id');
-        
+        const articleId = parseInt(btn.getAttribute('data-article-id'));
+
         try {
-            const response = await fetch(`/api/articles/${articleId}/like-status`, {
-                credentials: 'same-origin'
-            });
-            if (response.ok) {
-                const data = await response.json();
-                const likeIcon = btn.querySelector('.like-icon');
-                
-                // 인증된 사용자의 좋아요 상태만 반영
-                if (data.authenticated && data.hasLiked) {
+            if (userInfo && userInfo.authenticated) {
+                // 로그인 사용자: 서버에서 조회
+                const response = await fetch(`/api/articles/${articleId}/like-status`, {
+                    credentials: 'same-origin'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+
+                    if (data.hasLiked) {
+                        btn.classList.add('liked');
+                    }
+
+                    // 좋아요 수 업데이트
+                    const likeCount = btn.querySelector('.like-count');
+                    likeCount.textContent = data.likeCount;
+                }
+            } else {
+                // 비로그인 사용자: localStorage에서 조회
+                const likedIds = getLikedArticleIds();
+                if (likedIds.includes(articleId)) {
                     btn.classList.add('liked');
                 }
-                
-                // 좋아요 수는 항상 업데이트
-                const likeCount = btn.querySelector('.like-count');
-                likeCount.textContent = data.likeCount;
             }
         } catch (error) {
             console.error('좋아요 상태 로드 중 오류 발생:', error);

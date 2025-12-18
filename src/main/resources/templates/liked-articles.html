@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko"
+        xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>좋아요 모음</title>
+    <th:block layout:fragment="meta" th:remove="tag">
+        <meta name="description" content="내가 좋아요한 기술 블로그 글과 영상 모음">
+        <meta name="keywords" content="좋아요, 북마크, 기술 블로그, 유튜브">
+        <meta name="robots" content="noindex, nofollow">
+    </th:block>
+    <link rel="stylesheet" type="text/css" th:href="@{/css/home.css}">
+</head>
+<body>
+    <div layout:fragment="content">
+        <!-- Page Header -->
+        <div class="mb-4">
+            <h2 class="mb-2" style="color: var(--text-dark); font-weight: 700;">
+                <i class="fas fa-heart me-2" style="color: var(--primary-green);"></i>좋아요 모음
+            </h2>
+            <p class="text-muted">마음에 드는 글과 영상을 모아보세요</p>
+        </div>
+
+        <!-- 비로그인 사용자 안내 배너 -->
+        <div id="anonymousNotice" class="alert alert-info d-none" style="border-left: 4px solid var(--primary-green); background-color: #E8FFF2; border-radius: 12px; max-width: 800px; margin: 0 auto 1.5rem;">
+            <div class="d-flex align-items-start">
+                <i class="fas fa-info-circle me-3 mt-1" style="color: var(--primary-green); font-size: 1.3rem;"></i>
+                <div class="flex-grow-1">
+                    <div class="d-flex align-items-center justify-content-between" style="cursor: pointer;" onclick="toggleAnonymousNotice()">
+                        <h5 class="mb-0" style="color: var(--text-dark); font-weight: 700;">
+                            브라우저에만 저장되고 있어요!
+                        </h5>
+                        <i id="anonymousNoticeChevron" class="fas fa-chevron-down" style="color: var(--primary-green); transition: transform 0.3s ease;"></i>
+                    </div>
+                    <div id="anonymousNoticeDetails" class="mt-3" style="display: none;">
+                        <p class="mb-2" style="font-size: 0.95rem; line-height: 1.6;">
+                            지금 좋아요 누르신 글들은 <strong>이 브라우저에만 임시로 저장</strong>되고 있습니다.
+                            브라우저를 바꾸거나 데이터를 삭제하면 <strong style="color: #d9534f;">모두 사라질 수 있어요</strong>.
+                        </p>
+                        <div class="alert alert-success mb-2 py-2" style="background-color: rgba(3, 199, 90, 0.1); border: 1px solid var(--primary-green); border-radius: 8px;">
+                            <i class="fas fa-check-circle me-2" style="color: var(--primary-green);"></i>
+                            <strong>로그인하시면</strong> 좋아요한 글들이 영구히 저장되며, <strong>어디서든 확인</strong>할 수 있습니다!
+                        </div>
+                        <p class="mb-0" style="font-size: 0.9rem; color: #666;">
+                            <i class="fas fa-magic me-1" style="color: var(--primary-green);"></i>
+                            로그인 시 <strong>기존에 좋아요 누른 글도 자동으로 저장</strong>됩니다.
+                        </p>
+                        <div class="mt-3">
+                            <a href="#" class="btn btn-primary btn-sm me-2" onclick="redirectToLoginWithCurrentPage(event)">
+                                <i class="fas fa-sign-in-alt me-1"></i>로그인하기
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">글을 불러오는 중...</p>
+        </div>
+
+        <!-- Article List Container -->
+        <div id="article-list-container" class="d-none">
+            <div class="articles-list-container">
+                <!-- Articles will be dynamically inserted here -->
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="text-center py-5 d-none">
+            <div class="hero-section">
+                <i class="fas fa-heart-broken fa-4x mb-4" style="color: var(--primary-green); opacity: 0.5;"></i>
+                <h4 class="mb-3" style="color: var(--text-dark); font-weight: 700;">
+                    <span id="emptyStateTitle">좋아요한 글이 없습니다</span>
+                </h4>
+                <p class="text-muted mb-4" id="emptyStateMessage">
+                    마음에 드는 글에 하트를 눌러보세요!
+                </p>
+                <a th:href="@{/}" class="btn btn-primary">
+                    <i class="fas fa-home me-2"></i>홈으로 가기
+                </a>
+            </div>
+        </div>
+
+        <!-- Pagination Container -->
+        <div id="paginationContainer" class="mt-5 d-none">
+            <nav id="paginationNav">
+                <ul class="pagination justify-content-center" id="paginationList">
+                    <!-- Pagination will be dynamically inserted here -->
+                </ul>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <th:block layout:fragment="scripts">
+        <script th:inline="javascript">
+            /*<![CDATA[*/
+            window.isAuthenticated = /*[[${isAuthenticated}]]*/ false;
+            window.currentPage = /*[[${currentPage}]]*/ 0;
+            window.pageSize = /*[[${pageSize}]]*/ 10;
+            /*]]>*/
+        </script>
+        <script th:src="@{/js/likedArticles.js}"></script>
+        <script>
+            // Toggle anonymous notice details
+            function toggleAnonymousNotice() {
+                const details = document.getElementById('anonymousNoticeDetails');
+                const chevron = document.getElementById('anonymousNoticeChevron');
+
+                if (details.style.display === 'none') {
+                    details.style.display = 'block';
+                    chevron.style.transform = 'rotate(180deg)';
+                } else {
+                    details.style.display = 'none';
+                    chevron.style.transform = 'rotate(0deg)';
+                }
+            }
+
+            // 로그인 페이지로 리다이렉트 (현재 페이지 URL 포함)
+            function redirectToLoginWithCurrentPage(event) {
+                event.preventDefault();
+                const currentUrl = window.location.pathname + window.location.search;
+                window.location.href = '/auth/login?redirect=' + encodeURIComponent(currentUrl);
+            }
+
+            // 회원가입 페이지로 리다이렉트 (현재 페이지 URL 포함)
+            function redirectToSignupWithCurrentPage(event) {
+                event.preventDefault();
+                const currentUrl = window.location.pathname + window.location.search;
+                window.location.href = '/auth/signup?redirect=' + encodeURIComponent(currentUrl);
+            }
+
+            document.addEventListener('DOMContentLoaded', function() {
+                // 네비게이션 활성화
+                const likedNav = document.querySelector('[data-nav="liked"]');
+                if (likedNav) {
+                    likedNav.classList.add('active');
+                }
+            });
+        </script>
+    </th:block>
+</body>
+</html>

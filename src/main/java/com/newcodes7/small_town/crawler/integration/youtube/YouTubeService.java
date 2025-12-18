@@ -241,13 +241,14 @@ public class YouTubeService {
 
     /**
      * YouTube DateTime을 LocalDateTime으로 변환
+     * YouTube API는 UTC 시간을 반환하므로 한국 시간대로 변환
      */
     private LocalDateTime convertToLocalDateTime(com.google.api.client.util.DateTime dateTime) {
         if (dateTime == null) {
             return null;
         }
         Date date = new Date(dateTime.getValue());
-        return LocalDateTime.ofInstant(date.toInstant(), ZoneId.systemDefault());
+        return LocalDateTime.ofInstant(date.toInstant(), ZoneId.of("Asia/Seoul"));
     }
 
     /**

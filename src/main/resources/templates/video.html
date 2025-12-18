@@ -427,18 +427,15 @@
                                 </a>
                             </div>
                             <div class="d-flex align-items-center gap-3">
-                                <small class="text-muted relative-time" 
+                                <small class="text-muted relative-time"
                                     th:attr="data-date=${video.publishedAt}"
                                     th:title="${video.publishedAt}"
                                     th:text="${video.publishedAt}">2024-01-01</small>
-                                <!-- <span class="text-muted d-flex align-items-center" style="font-size: 0.85rem;">
-                                    <i class="fas fa-eye me-1"></i> <span class="view-count" th:text="${video.viewCount}">0</span>
-                                </span> -->
-                                <!-- <button class="like-button" 
-                                        th:attr="data-article-id=${video.id}">
-                                    <i class="fas fa-heart like-icon"></i> 
-                                    <span class="like-count" th:text="${video.likeCount}">0</span>
-                                </button> -->
+                                <button class="like-button"
+                                        th:attr="data-video-id=${video.id}">
+                                    <i class="fas fa-heart like-icon"></i>
+                                    <span class="like-count" th:text="${video.likeCount ?: 0}">0</span>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -508,6 +505,11 @@
                                 </div>
                                 <div class="d-flex align-items-center gap-3">
                                     <small class="text-muted relative-time" th:attr="data-date=${firstVideo.publishedAt}" th:title="${firstVideo.publishedAt}" th:text="${firstVideo.publishedAt}"></small>
+                                    <button class="like-button"
+                                            th:attr="data-video-id=${firstVideo.id}">
+                                        <i class="fas fa-heart like-icon"></i>
+                                        <span class="like-count" th:text="${firstVideo.likeCount ?: 0}">0</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -1164,6 +1166,173 @@
                 }
             });
 
+            // ===== 좋아요 기능 =====
+            const LIKED_VIDEOS_KEY = 'likedVideos';
+
+            function getLikedVideoIds() {
+                try {
+                    const stored = localStorage.getItem(LIKED_VIDEOS_KEY);
+                    return stored ? JSON.parse(stored) : [];
+                } catch (error) {
+                    console.error('Error reading liked videos:', error);
+                    return [];
+                }
+            }
+
+            function saveLikedVideoIds(ids) {
+                try {
+                    localStorage.setItem(LIKED_VIDEOS_KEY, JSON.stringify(ids));
+                } catch (error) {
+                    console.error('Error saving liked videos:', error);
+                }
+            }
+
+            function addToLikedVideos(videoId) {
+                const likedIds = getLikedVideoIds();
+                const numericId = parseInt(videoId);
+                if (!likedIds.includes(numericId)) {
+                    likedIds.push(numericId);
+                    saveLikedVideoIds(likedIds);
+                }
+            }
+
+            function removeFromLikedVideos(videoId) {
+                const likedIds = getLikedVideoIds();
+                const numericId = parseInt(videoId);
+                const filtered = likedIds.filter(id => id !== numericId);
+                saveLikedVideoIds(filtered);
+            }
+
+            // localStorage 좋아요 마이그레이션
+            async function migrateLikesFromLocalStorage() {
+                try {
+                    const stored = localStorage.getItem(LIKED_VIDEOS_KEY);
+
+                    if (!stored) {
+                        return null; // 저장된 좋아요가 없으면 null 반환
+                    }
+
+                    const likedIds = JSON.parse(stored);
+
+                    if (!likedIds || likedIds.length === 0) {
+                        return null; // 빈 배열이면 null 반환
+                    }
+
+                    // 마이그레이션 API 호출
+                    const response = await fetch('/video/api/videos/migrate-likes', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify(likedIds)
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log(`Successfully migrated ${data.totalCount} video likes`);
+                        // 마이그레이션 성공 후 localStorage 클리어
+                        localStorage.removeItem(LIKED_VIDEOS_KEY);
+                        return data;
+                    }
+                    return null;
+                } catch (error) {
+                    console.error('Failed to migrate video likes:', error);
+                    // 마이그레이션 실패해도 로그인은 계속 진행
+                    return null;
+                }
+            }
+
+            // 좋아요 버튼 클릭 이벤트
+            function initLikeButtons() {
+                document.querySelectorAll('.like-button').forEach(btn => {
+                    btn.addEventListener('click', async function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        const videoId = this.getAttribute('data-video-id');
+                        const likeIcon = this.querySelector('.like-icon');
+                        const likeCount = this.querySelector('.like-count');
+
+                        try {
+                            const response = await fetch(`/video/api/videos/${videoId}/like`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                credentials: 'same-origin'
+                            });
+
+                            if (response.ok) {
+                                const data = await response.json();
+
+                                // 좋아요 수 업데이트
+                                likeCount.textContent = data.likeCount;
+
+                                // 좋아요 상태에 따른 스타일 변경 및 localStorage 동기화
+                                if (data.isLiked) {
+                                    this.classList.add('liked');
+                                    addToLikedVideos(videoId);
+                                } else {
+                                    this.classList.remove('liked');
+                                    removeFromLikedVideos(videoId);
+                                }
+                            }
+                        } catch (error) {
+                            console.error('좋아요 처리 중 오류 발생:', error);
+                        }
+                    });
+                });
+            }
+
+            // 페이지 로드 시 좋아요 상태 확인
+            async function loadLikeStatuses() {
+                const likeButtons = document.querySelectorAll('.like-button');
+
+                // 사용자 인증 상태 확인
+                let userInfo = null;
+                try {
+                    const response = await fetch('/api/user-info', { credentials: 'include' });
+                    if (response.ok) {
+                        userInfo = await response.json();
+                    }
+                } catch (error) {
+                    console.error('사용자 정보 로드 중 오류 발생:', error);
+                }
+
+                for (const btn of likeButtons) {
+                    const videoId = parseInt(btn.getAttribute('data-video-id'));
+
+                    try {
+                        if (userInfo && userInfo.authenticated) {
+                            // 로그인 사용자: 서버에서 조회
+                            const response = await fetch(`/video/api/videos/${videoId}/like-status`, {
+                                credentials: 'same-origin'
+                            });
+                            if (response.ok) {
+                                const data = await response.json();
+
+                                if (data.hasLiked) {
+                                    btn.classList.add('liked');
+                                }
+
+                                // 좋아요 수 업데이트
+                                const likeCount = btn.querySelector('.like-count');
+                                likeCount.textContent = data.likeCount;
+                            }
+                        } else {
+                            // 비로그인 사용자: localStorage에서 조회
+                            const likedIds = getLikedVideoIds();
+                            if (likedIds.includes(videoId)) {
+                                btn.classList.add('liked');
+                            }
+                        }
+                    } catch (error) {
+                        console.error('좋아요 상태 로드 중 오류 발생:', error);
+                    }
+                }
+            }
+
             // Bind click events to video cards (similar to article cards)
             function bindVideoCardEvents() {
                 document.querySelectorAll('.video-card').forEach(card => {
@@ -1248,6 +1417,8 @@
             // 페이지 로드 시 이벤트 바인딩
             document.addEventListener('DOMContentLoaded', function() {
                 bindVideoCardEvents();
+                initLikeButtons();
+                loadLikeStatuses();
             });
 
             // ===== 검색 기록 관리 (searchUtils.js 사용) =====

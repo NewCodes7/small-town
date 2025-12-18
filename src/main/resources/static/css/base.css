@@ -20,6 +20,16 @@ body {
     line-height: 1.6;
     background: linear-gradient(135deg, #F8F9FA 0%, #F0F8F0 100%);
     min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1 0 auto;
+}
+
+footer {
+    flex-shrink: 0;
 }
 
 .btn-primary {

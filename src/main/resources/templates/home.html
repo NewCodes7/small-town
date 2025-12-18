@@ -441,7 +441,7 @@
                         <!-- Child Container (Bottom Side) -->
                         <div class="child-container" th:if="${!childArticles.isEmpty()}">
                             <div class="child" th:each="child : ${childArticles}" th:attr="data-article-id=${child.id}">
-                                <h6 class="fw-bold" style="margin: 0;">
+                                <h6 class="fw-bold  d-flex align-items-center" style="margin: 0;">
                                     <a th:href="${child.link}" target="_blank"
                                     class="text-decoration-none title-link" style="color: inherit;">
                                         <span th:text="${child.translatedTitle != null && !child.translatedTitle.isEmpty() ? child.translatedTitle : child.title}"></span>

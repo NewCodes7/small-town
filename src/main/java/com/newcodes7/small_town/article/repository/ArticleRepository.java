@@ -203,4 +203,13 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "AND c.id = :corporationId " +
            "ORDER BY a.publishedAt DESC")
     List<Article> findByCorporationIdAndDeletedAtIsNull(@Param("corporationId") Long corporationId);
+
+    // ID 리스트로 아티클 조회 (비로그인 사용자용 - 좋아요 페이지)
+    @Query("SELECT a FROM Article a " +
+           "JOIN FETCH a.corporation c " +
+           "LEFT JOIN FETCH a.category " +
+           "WHERE a.id IN :ids " +
+           "AND a.deletedAt IS NULL " +
+           "ORDER BY a.id DESC")
+    List<Article> findAllByIdIn(@Param("ids") List<Long> ids);
 }

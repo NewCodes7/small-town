@@ -694,6 +694,11 @@
     100% { transform: scale(1); }
 }
 
+/* 좋아요 개수 숨기기 */
+.like-count {
+    display: none;
+}
+
 .default-thumbnail-content {
     position: relative;
     height: 100%;
