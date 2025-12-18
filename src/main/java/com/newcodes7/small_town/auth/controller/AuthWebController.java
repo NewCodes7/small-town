@@ -30,11 +30,18 @@ public class AuthWebController {
     }
     
     @GetMapping("/signup")
-    public String signupPage(Model model, @AuthenticationPrincipal UserDetails userDetails) {
+    public String signupPage(Model model,
+                            @AuthenticationPrincipal UserDetails userDetails,
+                            @org.springframework.web.bind.annotation.RequestParam(value = "redirect", required = false) String redirectUrl) {
         if (userDetails != null) {
+            // 이미 로그인된 경우 redirect URL로 이동 (없으면 홈으로)
+            if (redirectUrl != null && !redirectUrl.isEmpty()) {
+                return "redirect:" + redirectUrl;
+            }
             return "redirect:/";
         }
         model.addAttribute("signupRequest", new SignupRequestDto());
+        model.addAttribute("redirectUrl", redirectUrl != null ? redirectUrl : "/");
         return "auth/signup";
     }
     
@@ -45,5 +52,15 @@ public class AuthWebController {
         }
         model.addAttribute("user", userDetails);
         return "auth/profile";
+    }
+
+    @GetMapping("/terms")
+    public String termsPage() {
+        return "auth/terms";
+    }
+
+    @GetMapping("/privacy")
+    public String privacyPage() {
+        return "auth/privacy";
     }
 }

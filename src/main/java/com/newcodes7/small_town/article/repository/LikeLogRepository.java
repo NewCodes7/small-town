@@ -29,4 +29,12 @@ public interface LikeLogRepository extends JpaRepository<LikeLog, Long> {
     // 익명 사용자의 좋아요 존재 여부 확인 (IP 기반)
     @Query("SELECT CASE WHEN COUNT(ll) > 0 THEN true ELSE false END FROM LikeLog ll WHERE ll.ipAddress = :ipAddress AND ll.article.id = :articleId AND ll.user IS NULL AND ll.deletedAt IS NULL")
     boolean existsByIpAddressAndArticleIdAndDeletedAtIsNull(@Param("ipAddress") String ipAddress, @Param("articleId") Long articleId);
+
+    // 사용자가 좋아요한 아티클 조회 (생성일 내림차순)
+    @Query("SELECT ll.article FROM LikeLog ll WHERE ll.user.id = :userId AND ll.deletedAt IS NULL ORDER BY ll.createdAt DESC")
+    org.springframework.data.domain.Page<com.newcodes7.small_town.global.entity.Article> findLikedArticlesByUserId(@Param("userId") Long userId, org.springframework.data.domain.Pageable pageable);
+
+    // 사용자가 좋아요한 아티클과 좋아요 시간 조회
+    @Query("SELECT ll FROM LikeLog ll JOIN FETCH ll.article a JOIN FETCH a.corporation WHERE ll.user.id = :userId AND ll.deletedAt IS NULL ORDER BY ll.createdAt DESC")
+    java.util.List<LikeLog> findLikedArticlesWithTimestampByUserId(@Param("userId") Long userId);
 }

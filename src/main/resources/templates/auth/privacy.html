@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>개인정보처리방침 - NewCodes</title>
+    <th:block layout:fragment="meta" th:remove="tag">
+        <meta name="description" content="NewCodes 개인정보처리방침">
+        <meta name="robots" content="noindex, nofollow">
+    </th:block>
+    <style>
+        .privacy-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .privacy-section {
+            margin-bottom: 2rem;
+        }
+        .privacy-section h3 {
+            color: var(--text-dark);
+            font-weight: 700;
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+        }
+        .privacy-section h4 {
+            color: var(--text-dark);
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.8rem;
+            font-size: 1.1rem;
+        }
+        .privacy-section p, .privacy-section ul {
+            color: var(--text-light);
+            line-height: 1.8;
+            margin-bottom: 1rem;
+        }
+        .privacy-section ul {
+            padding-left: 1.5rem;
+        }
+        .privacy-header {
+            border-bottom: 3px solid var(--primary-green);
+            padding-bottom: 1rem;
+            margin-bottom: 2rem;
+        }
+        .privacy-header h2 {
+            color: var(--text-dark);
+            font-weight: 700;
+        }
+        .privacy-date {
+            color: var(--text-light);
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+        .info-table {
+            width: 100%;
+            margin: 1rem 0;
+            border-collapse: collapse;
+        }
+        .info-table th, .info-table td {
+            border: 1px solid #ddd;
+            padding: 0.8rem;
+            text-align: left;
+        }
+        .info-table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+        .info-table td {
+            color: var(--text-light);
+        }
+    </style>
+</head>
+
+<div layout:fragment="content">
+    <div class="privacy-container">
+        <div class="privacy-header">
+            <h2>개인정보처리방침</h2>
+            <p class="privacy-date">시행일자: 2025년 1월 1일</p>
+        </div>
+
+        <div class="privacy-section">
+            <p>NewCodes(이하 "서비스")는 「개인정보 보호법」 제30조에 따라 정보주체의 개인정보를 보호하고 이와 관련한 고충을 신속하고 원활하게 처리할 수 있도록 다음과 같이 개인정보 처리방침을 수립·공개합니다.</p>
+        </div>
+
+        <div class="privacy-section">
+            <h3>제1조 (개인정보의 처리 목적)</h3>
+            <p>서비스는 다음의 목적을 위하여 개인정보를 처리합니다. 처리하고 있는 개인정보는 다음의 목적 이외의 용도로는 이용되지 않으며, 이용 목적이 변경되는 경우에는 「개인정보 보호법」 제18조에 따라 별도의 동의를 받는 등 필요한 조치를 이행할 예정입니다.</p>
+
+            <h4>1. 회원 가입 및 관리</h4>
+            <ul>
+                <li>회원제 서비스 제공에 따른 본인 식별·인증</li>
+                <li>회원자격 유지·관리</li>
+                <li>서비스 부정이용 방지</li>
+                <li>고충처리</li>
+            </ul>
+
+            <h4>2. 서비스 제공</h4>
+            <ul>
+                <li>콘텐츠 제공</li>
+                <li>맞춤형 서비스 제공</li>
+                <li>좋아요 및 북마크 기능 제공</li>
+                <li>사용자 활동 기록 관리</li>
+            </ul>
+
+            <h4>3. 서비스 개선</h4>
+            <ul>
+                <li>서비스 이용 통계 분석</li>
+                <li>신규 서비스 개발 및 기존 서비스 개선</li>
+            </ul>
+        </div>
+
+        <div class="privacy-section">
+            <h3>제2조 (처리하는 개인정보의 항목)</h3>
+            <p>서비스는 다음의 개인정보 항목을 처리하고 있습니다:</p>
+
+            <h4>1. 회원가입 시 수집항목</h4>
+            <table class="info-table">
+                <thead>
+                    <tr>
+                        <th>가입 방법</th>
+                        <th>수집 항목</th>
+                        <th>수집 목적</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>이메일 회원가입</td>
+                        <td>이메일, 비밀번호(암호화)</td>
+                        <td>본인 식별, 로그인 인증</td>
+                    </tr>
+                    <tr>
+                        <td>GitHub OAuth</td>
+                        <td>GitHub 사용자 ID, 이메일, 프로필 이미지</td>
+                        <td>본인 식별, 소셜 로그인 인증</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h4>2. 서비스 이용 과정에서 자동으로 수집되는 항목</h4>
+            <ul>
+                <li>IP 주소</li>
+                <li>쿠키 (세션 유지)</li>
+                <li>서비스 이용 기록 (조회수, 좋아요 기록)</li>
+                <li>접속 로그</li>
+            </ul>
+        </div>
+
+        <div class="privacy-section">
+            <h3>제3조 (개인정보의 처리 및 보유 기간)</h3>
+            <p>서비스는 법령에 따른 개인정보 보유·이용기간 또는 정보주체로부터 개인정보를 수집 시에 동의받은 개인정보 보유·이용기간 내에서 개인정보를 처리·보유합니다.</p>
+
+            <table class="info-table">
+                <thead>
+                    <tr>
+                        <th>항목</th>
+                        <th>보유 기간</th>
+                        <th>근거</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>회원 정보</td>
+                        <td>회원 탈퇴 시까지</td>
+                        <td>서비스 이용약관</td>
+                    </tr>
+                    <tr>
+                        <td>서비스 이용 기록</td>
+                        <td>회원 탈퇴 후 즉시 삭제</td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td>접속 로그</td>
+                        <td>3개월</td>
+                        <td>통신비밀보호법</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="privacy-section">
+            <h3>제4조 (개인정보의 제3자 제공)</h3>
+            <p>서비스는 원칙적으로 이용자의 개인정보를 제1조(개인정보의 처리 목적)에서 명시한 범위 내에서만 처리하며, 이용자의 사전 동의 없이는 본래의 범위를 초과하여 처리하거나 제3자에게 제공하지 않습니다.</p>
+        </div>
+
+        <div class="privacy-section">
+            <h3>제5조 (개인정보의 파기)</h3>
+            <p>서비스는 개인정보 보유기간의 경과, 처리목적 달성 등 개인정보가 불필요하게 되었을 때에는 지체 없이 해당 개인정보를 파기합니다.</p>
+
+            <h4>파기절차</h4>
+            <ul>
+                <li>이용자가 회원가입 등을 위해 입력한 정보는 목적이 달성된 후 별도의 DB로 옮겨져 내부 방침 및 기타 관련 법령에 의한 정보보호 사유에 따라 일정 기간 저장된 후 파기됩니다.</li>
+            </ul>
+
+            <h4>파기방법</h4>
+            <ul>
+                <li>전자적 파일 형태의 정보는 기록을 재생할 수 없는 기술적 방법을 사용합니다.</li>
+                <li>종이에 출력된 개인정보는 분쇄기로 분쇄하거나 소각합니다.</li>
+            </ul>
+        </div>
+
+        <div class="privacy-section">
+            <h3>제6조 (정보주체의 권리·의무 및 행사방법)</h3>
+            <p>정보주체는 서비스에 대해 언제든지 다음 각 호의 개인정보 보호 관련 권리를 행사할 수 있습니다:</p>
+            <ul>
+                <li>개인정보 열람 요구</li>
+                <li>개인정보 정정 요구</li>
+                <li>개인정보 삭제 요구</li>
+                <li>개인정보 처리정지 요구</li>
+            </ul>
+            <p>위 권리 행사는 서비스 내 프로필 페이지를 통해 직접 하실 수 있으며, 서면, 전자우편을 통해서도 하실 수 있습니다.</p>
+        </div>
+
+        <div class="privacy-section">
+            <h3>제7조 (개인정보의 안전성 확보 조치)</h3>
+            <p>서비스는 개인정보의 안전성 확보를 위해 다음과 같은 조치를 취하고 있습니다:</p>
+            <ul>
+                <li>비밀번호 암호화: 비밀번호는 암호화되어 저장 및 관리되고 있습니다.</li>
+                <li>접속기록의 보관 및 위변조 방지: 개인정보처리시스템에 접속한 기록을 보관·관리하고 있습니다.</li>
+                <li>개인정보에 대한 접근 제한: 개인정보를 처리하는 데이터베이스시스템에 대한 접근권한의 부여, 변경, 말소를 통하여 개인정보에 대한 접근통제를 위하여 필요한 조치를 하고 있습니다.</li>
+            </ul>
+        </div>
+
+        <div class="privacy-section">
+            <h3>제8조 (개인정보 보호책임자)</h3>
+            <p>서비스는 개인정보 처리에 관한 업무를 총괄해서 책임지고, 개인정보 처리와 관련한 정보주체의 불만처리 및 피해구제 등을 위하여 아래와 같이 개인정보 보호책임자를 지정하고 있습니다.</p>
+
+            <h4>개인정보 보호책임자</h4>
+            <ul>
+                <li>담당자: NewCodes 운영팀</li>
+                <li>이메일: [운영팀 이메일 주소]</li>
+            </ul>
+
+            <p>정보주체는 서비스 이용 중 발생한 모든 개인정보 보호 관련 문의, 불만처리, 피해구제 등에 관한 사항을 개인정보 보호책임자에게 문의하실 수 있습니다.</p>
+        </div>
+
+        <div class="privacy-section">
+            <h3>제9조 (개인정보 처리방침 변경)</h3>
+            <p>이 개인정보처리방침은 시행일로부터 적용되며, 법령 및 방침에 따른 변경내용의 추가, 삭제 및 정정이 있는 경우에는 변경사항의 시행 7일 전부터 공지사항을 통하여 고지할 것입니다.</p>
+        </div>
+
+        <div class="text-center mt-5">
+            <a th:href="@{/}" class="btn btn-primary">
+                <i class="fas fa-home me-2"></i>홈으로 돌아가기
+            </a>
+        </div>
+    </div>
+</div>
+</html>

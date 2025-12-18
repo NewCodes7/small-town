@@ -12,7 +12,7 @@
 
 <div layout:fragment="content">
     <div class="row justify-content-center">
-        <div class="col-md-6 col-lg-5">
+        <div class="col-md-6 col-lg-4">
             <div class="card shadow-lg border-0" style="border-radius: 20px;">
                 <div class="card-body p-5">
                     <div class="text-center mb-4">
@@ -23,17 +23,11 @@
                     <div id="signupMessage" class="alert d-none" role="alert"></div>
                     
                     <form id="signupForm">
+                        <input type="hidden" id="redirectUrl" th:value="${redirectUrl}" />
                         <div class="mb-3">
                             <label for="email" class="form-label fw-semibold">이메일</label>
                             <input type="email" class="form-control form-control-lg" id="email" name="email" 
                                    placeholder="이메일을 입력하세요" required>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="password" class="form-label fw-semibold">비밀번호</label>
-                            <input type="password" class="form-control form-control-lg" id="password" name="password" 
-                                   placeholder="비밀번호를 입력하세요" minlength="8" maxlength="20" required>
-                            <div class="form-text">8자 이상 20자 이하로 입력해주세요.</div>
                         </div>
 
                         <div class="mb-3">
@@ -41,12 +35,28 @@
                             <input type="text" class="form-control form-control-lg" id="nickname" name="nickname" 
                                    placeholder="닉네임을 입력하세요" minlength="2" maxlength="50" required>
                         </div>
+
+                        <div class="mb-3">
+                            <label for="password" class="form-label fw-semibold">비밀번호</label>
+                            <input type="password" class="form-control form-control-lg" id="password" name="password" 
+                                   placeholder="비밀번호를 입력하세요" minlength="8" maxlength="20" required>
+                            <div class="form-text">8자 이상 20자 이하로 입력해주세요.</div>
+                        </div>
                         
                         <div class="mb-4">
                             <label for="confirmPassword" class="form-label fw-semibold">비밀번호 확인</label>
                             <input type="password" class="form-control form-control-lg" id="confirmPassword" name="confirmPassword" 
                                    placeholder="비밀번호를 다시 입력하세요" required>
                         </div>
+
+                        <p class="text-muted mb-0">서비스 이용약관
+                            <a th:href="@{/terms}" class="text-decoration-none fw-semibold" 
+                            style="color: var(--primary-green);">보기</a>
+                        </p>
+                        <p class="text-muted mb-0">개인정보 처리방침
+                            <a th:href="@{/privacy}" class="text-decoration-none fw-semibold" 
+                            style="color: var(--primary-green);">보기</a>
+                        </p>
                         
                         <div class="d-grid mb-3">
                             <button type="submit" class="btn btn-primary btn-lg fw-semibold">
@@ -57,12 +67,8 @@
                     
                     <div class="text-center mb-3">
                         <hr class="my-3">
-                        <p class="text-muted mb-3">또는 소셜 계정으로 가입</p>
-                        
+
                         <div class="d-grid gap-2">
-                            <a th:href="@{/oauth2/authorization/google}" class="btn btn-outline-danger btn-lg">
-                                <i class="fab fa-google me-2"></i>Google로 가입
-                            </a>
                             <a th:href="@{/oauth2/authorization/github}" class="btn btn-outline-dark btn-lg">
                                 <i class="fab fa-github me-2"></i>GitHub로 가입
                             </a>
@@ -82,15 +88,97 @@
 </div>
 
 <script layout:fragment="scripts">
+// localStorage 좋아요 마이그레이션 (블로그)
+async function migrateLikesFromLocalStorage() {
+    try {
+        const LIKED_ARTICLES_KEY = 'likedArticles';
+        const stored = localStorage.getItem(LIKED_ARTICLES_KEY);
+
+        if (!stored) {
+            return null; // 저장된 좋아요가 없으면 null 반환
+        }
+
+        const likedIds = JSON.parse(stored);
+
+        if (!likedIds || likedIds.length === 0) {
+            return null; // 빈 배열이면 null 반환
+        }
+
+        // 마이그레이션 API 호출
+        const response = await fetch('/api/articles/migrate-likes', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(likedIds)
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            console.log(`Successfully migrated ${data.totalCount} article likes`);
+            // 마이그레이션 성공 후 localStorage 클리어
+            localStorage.removeItem(LIKED_ARTICLES_KEY);
+            return data;
+        }
+        return null;
+    } catch (error) {
+        console.error('Failed to migrate article likes:', error);
+        // 마이그레이션 실패해도 회원가입은 계속 진행
+        return null;
+    }
+}
+
+// localStorage 좋아요 마이그레이션 (유튜브)
+async function migrateVideoLikesFromLocalStorage() {
+    try {
+        const LIKED_VIDEOS_KEY = 'likedVideos';
+        const stored = localStorage.getItem(LIKED_VIDEOS_KEY);
+
+        if (!stored) {
+            return null; // 저장된 좋아요가 없으면 null 반환
+        }
+
+        const likedIds = JSON.parse(stored);
+
+        if (!likedIds || likedIds.length === 0) {
+            return null; // 빈 배열이면 null 반환
+        }
+
+        // 마이그레이션 API 호출
+        const response = await fetch('/video/api/videos/migrate-likes', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(likedIds)
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            console.log(`Successfully migrated ${data.totalCount} video likes`);
+            // 마이그레이션 성공 후 localStorage 클리어
+            localStorage.removeItem(LIKED_VIDEOS_KEY);
+            return data;
+        }
+        return null;
+    } catch (error) {
+        console.error('Failed to migrate video likes:', error);
+        // 마이그레이션 실패해도 회원가입은 계속 진행
+        return null;
+    }
+}
+
 document.getElementById('signupForm').addEventListener('submit', async function(e) {
     e.preventDefault();
-    
+
     const email = document.getElementById('email').value;
     const nickname = document.getElementById('nickname').value;
     const password = document.getElementById('password').value;
     const confirmPassword = document.getElementById('confirmPassword').value;
     const messageDiv = document.getElementById('signupMessage');
-    
+
     // 비밀번호 확인
     if (password !== confirmPassword) {
         messageDiv.textContent = '비밀번호가 일치하지 않습니다.';
@@ -98,7 +186,7 @@ document.getElementById('signupForm').addEventListener('submit', async function(
         messageDiv.classList.remove('d-none');
         return;
     }
-    
+
     try {
         const response = await fetch('/api/auth/signup', {
             method: 'POST',
@@ -106,25 +194,46 @@ document.getElementById('signupForm').addEventListener('submit', async function(
                 'Content-Type': 'application/json',
             },
             credentials: 'include', // 쿠키 포함
-            body: JSON.stringify({ 
-                email, 
-                nickname, 
-                password, 
-                confirmPassword 
+            body: JSON.stringify({
+                email,
+                nickname,
+                password,
+                confirmPassword
             })
         });
-        
+
         if (response.ok) {
             const data = await response.json();
             // 쿠키는 서버에서 자동으로 설정되므로 localStorage 사용하지 않음
-            
+
+            // localStorage에 저장된 좋아요 마이그레이션 (블로그 + 유튜브)
+            const [articleResult, videoResult] = await Promise.all([
+                migrateLikesFromLocalStorage(),
+                migrateVideoLikesFromLocalStorage()
+            ]);
+
             messageDiv.textContent = '회원가입이 완료되었습니다. 환영합니다!';
             messageDiv.className = 'alert alert-success';
             messageDiv.classList.remove('d-none');
-            
-            setTimeout(() => {
-                window.location.href = '/';
-            }, 1500);
+
+            const redirectUrl = document.getElementById('redirectUrl').value || '/';
+
+            // 마이그레이션 결과 모달 표시
+            if ((articleResult?.totalCount || 0) + (videoResult?.totalCount || 0) > 0) {
+                setTimeout(() => {
+                    showMigrationModal(articleResult, videoResult);
+                    // 모달 닫힐 때 페이지 이동
+                    const modal = document.getElementById('migrationModal');
+                    modal.addEventListener('hidden.bs.modal', function () {
+                        window.location.href = redirectUrl;
+                    }, { once: true });
+                }, 1500);
+            } else {
+                // 마이그레이션된 항목이 없으면 바로 리디렉션
+                setTimeout(() => {
+                    window.location.href = redirectUrl;
+                }, 1500);
+            }
         } else {
             const errorData = await response.text();
             messageDiv.textContent = '회원가입에 실패했습니다. 다시 시도해주세요.';

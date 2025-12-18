@@ -50,7 +50,6 @@
                     
                     <div class="text-center mb-3">
                         <hr class="my-3">
-                        <p class="text-muted mb-3">또는 소셜 계정으로 로그인</p>
                         
                         <div class="d-grid gap-2">
                             <a th:href="@{/oauth2/authorization/github}" class="btn btn-outline-dark btn-lg">
@@ -72,6 +71,88 @@
 </div>
 
 <script layout:fragment="scripts">
+// localStorage 좋아요 마이그레이션 (블로그)
+async function migrateLikesFromLocalStorage() {
+    try {
+        const LIKED_ARTICLES_KEY = 'likedArticles';
+        const stored = localStorage.getItem(LIKED_ARTICLES_KEY);
+
+        if (!stored) {
+            return null; // 저장된 좋아요가 없으면 null 반환
+        }
+
+        const likedIds = JSON.parse(stored);
+
+        if (!likedIds || likedIds.length === 0) {
+            return null; // 빈 배열이면 null 반환
+        }
+
+        // 마이그레이션 API 호출
+        const response = await fetch('/api/articles/migrate-likes', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(likedIds)
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            console.log(`Successfully migrated ${data.totalCount} article likes`);
+            // 마이그레이션 성공 후 localStorage 클리어
+            localStorage.removeItem(LIKED_ARTICLES_KEY);
+            return data;
+        }
+        return null;
+    } catch (error) {
+        console.error('Failed to migrate article likes:', error);
+        // 마이그레이션 실패해도 로그인은 계속 진행
+        return null;
+    }
+}
+
+// localStorage 좋아요 마이그레이션 (유튜브)
+async function migrateVideoLikesFromLocalStorage() {
+    try {
+        const LIKED_VIDEOS_KEY = 'likedVideos';
+        const stored = localStorage.getItem(LIKED_VIDEOS_KEY);
+
+        if (!stored) {
+            return null; // 저장된 좋아요가 없으면 null 반환
+        }
+
+        const likedIds = JSON.parse(stored);
+
+        if (!likedIds || likedIds.length === 0) {
+            return null; // 빈 배열이면 null 반환
+        }
+
+        // 마이그레이션 API 호출
+        const response = await fetch('/video/api/videos/migrate-likes', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(likedIds)
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            console.log(`Successfully migrated ${data.totalCount} video likes`);
+            // 마이그레이션 성공 후 localStorage 클리어
+            localStorage.removeItem(LIKED_VIDEOS_KEY);
+            return data;
+        }
+        return null;
+    } catch (error) {
+        console.error('Failed to migrate video likes:', error);
+        // 마이그레이션 실패해도 로그인은 계속 진행
+        return null;
+    }
+}
+
 document.getElementById('loginForm').addEventListener('submit', async function(e) {
     e.preventDefault();
 
@@ -94,8 +175,24 @@ document.getElementById('loginForm').addEventListener('submit', async function(e
             const data = await response.json();
             // 쿠키는 서버에서 자동으로 설정되므로 localStorage 사용하지 않음
 
-            // 로그인 성공 후 원래 요청했던 페이지로 리디렉션
-            window.location.href = redirectUrl;
+            // localStorage에 저장된 좋아요 마이그레이션 (블로그 + 유튜브)
+            const [articleResult, videoResult] = await Promise.all([
+                migrateLikesFromLocalStorage(),
+                migrateVideoLikesFromLocalStorage()
+            ]);
+
+            // 마이그레이션 결과 모달 표시
+            if ((articleResult?.totalCount || 0) + (videoResult?.totalCount || 0) > 0) {
+                showMigrationModal(articleResult, videoResult);
+                // 모달 닫힐 때 페이지 이동
+                const modal = document.getElementById('migrationModal');
+                modal.addEventListener('hidden.bs.modal', function () {
+                    window.location.href = redirectUrl;
+                }, { once: true });
+            } else {
+                // 마이그레이션된 항목이 없으면 바로 리디렉션
+                window.location.href = redirectUrl;
+            }
         } else {
             messageDiv.textContent = '이메일 또는 비밀번호가 올바르지 않습니다.';
             messageDiv.classList.remove('d-none');
