@@ -426,15 +426,15 @@
                                     <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;" th:text="${video.corporation.name}">Company</span>
                                 </a>
                             </div>
-                            <div class="d-flex align-items-center gap-3">
+                            <div class="d-flex align-items-center gap-2">
                                 <small class="text-muted relative-time"
                                     th:attr="data-date=${video.publishedAt}"
                                     th:title="${video.publishedAt}"
-                                    th:text="${video.publishedAt}">2024-01-01</small>
+                                    th:text="${video.publishedAt}"
+                                    style="white-space: nowrap;">2024-01-01</small>
                                 <button class="like-button"
                                         th:attr="data-video-id=${video.id}">
                                     <i class="fas fa-heart like-icon"></i>
-                                    <span class="like-count" th:text="${video.likeCount ?: 0}">0</span>
                                 </button>
                             </div>
                         </div>
@@ -503,12 +503,11 @@
                                         <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;" th:text="${group.corporation.name}"></span>
                                     </a>
                                 </div>
-                                <div class="d-flex align-items-center gap-3">
-                                    <small class="text-muted relative-time" th:attr="data-date=${firstVideo.publishedAt}" th:title="${firstVideo.publishedAt}" th:text="${firstVideo.publishedAt}"></small>
+                                <div class="d-flex align-items-center gap-2">
+                                    <small class="text-muted relative-time" th:attr="data-date=${firstVideo.publishedAt}" th:title="${firstVideo.publishedAt}" th:text="${firstVideo.publishedAt}" style="white-space: nowrap;"></small>
                                     <button class="like-button"
                                             th:attr="data-video-id=${firstVideo.id}">
                                         <i class="fas fa-heart like-icon"></i>
-                                        <span class="like-count" th:text="${firstVideo.likeCount ?: 0}">0</span>
                                     </button>
                                 </div>
                             </div>
@@ -541,7 +540,7 @@
                                 <h6 style="margin: 0;">
                                     <a th:if="${child.videoId == null || child.videoId.isEmpty()}"
                                        th:href="${child.link}" target="_blank"
-                                       class="text-decoration-none title-link" style="color: inherit;">
+                                       class="text-decoration-none title-link d-flex align-items-center" style="color: inherit;">
                                         <span th:text="${child.translatedTitle != null && !child.translatedTitle.isEmpty() ? child.translatedTitle : child.title}"></span>
                                     </a>
                                     <span th:unless="${child.videoId == null || child.videoId.isEmpty()}"
@@ -553,8 +552,8 @@
                                     </span>
                                 </h6>
                                 <span class="child-date d-flex align-items-center flex-wrap">
-                                    <span class="d-flex align-items-center gap-3">
-                                        <small class="text-muted relative-time" th:attr="data-date=${child.publishedAt}" th:title="${child.publishedAt}" th:text="${child.publishedAt}"></small>
+                                    <span class="d-flex align-items-center gap-2">
+                                        <small class="text-muted relative-time" th:attr="data-date=${child.publishedAt}" th:title="${child.publishedAt}" th:text="${child.publishedAt}" style="white-space: nowrap;"></small>
                                         <button class="like-button"
                                             th:attr="data-video-id=${child.id}">
                                             <i class="fas fa-heart like-icon"></i>
