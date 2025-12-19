@@ -84,3 +84,11 @@ document.addEventListener('DOMContentLoaded', function() {
     likeButton();
     loadLikeStatuses();
 });
+
+// bfcache(back-forward cache)로 인해 페이지가 복원될 때도 좋아요 상태 업데이트
+window.addEventListener('pageshow', function(event) {
+    // bfcache에서 복원된 경우에만 실행
+    if (event.persisted) {
+        loadLikeStatuses();
+    }
+});

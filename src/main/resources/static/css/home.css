@@ -864,14 +864,24 @@
 
 .child {
     display: flex;
-    justify-content: space-between; /* 좌우 끝으로 배치 */
+    justify-content: space-between;
+    align-items: center; /* 수직 중앙 정렬 */
     padding: 12px 18px;
     margin-bottom: 10px;
     background-color: #f8f9fa;
     border-radius: 8px;
     border: 1px solid #e9ecef;
     transition: all 0.2s ease-in-out;
-    gap: 5px;
+    gap: 16px; /* gap 증가로 여유 공간 확보 */
+}
+
+.child h6 {
+    flex: 1; /* 남은 공간을 차지하도록 설정 */
+    min-width: 0; /* flex 아이템이 축소될 수 있도록 */
+    word-wrap: break-word; /* 긴 단어 줄바꿈 */
+    overflow-wrap: break-word; /* 긴 단어 줄바꿈 */
+    line-height: 1.5; /* 줄 간격 */
+    margin: 0; /* 기본 마진 제거 */
 }
 
 .child:last-child {
@@ -899,7 +909,8 @@
 }
 
 .child-date {
-    min-width: 55px;
+    min-width: fit-content; /* 내용에 맞게 너비 조정 */
+    flex-shrink: 0; /* 축소 방지 */
     justify-content: flex-end;
 }
 

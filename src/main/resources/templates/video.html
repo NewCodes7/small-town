@@ -1417,6 +1417,14 @@
                 loadLikeStatuses();
             });
 
+            // bfcache(back-forward cache)로 인해 페이지가 복원될 때도 좋아요 상태 업데이트
+            window.addEventListener('pageshow', function(event) {
+                // bfcache에서 복원된 경우에만 실행
+                if (event.persisted) {
+                    loadLikeStatuses();
+                }
+            });
+
             // ===== 검색 기록 관리 (searchUtils.js 사용) =====
             const searchHistory = new SearchHistory('small_town_video_search_history');
 

@@ -146,13 +146,13 @@ function createArticleCard(article) {
                 <div class="d-flex align-items-center flex-wrap">
                     <div class="d-flex align-items-center me-4">
                         <div class="d-flex align-items-center text-decoration-none company-link">
-                            ${article.corporationLogoUrl ?
-                                `<img width="20px;" src="${article.corporationLogoUrl}"
-                                     alt="${escapeHtml(article.corporationName)}"
+                            ${article.corporation && (article.corporation.logoS3Url || article.corporation.logoUrl) ?
+                                `<img width="20px;" src="${article.corporation.logoS3Url || article.corporation.logoUrl}"
+                                     alt="${escapeHtml(article.corporation.name)}"
                                      class="company-logo me-2" style="border-radius: 4px;">` : ''
                             }
                             <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;">
-                                ${escapeHtml(article.corporationName)}
+                                ${article.corporation ? escapeHtml(article.corporation.name) : ''}
                             </span>
                         </div>
                     </div>
@@ -218,13 +218,13 @@ function createVideoCard(video) {
                 <div class="d-flex align-items-center flex-wrap">
                     <div class="d-flex align-items-center me-4">
                         <div class="d-flex align-items-center text-decoration-none company-link">
-                            ${video.corporationLogoUrl ?
-                                `<img width="20px;" src="${video.corporationLogoUrl}"
-                                     alt="${escapeHtml(video.corporationName)}"
+                            ${video.corporation && (video.corporation.logoS3Url || video.corporation.logoUrl) ?
+                                `<img width="20px;" src="${video.corporation.logoS3Url || video.corporation.logoUrl}"
+                                     alt="${escapeHtml(video.corporation.name)}"
                                      class="company-logo me-2" style="border-radius: 4px;">` : ''
                             }
                             <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;">
-                                ${escapeHtml(video.corporationName)}
+                                ${video.corporation ? escapeHtml(video.corporation.name) : ''}
                             </span>
                         </div>
                     </div>
