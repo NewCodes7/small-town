@@ -123,6 +123,15 @@ function renderArticles(articles) {
     renderItems(articles);
 }
 
+// Corporation 정보 추출 헬퍼 함수 (중첩 구조와 flat 구조 모두 지원)
+function getCorporationName(item) {
+    return item.corporation?.name || item.corporationName || '';
+}
+
+function getCorporationLogoUrl(item) {
+    return item.corporation?.logoS3Url || item.corporation?.logoUrl || item.corporationLogoUrl || '';
+}
+
 // 아티클 카드 생성
 function createArticleCard(article) {
     const wrapper = document.createElement('div');
@@ -146,13 +155,13 @@ function createArticleCard(article) {
                 <div class="d-flex align-items-center flex-wrap">
                     <div class="d-flex align-items-center me-4">
                         <div class="d-flex align-items-center text-decoration-none company-link">
-                            ${article.corporation && (article.corporation.logoS3Url || article.corporation.logoUrl) ?
-                                `<img width="20px;" src="${article.corporation.logoS3Url || article.corporation.logoUrl}"
-                                     alt="${escapeHtml(article.corporation.name)}"
+                            ${getCorporationLogoUrl(article) ?
+                                `<img width="20px;" src="${getCorporationLogoUrl(article)}"
+                                     alt="${escapeHtml(getCorporationName(article))}"
                                      class="company-logo me-2" style="border-radius: 4px;">` : ''
                             }
                             <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;">
-                                ${article.corporation ? escapeHtml(article.corporation.name) : ''}
+                                ${escapeHtml(getCorporationName(article))}
                             </span>
                         </div>
                     </div>
@@ -218,13 +227,13 @@ function createVideoCard(video) {
                 <div class="d-flex align-items-center flex-wrap">
                     <div class="d-flex align-items-center me-4">
                         <div class="d-flex align-items-center text-decoration-none company-link">
-                            ${video.corporation && (video.corporation.logoS3Url || video.corporation.logoUrl) ?
-                                `<img width="20px;" src="${video.corporation.logoS3Url || video.corporation.logoUrl}"
-                                     alt="${escapeHtml(video.corporation.name)}"
+                            ${getCorporationLogoUrl(video) ?
+                                `<img width="20px;" src="${getCorporationLogoUrl(video)}"
+                                     alt="${escapeHtml(getCorporationName(video))}"
                                      class="company-logo me-2" style="border-radius: 4px;">` : ''
                             }
                             <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;">
-                                ${video.corporation ? escapeHtml(video.corporation.name) : ''}
+                                ${escapeHtml(getCorporationName(video))}
                             </span>
                         </div>
                     </div>
@@ -350,7 +359,7 @@ function bindLikeButtons() {
 
             const id = parseInt(articleId || videoId);
             const endpoint = itemType === 'video'
-                ? `/api/videos/${id}/like`
+                ? `/video/api/videos/${id}/like`
                 : `/api/articles/${id}/like`;
 
             try {
