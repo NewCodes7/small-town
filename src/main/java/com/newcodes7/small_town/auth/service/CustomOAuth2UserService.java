@@ -47,12 +47,18 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             throw new OAuth2AuthenticationException("OAuth2 제공자에서 이메일을 찾을 수 없습니다.");
         }
 
-        Optional<User> userOptional = userRepository.findByEmailAndDeletedAtIsNull(oauth2UserInfo.getEmail());
+        Optional<User> userOptional = userRepository.findByEmailWithRoleAndProvider(oauth2UserInfo.getEmail());
         User user;
-        
+
         if (userOptional.isPresent()) {
             user = userOptional.get();
-            user = updateExistingUser(user, oauth2UserInfo, registrationId);
+
+            // 삭제된 계정이면 재활성화
+            if (user.getDeletedAt() != null) {
+                user = reactivateUser(user, oauth2UserInfo, registrationId);
+            } else {
+                user = updateExistingUser(user, oauth2UserInfo, registrationId);
+            }
         } else {
             user = registerNewUser(oauth2UserInfo, registrationId);
         }
@@ -77,11 +83,38 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         return userRepository.save(user);
     }
 
+    private User reactivateUser(User deletedUser, OAuth2UserInfo oauth2UserInfo, String registrationId) {
+        Provider provider = getProviderByRegistrationId(registrationId);
+
+        // 계정 재활성화
+        deletedUser.activate();
+
+        // provider 정보가 없거나 LOCAL이면 소셜 provider로 업데이트
+        Provider newProvider = null;
+        if (deletedUser.getProvider() == null ||
+            deletedUser.getProvider().getName().equals("LOCAL")) {
+            newProvider = provider;
+        }
+
+        // 프로필 정보 업데이트
+        deletedUser.updateOAuth2Profile(
+            oauth2UserInfo.getName(),
+            oauth2UserInfo.getImageUrl(),
+            newProvider
+        );
+
+        // 마지막 로그인 시간 업데이트
+        deletedUser.updateLastLoginAt();
+
+        return userRepository.save(deletedUser);
+    }
+
     private User updateExistingUser(User existingUser, OAuth2UserInfo oauth2UserInfo, String registrationId) {
         Provider provider = getProviderByRegistrationId(registrationId);
-        
+
         // 기존 사용자가 다른 제공자로 가입한 경우 예외 처리
-        if (!existingUser.getProvider().getName().equals(provider.getName()) && 
+        if (existingUser.getProvider() != null &&
+            !existingUser.getProvider().getName().equals(provider.getName()) &&
             !existingUser.getProvider().getName().equals("LOCAL")) {
             throw new OAuth2AuthenticationException(
                 "이미 " + existingUser.getProvider().getName() + " 계정으로 가입된 이메일입니다."
@@ -90,7 +123,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
         // 프로필 정보 업데이트
         existingUser.updateLastLoginAt();
-        
+
         return userRepository.save(existingUser);
     }
 

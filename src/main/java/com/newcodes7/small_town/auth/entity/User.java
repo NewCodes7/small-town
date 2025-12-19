@@ -114,7 +114,19 @@ public class User implements UserDetails, OAuth2User {
         this.status = UserStatus.ACTIVE;
         this.deletedAt = null;
     }
-    
+
+    public void updateOAuth2Profile(String nickname, String profileImageUrl, Provider provider) {
+        if (nickname != null) {
+            this.nickname = nickname;
+        }
+        if (profileImageUrl != null) {
+            this.profileImageUrl = profileImageUrl;
+        }
+        if (provider != null) {
+            this.provider = provider;
+        }
+    }
+
     public boolean isActive() {
         return this.status == UserStatus.ACTIVE;
     }

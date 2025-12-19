@@ -15,7 +15,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByEmail(String email);
 
-    @Query("SELECT u FROM User u JOIN FETCH u.role JOIN FETCH u.provider WHERE u.email = :email AND u.deletedAt IS NULL")
+    @Query("SELECT u FROM User u JOIN FETCH u.role LEFT JOIN FETCH u.provider WHERE u.email = :email")
+    Optional<User> findByEmailWithRoleAndProvider(@Param("email") String email);
+
+    @Query("SELECT u FROM User u JOIN FETCH u.role LEFT JOIN FETCH u.provider WHERE u.email = :email AND u.deletedAt IS NULL")
     Optional<User> findByEmailAndDeletedAtIsNull(@Param("email") String email);
 
     boolean existsByEmail(String email);
