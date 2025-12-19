@@ -1,5 +1,7 @@
 package com.newcodes7.small_town.feedback;
 
+import com.newcodes7.small_town.auth.entity.User;
+
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,26 +17,30 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "feedback")
 public class Feedback {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
+
     @Column(name = "name", length = 100)
     private String name;
-    
+
     @Column(name = "email", length = 255)
     private String email;
-    
+
     @Column(name = "type", length = 50, nullable = false)
     private String type;
-    
+
     @Column(name = "message", columnDefinition = "TEXT", nullable = false)
     private String message;
-    
+
     @Column(name = "ip_address", length = 45)
     private String ipAddress;
-    
+
     @Column(name = "user_agent", length = 500)
     private String userAgent;
     

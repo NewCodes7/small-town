@@ -33,13 +33,15 @@ public class FeedbackController {
     @ResponseBody
     public ResponseEntity<Map<String, Object>> submitFeedback(
             @RequestBody FeedbackCreateDto feedbackDto,
-            HttpServletRequest request) {
-        
+            HttpServletRequest request,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
+
         try {
             String ipAddress = Client.getClientIpAddress(request);
             String userAgent = request.getHeader("User-Agent");
-            
-            FeedbackResponseDto savedFeedback = feedbackService.createFeedback(feedbackDto, ipAddress, userAgent);
+            String userEmail = userDetails != null ? userDetails.getUsername() : null;
+
+            FeedbackResponseDto savedFeedback = feedbackService.createFeedback(feedbackDto, ipAddress, userAgent, userEmail);
             
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");

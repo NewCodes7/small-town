@@ -8,6 +8,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.newcodes7.small_town.auth.entity.User;
+import com.newcodes7.small_town.auth.repository.UserRepository;
 import com.newcodes7.small_town.feedback.Feedback.FeedbackStatus;
 
 import java.time.LocalDateTime;
@@ -19,8 +21,9 @@ import java.util.List;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class FeedbackService {
-    
+
     private final FeedbackRepository feedbackRepository;
+    private final UserRepository userRepository;
     
     // 허용된 피드백 타입 목록
     private static final List<String> ALLOWED_TYPES = Arrays.asList(
@@ -28,20 +31,27 @@ public class FeedbackService {
     );
     
     @Transactional
-    public FeedbackResponseDto createFeedback(FeedbackCreateDto dto, String ipAddress, String userAgent) {
+    public FeedbackResponseDto createFeedback(FeedbackCreateDto dto, String ipAddress, String userAgent, String userEmail) {
         // 입력 검증
         validateFeedbackCreate(dto);
-        
+
         // 스팸 방지: 같은 IP에서 1시간 내에 5개 이상 피드백 제출 방지
         long recentFeedbacks = feedbackRepository.countByIpAddressAndCreatedAtAfter(
             ipAddress, LocalDateTime.now().minusHours(1));
-        
+
         if (recentFeedbacks >= 5) {
             throw new RuntimeException("너무 많은 피드백을 제출했습니다. 1시간 후에 다시 시도해주세요.");
         }
-        
+
+        // 로그인한 사용자인 경우 User 엔티티 조회
+        User user = null;
+        if (userEmail != null) {
+            user = userRepository.findByEmailAndDeletedAtIsNull(userEmail).orElse(null);
+        }
+
         // 피드백 생성
         Feedback feedback = Feedback.builder()
+            .user(user)
             .name(dto.getName() != null && !dto.getName().trim().isEmpty() ? dto.getName().trim() : "익명")
             .email(dto.getEmail() != null && !dto.getEmail().trim().isEmpty() ? dto.getEmail().trim() : null)
             .type(dto.getType().trim())
@@ -50,12 +60,13 @@ public class FeedbackService {
             .userAgent(userAgent)
             .status(Feedback.FeedbackStatus.PENDING)
             .build();
-        
+
         Feedback savedFeedback = feedbackRepository.save(feedback);
-        
-        log.info("새로운 피드백이 접수되었습니다. ID: {}, 유형: {}, 이름: {}", 
-            savedFeedback.getId(), savedFeedback.getType(), savedFeedback.getName());
-        
+
+        log.info("새로운 피드백이 접수되었습니다. ID: {}, 유형: {}, 이름: {}, 사용자: {}",
+            savedFeedback.getId(), savedFeedback.getType(), savedFeedback.getName(),
+            user != null ? user.getEmail() : "비로그인");
+
         return FeedbackResponseDto.from(savedFeedback);
     }
     

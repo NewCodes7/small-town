@@ -26,6 +26,7 @@ public interface FeedbackRepository extends JpaRepository<Feedback, Long> {
 
     @Query("""
         SELECT f FROM Feedback f
+        LEFT JOIN FETCH f.user
         WHERE (:status IS NULL OR f.status = :status)
           AND (:type IS NULL OR f.type = :type)
         ORDER BY f.createdAt DESC

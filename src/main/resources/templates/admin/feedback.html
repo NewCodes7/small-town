@@ -65,8 +65,10 @@
                         <thead>
                         <tr>
                             <th>ID</th>
+                            <th>사용자</th>
                             <th>이름</th>
                             <th>이메일</th>
+                            <th>IP 주소</th>
                             <th>유형</th>
                             <th>상태</th>
                             <th>등록일</th>
@@ -77,8 +79,20 @@
                         <tbody>
                         <tr th:each="feedback : ${feedbacks.content}">
                             <td th:text="${feedback.id}">1</td>
+                            <td>
+                                <span th:if="${feedback.user != null}"
+                                      th:text="${feedback.user.nickname + ' (' + feedback.user.email + ')'}"
+                                      th:title="${'User ID: ' + feedback.user.id}"
+                                      style="color: #0d6efd; font-weight: 600;">
+                                    닉네임 (이메일)
+                                </span>
+                                <span th:unless="${feedback.user != null}" style="color: #6c757d;">-</span>
+                            </td>
                             <td th:text="${feedback.name}">홍길동</td>
                             <td th:text="${feedback.email}">test@test.com</td>
+                            <td>
+                                <span th:text="${feedback.ipAddress}" th:title="${feedback.ipAddress}">127.0.0.1</span>
+                            </td>
                             <td th:text="${feedback.type}">기능개선</td>
                             <td>
                                 <span class="status-badge" th:classappend="'status-' + ${feedback.status.name()}" th:text="${feedback.status.description}">접수</span>
@@ -105,7 +119,7 @@
                             </td>
                         </tr>
                         <tr th:if="${feedbacks.empty}">
-                            <td colspan="8" class="text-center">피드백이 없습니다.</td>
+                            <td colspan="10" class="text-center">피드백이 없습니다.</td>
                         </tr>
                         </tbody>
                     </table>
