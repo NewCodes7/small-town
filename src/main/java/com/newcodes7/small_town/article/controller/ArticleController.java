@@ -333,7 +333,7 @@ public class ArticleController {
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "all") String filter,
             @RequestParam(required = false) List<Integer> industries,
-            @RequestParam(defaultValue = "name") String sort,
+            @RequestParam(defaultValue = "popular") String sort,
             Model model) {
 
         // 정렬 옵션 설정
