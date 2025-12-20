@@ -230,6 +230,42 @@ footer {
     color: var(--primary-green-dark) !important;
 }
 
+/* 활성 네비게이션 아이템 스타일 */
+.nav-link.active {
+    color: var(--primary-green) !important;
+    font-weight: 700;
+    position: relative;
+}
+
+.nav-link.active::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 10%;
+    right: 10%;
+    height: 3px;
+    background-color: var(--primary-green);
+    border-radius: 2px;
+}
+
+/* 로그인 버튼 스타일 */
+.nav-link.login-btn {
+    background: var(--secondary-green);
+    color: var(--primary-green-dark) !important;
+    border: 1px solid var(--primary-green);
+    border-radius: 8px;
+    font-weight: 600;
+    padding: 0.4rem 1rem !important;
+    transition: all 0.2s ease;
+}
+
+.nav-link.login-btn:hover {
+    background: var(--primary-green);
+    color: white !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+}
+
 .nav-tabs {
     border: none;
     justify-content: center;
@@ -697,5 +733,288 @@ footer {
 
     .filter-toggle-btn i {
         font-size: 0.75rem;
+    }
+}
+
+/* Mobile Menu Toggle Button */
+.mobile-menu-toggle {
+    display: none;
+    background: var(--secondary-green);
+    border: 2px solid var(--primary-green);
+    border-radius: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-right: 12px;
+}
+
+.mobile-menu-toggle i {
+    color: var(--primary-green);
+    font-size: 1.2rem;
+}
+
+.mobile-menu-toggle:hover {
+    background: var(--primary-green);
+}
+
+.mobile-menu-toggle:hover i {
+    color: white;
+}
+
+/* Mobile Drawer Menu */
+.mobile-drawer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0s linear 0.3s;
+}
+
+.mobile-drawer.active {
+    pointer-events: auto;
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.3s ease, visibility 0s linear 0s;
+}
+
+.mobile-drawer-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+}
+
+.mobile-drawer-content {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100%;
+    background: white;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.1);
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.mobile-drawer.active .mobile-drawer-content {
+    transform: translateX(0);
+}
+
+.mobile-drawer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 2px solid var(--border-light);
+    background: linear-gradient(135deg, var(--secondary-green) 0%, white 100%);
+}
+
+.mobile-drawer-brand {
+    font-weight: 800;
+    font-size: 1.5rem;
+    color: var(--primary-green) !important;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+}
+
+.mobile-drawer-close {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    transition: all 0.2s ease;
+}
+
+.mobile-drawer-close i {
+    color: var(--text-dark);
+    font-size: 1.3rem;
+}
+
+.mobile-drawer-close:hover i {
+    color: var(--primary-green);
+    transform: rotate(90deg);
+}
+
+.mobile-drawer-nav {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.mobile-nav-item {
+    border-bottom: 1px solid var(--border-light);
+}
+
+.mobile-nav-link {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 24px;
+    color: var(--text-dark);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+}
+
+.mobile-nav-link:hover {
+    background: var(--secondary-green);
+    color: var(--primary-green-dark);
+    padding-left: 28px;
+}
+
+.mobile-nav-link i {
+    font-size: 1.2rem;
+    color: var(--primary-green);
+    width: 24px;
+    text-align: center;
+}
+
+/* Navigation always visible - no collapse */
+.navbar {
+    display: flex;
+    align-items: center;
+}
+
+.navbar-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.navbar-left {
+    display: flex;
+    align-items: center;
+    flex: 1;
+}
+
+.navbar-right {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+}
+
+.navbar-nav {
+    display: flex !important;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* 모바일 대응 */
+@media (max-width: 768px) {
+    /* Show mobile menu toggle */
+    .mobile-menu-toggle {
+        display: block !important;
+    }
+
+    /* Hide desktop navigation */
+    .desktop-nav {
+        display: none !important;
+    }
+
+    .navbar-container {
+        gap: 0.5rem;
+    }
+
+    .navbar-brand {
+        font-size: 1.3rem;
+        flex-shrink: 0;
+    }
+
+    /* Adjust right side for mobile */
+    .navbar-right .nav-link.login-btn {
+        padding: 0.5rem 0.8rem !important;
+        font-size: 0.9rem;
+    }
+
+    .navbar-right .dropdown-toggle {
+        padding: 0.5rem 0.8rem !important;
+        font-size: 0.9rem;
+    }
+
+    /* Body scroll lock when drawer is open */
+    body.drawer-open {
+        overflow: hidden;
+    }
+}
+
+@media (max-width: 576px) {
+    .navbar-brand {
+        font-size: 1.1rem;
+    }
+
+    .mobile-menu-toggle {
+        padding: 8px 12px;
+    }
+
+    .mobile-menu-toggle i {
+        font-size: 1.1rem;
+    }
+
+    .navbar-right .nav-link.login-btn {
+        padding: 0.4rem 0.7rem !important;
+        font-size: 0.85rem;
+    }
+
+    .navbar-right .dropdown-toggle {
+        padding: 0.4rem 0.7rem !important;
+        font-size: 0.85rem;
+    }
+
+    /* Mobile drawer adjustments */
+    .mobile-drawer-content {
+        width: 260px;
+    }
+
+    .mobile-drawer-header {
+        padding: 16px;
+    }
+
+    .mobile-nav-link {
+        padding: 16px 20px;
+        font-size: 0.95rem;
+    }
+}
+
+@media (max-width: 400px) {
+    .navbar-brand {
+        font-size: 1rem;
+    }
+
+    .mobile-menu-toggle {
+        padding: 7px 10px;
+        margin-right: 8px;
+    }
+
+    .mobile-drawer-content {
+        width: 240px;
+    }
+
+    .navbar-right .nav-link.login-btn {
+        padding: 0.35rem 0.6rem !important;
+        font-size: 0.8rem;
+    }
+
+    .navbar-right .dropdown-toggle {
+        padding: 0.35rem 0.6rem !important;
+        font-size: 0.8rem;
     }
 }
