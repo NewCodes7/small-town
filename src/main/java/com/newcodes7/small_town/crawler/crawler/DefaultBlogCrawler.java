@@ -205,7 +205,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
             log.warn("기본 크롤러 아티클 파싱 오류 - 오류 타입: {}, 오류: {}, 요소 HTML: {}",
                     e.getClass().getSimpleName(),
                     e.getMessage(),
-                    element.outerHtml().substring(0, Math.min(300, element.outerHtml().length())),
+                    element.outerHtml().substring(0, Math.min(1000, element.outerHtml().length())),
                     e);
             return null;
         }
