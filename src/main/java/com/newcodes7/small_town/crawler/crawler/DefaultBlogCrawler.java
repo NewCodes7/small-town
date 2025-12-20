@@ -907,7 +907,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
         }
 
         List<Article> allArticles = new ArrayList<>();
-        int currentPage = 1;
+        int currentPage = 2;
         Integer maxPages = parsingSelector.getMaxPages();
         String paginationType = parsingSelector.getPaginationType();
 
