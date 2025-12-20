@@ -165,8 +165,8 @@ deploy() {
     log "=== docker 미사용 리소스 정리 ==="
     docker system prune -a
 
-    # swap 메모리 재할당
-    reset_swap
+    # swap 메모리 재할당 (비활성화)
+    # reset_swap
 }
 
 # 롤백 함수
