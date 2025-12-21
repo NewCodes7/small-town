@@ -643,7 +643,8 @@ public class ArticleController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        User user = userRepository.findByEmailAndDeletedAtIsNull(userDetails.getUsername())
+        // email, oauthUsername, oauthProviderId 중 하나로 조회
+        User user = userRepository.findByUsernameAndDeletedAtIsNull(userDetails.getUsername())
             .orElse(null);
 
         if (user == null) {

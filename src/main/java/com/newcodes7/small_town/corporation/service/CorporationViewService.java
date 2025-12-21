@@ -40,7 +40,7 @@ public class CorporationViewService {
             throw new InvalidParameterException("userEmail", userEmail);
         }
 
-        User user = userRepository.findByEmailAndDeletedAtIsNull(userEmail)
+        User user = userRepository.findByUsernameAndDeletedAtIsNull(userEmail)
             .orElseThrow(() -> new UserNotFoundException(userEmail));
 
         Corporation corporation = corporationRepository.findById(corporationId)
@@ -127,7 +127,7 @@ public class CorporationViewService {
      */
     @Transactional(readOnly = true)
     public Optional<LocalDateTime> getLastViewTime(Long corporationId, String userEmail) {
-        User user = userRepository.findByEmailAndDeletedAtIsNull(userEmail)
+        User user = userRepository.findByUsernameAndDeletedAtIsNull(userEmail)
             .orElse(null);
 
         if (user == null) {

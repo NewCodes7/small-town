@@ -41,7 +41,7 @@ public class ViewService {
             throw new InvalidParameterException("userEmail", userEmail);
         }
         
-        User user = userRepository.findByEmailAndDeletedAtIsNull(userEmail)
+        User user = userRepository.findByUsernameAndDeletedAtIsNull(userEmail)
             .orElseThrow(() -> new UserNotFoundException(userEmail));
         
         Article article = articleRepository.findById(articleId)
@@ -128,7 +128,7 @@ public class ViewService {
      */
     @Transactional(readOnly = true)
     public Optional<LocalDateTime> getLastViewTime(Long articleId, String userEmail) {
-        User user = userRepository.findByEmailAndDeletedAtIsNull(userEmail)
+        User user = userRepository.findByUsernameAndDeletedAtIsNull(userEmail)
             .orElse(null);
         
         if (user == null) {

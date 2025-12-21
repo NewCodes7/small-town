@@ -45,4 +45,48 @@ public interface UserRepository extends JpaRepository<User, Long> {
     // OAuth provider ID 기반 조회 (삭제되지 않은 사용자만)
     @Query("SELECT u FROM User u JOIN FETCH u.role LEFT JOIN FETCH u.provider WHERE u.oauthProviderId = :oauthProviderId AND u.deletedAt IS NULL")
     Optional<User> findByOauthProviderIdAndDeletedAtIsNull(@Param("oauthProviderId") String oauthProviderId);
+
+    /**
+     * username으로 사용자 조회 (email, oauthUsername, oauthProviderId 중 하나)
+     * CustomUserDetailsService와 동일한 로직
+     */
+    default Optional<User> findByUsernameAndDeletedAtIsNull(String username) {
+        if (username == null || username.trim().isEmpty()) {
+            return Optional.empty();
+        }
+
+        // 1. email로 찾기
+        Optional<User> user = findByEmailAndDeletedAtIsNull(username);
+        if (user.isPresent()) {
+            return user;
+        }
+
+        // 2. oauthUsername으로 찾기
+        user = findByOauthUsernameAndDeletedAtIsNull(username);
+        if (user.isPresent()) {
+            return user;
+        }
+
+        // 3. oauthProviderId로 찾기
+        user = findByOauthProviderIdAndDeletedAtIsNull(username);
+        if (user.isPresent()) {
+            return user;
+        }
+
+        // 4. "user_숫자" 형태면 ID로 찾기
+        if (username.startsWith("user_")) {
+            try {
+                String idStr = username.substring(5);
+                if (!idStr.equals("unknown")) {
+                    Long userId = Long.parseLong(idStr);
+                    return findById(userId)
+                            .filter(u -> u.getDeletedAt() == null);
+                }
+            } catch (NumberFormatException e) {
+                // ID 파싱 실패 시 무시
+            }
+        }
+
+        return Optional.empty();
+    }
 }

@@ -46,7 +46,7 @@ public class FeedbackService {
         // 로그인한 사용자인 경우 User 엔티티 조회
         User user = null;
         if (userEmail != null) {
-            user = userRepository.findByEmailAndDeletedAtIsNull(userEmail).orElse(null);
+            user = userRepository.findByUsernameAndDeletedAtIsNull(userEmail).orElse(null);
         }
 
         // 피드백 생성

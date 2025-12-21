@@ -36,8 +36,9 @@ public class UserLikeService {
         if (userEmail == null || userEmail.trim().isEmpty()) {
             throw new InvalidParameterException("userEmail", userEmail);
         }
-        
-        User user = userRepository.findByEmailAndDeletedAtIsNull(userEmail)
+
+        // email, oauthUsername, oauthProviderId 중 하나로 조회
+        User user = userRepository.findByUsernameAndDeletedAtIsNull(userEmail)
             .orElseThrow(() -> new UserNotFoundException(userEmail));
         
         Article article = articleRepository.findById(articleId)
@@ -68,7 +69,8 @@ public class UserLikeService {
     
     @Transactional(readOnly = true)
     public boolean hasLiked(Long articleId, String userEmail) {
-        User user = userRepository.findByEmailAndDeletedAtIsNull(userEmail)
+        // email, oauthUsername, oauthProviderId 중 하나로 조회
+        User user = userRepository.findByUsernameAndDeletedAtIsNull(userEmail)
             .orElse(null);
         
         if (user == null) {
@@ -141,7 +143,8 @@ public class UserLikeService {
      */
     @Transactional(readOnly = true)
     public Page<ArticleListResponseDto> getLikedArticles(String userEmail, int page, int size) {
-        User user = userRepository.findByEmailAndDeletedAtIsNull(userEmail)
+        // email, oauthUsername, oauthProviderId 중 하나로 조회
+        User user = userRepository.findByUsernameAndDeletedAtIsNull(userEmail)
             .orElseThrow(() -> new UserNotFoundException(userEmail));
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
@@ -160,7 +163,8 @@ public class UserLikeService {
             return new com.newcodes7.small_town.article.dto.MigrationResultDto(0, migratedItems);
         }
 
-        User user = userRepository.findByEmailAndDeletedAtIsNull(userEmail)
+        // email, oauthUsername, oauthProviderId 중 하나로 조회
+        User user = userRepository.findByUsernameAndDeletedAtIsNull(userEmail)
             .orElseThrow(() -> new UserNotFoundException(userEmail));
 
         for (Long articleId : articleIds) {

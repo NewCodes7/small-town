@@ -37,7 +37,7 @@ public class VideoLikeService {
             throw new InvalidParameterException("userEmail", userEmail);
         }
 
-        User user = userRepository.findByEmailAndDeletedAtIsNull(userEmail)
+        User user = userRepository.findByUsernameAndDeletedAtIsNull(userEmail)
             .orElseThrow(() -> new UserNotFoundException(userEmail));
 
         Video video = videoRepository.findById(videoId)
@@ -68,7 +68,7 @@ public class VideoLikeService {
 
     @Transactional(readOnly = true)
     public boolean hasLiked(Long videoId, String userEmail) {
-        User user = userRepository.findByEmailAndDeletedAtIsNull(userEmail)
+        User user = userRepository.findByUsernameAndDeletedAtIsNull(userEmail)
             .orElse(null);
 
         if (user == null) {
@@ -141,7 +141,7 @@ public class VideoLikeService {
      */
     @Transactional(readOnly = true)
     public Page<VideoListResponseDto> getLikedVideos(String userEmail, int page, int size) {
-        User user = userRepository.findByEmailAndDeletedAtIsNull(userEmail)
+        User user = userRepository.findByUsernameAndDeletedAtIsNull(userEmail)
             .orElseThrow(() -> new UserNotFoundException(userEmail));
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
@@ -160,7 +160,7 @@ public class VideoLikeService {
             return new com.newcodes7.small_town.article.dto.MigrationResultDto(0, migratedItems);
         }
 
-        User user = userRepository.findByEmailAndDeletedAtIsNull(userEmail)
+        User user = userRepository.findByUsernameAndDeletedAtIsNull(userEmail)
             .orElseThrow(() -> new UserNotFoundException(userEmail));
 
         for (Long videoId : videoIds) {

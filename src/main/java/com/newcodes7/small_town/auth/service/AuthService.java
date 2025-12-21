@@ -92,7 +92,7 @@ public class AuthService {
         }
         
         String email = tokenProvider.getEmailFromToken(refreshToken);
-        User user = userRepository.findByEmailAndDeletedAtIsNull(email)
+        User user = userRepository.findByUsernameAndDeletedAtIsNull(email)
                 .orElseThrow(() -> new UserNotFoundException(email));
         
         String newAccessToken = tokenProvider.generateAccessToken(email);
@@ -103,7 +103,7 @@ public class AuthService {
     }
     
     public void withdraw(String email) {
-        User user = userRepository.findByEmailAndDeletedAtIsNull(email)
+        User user = userRepository.findByUsernameAndDeletedAtIsNull(email)
                 .orElseThrow(() -> new UserNotFoundException(email));
         
         user.withdraw();
