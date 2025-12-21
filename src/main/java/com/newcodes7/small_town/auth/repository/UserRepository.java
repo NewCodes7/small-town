@@ -37,4 +37,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByProviderAndOauthProviderId(@Param("provider") Provider provider, @Param("oauthProviderId") String oauthProviderId);
 
     boolean existsByProviderAndOauthProviderId(Provider provider, String oauthProviderId);
+
+    // OAuth username 기반 조회
+    @Query("SELECT u FROM User u JOIN FETCH u.role LEFT JOIN FETCH u.provider WHERE u.oauthUsername = :oauthUsername AND u.deletedAt IS NULL")
+    Optional<User> findByOauthUsernameAndDeletedAtIsNull(@Param("oauthUsername") String oauthUsername);
+
+    // OAuth provider ID 기반 조회 (삭제되지 않은 사용자만)
+    @Query("SELECT u FROM User u JOIN FETCH u.role LEFT JOIN FETCH u.provider WHERE u.oauthProviderId = :oauthProviderId AND u.deletedAt IS NULL")
+    Optional<User> findByOauthProviderIdAndDeletedAtIsNull(@Param("oauthProviderId") String oauthProviderId);
 }
