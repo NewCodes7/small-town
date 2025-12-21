@@ -79,7 +79,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
                 String idStr = username.substring(5);
                 if (!idStr.equals("unknown")) {
                     Long userId = Long.parseLong(idStr);
-                    return findById(userId)
+                    // JOIN FETCH를 사용하여 role과 provider를 함께 로드
+                    return findByIdWithRoleAndProvider(userId)
                             .filter(u -> u.getDeletedAt() == null);
                 }
             } catch (NumberFormatException e) {

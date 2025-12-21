@@ -41,7 +41,8 @@ public class CustomUserDetailsService implements UserDetailsService {
                 String idStr = username.substring(5); // "user_" 제거
                 if (!idStr.equals("unknown")) {
                     Long userId = Long.parseLong(idStr);
-                    user = userRepository.findById(userId)
+                    // JOIN FETCH를 사용하여 role과 provider를 함께 로드
+                    user = userRepository.findByIdWithRoleAndProvider(userId)
                             .filter(u -> u.getDeletedAt() == null)
                             .orElse(null);
                 }
