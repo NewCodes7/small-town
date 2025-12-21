@@ -35,7 +35,8 @@ import lombok.NoArgsConstructor;
 @Table(name = "user", indexes = {
     @Index(name = "idx_email", columnList = "email"),
     @Index(name = "idx_status", columnList = "status"),
-    @Index(name = "idx_deleted_at", columnList = "deleted_at")
+    @Index(name = "idx_deleted_at", columnList = "deleted_at"),
+    @Index(name = "idx_provider_oauth_id", columnList = "provider_id,oauth_provider_id", unique = true)
 })
 @EntityListeners(AuditingEntityListener.class)
 @Getter
@@ -50,12 +51,16 @@ public class User implements UserDetails, OAuth2User {
     
     @Column(name = "nickname", nullable = false, length = 50)
     private String nickname;
-    
-    @Column(name = "email", nullable = false, unique = true, length = 100)
+
+    @Column(name = "email", length = 100)
     private String email;
-    
+
     @Column(name = "password", length = 255)
     private String password;
+
+    // OAuth provider의 고유 ID (GitHub: id, Google: sub 등)
+    @Column(name = "oauth_provider_id", length = 100)
+    private String oauthProviderId;
     
     @Convert(converter = UserStatusConverter.class)
     @Column(name = "status", nullable = false)
@@ -121,13 +126,14 @@ public class User implements UserDetails, OAuth2User {
     private LocalDateTime deletedAt;
     
     @Builder
-    public User(String nickname, String email, String password, Role role, Provider provider, String profileImageUrl) {
+    public User(String nickname, String email, String password, Role role, Provider provider, String profileImageUrl, String oauthProviderId) {
         this.nickname = nickname;
         this.email = email;
         this.password = password;
         this.role = role;
         this.provider = provider;
         this.profileImageUrl = profileImageUrl;
+        this.oauthProviderId = oauthProviderId;
         this.status = UserStatus.ACTIVE;
     }
     
@@ -168,6 +174,7 @@ public class User implements UserDetails, OAuth2User {
             String nickname,
             String profileImageUrl,
             Provider provider,
+            String oauthProviderId,
             String oauthUsername,
             String bio,
             String blogUrl,
@@ -189,6 +196,11 @@ public class User implements UserDetails, OAuth2User {
         }
         if (provider != null) {
             this.provider = provider;
+        }
+
+        // OAuth provider 고유 ID
+        if (oauthProviderId != null) {
+            this.oauthProviderId = oauthProviderId;
         }
 
         // 추가 정보

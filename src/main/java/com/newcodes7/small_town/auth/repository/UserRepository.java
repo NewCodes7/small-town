@@ -1,5 +1,6 @@
 package com.newcodes7.small_town.auth.repository;
 
+import com.newcodes7.small_town.auth.entity.Provider;
 import com.newcodes7.small_town.auth.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -30,4 +31,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("SELECT u FROM User u WHERE u.email LIKE %:search% OR u.nickname LIKE %:search%")
     Page<User> findByEmailOrNicknameContaining(@Param("search") String search, Pageable pageable);
+
+    // OAuth provider ID 기반 조회
+    @Query("SELECT u FROM User u JOIN FETCH u.role LEFT JOIN FETCH u.provider WHERE u.provider = :provider AND u.oauthProviderId = :oauthProviderId")
+    Optional<User> findByProviderAndOauthProviderId(@Param("provider") Provider provider, @Param("oauthProviderId") String oauthProviderId);
+
+    boolean existsByProviderAndOauthProviderId(Provider provider, String oauthProviderId);
 }
