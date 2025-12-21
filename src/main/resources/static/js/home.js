@@ -428,9 +428,31 @@ function updateSortParam(sortType) {
     window.location.href = url.toString();
 }
 
+// OAuth 알림창 닫기
+function closeOAuthNotice() {
+    const notice = document.getElementById('oauthNotice');
+    if (notice) {
+        notice.classList.add('hidden');
+        // localStorage에 저장하여 다시 표시하지 않음
+        localStorage.setItem('oauthNoticeClosed', 'true');
+    }
+}
+
+// OAuth 알림창 초기화
+function initOAuthNotice() {
+    const notice = document.getElementById('oauthNotice');
+    if (notice) {
+        const isClosed = localStorage.getItem('oauthNoticeClosed');
+        if (isClosed === 'true') {
+            notice.classList.add('hidden');
+        }
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     bindArticleEvents();
     initViewToggle();
     initRegionToggle();
     initSortDropdown();
+    initOAuthNotice();
 });
