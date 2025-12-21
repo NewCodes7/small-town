@@ -3,12 +3,14 @@ package com.newcodes7.small_town.auth.service;
 import com.newcodes7.small_town.auth.entity.Provider;
 import com.newcodes7.small_town.auth.entity.Role;
 import com.newcodes7.small_town.auth.entity.User;
+import com.newcodes7.small_town.auth.oauth.GitHubOAuth2UserInfo;
 import com.newcodes7.small_town.auth.oauth.OAuth2UserInfo;
 import com.newcodes7.small_town.auth.oauth.OAuth2UserInfoFactory;
 import com.newcodes7.small_town.auth.repository.ProviderRepository;
 import com.newcodes7.small_town.auth.repository.RoleRepository;
 import com.newcodes7.small_town.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
@@ -21,6 +23,7 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     private final UserRepository userRepository;
@@ -80,6 +83,29 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 .provider(provider)
                 .build();
 
+        // GitHub 추가 정보 저장
+        if (oauth2UserInfo instanceof GitHubOAuth2UserInfo) {
+            GitHubOAuth2UserInfo githubInfo = (GitHubOAuth2UserInfo) oauth2UserInfo;
+            user.updateFullOAuth2Profile(
+                oauth2UserInfo.getName(),
+                oauth2UserInfo.getImageUrl(),
+                provider,
+                githubInfo.getLogin(),
+                githubInfo.getBio(),
+                githubInfo.getBlog(),
+                githubInfo.getCompany(),
+                githubInfo.getLocation(),
+                githubInfo.getHtmlUrl(),
+                githubInfo.getPublicRepos(),
+                githubInfo.getFollowers(),
+                githubInfo.getFollowing(),
+                githubInfo.getTwitterUsername(),
+                githubInfo.getHireable()
+            );
+            log.info("GitHub 사용자 등록: {}, login: {}, followers: {}",
+                oauth2UserInfo.getEmail(), githubInfo.getLogin(), githubInfo.getFollowers());
+        }
+
         return userRepository.save(user);
     }
 
@@ -96,12 +122,35 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             newProvider = provider;
         }
 
-        // 프로필 정보 업데이트
-        deletedUser.updateOAuth2Profile(
-            oauth2UserInfo.getName(),
-            oauth2UserInfo.getImageUrl(),
-            newProvider
-        );
+        // GitHub 전체 정보 업데이트
+        if (oauth2UserInfo instanceof GitHubOAuth2UserInfo) {
+            GitHubOAuth2UserInfo githubInfo = (GitHubOAuth2UserInfo) oauth2UserInfo;
+            deletedUser.updateFullOAuth2Profile(
+                oauth2UserInfo.getName(),
+                oauth2UserInfo.getImageUrl(),
+                newProvider != null ? newProvider : deletedUser.getProvider(),
+                githubInfo.getLogin(),
+                githubInfo.getBio(),
+                githubInfo.getBlog(),
+                githubInfo.getCompany(),
+                githubInfo.getLocation(),
+                githubInfo.getHtmlUrl(),
+                githubInfo.getPublicRepos(),
+                githubInfo.getFollowers(),
+                githubInfo.getFollowing(),
+                githubInfo.getTwitterUsername(),
+                githubInfo.getHireable()
+            );
+            log.info("GitHub 사용자 재활성화: {}, login: {}",
+                oauth2UserInfo.getEmail(), githubInfo.getLogin());
+        } else {
+            // 기본 프로필 정보 업데이트 (Google 등)
+            deletedUser.updateOAuth2Profile(
+                oauth2UserInfo.getName(),
+                oauth2UserInfo.getImageUrl(),
+                newProvider
+            );
+        }
 
         // 마지막 로그인 시간 업데이트
         deletedUser.updateLastLoginAt();
@@ -121,7 +170,37 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             );
         }
 
-        // 프로필 정보 업데이트
+        // GitHub 정보 업데이트 (로그인할 때마다 최신 정보로 갱신)
+        if (oauth2UserInfo instanceof GitHubOAuth2UserInfo) {
+            GitHubOAuth2UserInfo githubInfo = (GitHubOAuth2UserInfo) oauth2UserInfo;
+            existingUser.updateFullOAuth2Profile(
+                oauth2UserInfo.getName(),
+                oauth2UserInfo.getImageUrl(),
+                provider,
+                githubInfo.getLogin(),
+                githubInfo.getBio(),
+                githubInfo.getBlog(),
+                githubInfo.getCompany(),
+                githubInfo.getLocation(),
+                githubInfo.getHtmlUrl(),
+                githubInfo.getPublicRepos(),
+                githubInfo.getFollowers(),
+                githubInfo.getFollowing(),
+                githubInfo.getTwitterUsername(),
+                githubInfo.getHireable()
+            );
+            log.debug("GitHub 사용자 정보 갱신: {}, login: {}, followers: {}",
+                oauth2UserInfo.getEmail(), githubInfo.getLogin(), githubInfo.getFollowers());
+        } else {
+            // 기본 프로필 정보 업데이트 (Google 등)
+            existingUser.updateOAuth2Profile(
+                oauth2UserInfo.getName(),
+                oauth2UserInfo.getImageUrl(),
+                provider
+            );
+        }
+
+        // 마지막 로그인 시간 업데이트
         existingUser.updateLastLoginAt();
 
         return userRepository.save(existingUser);

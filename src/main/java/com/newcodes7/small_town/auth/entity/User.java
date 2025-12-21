@@ -71,18 +71,52 @@ public class User implements UserDetails, OAuth2User {
     
     @Column(name = "profile_image_url", length = 255)
     private String profileImageUrl;
-    
+
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
-    
+
+    // OAuth2 추가 정보 (GitHub, Google 등)
+    @Column(name = "oauth_username", length = 100)
+    private String oauthUsername; // GitHub: login, Google: sub
+
+    @Column(name = "bio", columnDefinition = "TEXT")
+    private String bio; // GitHub: bio
+
+    @Column(name = "blog_url", length = 255)
+    private String blogUrl; // GitHub: blog
+
+    @Column(name = "company", length = 100)
+    private String company; // GitHub: company
+
+    @Column(name = "location", length = 100)
+    private String location; // GitHub: location
+
+    @Column(name = "profile_url", length = 255)
+    private String profileUrl; // GitHub: html_url
+
+    @Column(name = "public_repos")
+    private Integer publicRepos; // GitHub: public_repos
+
+    @Column(name = "followers")
+    private Integer followers; // GitHub: followers
+
+    @Column(name = "following")
+    private Integer following; // GitHub: following
+
+    @Column(name = "twitter_username", length = 100)
+    private String twitterUsername; // GitHub: twitter_username
+
+    @Column(name = "hireable")
+    private Boolean hireable; // GitHub: hireable
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
-    
+
     @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
-    
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
     
@@ -125,6 +159,50 @@ public class User implements UserDetails, OAuth2User {
         if (provider != null) {
             this.provider = provider;
         }
+    }
+
+    /**
+     * OAuth2 전체 프로필 정보 업데이트 (GitHub 등)
+     */
+    public void updateFullOAuth2Profile(
+            String nickname,
+            String profileImageUrl,
+            Provider provider,
+            String oauthUsername,
+            String bio,
+            String blogUrl,
+            String company,
+            String location,
+            String profileUrl,
+            Integer publicRepos,
+            Integer followers,
+            Integer following,
+            String twitterUsername,
+            Boolean hireable) {
+
+        // 기본 정보
+        if (nickname != null) {
+            this.nickname = nickname;
+        }
+        if (profileImageUrl != null) {
+            this.profileImageUrl = profileImageUrl;
+        }
+        if (provider != null) {
+            this.provider = provider;
+        }
+
+        // 추가 정보
+        this.oauthUsername = oauthUsername;
+        this.bio = bio;
+        this.blogUrl = blogUrl;
+        this.company = company;
+        this.location = location;
+        this.profileUrl = profileUrl;
+        this.publicRepos = publicRepos;
+        this.followers = followers;
+        this.following = following;
+        this.twitterUsername = twitterUsername;
+        this.hireable = hireable;
     }
 
     public boolean isActive() {
