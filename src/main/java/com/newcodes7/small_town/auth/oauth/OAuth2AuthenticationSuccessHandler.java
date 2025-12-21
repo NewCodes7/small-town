@@ -34,8 +34,9 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
 
         User user = (User) authentication.getPrincipal();
 
-        String accessToken = tokenProvider.generateAccessToken(user.getEmail());
-        String refreshToken = tokenProvider.generateRefreshToken(user.getEmail());
+        // getUsername()을 사용하여 email이 없어도 fallback 값으로 토큰 생성
+        String accessToken = tokenProvider.generateAccessToken(user.getUsername());
+        String refreshToken = tokenProvider.generateRefreshToken(user.getUsername());
 
         // 쿠키에 토큰 설정
         setTokenCookies(response, accessToken, refreshToken);
