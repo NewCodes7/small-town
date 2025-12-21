@@ -31,7 +31,7 @@ public class LikeLog {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = true)
+    @JoinColumn(name = "users_id", nullable = true)
     private User user; // null for anonymous users
 
     @ManyToOne(fetch = FetchType.LAZY)

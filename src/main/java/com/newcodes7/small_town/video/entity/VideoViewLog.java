@@ -34,7 +34,7 @@ public class VideoViewLog {
     private Video video;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
+    @JoinColumn(name = "users_id")
     private User user; // null for anonymous users
 
     @Column(name = "ip_address", length = 45)
