@@ -32,7 +32,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "user", indexes = {
+@Table(name = "users", indexes = {
     @Index(name = "idx_email", columnList = "email"),
     @Index(name = "idx_status", columnList = "status"),
     @Index(name = "idx_deleted_at", columnList = "deleted_at"),
@@ -231,7 +231,19 @@ public class User implements UserDetails, OAuth2User {
     
     @Override
     public String getUsername() {
-        return email;
+        // Spring Security에서 사용자 식별자로 사용되므로 null이면 안 됨
+        // 우선순위: email → oauthUsername → oauthProviderId → "user_" + id
+        if (email != null && !email.isEmpty()) {
+            return email;
+        }
+        if (oauthUsername != null && !oauthUsername.isEmpty()) {
+            return oauthUsername;
+        }
+        if (oauthProviderId != null && !oauthProviderId.isEmpty()) {
+            return oauthProviderId;
+        }
+        // 최후의 수단: user ID 사용
+        return "user_" + (id != null ? id : "unknown");
     }
     
     @Override
@@ -259,10 +271,25 @@ public class User implements UserDetails, OAuth2User {
     public Map<String, Object> getAttributes() {
         return Collections.emptyMap();
     }
-    
+
     @Override
     public String getName() {
-        return nickname;
+        // principalName으로 사용되므로 null이면 안 됨
+        // 우선순위: nickname → email → oauthUsername → oauthProviderId → "user_" + id
+        if (nickname != null && !nickname.isEmpty()) {
+            return nickname;
+        }
+        if (email != null && !email.isEmpty()) {
+            return email;
+        }
+        if (oauthUsername != null && !oauthUsername.isEmpty()) {
+            return oauthUsername;
+        }
+        if (oauthProviderId != null && !oauthProviderId.isEmpty()) {
+            return oauthProviderId;
+        }
+        // 최후의 수단: user ID 사용
+        return "user_" + (id != null ? id : "unknown");
     }
     
     public enum UserStatus {
