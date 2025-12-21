@@ -23,11 +23,19 @@ public class CustomUserDetailsService implements UserDetailsService {
         User user = null;
 
         // 1. email로 찾기
-        if (username != null && !username.startsWith("user_")) {
-            user = userRepository.findByEmailAndDeletedAtIsNull(username).orElse(null);
+        user = userRepository.findByEmailAndDeletedAtIsNull(username).orElse(null);
+
+        // 2. oauthUsername으로 찾기 (GitHub login 등)
+        if (user == null) {
+            user = userRepository.findByOauthUsernameAndDeletedAtIsNull(username).orElse(null);
         }
 
-        // 2. username이 "user_숫자" 형태면 ID로 찾기
+        // 3. oauthProviderId로 찾기
+        if (user == null) {
+            user = userRepository.findByOauthProviderIdAndDeletedAtIsNull(username).orElse(null);
+        }
+
+        // 4. username이 "user_숫자" 형태면 ID로 찾기
         if (user == null && username != null && username.startsWith("user_")) {
             try {
                 String idStr = username.substring(5); // "user_" 제거
@@ -48,6 +56,7 @@ public class CustomUserDetailsService implements UserDetailsService {
         }
 
         System.out.println("Found user: ID=" + user.getId() + ", email=" + user.getEmail() +
+                          ", oauthUsername=" + user.getOauthUsername() +
                           ", status: " + user.getStatus() +
                           ", role: " + (user.getRole() != null ? user.getRole().getName() : "null"));
 
