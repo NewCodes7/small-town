@@ -34,7 +34,7 @@ public class ViewLog {
     private Article article;
     
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "users_id")
+    @JoinColumn(name = "")
     private User user; // null for anonymous users
     
     @Column(name = "ip_address", length = 45)
