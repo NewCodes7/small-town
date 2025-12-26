@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+    <div th:fragment="content" class="card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>순위</th>
+                                        <th>ID</th>
+                                        <th>기업명</th>
+                                        <th>로고</th>
+                                        <th>국내/해외</th>
+                                        <th>조회수</th>
+                                        <th>블로그</th>
+                                        <th>유튜브</th>
+                                        <th>링크</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="corporation, iterStat : ${corporations.content}">
+                                        <td>
+                                            <strong th:text="${corporations.number * corporations.size + iterStat.index + 1}">1</strong>
+                                        </td>
+                                        <td th:text="${corporation.id}"></td>
+                                        <td>
+                                            <strong th:text="${corporation.name}"></strong>
+                                        </td>
+                                        <td>
+                                            <img th:if="${corporation.logoS3Url != null}"
+                                                 th:src="${corporation.logoS3Url}"
+                                                 class="me-2" style="width: 40px; height: 40px; object-fit: contain;" />
+                                            <span th:unless="${corporation.logoS3Url != null}">-</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge"
+                                                  th:class="${corporation.isDomestic} ? 'badge bg-success' : 'badge bg-info'"
+                                                  th:text="${corporation.regionText}">지역</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-primary" th:text="${corporation.viewCount ?: 0}">0</span>
+                                        </td>
+                                        <td>
+                                            <a th:if="${corporation.blogLink != null}"
+                                               th:href="${corporation.blogLink}"
+                                               target="_blank"
+                                               class="btn btn-sm btn-outline-secondary">
+                                                <i class="fas fa-blog"></i>
+                                            </a>
+                                            <span th:unless="${corporation.blogLink != null}">-</span>
+                                        </td>
+                                        <td>
+                                            <a th:if="${corporation.youtubeUrl != null}"
+                                               th:href="${corporation.youtubeUrl}"
+                                               target="_blank"
+                                               class="btn btn-sm btn-outline-danger">
+                                                <i class="fab fa-youtube"></i>
+                                            </a>
+                                            <span th:unless="${corporation.youtubeUrl != null}">-</span>
+                                        </td>
+                                        <td>
+                                            <a th:href="@{/corporations/{id}(id=${corporation.id})}"
+                                               target="_blank"
+                                               class="btn btn-sm btn-primary">
+                                                <i class="fas fa-external-link-alt"></i> 페이지
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <tr th:if="${corporations.empty}">
+                                        <td colspan="9" class="text-center text-muted">등록된 기업이 없습니다.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 페이지네이션 -->
+                        <nav th:if="${corporations.totalPages > 1}">
+                            <ul class="pagination justify-content-center">
+                                <!-- 첫 페이지로 -->
+                                <li class="page-item" th:classappend="${corporations.first} ? 'disabled'">
+                                    <a class="page-link" th:href="@{/admin/articles(page=0, tab='corporations', search=${search})}">
+                                        <i class="fas fa-angle-double-left"></i>
+                                    </a>
+                                </li>
+
+                                <!-- 이전 페이지 -->
+                                <li class="page-item" th:classappend="${corporations.first} ? 'disabled'">
+                                    <a class="page-link"
+                                       th:href="@{/admin/articles(page=${corporations.number - 1}, tab='corporations', search=${search})}">
+                                        <i class="fas fa-angle-left"></i>
+                                    </a>
+                                </li>
+
+                                <!-- 페이지 번호들 (최대 5개만 표시) -->
+                                <th:block th:with="
+                                    startPage=${corporations.number > 2 ? corporations.number - 2 : 0},
+                                    endPage=${corporations.number + 2 < corporations.totalPages - 1 ? corporations.number + 2 : corporations.totalPages - 1}
+                                ">
+                                    <!-- 첫 페이지가 범위에 없으면 표시 -->
+                                    <li class="page-item" th:if="${startPage > 0}">
+                                        <a class="page-link" th:href="@{/admin/articles(page=0, tab='corporations', search=${search})}">1</a>
+                                    </li>
+                                    <li class="page-item disabled" th:if="${startPage > 1}">
+                                        <span class="page-link">...</span>
+                                    </li>
+
+                                    <!-- 현재 페이지 주변의 페이지들 -->
+                                    <li class="page-item"
+                                        th:each="page : ${#numbers.sequence(startPage, endPage)}"
+                                        th:classappend="${page == corporations.number} ? 'active'">
+                                        <a class="page-link"
+                                           th:href="@{/admin/articles(page=${page}, tab='corporations', search=${search})}"
+                                           th:text="${page + 1}"></a>
+                                    </li>
+
+                                    <!-- 마지막 페이지가 범위에 없으면 표시 -->
+                                    <li class="page-item disabled" th:if="${endPage < corporations.totalPages - 2}">
+                                        <span class="page-link">...</span>
+                                    </li>
+                                    <li class="page-item" th:if="${endPage < corporations.totalPages - 1}">
+                                        <a class="page-link"
+                                           th:href="@{/admin/articles(page=${corporations.totalPages - 1}, tab='corporations', search=${search})}"
+                                           th:text="${corporations.totalPages}"></a>
+                                    </li>
+                                </th:block>
+
+                                <!-- 다음 페이지 -->
+                                <li class="page-item" th:classappend="${corporations.last} ? 'disabled'">
+                                    <a class="page-link"
+                                       th:href="@{/admin/articles(page=${corporations.number + 1}, tab='corporations', search=${search})}">
+                                        <i class="fas fa-angle-right"></i>
+                                    </a>
+                                </li>
+
+                                <!-- 마지막 페이지로 -->
+                                <li class="page-item" th:classappend="${corporations.last} ? 'disabled'">
+                                    <a class="page-link"
+                                       th:href="@{/admin/articles(page=${corporations.totalPages - 1}, tab='corporations', search=${search})}">
+                                        <i class="fas fa-angle-double-right"></i>
+                                    </a>
+                                </li>
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+
+    </div>
+</body>
+</html>

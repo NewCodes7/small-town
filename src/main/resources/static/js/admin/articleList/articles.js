@@ -1,0 +1,522 @@
+// ============================================
+// Article 관련 기능
+// ============================================
+
+let currentArticleId = null;
+let currentArticleData = null;
+
+const termSortSelect = document.getElementById('termSortSelect');
+if (termSortSelect) {
+    termSortSelect.addEventListener('change', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        urlParams.set('sort', this.value);
+        urlParams.set('page', '0'); // 정렬 변경 시 첫 페이지로
+        window.location.search = urlParams.toString();
+    });
+}
+
+// 글 편집 버튼 클릭
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('edit-article-btn') || e.target.closest('.edit-article-btn')) {
+        const btn = e.target.classList.contains('edit-article-btn') ? e.target : e.target.closest('.edit-article-btn');
+        currentArticleId = btn.dataset.articleId;
+
+        // 현재 글 정보 로드
+        loadArticleForEdit(currentArticleId);
+    }
+
+    if (e.target.classList.contains('edit-summaries-btn') || e.target.closest('.edit-summaries-btn')) {
+        const btn = e.target.classList.contains('edit-summaries-btn') ? e.target : e.target.closest('.edit-summaries-btn');
+        currentArticleId = btn.dataset.articleId;
+
+        // 요약 정보 로드
+        loadSummariesForEdit(currentArticleId);
+    }
+
+    if (e.target.classList.contains('edit-category-btn') || e.target.closest('.edit-category-btn')) {
+        const btn = e.target.classList.contains('edit-category-btn') ? e.target : e.target.closest('.edit-category-btn');
+        currentArticleId = btn.dataset.articleId;
+        const currentCategory = btn.dataset.currentCategory;
+
+        // 현재 카테고리 선택
+        const categorySelect = document.getElementById('categorySelect');
+        categorySelect.value = currentCategory || '';
+
+        // 커스텀 입력 초기화
+        document.getElementById('customCategory').value = '';
+
+        // 모달 표시
+        const modal = new bootstrap.Modal(document.getElementById('editCategoryModal'));
+        modal.show();
+    }
+
+    if (e.target.classList.contains('delete-article-btn') || e.target.closest('.delete-article-btn')) {
+        const btn = e.target.classList.contains('delete-article-btn') ? e.target : e.target.closest('.delete-article-btn');
+        const articleId = btn.dataset.articleId;
+        const articleTitle = btn.dataset.articleTitle;
+
+        if (confirm(`정말로 "${articleTitle}" 글을 삭제하시겠습니까?\n\n삭제된 글은 복구할 수 없습니다.`)) {
+            deleteArticle(articleId);
+        }
+    }
+
+    if (e.target.classList.contains('edit-publish-date-btn') || e.target.closest('.edit-publish-date-btn')) {
+        const btn = e.target.classList.contains('edit-publish-date-btn') ? e.target : e.target.closest('.edit-publish-date-btn');
+        currentArticleId = btn.dataset.articleId;
+        const currentDate = btn.dataset.currentDate;
+
+        // 현재 발행일을 모달의 input에 설정
+        document.getElementById('publishDateInput').value = currentDate;
+
+        // 모달 표시
+        const modal = new bootstrap.Modal(document.getElementById('editPublishDateModal'));
+        modal.show();
+    }
+
+    if (e.target.classList.contains('edit-translated-title-btn') || e.target.closest('.edit-translated-title-btn')) {
+        const btn = e.target.classList.contains('edit-translated-title-btn') ? e.target : e.target.closest('.edit-translated-title-btn');
+        currentArticleId = btn.dataset.articleId;
+        const currentTranslatedTitle = btn.dataset.currentTranslatedTitle;
+
+        // 현재 번역된 제목을 모달의 textarea에 설정
+        document.getElementById('translatedTitleInput').value = currentTranslatedTitle || '';
+
+        // 모달 표시
+        const modal = new bootstrap.Modal(document.getElementById('editTranslatedTitleModal'));
+        modal.show();
+    }
+});
+
+// 글 정보 로드
+function loadArticleForEdit(articleId) {
+    fetch(`/admin/articles/${articleId}/detail`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                currentArticleData = data.article;
+
+                // 폼에 데이터 채우기
+                document.getElementById('articleTitle').value = data.article.title || '';
+                document.getElementById('articleTranslatedTitle').value = data.article.translatedTitle || '';
+                document.getElementById('articleLink').value = data.article.link || '';
+                document.getElementById('articleThumbnail').value = data.article.thumbnailImage || '';
+                document.getElementById('articleCategorySelect').value =
+                    data.article.category ? data.article.category.name : '';
+
+                // 썸네일 미리보기
+                updateThumbnailPreview(data.article.thumbnailImage);
+
+                // 모달 표시
+                const modal = new bootstrap.Modal(document.getElementById('editArticleModal'));
+                modal.show();
+            } else {
+                alert('글 정보 로드 실패: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('글 정보 로드 중 오류가 발생했습니다.');
+        });
+}
+
+// 요약 정보 로드
+function loadSummariesForEdit(articleId) {
+    fetch(`/admin/articles/${articleId}/summaries`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const container = document.getElementById('summariesContainer');
+                container.innerHTML = '';
+
+                // 기존 요약들 표시
+                data.summaries.forEach((summary, index) => {
+                    addSummaryItem(summary, index);
+                });
+
+                // 모달 표시
+                const modal = new bootstrap.Modal(document.getElementById('editSummariesModal'));
+                modal.show();
+            } else {
+                alert('요약 정보 로드 실패: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('요약 정보 로드 중 오류가 발생했습니다.');
+        });
+}
+
+// 요약 항목 추가
+function addSummaryItem(summary = null, index = null) {
+    const container = document.getElementById('summariesContainer');
+    const summaryIndex = index !== null ? index : container.children.length;
+
+    const summaryDiv = document.createElement('div');
+    summaryDiv.className = 'mb-3 p-3 border rounded';
+    summaryDiv.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">요약 ${summaryIndex + 1}</h6>
+            <button type="button" class="btn btn-sm btn-danger remove-summary-btn">
+                <i class="fas fa-trash"></i> 삭제
+            </button>
+        </div>
+        <div class="mb-2">
+            <label class="form-label">타입</label>
+            <select class="form-select summary-type">
+                <option value="h3" ${summary && summary.contentType === 'h3' ? 'selected' : ''}>제목 (H3)</option>
+                <option value="li" ${summary && summary.contentType === 'li' ? 'selected' : ''}>항목 (LI)</option>
+            </select>
+        </div>
+        <div class="mb-2">
+            <label class="form-label">내용</label>
+            <textarea class="form-control summary-content" rows="2" maxlength="500"
+                        placeholder="요약 내용을 입력하세요 (최대 500자)">${summary ? summary.content : ''}</textarea>
+        </div>
+        <input type="hidden" class="summary-id" value="${summary ? summary.id : ''}">
+    `;
+
+    container.appendChild(summaryDiv);
+}
+
+// 요약 항목 삭제
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-summary-btn') || e.target.closest('.remove-summary-btn')) {
+        const summaryDiv = e.target.closest('.mb-3.p-3.border.rounded');
+        summaryDiv.remove();
+    }
+});
+
+// 요약 추가 버튼
+document.getElementById('addSummaryBtn').addEventListener('click', function() {
+    addSummaryItem();
+});
+
+// 썸네일 미리보기 업데이트
+function updateThumbnailPreview(url) {
+    const preview = document.getElementById('thumbnailPreview');
+    if (url && url.trim()) {
+        preview.innerHTML = `<img src="${url}" style="max-width: 200px; max-height: 100px; object-fit: cover; border-radius: 4px;" />`;
+    } else {
+        preview.innerHTML = '';
+    }
+}
+
+// 썸네일 URL 변경 시 미리보기 업데이트
+document.getElementById('articleThumbnail').addEventListener('input', function() {
+    updateThumbnailPreview(this.value);
+});
+
+// 글 정보 저장
+document.getElementById('saveArticleBtn').addEventListener('click', function() {
+    const title = document.getElementById('articleTitle').value.trim();
+    const translatedTitle = document.getElementById('articleTranslatedTitle').value.trim();
+    const link = document.getElementById('articleLink').value.trim();
+    const thumbnailUrl = document.getElementById('articleThumbnail').value.trim();
+    const categoryName = document.getElementById('articleCustomCategory').value.trim() ||
+                        document.getElementById('articleCategorySelect').value;
+
+    if (!title || !link) {
+        alert('제목과 링크는 필수 입력 항목입니다.');
+        return;
+    }
+
+    const requestData = {
+        title: title,
+        translatedTitle: translatedTitle || null,
+        link: link,
+        thumbnailUrl: thumbnailUrl || null,
+        categoryName: categoryName || null
+    };
+
+    fetch(`/admin/articles/${currentArticleId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('글 정보 수정 실패: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('글 정보 수정 중 오류가 발생했습니다.');
+    });
+});
+
+// 요약 저장
+document.getElementById('saveSummariesBtn').addEventListener('click', function() {
+    const summaryItems = document.querySelectorAll('#summariesContainer > div');
+    const summaries = [];
+
+    summaryItems.forEach(item => {
+        const id = item.querySelector('.summary-id').value;
+        const contentType = item.querySelector('.summary-type').value;
+        const content = item.querySelector('.summary-content').value.trim();
+
+        if (content) {
+            summaries.push({
+                id: id || null,
+                contentType: contentType,
+                content: content
+            });
+        }
+    });
+
+    fetch(`/admin/articles/${currentArticleId}/summaries`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({summaries: summaries})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('요약 수정 실패: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('요약 수정 중 오류가 발생했습니다.');
+    });
+});
+
+// 발행일 저장
+document.getElementById('savePublishDateBtn').addEventListener('click', function() {
+    const publishDate = document.getElementById('publishDateInput').value;
+
+    if (!publishDate) {
+        alert('발행일을 입력해주세요.');
+        return;
+    }
+
+    // 발행일 업데이트 API 호출
+    fetch(`/api/admin/articles/${currentArticleId}/publish-date`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            publishedAt: publishDate
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert(data.message);
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editPublishDateModal'));
+            modal.hide();
+            location.reload();
+        } else {
+            alert('발행일 수정 실패: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('발행일 수정 중 오류가 발생했습니다.');
+    });
+});
+
+// 카테고리 저장
+document.getElementById('saveCategoryBtn').addEventListener('click', function() {
+    const categorySelect = document.getElementById('categorySelect');
+    const customCategory = document.getElementById('customCategory');
+
+    let categoryName = customCategory.value.trim() || categorySelect.value;
+
+    if (!categoryName) {
+        alert('카테고리를 선택하거나 입력해주세요.');
+        return;
+    }
+
+    // API 호출
+    fetch(`/admin/articles/${currentArticleId}/category`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            categoryName: categoryName
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 성공 시 페이지 새로고침
+            location.reload();
+        } else {
+            alert('카테고리 수정 실패: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('카테고리 수정 중 오류가 발생했습니다.');
+    });
+});
+
+// 커스텀 카테고리 입력 시 셀렉트 초기화
+document.getElementById('customCategory').addEventListener('input', function() {
+    if (this.value.trim()) {
+        document.getElementById('categorySelect').value = '';
+    }
+});
+
+document.getElementById('articleCustomCategory').addEventListener('input', function() {
+    if (this.value.trim()) {
+        document.getElementById('articleCategorySelect').value = '';
+    }
+});
+
+// 셀렉트 선택 시 커스텀 입력 초기화
+document.getElementById('categorySelect').addEventListener('change', function() {
+    if (this.value) {
+        document.getElementById('customCategory').value = '';
+    }
+});
+
+document.getElementById('articleCategorySelect').addEventListener('change', function() {
+    if (this.value) {
+        document.getElementById('articleCustomCategory').value = '';
+    }
+});
+
+// 글 삭제 함수
+function deleteArticle(articleId) {
+    fetch(`/api/admin/articles/${articleId}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('글 삭제 실패: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('글 삭제 중 오류가 발생했습니다.');
+    });
+}
+
+// AI 분석 버튼 클릭
+document.getElementById('analyzeArticlesBtn').addEventListener('click', function() {
+    if (confirm('분석되지 않은 모든 글에 대해 OpenAI 분석을 실행합니다. 이 작업은 시간이 오래 걸릴 수 있습니다. 계속하시겠습니까?')) {
+        const btn = this;
+        const originalText = btn.innerHTML;
+
+        // 버튼 비활성화 및 로딩 표시
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>분석 중...';
+
+        fetch('/api/crawling/analyze-existing', {
+            method: 'GET'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`AI 분석이 완료되었습니다.\n분석된 글: ${data.analyzedCount || 0}개`);
+                location.reload();
+            } else {
+                alert('AI 분석 실패: ' + (data.message || '알 수 없는 오류'));
+            }
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('AI 분석 중 오류가 발생했습니다.');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        });
+    }
+});
+
+// 번역된 제목 저장
+document.getElementById('saveTranslatedTitleBtn').addEventListener('click', function() {
+    const translatedTitle = document.getElementById('translatedTitleInput').value.trim();
+
+    if (!translatedTitle) {
+        alert('번역된 제목을 입력해주세요.');
+        return;
+    }
+
+    // 번역된 제목 업데이트 API 호출
+    fetch(`/admin/articles/${currentArticleId}/translated-title`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            translatedTitle: translatedTitle
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editTranslatedTitleModal'));
+            modal.hide();
+            location.reload();
+        } else {
+            alert('번역된 제목 수정 실패: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('번역된 제목 수정 중 오류가 발생했습니다.');
+    });
+});
+
+// 번역 버튼 클릭
+document.getElementById('translateTitlesBtn').addEventListener('click', function() {
+    if (confirm('해외 기업의 모든 글 제목을 번역합니다. 이 작업은 시간이 오래 걸릴 수 있습니다. 계속하시겠습니까?')) {
+        const btn = this;
+        const originalText = btn.innerHTML;
+
+        // 버튼 비활성화 및 로딩 표시
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>번역 중...';
+
+        fetch('/admin/articles/translate-titles', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('번역 작업이 시작되었습니다. 로그를 확인해주세요.');
+                // 5분 후 버튼 재활성화
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }, 300000);
+            } else {
+                alert('번역 작업 시작 실패: ' + data.message);
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('번역 작업 시작 중 오류가 발생했습니다.');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        });
+    }
+});
+

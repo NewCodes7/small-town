@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+    <div th:fragment="content" class="card">
+                    <div class="card-body">
+                        <div class="mb-3 d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-filter me-2"></i>관련 글 키워드 관리
+                                <small class="text-muted">(본문 추출 시 제거할 키워드)</small>
+                            </h5>
+                            <button class="btn btn-primary" id="addKeywordBtn">
+                                <i class="fas fa-plus me-2"></i>키워드 추가
+                            </button>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            본문 추출 시 전체 텍스트의 80% 이상 지점에서 이 키워드들이 발견되면 해당 부분부터 끝까지 제거됩니다.
+                            <br>
+                            <strong>예시:</strong> "추천 콘텐츠", "관련 게시글", "related posts" 등
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th style="width: 10%;">ID</th>
+                                        <th style="width: 60%;">키워드</th>
+                                        <th style="width: 20%;">등록일</th>
+                                        <th style="width: 10%;">액션</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="keywordTableBody">
+                                    <tr>
+                                        <td colspan="4" class="text-center text-muted">
+                                            <i class="fas fa-spinner fa-spin me-2"></i>로딩 중...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+    <!-- 카테고리 수정 모달 -->
+    <div class="modal fade" id="editCategoryModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">카테고리 수정</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editCategoryForm">
+                        <div class="mb-3">
+                            <label for="categorySelect" class="form-label">카테고리 선택</label>
+                            <select class="form-select" id="categorySelect" required>
+                                <option value="">카테고리를 선택하세요</option>
+                                <option th:each="category : ${categories}"
+                                        th:value="${category.name}"
+                                        th:text="${category.name}">
+                                </option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="customCategory" class="form-label">또는 새 카테고리 입력</label>
+                            <input type="text" class="form-control" id="customCategory"
+                                   placeholder="새 카테고리명을 입력하세요">
+                            <small class="form-text text-muted">새 카테고리를 입력하면 자동으로 생성됩니다.</small>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="button" class="btn btn-primary" id="saveCategoryBtn">저장</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 발행일 편집 모달 -->
+    <div class="modal fade" id="editPublishDateModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">발행일 수정</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+    </div>
+</body>
+</html>

@@ -402,6 +402,7 @@ function initSortDropdown() {
     const sortLabels = {
         'relevance': '적합도순',
         'latest': '최신순',
+        'popular': '인기순',
         'oldest': '오래된순'
     };
 
@@ -409,8 +410,16 @@ function initSortDropdown() {
         sortLabel.textContent = sortLabels[currentSort] || '최신순';
     }
 
-    // 각 정렬 옵션에 클릭 이벤트 추가
+    // 현재 선택된 정렬 옵션에 active 클래스 추가
     sortOptions.forEach(option => {
+        const sortType = option.getAttribute('data-sort');
+        if (sortType === currentSort) {
+            option.classList.add('active');
+        } else {
+            option.classList.remove('active');
+        }
+
+        // 클릭 이벤트 추가
         option.addEventListener('click', function(e) {
             e.preventDefault();
             const sortType = this.getAttribute('data-sort');

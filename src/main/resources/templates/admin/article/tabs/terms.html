@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+    <div th:fragment="content" class="card">
+                    <div class="card-body">
+                        <div class="mb-3 d-flex justify-content-between align-items-center">
+                            <div>
+                                <button class="btn btn-success" id="extractArticleTermsBtn">
+                                    <i class="fas fa-play me-2"></i>Article Term 추출
+                                </button>
+                                <button class="btn btn-warning ms-2" id="reextractArticleTermsBtn">
+                                    <i class="fas fa-redo me-2"></i>Article Term 강제 재분석
+                                </button>
+                                <button class="btn btn-success ms-2" id="extractVideoTermsBtn">
+                                    <i class="fas fa-play me-2"></i>Video Term 추출
+                                </button>
+                                <button class="btn btn-warning ms-2" id="reextractVideoTermsBtn">
+                                    <i class="fas fa-redo me-2"></i>Video Term 강제 재분석
+                                </button>
+                                <small class="text-muted ms-3">
+                                    <i class="fas fa-info-circle"></i> 이미 분석된 항목은 자동으로 건너뜁니다.
+                                </small>
+                            </div>
+                            <div>
+                                <button class="btn btn-primary" id="manageUserDictionaryBtn">
+                                    <i class="fas fa-book me-2"></i>사용자 사전 관리
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th style="width: 5%;">ID</th>
+                                        <th style="width: 25%;">제목</th>
+                                        <th style="width: 10%;">기업</th>
+                                        <th style="width: 10%;">발행일</th>
+                                        <th style="width: 50%;">Terms</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="article : ${articlesWithTerms.content}">
+                                        <td th:text="${article.id}"></td>
+                                        <td>
+                                            <div>
+                                                <a th:href="${article.link}" target="_blank"
+                                                   class="text-decoration-none fw-bold" th:text="${article.title}">
+                                                </a>
+                                                <div th:if="${article.translatedTitle}" class="mt-1">
+                                                    <small class="text-info" th:text="'🌐 ' + ${article.translatedTitle}"></small>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td th:text="${article.corporation.name}"></td>
+                                        <td>
+                                            <span th:text="${#temporals.format(article.publishedAt, 'yyyy-MM-dd')}"></span>
+                                        </td>
+                                        <td>
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div class="terms-container flex-grow-1" th:data-article-id="${article.id}">
+                                                    <div class="text-muted">
+                                                        <i class="fas fa-spinner fa-spin me-2"></i>로딩 중...
+                                                    </div>
+                                                </div>
+                                                <button class="btn btn-sm btn-outline-primary ms-2 reanalyze-terms-btn"
+                                                        th:data-article-id="${article.id}"
+                                                        th:data-article-title="${article.title}"
+                                                        title="Term 재분석">
+                                                    <i class="fas fa-sync-alt"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr th:if="${articlesWithTerms.empty}">
+                                        <td colspan="5" class="text-center text-muted">등록된 글이 없습니다.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Video Term 분석 목록 -->
+                        <h5 class="mt-4 mb-3"><i class="fas fa-video me-2"></i>Video Term 분석</h5>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th style="width: 5%;">ID</th>
+                                        <th style="width: 25%;">제목</th>
+                                        <th style="width: 10%;">기업</th>
+                                        <th style="width: 10%;">발행일</th>
+                                        <th style="width: 50%;">Terms</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="video : ${videosWithTerms.content}">
+                                        <td th:text="${video.id}"></td>
+                                        <td>
+                                            <div>
+                                                <a th:href="${video.link}" target="_blank"
+                                                   class="text-decoration-none fw-bold" th:text="${video.title}">
+                                                </a>
+                                                <div th:if="${video.translatedTitle}" class="mt-1">
+                                                    <small class="text-info" th:text="'🌐 ' + ${video.translatedTitle}"></small>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td th:text="${video.corporation.name}"></td>
+                                        <td>
+                                            <span th:text="${#temporals.format(video.publishedAt, 'yyyy-MM-dd')}"></span>
+                                        </td>
+                                        <td>
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div class="video-terms-container flex-grow-1" th:data-video-id="${video.id}">
+                                                    <div class="text-muted">
+                                                        <i class="fas fa-spinner fa-spin me-2"></i>로딩 중...
+                                                    </div>
+                                                </div>
+                                                <button class="btn btn-sm btn-outline-primary ms-2 reanalyze-video-terms-btn"
+                                                        th:data-video-id="${video.id}"
+                                                        th:data-video-title="${video.title}"
+                                                        title="Term 재분석">
+                                                    <i class="fas fa-sync-alt"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr th:if="${videosWithTerms.empty}">
+                                        <td colspan="5" class="text-center text-muted">등록된 영상이 없습니다.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 페이지네이션 -->
+                        <nav th:if="${articlesWithTerms.totalPages > 1}">
+                            <ul class="pagination justify-content-center">
+                                <!-- 첫 페이지로 -->
+                                <li class="page-item" th:classappend="${articlesWithTerms.first} ? 'disabled'">
+                                    <a class="page-link" th:href="@{/admin/articles(page=0, tab='terms', search=${search})}">
+                                        <i class="fas fa-angle-double-left"></i>
+                                    </a>
+                                </li>
+
+                                <!-- 이전 페이지 -->
+                                <li class="page-item" th:classappend="${articlesWithTerms.first} ? 'disabled'">
+                                    <a class="page-link"
+                                       th:href="@{/admin/articles(page=${articlesWithTerms.number - 1}, tab='terms', search=${search})}">
+                                        <i class="fas fa-angle-left"></i>
+                                    </a>
+                                </li>
+
+                                <!-- 페이지 번호들 (최대 5개만 표시) -->
+                                <th:block th:with="
+                                    startPage=${articlesWithTerms.number > 2 ? articlesWithTerms.number - 2 : 0},
+                                    endPage=${articlesWithTerms.number + 2 < articlesWithTerms.totalPages - 1 ? articlesWithTerms.number + 2 : articlesWithTerms.totalPages - 1}
+                                ">
+                                    <!-- 첫 페이지가 범위에 없으면 표시 -->
+                                    <li class="page-item" th:if="${startPage > 0}">
+                                        <a class="page-link" th:href="@{/admin/articles(page=0, tab='terms', search=${search})}">1</a>
+                                    </li>
+                                    <li class="page-item disabled" th:if="${startPage > 1}">
+                                        <span class="page-link">...</span>
+                                    </li>
+
+                                    <!-- 현재 페이지 주변의 페이지들 -->
+                                    <li class="page-item"
+                                        th:each="page : ${#numbers.sequence(startPage, endPage)}"
+                                        th:classappend="${page == articlesWithTerms.number} ? 'active'">
+                                        <a class="page-link"
+                                           th:href="@{/admin/articles(page=${page}, tab='terms', search=${search})}"
+                                           th:text="${page + 1}"></a>
+                                    </li>
+
+                                    <!-- 마지막 페이지가 범위에 없으면 표시 -->
+                                    <li class="page-item disabled" th:if="${endPage < articlesWithTerms.totalPages - 2}">
+                                        <span class="page-link">...</span>
+                                    </li>
+                                    <li class="page-item" th:if="${endPage < articlesWithTerms.totalPages - 1}">
+                                        <a class="page-link"
+                                           th:href="@{/admin/articles(page=${articlesWithTerms.totalPages - 1}, tab='terms', search=${search})}"
+                                           th:text="${articlesWithTerms.totalPages}"></a>
+                                    </li>
+                                </th:block>
+
+                                <!-- 다음 페이지 -->
+                                <li class="page-item" th:classappend="${articlesWithTerms.last} ? 'disabled'">
+                                    <a class="page-link"
+                                       th:href="@{/admin/articles(page=${articlesWithTerms.number + 1}, tab='terms', search=${search})}">
+                                        <i class="fas fa-angle-right"></i>
+                                    </a>
+                                </li>
+
+                                <!-- 마지막 페이지로 -->
+                                <li class="page-item" th:classappend="${articlesWithTerms.last} ? 'disabled'">
+                                    <a class="page-link"
+                                       th:href="@{/admin/articles(page=${articlesWithTerms.totalPages - 1}, tab='terms', search=${search})}">
+                                        <i class="fas fa-angle-double-right"></i>
+                                    </a>
+                                </li>
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+
+    </div>
+</body>
+</html>

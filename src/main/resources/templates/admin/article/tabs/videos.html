@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+    <div th:fragment="content" class="card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>제목</th>
+                                        <th>기업</th>
+                                        <th>카테고리</th>
+                                        <th>발행일</th>
+                                        <th>조회수</th>
+                                        <th>좋아요</th>
+                                        <th>액션</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="video : ${videos.content}">
+                                        <td th:text="${video.id}"></td>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <img th:if="${video.thumbnailUrl}" th:src="${video.thumbnailUrl}"
+                                                     class="me-2" style="width: 60px; height: 40px; object-fit: cover; border-radius: 4px;" />
+                                                <div>
+                                                    <a th:href="${video.link}" target="_blank"
+                                                       class="text-decoration-none fw-bold" th:text="${video.title}">
+                                                    </a>
+                                                    <div th:if="${video.translatedTitle}" class="mt-1">
+                                                        <button class="btn btn-sm btn-link text-decoration-none p-0 edit-video-translated-title-btn"
+                                                                th:data-video-id="${video.id}"
+                                                                th:data-current-translated-title="${video.translatedTitle}"
+                                                                th:title="'번역된 제목 편집'"
+                                                                style="color: inherit;">
+                                                            <small class="text-info" th:text="'🌐 ' + ${video.translatedTitle}"></small>
+                                                            <i class="fas fa-edit ms-1 text-muted" style="font-size: 0.7em;"></i>
+                                                        </button>
+                                                    </div>
+                                                    <br>
+                                                    <small class="text-muted" th:text="${video.link}"></small>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td th:text="${video.corporation.name}"></td>
+                                        <td>
+                                            <span class="badge bg-secondary video-category-badge"
+                                                  th:text="${video.category != null ? video.category.name : '미분류'}"
+                                                  th:data-video-id="${video.id}"
+                                                  style="cursor: pointer;">
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span th:text="${#temporals.format(video.publishedAt, 'yyyy-MM-dd HH:mm')}"></span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-primary" th:text="${video.viewCount ?: 0}"></span>
+                                        </td>
+                                        <td th:text="${video.likeCount ?: 0}"></td>
+                                        <td>
+                                            <div class="btn-group" role="group">
+                                                <button class="btn btn-sm btn-primary edit-video-btn"
+                                                        th:data-video-id="${video.id}">
+                                                    <i class="fas fa-edit"></i> 편집
+                                                </button>
+                                                <button class="btn btn-sm btn-danger delete-video-btn"
+                                                        th:data-video-id="${video.id}"
+                                                        th:data-video-title="${video.title}">
+                                                    <i class="fas fa-trash"></i> 삭제
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr th:if="${videos.empty}">
+                                        <td colspan="8" class="text-center text-muted">등록된 영상이 없습니다.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 페이지네이션 -->
+                        <nav th:if="${videos.totalPages > 1}">
+                            <ul class="pagination justify-content-center">
+                                <!-- 첫 페이지로 -->
+                                <li class="page-item" th:classappend="${videos.first} ? 'disabled'">
+                                    <a class="page-link" th:href="@{/admin/articles(page=0, tab='videos', search=${search})}">
+                                        <i class="fas fa-angle-double-left"></i>
+                                    </a>
+                                </li>
+
+                                <!-- 이전 페이지 -->
+                                <li class="page-item" th:classappend="${videos.first} ? 'disabled'">
+                                    <a class="page-link"
+                                       th:href="@{/admin/articles(page=${videos.number - 1}, tab='videos', search=${search})}">
+                                        <i class="fas fa-angle-left"></i>
+                                    </a>
+                                </li>
+
+                                <!-- 페이지 번호들 (최대 5개만 표시) -->
+                                <th:block th:with="
+                                    startPage=${videos.number > 2 ? videos.number - 2 : 0},
+                                    endPage=${videos.number + 2 < videos.totalPages - 1 ? videos.number + 2 : videos.totalPages - 1}
+                                ">
+                                    <!-- 첫 페이지가 범위에 없으면 표시 -->
+                                    <li class="page-item" th:if="${startPage > 0}">
+                                        <a class="page-link" th:href="@{/admin/articles(page=0, tab='videos', search=${search})}">1</a>
+                                    </li>
+                                    <li class="page-item disabled" th:if="${startPage > 1}">
+                                        <span class="page-link">...</span>
+                                    </li>
+
+                                    <!-- 현재 페이지 주변의 페이지들 -->
+                                    <li class="page-item"
+                                        th:each="page : ${#numbers.sequence(startPage, endPage)}"
+                                        th:classappend="${page == videos.number} ? 'active'">
+                                        <a class="page-link"
+                                           th:href="@{/admin/articles(page=${page}, tab='videos', search=${search})}"
+                                           th:text="${page + 1}"></a>
+                                    </li>
+
+                                    <!-- 마지막 페이지가 범위에 없으면 표시 -->
+                                    <li class="page-item disabled" th:if="${endPage < videos.totalPages - 2}">
+                                        <span class="page-link">...</span>
+                                    </li>
+                                    <li class="page-item" th:if="${endPage < videos.totalPages - 1}">
+                                        <a class="page-link"
+                                           th:href="@{/admin/articles(page=${videos.totalPages - 1}, tab='videos', search=${search})}"
+                                           th:text="${videos.totalPages}"></a>
+                                    </li>
+                                </th:block>
+
+                                <!-- 다음 페이지 -->
+                                <li class="page-item" th:classappend="${videos.last} ? 'disabled'">
+                                    <a class="page-link"
+                                       th:href="@{/admin/articles(page=${videos.number + 1}, tab='videos', search=${search})}">
+                                        <i class="fas fa-angle-right"></i>
+                                    </a>
+                                </li>
+
+                                <!-- 마지막 페이지로 -->
+                                <li class="page-item" th:classappend="${videos.last} ? 'disabled'">
+                                    <a class="page-link"
+                                       th:href="@{/admin/articles(page=${videos.totalPages - 1}, tab='videos', search=${search})}">
+                                        <i class="fas fa-angle-double-right"></i>
+                                    </a>
+                                </li>
+                            </ul>
+                        </nav>
+                    </div>
+    </div>
+</body>
+</html>
