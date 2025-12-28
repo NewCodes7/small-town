@@ -25,6 +25,8 @@ import com.newcodes7.small_town.article.repository.UserDictionaryRepository;
 import com.newcodes7.small_town.article.service.ArticleTermService;
 import com.newcodes7.small_town.article.service.DeeplService;
 import com.newcodes7.small_town.article.service.TermSynonymService;
+import com.newcodes7.small_town.term.service.TechTermService;
+import com.newcodes7.small_town.term.service.StackExchangeApiService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Video;
 import com.newcodes7.small_town.video.repository.VideoRepository;
@@ -51,6 +53,8 @@ public class AdminTermController {
     private final TermSynonymService termSynonymService;
     private final TermRepository termRepository;
     private final DeeplService deeplService;
+    private final TechTermService techTermService;
+    private final StackExchangeApiService stackExchangeApiService;
 
     // ========== Article Term 관리 ==========
 
@@ -1083,6 +1087,135 @@ public class AdminTermController {
             log.error("일괄 유의어 추천 중 오류 발생: {}", e.getMessage(), e);
             response.put("success", false);
             response.put("message", "일괄 추천 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    // ========== Tech Term Dictionary (StackOverflow + Wikipedia) ==========
+
+    /**
+     * StackOverflow 태그 수집 → DeepL 번역 → UserDictionary + TermSynonym 등록
+     *
+     * @param limit 가져올 태그 개수 (기본 100)
+     * @param minCount 최소 사용 횟수 (기본 1000)
+     * @param offset 건너뛸 태그 개수 (기본 0) - 이미 저장된 term 건너뛰기
+     * @return 처리 결과
+     */
+    @GetMapping("/tech-terms/collect")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> collectTechTerms(
+        @RequestParam(defaultValue = "100") int limit,
+        @RequestParam(defaultValue = "1000") int minCount,
+        @RequestParam(defaultValue = "0") int offset) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            log.info("Tech term collection started: limit={}, minCount={}, offset={}",
+                    limit, minCount, offset);
+
+            // 비동기로 실행 (시간이 오래 걸릴 수 있음)
+            final int finalLimit = limit;
+            final int finalMinCount = minCount;
+            final int finalOffset = offset;
+
+            new Thread(() -> {
+                try {
+                    TechTermService.TechTermCollectionResult result =
+                            techTermService.collectAndProcessTechTerms(finalLimit, finalMinCount, finalOffset);
+
+                    if (result.isSuccess()) {
+                        log.info("Tech term collection completed successfully:");
+                        log.info("  - Offset: {}", result.getOffset());
+                        log.info("  - Fetched tags: {}", result.getFetchedTagsCount());
+                        log.info("  - Translated: {}", result.getTranslatedCount());
+                        log.info("  - Saved to dictionary: {}", result.getSavedDictionaryCount());
+                        log.info("  - Saved synonyms: {}", result.getSavedSynonymCount());
+                        log.info("  - Processing time: {}ms", result.getProcessingTimeMs());
+
+                        // 결과 샘플 로깅
+                        if (result.getTermPairs() != null && !result.getTermPairs().isEmpty()) {
+                            log.info("Sample term pairs:");
+                            result.getTermPairs().stream()
+                                    .limit(10)
+                                    .forEach(pair -> log.info("  - {} ({}) → {}",
+                                            pair.getEnglishTerm(),
+                                            pair.getOriginalTag(),
+                                            pair.getKoreanTerm()));
+                        }
+                    } else {
+                        log.error("Tech term collection failed: {}", result.getErrorMessage());
+                    }
+
+                } catch (Exception e) {
+                    log.error("Tech term collection background job failed", e);
+                }
+            }).start();
+
+            response.put("success", true);
+            response.put("message", String.format(
+                    "기술 용어 수집 작업이 시작되었습니다. (limit: %d, minCount: %d, offset: %d) 로그를 확인해주세요.",
+                    limit, minCount, offset
+            ));
+            response.put("limit", limit);
+            response.put("minCount", minCount);
+            response.put("offset", offset);
+            response.put("nextOffset", offset + limit);
+            response.put("hint", "다음 배치는 offset=" + (offset + limit) + "으로 호출하세요.");
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Tech term collection start failed: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "기술 용어 수집 작업 시작 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * StackOverflow 태그 미리보기 (실제 저장하지 않음)
+     *
+     * @param limit 가져올 태그 개수
+     * @param minCount 최소 사용 횟수
+     * @return 태그 목록
+     */
+    @GetMapping("/tech-terms/preview")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> previewStackOverflowTags(
+            @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(defaultValue = "1000") int minCount) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            log.info("Previewing StackOverflow tags: limit={}, minCount={}", limit, minCount);
+
+            // StackOverflow 태그 가져오기
+            List<com.newcodes7.small_town.term.dto.StackExchangeTagDto> tags =
+                    stackExchangeApiService.fetchPopularTags(limit, minCount);
+
+            // DTO로 변환
+            List<Map<String, Object>> tagDataList = new ArrayList<>();
+            for (com.newcodes7.small_town.term.dto.StackExchangeTagDto tag : tags) {
+                Map<String, Object> tagData = new HashMap<>();
+                tagData.put("name", tag.getName());
+                tagData.put("searchTerm", stackExchangeApiService.convertTagToSearchTerm(tag.getName()));
+                tagData.put("count", tag.getCount());
+                tagData.put("hasSynonyms", tag.getHasSynonyms());
+                tagDataList.add(tagData);
+            }
+
+            response.put("success", true);
+            response.put("totalFetched", tags.size());
+            response.put("tags", tagDataList);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Preview failed: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "미리보기 중 오류가 발생했습니다: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
     }

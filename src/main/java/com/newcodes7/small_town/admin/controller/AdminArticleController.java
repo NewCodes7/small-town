@@ -9,8 +9,10 @@ import java.util.Optional;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,12 +20,17 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import com.newcodes7.small_town.admin.service.AdminArticleListService;
+import com.newcodes7.small_town.article.repository.ArticleChunkRepository;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.article.service.ArticleTermService;
+import com.newcodes7.small_town.article.service.RelatedContentKeywordService;
 import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
 import com.newcodes7.small_town.crawler.repository.ArticleSummaryRepository;
 import com.newcodes7.small_town.crawler.repository.CategoryRepository;
 import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.ArticleChunk;
 import com.newcodes7.small_town.global.entity.ArticleSummary;
+import com.newcodes7.small_town.global.entity.RelatedContentKeyword;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +49,9 @@ public class AdminArticleController {
     private final ArticlePersistenceService articlePersistenceService;
     private final CategoryRepository categoryRepository;
     private final AdminArticleListService adminArticleListService;
+    private final RelatedContentKeywordService relatedContentKeywordService;
+    private final ArticleChunkRepository articleChunkRepository;
+    private final ArticleTermService articleTermService;
 
     /**
      * 글 목록 페이지
@@ -312,6 +322,377 @@ public class AdminArticleController {
         } catch (Exception e) {
             response.put("success", false);
             response.put("message", "요약 수정 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 글 본문(content) 조회 API
+     */
+    @GetMapping("/articles/{articleId}/content")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getArticleContent(@PathVariable Long articleId) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            Optional<Article> articleOpt = articleRepository.findById(articleId);
+            if (articleOpt.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "글을 찾을 수 없습니다.");
+                return ResponseEntity.notFound().build();
+            }
+
+            Article article = articleOpt.get();
+
+            response.put("success", true);
+            response.put("articleId", article.getId());
+            response.put("title", article.getTitle());
+            response.put("content", article.getContent());
+            response.put("hasContent", article.getContent() != null && !article.getContent().isBlank());
+            response.put("contentLength", article.getContent() != null ? article.getContent().length() : 0);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Article {} content 조회 중 오류 발생", articleId, e);
+            response.put("success", false);
+            response.put("message", "본문 조회 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    // ============================================
+    // 관련 글 키워드 관리 API
+    // ============================================
+
+    /**
+     * 모든 관련 글 키워드 조회
+     */
+    @GetMapping("/related-content-keywords")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getAllRelatedContentKeywords() {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            List<RelatedContentKeyword> keywords = relatedContentKeywordService.getAllKeywords();
+            response.put("success", true);
+            response.put("keywords", keywords);
+            response.put("count", keywords.size());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("관련 글 키워드 조회 중 오류 발생", e);
+            response.put("success", false);
+            response.put("message", "키워드 조회 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 관련 글 키워드 추가
+     */
+    @PostMapping("/related-content-keywords")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> addRelatedContentKeyword(@RequestBody Map<String, String> request) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            String keyword = request.get("keyword");
+            if (keyword == null || keyword.trim().isEmpty()) {
+                response.put("success", false);
+                response.put("message", "키워드는 필수입니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            RelatedContentKeyword saved = relatedContentKeywordService.addKeyword(keyword);
+            response.put("success", true);
+            response.put("message", "키워드가 추가되었습니다.");
+            response.put("keyword", saved);
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        } catch (Exception e) {
+            log.error("관련 글 키워드 추가 중 오류 발생", e);
+            response.put("success", false);
+            response.put("message", "키워드 추가 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 관련 글 키워드 수정
+     */
+    @PutMapping("/related-content-keywords/{id}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> updateRelatedContentKeyword(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> request) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            String keyword = request.get("keyword");
+            if (keyword == null || keyword.trim().isEmpty()) {
+                response.put("success", false);
+                response.put("message", "키워드는 필수입니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            RelatedContentKeyword updated = relatedContentKeywordService.updateKeyword(id, keyword);
+            response.put("success", true);
+            response.put("message", "키워드가 수정되었습니다.");
+            response.put("keyword", updated);
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        } catch (Exception e) {
+            log.error("관련 글 키워드 수정 중 오류 발생: id={}", id, e);
+            response.put("success", false);
+            response.put("message", "키워드 수정 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 관련 글 키워드 삭제
+     */
+    @DeleteMapping("/related-content-keywords/{id}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> deleteRelatedContentKeyword(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            relatedContentKeywordService.deleteKeyword(id);
+            response.put("success", true);
+            response.put("message", "키워드가 삭제되었습니다.");
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        } catch (Exception e) {
+            log.error("관련 글 키워드 삭제 중 오류 발생: id={}", id, e);
+            response.put("success", false);
+            response.put("message", "키워드 삭제 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    // ============================================
+    // Embedding 정보 조회 API
+    // ============================================
+
+    /**
+     * Article의 embedding 정보 조회
+     */
+    @GetMapping("/articles/{articleId}/embeddings")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getArticleEmbeddings(@PathVariable Long articleId) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            Optional<Article> articleOpt = articleRepository.findById(articleId);
+            if (articleOpt.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "Article을 찾을 수 없습니다.");
+                return ResponseEntity.notFound().build();
+            }
+
+            Article article = articleOpt.get();
+
+            // 해당 Article의 모든 chunk 조회
+            List<ArticleChunk> chunks = articleChunkRepository.findByArticleIdOrderByChunkIndexAsc(articleId);
+
+            // Chunk 정보를 DTO로 변환
+            List<Map<String, Object>> chunkDataList = new ArrayList<>();
+            int totalChunks = chunks.size();
+            int chunksWithEmbedding = 0;
+
+            for (ArticleChunk chunk : chunks) {
+                Map<String, Object> chunkData = new HashMap<>();
+                chunkData.put("id", chunk.getId());
+                chunkData.put("chunkIndex", chunk.getChunkIndex());
+                chunkData.put("content", chunk.getContent());
+                chunkData.put("contentLength", chunk.getContent().length());
+                chunkData.put("hasEmbedding", chunk.getEmbedding() != null);
+                chunkData.put("embeddingDimension", chunk.getEmbedding() != null ? chunk.getEmbedding().length : 0);
+                chunkData.put("embeddingGeneratedAt", chunk.getEmbeddingGeneratedAt());
+                chunkData.put("createdAt", chunk.getCreatedAt());
+
+                // embedding 벡터의 처음 10개 값만 미리보기로 제공
+                if (chunk.getEmbedding() != null && chunk.getEmbedding().length > 0) {
+                    chunksWithEmbedding++;
+                    int previewLength = Math.min(10, chunk.getEmbedding().length);
+                    float[] preview = new float[previewLength];
+                    System.arraycopy(chunk.getEmbedding(), 0, preview, 0, previewLength);
+                    chunkData.put("embeddingPreview", preview);
+                }
+
+                chunkDataList.add(chunkData);
+            }
+
+            response.put("success", true);
+            response.put("articleId", articleId);
+            response.put("articleTitle", article.getTitle());
+            response.put("totalChunks", totalChunks);
+            response.put("chunksWithEmbedding", chunksWithEmbedding);
+            response.put("chunksWithoutEmbedding", totalChunks - chunksWithEmbedding);
+            response.put("embeddingCoverage", totalChunks > 0 ? (double) chunksWithEmbedding / totalChunks * 100 : 0);
+            response.put("chunks", chunkDataList);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Article {} embedding 정보 조회 중 오류 발생", articleId, e);
+            response.put("success", false);
+            response.put("message", "Embedding 정보 조회 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 특정 Chunk의 전체 embedding 벡터 조회
+     */
+    @GetMapping("/chunks/{chunkId}/embedding")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getChunkEmbedding(@PathVariable Long chunkId) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            Optional<ArticleChunk> chunkOpt = articleChunkRepository.findById(chunkId);
+            if (chunkOpt.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "Chunk를 찾을 수 없습니다.");
+                return ResponseEntity.notFound().build();
+            }
+
+            ArticleChunk chunk = chunkOpt.get();
+
+            response.put("success", true);
+            response.put("chunkId", chunkId);
+            response.put("chunkIndex", chunk.getChunkIndex());
+            response.put("articleId", chunk.getArticle().getId());
+            response.put("hasEmbedding", chunk.getEmbedding() != null);
+
+            if (chunk.getEmbedding() != null) {
+                response.put("embedding", chunk.getEmbedding());
+                response.put("embeddingDimension", chunk.getEmbedding().length);
+                response.put("embeddingGeneratedAt", chunk.getEmbeddingGeneratedAt());
+            }
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Chunk {} embedding 조회 중 오류 발생", chunkId, e);
+            response.put("success", false);
+            response.put("message", "Embedding 조회 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    // ===== Article Term 추출 API =====
+
+    /**
+     * 최신 article부터 지정된 개수만큼 term 추출
+     * POST /admin/articles/extract-terms
+     *
+     * @param limit 추출할 article 개수 (기본값: 50, 최대: 500)
+     * @param forceReanalyze 이미 term이 있어도 재분석 여부 (기본값: false)
+     * @return 추출 결과
+     */
+    @PostMapping("/articles/extract-terms")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> extractArticleTerms(
+            @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(defaultValue = "false") boolean forceReanalyze) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // limit 범위 체크
+            if (limit < 1) {
+                limit = 1;
+            } else if (limit > 500) {
+                limit = 500;
+            }
+
+            log.info("최신 article {} 개 term 추출 API 호출 (강제재분석: {})", limit, forceReanalyze);
+
+            ArticleTermService.ArticleTermExtractionResult result =
+                    articleTermService.extractLatestArticleTerms(limit, forceReanalyze);
+
+            response.put("success", true);
+            response.put("processedArticles", result.getProcessedArticles());
+            response.put("skippedArticles", result.getSkippedArticles());
+            response.put("failedArticles", result.getFailedArticles());
+            response.put("totalTerms", result.getTotalTerms());
+            response.put("processingTimeMs", result.getProcessingTimeMs());
+            response.put("message", String.format(
+                    "Term 추출 완료: 처리=%d, 건너뜀=%d, 실패=%d, term=%d",
+                    result.getProcessedArticles(),
+                    result.getSkippedArticles(),
+                    result.getFailedArticles(),
+                    result.getTotalTerms()
+            ));
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Article term 추출 중 오류 발생", e);
+            response.put("success", false);
+            response.put("message", "Term 추출 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 특정 article의 term 추출
+     * POST /admin/articles/{id}/extract-terms
+     *
+     * @param id article ID
+     * @return 추출 결과
+     */
+    @PostMapping("/articles/{id}/extract-terms")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> extractSingleArticleTerms(@PathVariable Long id) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            log.info("Article ID {} term 추출 API 호출", id);
+
+            ArticleTermService.ArticleTermExtractionResult result =
+                    articleTermService.extractTermsForSingleArticle(id);
+
+            response.put("success", true);
+            response.put("articleId", id);
+            response.put("processedArticles", result.getProcessedArticles());
+            response.put("failedArticles", result.getFailedArticles());
+            response.put("totalTerms", result.getTotalTerms());
+            response.put("processingTimeMs", result.getProcessingTimeMs());
+            response.put("message", String.format(
+                    "Article ID %d term 추출 완료: term=%d개",
+                    id,
+                    result.getTotalTerms()
+            ));
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            log.error("Article ID {} term 추출 실패: {}", id, e.getMessage());
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+
+        } catch (Exception e) {
+            log.error("Article ID {} term 추출 중 오류 발생", id, e);
+            response.put("success", false);
+            response.put("message", "Term 추출 중 오류가 발생했습니다: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
     }
