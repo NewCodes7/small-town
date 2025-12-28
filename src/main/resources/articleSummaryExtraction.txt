@@ -1,0 +1,25 @@
+{
+  "format": {
+    "type": "json_schema",
+    "name": "article_summary_extraction",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "three_line_summary": {
+          "type": "array",
+          "description": "3줄 요약 (각 50자 이내)",
+          "items": { "type": "string" },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "keywords": {
+          "type": "string",
+          "description": "쉼표로 구분된 핵심 키워드 (5-10개)"
+        }
+      },
+      "required": ["three_line_summary", "keywords"],
+      "additionalProperties": false
+    },
+    "strict": true
+  }
+}
