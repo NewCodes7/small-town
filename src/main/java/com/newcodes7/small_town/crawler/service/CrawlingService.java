@@ -9,9 +9,11 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.openqa.selenium.WebDriver;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 
+import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.ArticleTermRepository;
 import com.newcodes7.small_town.article.repository.TermRepository;
 import com.newcodes7.small_town.crawler.config.WebDriverConfig;
@@ -38,6 +40,7 @@ import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.entity.Term;
 import com.newcodes7.small_town.global.entity.Video;
 import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
+import com.newcodes7.small_town.crawler.service.ArticleContentExtractionService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,6 +62,15 @@ public class CrawlingService {
     private final MorphemeAnalyzer morphemeAnalyzer;
     private final TermRepository termRepository;
     private final ArticleTermRepository articleTermRepository;
+    private final ArticleContentExtractionService articleContentExtractionService;
+    private final ArticleRepository articleRepository;
+
+    // Term 추출 설정
+    @Value("${term.extraction.max-terms:7}")
+    private int maxTermsPerArticle;
+
+    @Value("${term.extraction.min-frequency:2}")
+    private int minTermFrequency;
 
     /**
      * 모든 기업의 블로그만 크롤링 (동기 처리)
@@ -101,6 +113,9 @@ public class CrawlingService {
 
         // 크롤링 완료 후 선택적 캐시 purge
         purgeCacheForCrawlResults(results);
+
+        // BM25 검색 인덱스 갱신 (ArticleTerm이 업데이트되었으므로)
+        refreshBM25SearchIndex(results);
 
         return results;
     }
@@ -202,7 +217,36 @@ public class CrawlingService {
             // 캐시 purge 실패는 크롤링 자체를 실패시키지 않음
         }
     }
-    
+
+    /**
+     * BM25 검색 인덱스 갱신 (Materialized View REFRESH)
+     * 신규 Article이 추가되었거나 ArticleTerm이 업데이트된 경우 호출
+     */
+    private void refreshBM25SearchIndex(List<CrawlResult> results) {
+        try {
+            // 신규 글이 추가된 경우에만 REFRESH
+            boolean hasNewArticles = results.stream()
+                    .anyMatch(CrawlResult::hasNewArticles);
+
+            if (!hasNewArticles) {
+                log.info("신규 글이 없어 BM25 인덱스 갱신을 건너뜁니다.");
+                return;
+            }
+
+            log.info("BM25 검색 인덱스 갱신 시작 (Materialized View REFRESH)");
+            long startTime = System.currentTimeMillis();
+
+            articleRepository.refreshArticleSearchIndex();
+
+            long elapsedTime = System.currentTimeMillis() - startTime;
+            log.info("BM25 검색 인덱스 갱신 완료 ({}ms)", elapsedTime);
+
+        } catch (Exception e) {
+            log.error("BM25 검색 인덱스 갱신 중 오류 발생: {}", e.getMessage(), e);
+            // 인덱스 갱신 실패는 크롤링 자체를 실패시키지 않음
+        }
+    }
+
     /**
      * 특정 기업 블로그만 크롤링 (WebDriver 관리 + 예외 처리)
      */
@@ -398,19 +442,8 @@ public class CrawlingService {
      */
     private void extractAndSaveTerms(Article article, BlogCrawler crawler, WebDriver driver) {
         try {
-            // 본문 추출 지원 여부 확인 (DefaultBlogCrawler 또는 MediumBlogCrawler)
-            String content = null;
-
-            if (crawler instanceof DefaultBlogCrawler) {
-                DefaultBlogCrawler defaultCrawler = (DefaultBlogCrawler) crawler;
-                content = defaultCrawler.extractArticleContent(article.getLink(), driver);
-            } else if (crawler instanceof MediumBlogCrawler) {
-                MediumBlogCrawler mediumCrawler = (MediumBlogCrawler) crawler;
-                content = mediumCrawler.extractArticleContent(article.getLink(), driver);
-            } else {
-                log.debug("Term 추출 건너뜀 - 지원하지 않는 크롤러: {}", crawler.getClass().getSimpleName());
-                return;
-            }
+            // 본문 추출 (기존 driver 재사용)
+            String content = articleContentExtractionService.extractContent(article, driver);
 
             // 본문 추출 결과 확인
             if (content == null || content.trim().isEmpty()) {
@@ -419,6 +452,16 @@ public class CrawlingService {
             }
 
             log.info("본문 추출 성공 - Article: {}, 본문 길이: {}자", article.getTitle(), content.length());
+
+            // 추출된 본문을 DB에 저장 (독립 트랜잭션)
+            try {
+                articleContentExtractionService.updateArticleContent(article.getId(), content);
+                log.info("Article 본문 DB 저장 완료 - Article: {}", article.getTitle());
+            } catch (Exception e) {
+                log.error("Article 본문 DB 저장 실패 - Article: {}, 오류: {}",
+                        article.getTitle(), e.getMessage(), e);
+                // 본문 저장 실패해도 Term 추출은 계속 진행
+            }
 
             // 형태소 분석을 통해 Term 추출
             Map<String, MorphemeAnalyzer.TermInfo> termInfoMap = morphemeAnalyzer.extractTerms(content);
@@ -435,13 +478,15 @@ public class CrawlingService {
                     .max()
                     .orElse(1);
 
-            // 점수 내림차순 정렬 후 상위 5개 선택
+            // 최소 빈도수 이상 & 점수 내림차순 정렬 후 상위 N개 선택
             List<MorphemeAnalyzer.TermInfo> topTerms = termInfoMap.values().stream()
+                    .filter(termInfo -> termInfo.getFrequency() >= minTermFrequency)  // 최소 빈도수 필터
                     .sorted(Comparator.comparingInt(MorphemeAnalyzer.TermInfo::getFrequency).reversed())
-                    .limit(5)
+                    .limit(maxTermsPerArticle)  // 설정 가능한 최대 개수
                     .collect(Collectors.toList());
 
-            log.info("상위 5개 Term 선택 완료 - Article: {}", article.getTitle());
+            log.info("상위 {}개 Term 선택 완료 (최소 빈도: {}) - Article: {}",
+                    topTerms.size(), minTermFrequency, article.getTitle());
 
             // ArticleTerm 생성 및 저장
             List<ArticleTerm> articleTerms = new ArrayList<>();

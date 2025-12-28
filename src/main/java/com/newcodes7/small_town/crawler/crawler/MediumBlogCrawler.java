@@ -421,6 +421,7 @@ public class MediumBlogCrawler implements BlogCrawler {
                     .title(title)
                     .summary(summary)
                     .link(link)
+                    .content("") // 본문은 별도 백필 API로 추출 (크롤링 성능 고려)
                     .thumbnailImage(thumbnailImage)
                     .publishedAt(publishedAt)
                     .viewCount(0)
