@@ -1,20 +1,12 @@
 # 기본 이미지 선택
 FROM mcr.microsoft.com/devcontainers/base:ubuntu
 
-# # apt 업데이트 및 MySQL 서버 설치
-# # MySQL 서버를 컨테이너 내부에 설치하는 것은 권장되지 않습니다.
-# # devcontainer.json의 "mounts"와 "forwardPorts"를 사용하는 것이 더 일반적입니다.
-# # MySQL이 컨테이너 내부에 꼭 필요한 경우에만 이 부분을 사용하세요.
-# RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
-#     && apt-get install -y mysql-server \
-#     && rm -rf /var/lib/apt/lists/*
-
 # # OpenJDK 17 설치 및 JAVA_HOME 설정
-# RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
-#     && apt-get install -y openjdk-17-jdk \
-#     && rm -rf /var/lib/apt/lists/* \
-#     && echo 'export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64' >> /etc/bash.bashrc \
-#     && echo 'export PATH=$JAVA_HOME/bin:$PATH' >> /etc/bash.bashrc
+RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
+    && apt-get install -y openjdk-17-jdk \
+    && rm -rf /var/lib/apt/lists/* \
+    && echo 'export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64' >> /etc/bash.bashrc \
+    && echo 'export PATH=$JAVA_HOME/bin:$PATH' >> /etc/bash.bashrc
 
 # Chrome을 설치하기 위한 사전 요구 사항 및 키 추가
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
@@ -60,3 +52,6 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
 
 # 필요한 경우 기타 개발 도구 설치
 # RUN apt-get update && apt-get install -y vim git ...
+
+# Claude Code 설치 
+RUN curl -fsSL https://claude.ai/install.sh | bash
