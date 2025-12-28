@@ -1,6 +1,7 @@
 package com.newcodes7.small_town.article.service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -130,26 +131,71 @@ public class ArticleTermService {
         // 기존 term 삭제
         articleTermRepository.deleteByArticleId(article.getId());
 
-        // title과 translatedTitle에서 term 추출
-        List<String> texts = new ArrayList<>();
+        // 가중치 상수
+        final double TITLE_WEIGHT = 3.0;  // title, translatedTitle에서 나온 term의 가중치
+        final double CONTENT_WEIGHT = 1.0; // content에서 나온 term의 가중치
+
+        // term별 정보를 저장할 Map (term -> {termInfo, maxWeight})
+        Map<String, TermData> termDataMap = new HashMap<>();
+
+        // 1. title과 translatedTitle에서 term 추출 (높은 가중치)
+        List<String> titleTexts = new ArrayList<>();
         if (article.getTitle() != null && !article.getTitle().trim().isEmpty()) {
-            texts.add(article.getTitle());
+            titleTexts.add(article.getTitle());
         }
         if (article.getTranslatedTitle() != null && !article.getTranslatedTitle().trim().isEmpty()) {
-            texts.add(article.getTranslatedTitle());
+            titleTexts.add(article.getTranslatedTitle());
         }
 
-        if (texts.isEmpty()) {
-            log.warn("Article ID {} has no title or translatedTitle", article.getId());
+        if (!titleTexts.isEmpty()) {
+            Map<String, MorphemeAnalyzer.TermInfo> titleTermMap =
+                morphemeAnalyzer.extractTermsFromMultipleTexts(titleTexts);
+
+            for (MorphemeAnalyzer.TermInfo termInfo : titleTermMap.values()) {
+                String key = termInfo.getTerm() + ":" + termInfo.getTermType();
+                termDataMap.put(key, new TermData(termInfo, TITLE_WEIGHT, termInfo.getFrequency()));
+                log.debug("Title term 추출: {} (빈도: {}, 가중치: {})",
+                    termInfo.getTerm(), termInfo.getFrequency(), TITLE_WEIGHT);
+            }
+        }
+
+        // 2. content에서 term 추출 (기본 가중치)
+        if (article.getContent() != null && !article.getContent().trim().isEmpty()) {
+            List<String> contentTexts = new ArrayList<>();
+            contentTexts.add(article.getContent());
+
+            Map<String, MorphemeAnalyzer.TermInfo> contentTermMap =
+                morphemeAnalyzer.extractTermsFromMultipleTexts(contentTexts);
+
+            for (MorphemeAnalyzer.TermInfo termInfo : contentTermMap.values()) {
+                String key = termInfo.getTerm() + ":" + termInfo.getTermType();
+                TermData existingData = termDataMap.get(key);
+
+                if (existingData != null) {
+                    // 이미 title에서 추출된 term이면 빈도수만 합산, 가중치는 높은 값 유지
+                    existingData.frequency += termInfo.getFrequency();
+                    log.debug("중복 term 발견 (title+content): {} (빈도 합산: {})",
+                        termInfo.getTerm(), existingData.frequency);
+                } else {
+                    // content에서만 나온 새로운 term
+                    termDataMap.put(key, new TermData(termInfo, CONTENT_WEIGHT, termInfo.getFrequency()));
+                    log.debug("Content term 추출: {} (빈도: {}, 가중치: {})",
+                        termInfo.getTerm(), termInfo.getFrequency(), CONTENT_WEIGHT);
+                }
+            }
+        }
+
+        // 3. term이 하나도 없으면 종료
+        if (termDataMap.isEmpty()) {
+            log.warn("Article ID {} has no extractable terms from title, translatedTitle, or content",
+                article.getId());
             return 0;
         }
 
-        // term 추출
-        Map<String, MorphemeAnalyzer.TermInfo> termMap = morphemeAnalyzer.extractTermsFromMultipleTexts(texts);
-
-        // term 저장
+        // 4. term 저장
         List<ArticleTerm> articleTerms = new ArrayList<>();
-        for (MorphemeAnalyzer.TermInfo termInfo : termMap.values()) {
+        for (TermData termData : termDataMap.values()) {
+            MorphemeAnalyzer.TermInfo termInfo = termData.termInfo;
             // 한글이 포함된 경우 자모 분리 및 초성 추출
             final String decomposed = KoreanCharacterUtil.containsHangul(termInfo.getTerm())
                     ? KoreanCharacterUtil.decomposeHangul(termInfo.getTerm())
@@ -186,18 +232,25 @@ public class ArticleTermService {
                         return termRepository.save(newTerm);
                     });
 
-            // ArticleTerm 생성 (Term 엔티티 참조)
+            // ArticleTerm 생성 (가중치가 적용된 score 계산)
+            double score = termData.frequency * termData.weight;
+
             ArticleTerm articleTerm = ArticleTerm.builder()
                     .article(article)
                     .term(term)
-                    .frequency(termInfo.getFrequency())
+                    .frequency(termData.frequency)
+                    .score(score)
                     .build();
             articleTerms.add(articleTerm);
+
+            log.debug("ArticleTerm 생성: {} (빈도: {}, 가중치: {}, score: {})",
+                termInfo.getTerm(), termData.frequency, termData.weight, score);
         }
 
         if (!articleTerms.isEmpty()) {
             articleTermRepository.saveAll(articleTerms);
-            log.debug("Article ID {} term 저장 완료: {} terms", article.getId(), articleTerms.size());
+            log.info("Article ID {} term 저장 완료: {} terms (title 가중치: {}, content 가중치: {})",
+                article.getId(), articleTerms.size(), TITLE_WEIGHT, CONTENT_WEIGHT);
         }
 
         return articleTerms.size();
@@ -285,6 +338,91 @@ public class ArticleTermService {
     }
 
     /**
+     * 최신 article부터 지정된 개수만큼 term을 추출하고 저장
+     *
+     * @param limit 추출할 article 개수
+     * @param forceReanalyze true면 이미 term이 있어도 재분석, false면 term이 없는 것만
+     * @return 추출 결과
+     */
+    @Transactional
+    public ArticleTermExtractionResult extractLatestArticleTerms(int limit, boolean forceReanalyze) {
+        log.info("최신 article {} 개 term 추출 시작 (강제재분석: {})", limit, forceReanalyze);
+        long startTime = System.currentTimeMillis();
+
+        ArticleTermExtractionResult result = new ArticleTermExtractionResult();
+
+        // 최신순으로 정렬하여 조회
+        Pageable pageable = PageRequest.of(0, limit, Sort.by("publishedAt").descending());
+        Page<Article> articles = articleRepository.findByDeletedAtIsNull(pageable);
+
+        log.info("조회된 article 개수: {}", articles.getContent().size());
+
+        for (Article article : articles) {
+            try {
+                // 강제 재분석이 아니고 이미 term이 있으면 건너뛰기
+                if (!forceReanalyze && articleTermRepository.existsByArticleId(article.getId())) {
+                    result.incrementSkippedArticles();
+                    log.debug("Article ID {} - 이미 term이 존재하여 건너뜀", article.getId());
+                    continue;
+                }
+
+                int termCount = extractAndSaveTermsForArticle(article);
+                result.incrementProcessedArticles();
+                result.addTermCount(termCount);
+
+                log.info("Article ID {} term 추출 완료: {} terms", article.getId(), termCount);
+            } catch (Exception e) {
+                log.error("Article ID {} term 추출 실패: {}", article.getId(), e.getMessage(), e);
+                result.incrementFailedArticles();
+            }
+        }
+
+        long endTime = System.currentTimeMillis();
+        result.setProcessingTimeMs(endTime - startTime);
+
+        log.info("최신 article term 추출 완료: 처리={}, 건너뜀={}, 실패={}, term={}, 소요시간={}ms",
+                result.getProcessedArticles(), result.getSkippedArticles(),
+                result.getFailedArticles(), result.getTotalTerms(),
+                result.getProcessingTimeMs());
+
+        return result;
+    }
+
+    /**
+     * 단일 article의 term을 추출하고 저장
+     *
+     * @param articleId article ID
+     * @return 추출 결과
+     */
+    @Transactional
+    public ArticleTermExtractionResult extractTermsForSingleArticle(Long articleId) {
+        log.info("Article ID {} term 추출 시작", articleId);
+        long startTime = System.currentTimeMillis();
+
+        ArticleTermExtractionResult result = new ArticleTermExtractionResult();
+
+        Article article = articleRepository.findById(articleId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 Article입니다. ID: " + articleId));
+
+        try {
+            int termCount = extractAndSaveTermsForArticle(article);
+            result.incrementProcessedArticles();
+            result.addTermCount(termCount);
+
+            log.info("Article ID {} term 추출 완료: {} terms", articleId, termCount);
+        } catch (Exception e) {
+            log.error("Article ID {} term 추출 실패: {}", articleId, e.getMessage(), e);
+            result.incrementFailedArticles();
+            throw e;
+        }
+
+        long endTime = System.currentTimeMillis();
+        result.setProcessingTimeMs(endTime - startTime);
+
+        return result;
+    }
+
+    /**
      * Term 추출 결과 DTO
      */
     public static class ArticleTermExtractionResult {
@@ -332,6 +470,21 @@ public class ArticleTermService {
 
         public void setProcessingTimeMs(long processingTimeMs) {
             this.processingTimeMs = processingTimeMs;
+        }
+    }
+
+    /**
+     * Term 추출 시 사용되는 임시 데이터 클래스
+     */
+    private static class TermData {
+        final MorphemeAnalyzer.TermInfo termInfo;
+        final double weight;
+        int frequency;
+
+        TermData(MorphemeAnalyzer.TermInfo termInfo, double weight, int frequency) {
+            this.termInfo = termInfo;
+            this.weight = weight;
+            this.frequency = frequency;
         }
     }
 }
