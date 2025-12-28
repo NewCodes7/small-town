@@ -34,6 +34,7 @@ import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.ArticleTermRepository;
 import com.newcodes7.small_town.article.service.ArticleService;
 import com.newcodes7.small_town.article.service.LikeService;
+import com.newcodes7.small_town.article.service.SemanticTermExpansionService;
 import com.newcodes7.small_town.article.service.UserLikeService;
 import com.newcodes7.small_town.article.service.ViewService;
 import com.newcodes7.small_town.auth.entity.User;
@@ -79,12 +80,13 @@ public class ArticleController {
     private final com.newcodes7.small_town.auth.repository.UserRepository userRepository;
     private final com.newcodes7.small_town.article.repository.LikeLogRepository likeLogRepository;
     private final com.newcodes7.small_town.video.repository.VideoLikeLogRepository videoLikeLogRepository;
+    private final SemanticTermExpansionService semanticExpansionService;
 
     @GetMapping({"", "/"})
     public String home(
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "10") int size,
-            @RequestParam(name = "sort", defaultValue = "latest") String sort,
+            @RequestParam(name = "sort", required = false) String sort,
             @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "regions", required = false) List<String> regions,
             @RequestParam(name = "view", required = false) String view,
@@ -108,15 +110,62 @@ public class ArticleController {
             }
         }
 
-        Page<ArticleResponseDto> articles = articleService.getArticlesWithFilters(
-            keyword != null && !keyword.trim().isEmpty() ? keyword.trim().toLowerCase() : null,
-            regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
-            page,
-            size,
-            sort,
-            effectiveView,
-            category == null || category.isEmpty() ? null : category.stream().sorted().toList()
-        );
+        // sort 파라미터 기본값 설정: 검색 시 적합도순, 일반 조회 시 최신순
+        String effectiveSort = sort;
+        if (effectiveSort == null) {
+            if (keyword != null && !keyword.trim().isEmpty()) {
+                effectiveSort = "relevance";  // 검색 시 기본값: 적합도순
+            } else {
+                effectiveSort = "latest";      // 일반 조회 시 기본값: 최신순
+            }
+        }
+
+        Page<ArticleResponseDto> articles;
+        Map<String, Double> expandedTerms = null;
+        Map<String, Double> directMatchTerms = new java.util.LinkedHashMap<>();
+        Map<String, Double> synonymTerms = new java.util.LinkedHashMap<>();
+        Map<String, Double> embeddingTerms = new java.util.LinkedHashMap<>();
+
+        // 키워드 검색 시 Hybrid 검색 사용 (BM25 + Summary Vector + RRF)
+        if (keyword != null && !keyword.trim().isEmpty() && effectiveView.equals("list")) {
+            // 검색어 확장 정보 가져오기 (Admin 표시용)
+            expandedTerms = semanticExpansionService.expandSearchTerms(keyword.trim().toLowerCase());
+
+            // 확장된 검색어를 가중치별로 분류 (템플릿에서 사용)
+            if (expandedTerms != null) {
+                for (Map.Entry<String, Double> entry : expandedTerms.entrySet()) {
+                    double weight = entry.getValue();
+                    if (weight == 1.0) {
+                        directMatchTerms.put(entry.getKey(), entry.getValue());
+                    } else if (weight == 0.8) {
+                        synonymTerms.put(entry.getKey(), entry.getValue());
+                    } else if (weight < 0.8) {
+                        embeddingTerms.put(entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+
+            // Hybrid 검색 수행 (BM25 + Summary Vector + RRF 리랭킹)
+            articles = articleService.searchArticlesHybrid(
+                keyword.trim().toLowerCase(),
+                regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
+                category == null || category.isEmpty() ? null : category.stream().sorted().toList(),
+                page,
+                size,
+                effectiveSort
+            ).map(dto -> (ArticleResponseDto) dto);
+        } else {
+            // 일반 목록 조회 또는 grouped view
+            articles = articleService.getArticlesWithFilters(
+                keyword != null && !keyword.trim().isEmpty() ? keyword.trim().toLowerCase() : null,
+                regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
+                page,
+                size,
+                effectiveSort,
+                effectiveView,
+                category == null || category.isEmpty() ? null : category.stream().sorted().toList()
+            );
+        }
 
         log.info("필터 조건: keyword='{}', regions={}, {}개의 글 조회",
                  keyword, regions, articles.getTotalElements());
@@ -142,12 +191,16 @@ public class ArticleController {
         model.addAttribute("hasNext", articles.hasNext());
         model.addAttribute("hasPrevious", articles.hasPrevious());
         model.addAttribute("currentPage", page);
-        model.addAttribute("currentSort", sort);
+        model.addAttribute("currentSort", effectiveSort);  
         model.addAttribute("keyword", keyword);
         model.addAttribute("selectedRegions", regions != null ? regions : new ArrayList<>());
         model.addAttribute("corporations", corporationsWithLogos);
         model.addAttribute("isGrouped", effectiveView.equals("grouped"));
         model.addAttribute("categories", categories);
+        model.addAttribute("expandedTerms", expandedTerms);  // 확장된 검색어 전체 (Admin용)
+        model.addAttribute("directMatchTerms", directMatchTerms);  // 직접 매칭 (weight 1.0)
+        model.addAttribute("synonymTerms", synonymTerms);  // 유의어 (weight 0.8)
+        model.addAttribute("embeddingTerms", embeddingTerms);  // 임베딩 유사어 (weight < 0.8)
         // model.addAttribute("popularArticles", popularArticles.getContent());
 
         return "home";
