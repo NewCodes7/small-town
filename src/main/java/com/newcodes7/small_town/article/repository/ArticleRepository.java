@@ -271,4 +271,308 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "AND a.deletedAt IS NULL " +
            "ORDER BY a.id DESC")
     List<Article> findAllByIdIn(@Param("ids") List<Long> ids);
+
+    // ===== Vector Embedding 관련 쿼리 =====
+
+    /**
+     * 벡터 유사도 검색 (Article 객체 반환)
+     * pgvector의 코사인 거리(<=>)를 사용하여 유사한 Article 조회
+     *
+     * @param queryEmbedding 검색 쿼리의 임베딩 벡터 (PostgreSQL 배열 포맷: "[0.1,0.2,...]")
+     * @param threshold 최소 유사도 임계값 (0.0 ~ 1.0)
+     * @param limit 최대 결과 수
+     * @return 유사도 높은 순으로 정렬된 Article 리스트
+     */
+    @Query(value = "SELECT a.*, " +
+           "1 - (a.embedding <=> CAST(:queryEmbedding AS vector)) as similarity " +
+           "FROM article a " +
+           "WHERE a.deleted_at IS NULL " +
+           "AND a.embedding IS NOT NULL " +
+           "AND 1 - (a.embedding <=> CAST(:queryEmbedding AS vector)) >= :threshold " +
+           "ORDER BY a.embedding <=> CAST(:queryEmbedding AS vector) " +
+           "LIMIT :limit",
+           nativeQuery = true)
+    List<Article> findByVectorSimilarity(
+            @Param("queryEmbedding") String queryEmbedding,
+            @Param("threshold") double threshold,
+            @Param("limit") int limit
+    );
+
+    /**
+     * 벡터 유사도 검색 (ID와 스코어만 반환)
+     * Summary 기반 임베딩 검색에 사용
+     *
+     * @param queryEmbedding 검색 쿼리의 임베딩 벡터 (PostgreSQL 배열 포맷: "[0.1,0.2,...]")
+     * @param threshold 최소 유사도 임계값 (0.0 ~ 1.0)
+     * @param limit 최대 결과 수
+     * @return [Article ID, similarity score] 형태의 Object[] 리스트
+     */
+    @Query(value = "SELECT a.id, " +
+           "1 - (a.embedding <=> CAST(:queryEmbedding AS vector)) as similarity " +
+           "FROM article a " +
+           "WHERE a.deleted_at IS NULL " +
+           "AND a.embedding IS NOT NULL " +
+           "AND 1 - (a.embedding <=> CAST(:queryEmbedding AS vector)) >= :threshold " +
+           "ORDER BY a.embedding <=> CAST(:queryEmbedding AS vector) " +
+           "LIMIT :limit",
+           nativeQuery = true)
+    List<Object[]> findByVectorSimilarityWithScores(
+            @Param("queryEmbedding") String queryEmbedding,
+            @Param("threshold") double threshold,
+            @Param("limit") int limit
+    );
+
+    /**
+     * 임베딩이 없는 Article 조회 (content가 있지만 embedding이 null인 경우)
+     * 배치 임베딩 생성 시 사용
+     *
+     * @param pageable 페이징 정보
+     * @return 임베딩이 없는 Article 리스트
+     */
+    @Query("SELECT a FROM Article a " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND a.embedding IS NULL " +
+           "AND a.content IS NOT NULL")
+    List<Article> findArticlesWithoutEmbedding(Pageable pageable);
+
+    /**
+     * content가 없는 Article 조회 (본문 백필이 필요한 경우)
+     * 최신순으로 정렬
+     *
+     * @param pageable 페이징 정보
+     * @return content가 없는 Article 리스트 (최신순)
+     */
+    @Query("SELECT a FROM Article a " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND a.content IS NULL " +
+           "ORDER BY a.createdAt DESC")
+    List<Article> findArticlesWithoutContent(Pageable pageable);
+
+    /**
+     * 임베딩 통계 조회용 - 전체 Article 수
+     */
+    @Query("SELECT COUNT(a) FROM Article a WHERE a.deletedAt IS NULL")
+    long countActiveArticles();
+
+    /**
+     * 임베딩 통계 조회용 - 임베딩이 있는 Article 수
+     */
+    @Query("SELECT COUNT(a) FROM Article a " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND a.embedding IS NOT NULL")
+    long countArticlesWithEmbedding();
+
+    /**
+     * 임베딩 통계 조회용 - content가 없는 Article 수
+     */
+    @Query("SELECT COUNT(a) FROM Article a " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND a.content IS NULL")
+    long countArticlesWithoutContent();
+
+    /**
+     * 임베딩 통계 조회용 - content가 있는 Article 수
+     */
+    @Query("SELECT COUNT(a) FROM Article a " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND a.content IS NOT NULL")
+    long countArticlesWithContent();
+
+    /**
+     * 특정 Corporation의 임베딩이 없는 Article 조회
+     *
+     * @param corporationId Corporation ID
+     * @param pageable 페이징 정보
+     * @return 임베딩이 없는 Article 리스트
+     */
+    @Query("SELECT a FROM Article a " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND a.corporation.id = :corporationId " +
+           "AND a.embedding IS NULL " +
+           "AND a.content IS NOT NULL")
+    List<Article> findArticlesWithoutEmbeddingByCorporationId(
+            @Param("corporationId") Long corporationId,
+            Pageable pageable);
+
+    // ===== BM25 검색 (ArticleTerm 기반) =====
+
+    /**
+     * BM25 알고리즘을 사용한 전문 검색 (ArticleTerm 기반)
+     * Materialized View인 article_search_index를 사용하여
+     * 형태소 분석된 정제 키워드로 검색합니다.
+     *
+     * @param searchQuery ParadeDB 검색 쿼리
+     * @param limit 최대 결과 수
+     * @return BM25 스코어 순으로 정렬된 Article ID 리스트
+     */
+    @Query(value = "SELECT id, " +
+           "paradedb.score(id) as bm25_score " +
+           "FROM article_search_index " +
+           "WHERE article_search_index @@@ paradedb.parse(:searchQuery) " +
+           "ORDER BY bm25_score DESC " +
+           "LIMIT :limit",
+           nativeQuery = true)
+    List<Object[]> searchByBM25(
+            @Param("searchQuery") String searchQuery,
+            @Param("limit") int limit
+    );
+
+    /**
+     * BM25 검색 + 두 필터 모두 사용 (domesticTypes AND category)
+     */
+    @Query(value = "SELECT asi.id, " +
+           "paradedb.score(asi.id) as bm25_score " +
+           "FROM article_search_index asi " +
+           "LEFT JOIN corporation c ON asi.corporation_id = c.id " +
+           "LEFT JOIN category cat ON asi.category_id = cat.id " +
+           "WHERE asi @@@ paradedb.parse(:searchQuery) " +
+           "AND c.is_domestic IN (:domesticTypes) " +
+           "AND cat.name IN (:category) " +
+           "ORDER BY bm25_score DESC " +
+           "LIMIT :limit",
+           nativeQuery = true)
+    List<Object[]> searchByBM25WithBothFilters(
+            @Param("searchQuery") String searchQuery,
+            @Param("domesticTypes") List<Integer> domesticTypes,
+            @Param("category") List<String> category,
+            @Param("limit") int limit
+    );
+
+    /**
+     * BM25 검색 + domesticTypes 필터만
+     */
+    @Query(value = "SELECT asi.id, " +
+           "paradedb.score(asi.id) as bm25_score " +
+           "FROM article_search_index asi " +
+           "LEFT JOIN corporation c ON asi.corporation_id = c.id " +
+           "WHERE asi @@@ paradedb.parse(:searchQuery) " +
+           "AND c.is_domestic IN (:domesticTypes) " +
+           "ORDER BY bm25_score DESC " +
+           "LIMIT :limit",
+           nativeQuery = true)
+    List<Object[]> searchByBM25WithDomesticTypes(
+            @Param("searchQuery") String searchQuery,
+            @Param("domesticTypes") List<Integer> domesticTypes,
+            @Param("limit") int limit
+    );
+
+    /**
+     * BM25 검색 + category 필터만
+     */
+    @Query(value = "SELECT asi.id, " +
+           "paradedb.score(asi.id) as bm25_score " +
+           "FROM article_search_index asi " +
+           "LEFT JOIN category cat ON asi.category_id = cat.id " +
+           "WHERE asi @@@ paradedb.parse(:searchQuery) " +
+           "AND cat.name IN (:category) " +
+           "ORDER BY bm25_score DESC " +
+           "LIMIT :limit",
+           nativeQuery = true)
+    List<Object[]> searchByBM25WithCategory(
+            @Param("searchQuery") String searchQuery,
+            @Param("category") List<String> category,
+            @Param("limit") int limit
+    );
+
+    /**
+     * BM25 검색용 Materialized View 갱신
+     * 크롤링 후 또는 ArticleTerm 업데이트 후 호출
+     */
+    @Modifying
+    @Query(value = "REFRESH MATERIALIZED VIEW CONCURRENTLY article_search_index", nativeQuery = true)
+    void refreshArticleSearchIndex();
+
+    // ===== Article Summary 관련 쿼리 =====
+
+    /**
+     * summary가 없고 content가 있는 Article 조회
+     * LLM 요약 생성 대상 조회용
+     *
+     * @param pageable 페이징 정보
+     * @return summary가 null이고 content가 있는 Article 리스트
+     */
+    @Query("SELECT a FROM Article a " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND a.content IS NOT NULL " +
+           "AND (a.summary IS NULL OR a.summary = '') " +
+           "ORDER BY a.createdAt DESC")
+    List<Article> findArticlesWithContentAndWithoutSummary(Pageable pageable);
+
+    /**
+     * 특정 Corporation의 summary가 없고 content가 있는 Article 조회
+     *
+     * @param corporationId Corporation ID
+     * @param pageable 페이징 정보
+     * @return summary가 null이고 content가 있는 Article 리스트
+     */
+    @Query("SELECT a FROM Article a " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND a.corporation.id = :corporationId " +
+           "AND a.content IS NOT NULL " +
+           "AND (a.summary IS NULL OR a.summary = '') " +
+           "ORDER BY a.createdAt DESC")
+    List<Article> findArticlesWithContentAndWithoutSummaryByCorporationId(
+            @Param("corporationId") Long corporationId,
+            Pageable pageable);
+
+    /**
+     * content가 있는 Article 조회 (삭제되지 않은)
+     *
+     * @param pageable 페이징 정보
+     * @return content가 있는 Article 리스트
+     */
+    @Query("SELECT a FROM Article a " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND a.content IS NOT NULL " +
+           "ORDER BY a.createdAt DESC")
+    List<Article> findByContentIsNotNullAndDeletedAtIsNull(Pageable pageable);
+
+    /**
+     * 특정 Corporation의 content가 있는 Article 조회 (삭제되지 않은)
+     *
+     * @param corporationId Corporation ID
+     * @param pageable 페이징 정보
+     * @return content가 있는 Article 리스트
+     */
+    @Query("SELECT a FROM Article a " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND a.corporation.id = :corporationId " +
+           "AND a.content IS NOT NULL " +
+           "ORDER BY a.createdAt DESC")
+    List<Article> findByCorporationIdAndContentIsNotNullAndDeletedAtIsNull(
+            @Param("corporationId") Long corporationId,
+            Pageable pageable);
+
+    // ===== Article Generated Title 관련 쿼리 =====
+
+    /**
+     * generatedTitle이 없고 content가 있는 Article 조회
+     * AI 제목 생성 대상 조회용
+     *
+     * @param pageable 페이징 정보
+     * @return generatedTitle이 null이고 content가 있는 Article 리스트
+     */
+    @Query("SELECT a FROM Article a " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND a.content IS NOT NULL " +
+           "AND (a.generatedTitle IS NULL OR a.generatedTitle = '') " +
+           "ORDER BY a.createdAt DESC")
+    List<Article> findByGeneratedTitleIsNullAndContentIsNotNullAndDeletedAtIsNull(Pageable pageable);
+
+    /**
+     * 특정 Corporation의 generatedTitle이 없고 content가 있는 Article 조회
+     *
+     * @param corporationId Corporation ID
+     * @param pageable 페이징 정보
+     * @return generatedTitle이 null이고 content가 있는 Article 리스트
+     */
+    @Query("SELECT a FROM Article a " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND a.corporation.id = :corporationId " +
+           "AND a.content IS NOT NULL " +
+           "AND (a.generatedTitle IS NULL OR a.generatedTitle = '') " +
+           "ORDER BY a.createdAt DESC")
+    List<Article> findByGeneratedTitleIsNullAndContentIsNotNullAndCorporationIdAndDeletedAtIsNull(
+            @Param("corporationId") Long corporationId,
+            Pageable pageable);
 }
