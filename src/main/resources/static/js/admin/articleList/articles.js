@@ -520,3 +520,87 @@ document.getElementById('translateTitlesBtn').addEventListener('click', function
     }
 });
 
+// 요약 배치 생성 버튼 클릭
+const generateSummaryBatchBtn = document.getElementById('generateSummaryBatchBtn');
+if (generateSummaryBatchBtn) {
+    generateSummaryBatchBtn.addEventListener('click', function() {
+        // 설정 모달 표시
+        const modal = new bootstrap.Modal(document.getElementById('generateSummaryBatchModal'));
+        modal.show();
+    });
+}
+
+// 요약 배치 생성 시작 버튼 클릭
+const startSummaryBatchBtn = document.getElementById('startSummaryBatchBtn');
+if (startSummaryBatchBtn) {
+    startSummaryBatchBtn.addEventListener('click', function() {
+        const limit = parseInt(document.getElementById('summaryBatchLimit').value) || 50;
+
+        // 설정 모달 닫기
+        const settingsModal = bootstrap.Modal.getInstance(document.getElementById('generateSummaryBatchModal'));
+        settingsModal.hide();
+
+        // 진행 상황 모달 표시
+        const progressModal = new bootstrap.Modal(document.getElementById('summaryGenerationProgressModal'));
+        progressModal.show();
+
+        // API 호출
+        generateSummaryBatch(limit);
+    });
+}
+
+// 요약 배치 생성 API 호출
+function generateSummaryBatch(limit) {
+    const progressContent = document.getElementById('summaryGenerationProgressContent');
+
+    progressContent.innerHTML = '<div class="text-center mb-4">' +
+        '<div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status">' +
+        '<span class="visually-hidden">처리 중...</span>' +
+        '</div>' +
+        '<h5>요약 생성 중...</h5>' +
+        '<p class="text-muted">최대 ' + limit + '개 Article 처리 중입니다.</p>' +
+        '</div>' +
+        '<div class="progress mb-3">' +
+        '<div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%">처리 중...</div>' +
+        '</div>';
+
+    fetch('/admin/articles/generate-summary-batch?limit=' + limit, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            progressContent.innerHTML = '<div class="alert alert-success">' +
+                '<h5><i class="fas fa-check-circle me-2"></i>요약 생성 완료!</h5>' +
+                '<hr>' +
+                '<div class="row text-center mb-3">' +
+                '<div class="col-md-6"><div class="card bg-light"><div class="card-body">' +
+                '<h3 class="text-success">' + (data.processedCount || 0) + '</h3>' +
+                '<small class="text-muted">생성된 요약</small>' +
+                '</div></div></div>' +
+                '<div class="col-md-6"><div class="card bg-light"><div class="card-body">' +
+                '<h3 class="text-warning">' + (data.skippedCount || 0) + '</h3>' +
+                '<small class="text-muted">건너뜀</small>' +
+                '</div></div></div>' +
+                '</div>' +
+                '<p class="mb-0"><small class="text-muted">' + data.message + '</small></p>' +
+                '</div>';
+        } else {
+            progressContent.innerHTML = '<div class="alert alert-danger">' +
+                '<h5><i class="fas fa-exclamation-circle me-2"></i>요약 생성 실패</h5>' +
+                '<p class="mb-0">' + data.message + '</p>' +
+                '</div>';
+        }
+    })
+    .catch(error => {
+        console.error('요약 생성 오류:', error);
+        progressContent.innerHTML = '<div class="alert alert-danger">' +
+            '<h5><i class="fas fa-exclamation-circle me-2"></i>오류 발생</h5>' +
+            '<p class="mb-0">요약 생성 중 오류가 발생했습니다: ' + error.message + '</p>' +
+            '</div>';
+    });
+}
+

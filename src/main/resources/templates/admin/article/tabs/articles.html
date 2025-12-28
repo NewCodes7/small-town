@@ -48,6 +48,9 @@
                                                 <i class="fas fa-edit ms-1 text-muted" style="font-size: 0.7em;"></i>
                                             </button>
                                         </div>
+                                        <div th:if="${article.generatedTitle}" class="mt-1">
+                                            <small class="text-success" th:text="'✨ ' + ${article.generatedTitle}"></small>
+                                        </div>
                                         <br>
                                         <small class="text-muted" th:text="${article.link}"></small>
                                     </div>
@@ -62,6 +65,13 @@
                                 </span>
                             </td>
                             <td>
+                                <!-- AI 생성 요약 (summary) -->
+                                <div th:if="${article.summary != null && !#strings.isEmpty(article.summary)}" class="mb-2">
+                                    <span class="badge bg-primary me-1">AI 요약</span>
+                                    <small th:text="${article.summary}" class="text-dark"></small>
+                                </div>
+
+                                <!-- 크롤링 추출 요약 (summaries) -->
                                 <div th:if="${article.summaries != null && !article.summaries.empty}">
                                     <div th:each="summary, iterStat : ${article.summaries}"
                                          th:if="${iterStat.index < 2}" class="mb-1">
@@ -74,7 +84,9 @@
                                     <small th:if="${article.summaries.size() > 2}"
                                            class="text-muted">...외 [[${article.summaries.size() - 2}]]개</small>
                                 </div>
-                                <span th:if="${article.summaries == null || article.summaries.empty}"
+
+                                <!-- 요약 없음 표시 -->
+                                <span th:if="${(article.summary == null || #strings.isEmpty(article.summary)) && (article.summaries == null || article.summaries.empty)}"
                                       class="text-muted">요약 없음</span>
                             </td>
                             <td>
