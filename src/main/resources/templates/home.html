@@ -174,6 +174,64 @@
                 </div>
             </div>
 
+            <!-- Admin: Expanded Search Terms Display -->
+            <div th:if="${#authorization.expression('hasRole(''ADMIN'')') and expandedTerms != null and !expandedTerms.isEmpty()}"
+                 class="expanded-terms-section mt-3">
+                <div class="expanded-terms-container">
+                    <div class="expanded-terms-header">
+                        <i class="fas fa-brain me-2"></i>
+                        <span class="fw-bold">검색어 확장</span>
+                        <span class="badge bg-secondary ms-2" th:text="${expandedTerms.size()} + '개 용어'">0개 용어</span>
+                    </div>
+                    <div class="expanded-terms-body">
+                        <!-- Direct Match Terms (weight 1.0) -->
+                        <div class="term-group" th:if="${directMatchTerms != null and !directMatchTerms.isEmpty()}">
+                            <span class="term-group-label">
+                                <i class="fas fa-circle-dot me-1"></i>직접 매칭
+                            </span>
+                            <div class="term-badges">
+                                <th:block th:each="entry : ${directMatchTerms.entrySet()}">
+                                    <span class="term-badge direct-match" th:title="'가중치: ' + ${entry.value}">
+                                        <span th:text="${entry.key}">term</span>
+                                        <span class="term-weight" th:text="'×' + ${#numbers.formatDecimal(entry.value * 2.0, 1, 1)}">×2.0</span>
+                                    </span>
+                                </th:block>
+                            </div>
+                        </div>
+
+                        <!-- Synonym Terms (weight 0.8) -->
+                        <div class="term-group" th:if="${synonymTerms != null and !synonymTerms.isEmpty()}">
+                            <span class="term-group-label">
+                                <i class="fas fa-link me-1"></i>유의어
+                            </span>
+                            <div class="term-badges">
+                                <th:block th:each="entry : ${synonymTerms.entrySet()}">
+                                    <span class="term-badge synonym-match" th:title="'가중치: ' + ${entry.value}">
+                                        <span th:text="${entry.key}">term</span>
+                                        <span class="term-weight" th:text="'×' + ${#numbers.formatDecimal(entry.value * 2.0, 1, 1)}">×1.6</span>
+                                    </span>
+                                </th:block>
+                            </div>
+                        </div>
+
+                        <!-- Embedding Similar Terms (weight < 0.8) -->
+                        <div class="term-group" th:if="${embeddingTerms != null and !embeddingTerms.isEmpty()}">
+                            <span class="term-group-label">
+                                <i class="fas fa-project-diagram me-1"></i>의미 유사
+                            </span>
+                            <div class="term-badges">
+                                <th:block th:each="entry : ${embeddingTerms.entrySet()}">
+                                    <span class="term-badge embedding-match" th:title="'가중치: ' + ${entry.value} + ' (유사도: ' + ${#numbers.formatDecimal(entry.value / 0.5, 1, 2)} + ')'">
+                                        <span th:text="${entry.key}">term</span>
+                                        <span class="term-weight" th:text="'×' + ${#numbers.formatDecimal(entry.value * 2.0, 1, 1)}">×1.0</span>
+                                    </span>
+                                </th:block>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Filter Pills Section -->
             <div class="filter-pills-section">
                 <div class="filter-pills-container">
@@ -249,12 +307,12 @@
                                 <i class="fas fa-chevron-down dropdown-arrow"></i>
                             </button>
                             <ul class="dropdown-menu modern-dropdown" aria-labelledby="sortDropdown">
-                                <!-- <li>
+                                <li>
                                     <a class="dropdown-item sort-option" href="#" data-sort="relevance">
-                                        <i class="fas fa-search me-2"></i>
+                                        <i class="fas fa-star me-2"></i>
                                         <span>적합도순</span>
                                     </a>
-                                </li> -->
+                                </li>
                                 <li>
                                     <a class="dropdown-item sort-option" href="#" data-sort="latest">
                                         <i class="fas fa-clock me-2"></i>
@@ -341,10 +399,10 @@
                         <!-- Company Info & Stats -->
                         <div class="d-flex align-items-center flex-wrap">
                             <div class="d-flex align-items-center me-4">
-                                <a th:href="@{/corporations/{id}(id=${article.corporation.id})}" 
+                                <a th:href="@{/corporations/{id}(id=${article.corporation.id})}"
                                 class="d-flex align-items-center text-decoration-none company-link">
                                     <img width="20px;" th:if="${article.corporation.effectiveLogoUrl != null}"
-                                        th:src="${article.corporation.effectiveLogoUrl}" 
+                                        th:src="${article.corporation.effectiveLogoUrl}"
                                         th:alt="${article.corporation.name}"
                                         class="company-logo me-2" style="border-radius: 4px;">
                                     <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;" th:text="${article.corporation.name}">Company</span>
@@ -354,8 +412,43 @@
                                 <small class="text-muted relative-time"
                                     th:attr="data-date=${article.publishedAt}"
                                     th:title="${article.publishedAt}"
-                                    th:text="${article.publishedAt}" 
+                                    th:text="${article.publishedAt}"
                                     style="white-space: nowrap;">2024-01-01</small>
+                                <!-- Admin 전용: RRF Score (최우선 표시) -->
+                                <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and article.rrfScore != null}"
+                                       class="badge bg-primary text-white"
+                                       style="font-size: 0.75rem; white-space: nowrap;"
+                                       th:title="'RRF 최종 점수 (BM25 + Vector + ILIKE 통합)'">
+                                    <i class="fas fa-star me-1"></i>RRF: <span th:text="${#numbers.formatDecimal(article.rrfScore, 1, 4)}">0.0000</span>
+                                </small>
+                                <!-- Admin 전용: BM25 Score -->
+                                <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and article.bm25Score != null}"
+                                       class="badge bg-info text-white"
+                                       style="font-size: 0.75rem; white-space: nowrap;"
+                                       th:title="'BM25 관련도 점수'">
+                                    <i class="fas fa-chart-line me-1"></i>BM25: <span th:text="${#numbers.formatDecimal(article.bm25Score, 1, 2)}">0.00</span>
+                                </small>
+                                <!-- Admin 전용: Vector Similarity Score -->
+                                <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and article.vectorScore != null}"
+                                       class="badge bg-success text-white"
+                                       style="font-size: 0.75rem; white-space: nowrap;"
+                                       th:title="'벡터 유사도 점수 (0.0 ~ 1.0)'">
+                                    <i class="fas fa-brain me-1"></i>Vector: <span th:text="${#numbers.formatDecimal(article.vectorScore, 1, 2)}">0.00</span>
+                                </small>
+                                <!-- Admin 전용: ILIKE Score -->
+                                <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and article.ilikeScore != null}"
+                                       class="badge bg-warning text-dark"
+                                       style="font-size: 0.75rem; white-space: nowrap;"
+                                       th:title="'ILIKE 제목 매칭 점수'">
+                                    <i class="fas fa-search me-1"></i>ILIKE: <span th:text="${#numbers.formatDecimal(article.ilikeScore, 1, 2)}">0.00</span>
+                                </small>
+                                <!-- Admin 전용: Time Decay Score -->
+                                <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and article.timeDecayScore != null}"
+                                       class="badge bg-secondary text-white"
+                                       style="font-size: 0.75rem; white-space: nowrap;"
+                                       th:title="'Time Decay 점수 (날짜 기반 최신순, 0.05 ~ 1.0)'">
+                                    <i class="fas fa-clock me-1"></i>Time: <span th:text="${#numbers.formatDecimal(article.timeDecayScore, 1, 3)}">0.000</span>
+                                </small>
                                 <!-- <span class="text-muted d-flex align-items-center" style="font-size: 0.85rem;">
                                     <i class="fas fa-eye me-1"></i> <span class="view-count" th:text="${article.viewCount}">0</span>
                                 </span> -->
@@ -428,6 +521,41 @@
                                 </div>
                                 <div class="d-flex align-items-center gap-2">
                                     <small class="text-muted relative-time" th:attr="data-date=${firstArticle.publishedAt}" th:title="${firstArticle.publishedAt}" th:text="${firstArticle.publishedAt}" style="white-space: nowrap;"></small>
+                                    <!-- Admin 전용: RRF Score (최우선 표시) -->
+                                    <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and firstArticle.rrfScore != null}"
+                                           class="badge bg-primary text-white"
+                                           style="font-size: 0.75rem; white-space: nowrap;"
+                                           th:title="'RRF 최종 점수 (BM25 + Vector + ILIKE 통합)'">
+                                        <i class="fas fa-star me-1"></i>RRF: <span th:text="${#numbers.formatDecimal(firstArticle.rrfScore, 1, 4)}">0.0000</span>
+                                    </small>
+                                    <!-- Admin 전용: BM25 Score -->
+                                    <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and firstArticle.bm25Score != null}"
+                                           class="badge bg-info text-white"
+                                           style="font-size: 0.75rem; white-space: nowrap;"
+                                           th:title="'BM25 관련도 점수'">
+                                        <i class="fas fa-chart-line me-1"></i>BM25: <span th:text="${#numbers.formatDecimal(firstArticle.bm25Score, 1, 2)}">0.00</span>
+                                    </small>
+                                    <!-- Admin 전용: Vector Similarity Score -->
+                                    <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and firstArticle.vectorScore != null}"
+                                           class="badge bg-success text-white"
+                                           style="font-size: 0.75rem; white-space: nowrap;"
+                                           th:title="'벡터 유사도 점수 (0.0 ~ 1.0)'">
+                                        <i class="fas fa-brain me-1"></i>Vector: <span th:text="${#numbers.formatDecimal(firstArticle.vectorScore, 1, 2)}">0.00</span>
+                                    </small>
+                                    <!-- Admin 전용: ILIKE Score -->
+                                    <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and firstArticle.ilikeScore != null}"
+                                           class="badge bg-warning text-dark"
+                                           style="font-size: 0.75rem; white-space: nowrap;"
+                                           th:title="'ILIKE 제목 매칭 점수'">
+                                        <i class="fas fa-search me-1"></i>ILIKE: <span th:text="${#numbers.formatDecimal(firstArticle.ilikeScore, 1, 2)}">0.00</span>
+                                    </small>
+                                    <!-- Admin 전용: Time Decay Score -->
+                                    <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and firstArticle.timeDecayScore != null}"
+                                           class="badge bg-secondary text-white"
+                                           style="font-size: 0.75rem; white-space: nowrap;"
+                                           th:title="'Time Decay 점수 (날짜 기반 최신순, 0.05 ~ 1.0)'">
+                                        <i class="fas fa-clock me-1"></i>Time: <span th:text="${#numbers.formatDecimal(firstArticle.timeDecayScore, 1, 3)}">0.000</span>
+                                    </small>
                                     <button class="like-button"
                                             th:attr="data-article-id=${firstArticle.id}">
                                         <i class="fas fa-heart like-icon"></i>
@@ -465,6 +593,34 @@
                                 <span class="child-date d-flex align-items-center flex-wrap">
                                     <span class="d-flex align-items-center gap-2">
                                         <small class="text-muted relative-time" th:attr="data-date=${child.publishedAt}" th:title="${child.publishedAt}" th:text="${child.publishedAt}" style="white-space: nowrap;"></small>
+                                        <!-- Admin 전용: BM25 Score -->
+                                        <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and child.bm25Score != null}"
+                                               class="badge bg-info text-white"
+                                               style="font-size: 0.7rem; white-space: nowrap;"
+                                               th:title="'BM25 관련도 점수'">
+                                            <i class="fas fa-chart-line me-1"></i><span th:text="${#numbers.formatDecimal(child.bm25Score, 1, 2)}">0.00</span>
+                                        </small>
+                                        <!-- Admin 전용: Vector Similarity Score -->
+                                        <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and child.vectorScore != null}"
+                                               class="badge bg-success text-white"
+                                               style="font-size: 0.7rem; white-space: nowrap;"
+                                               th:title="'벡터 유사도 점수 (0.0 ~ 1.0)'">
+                                            <i class="fas fa-brain me-1"></i><span th:text="${#numbers.formatDecimal(child.vectorScore, 1, 2)}">0.00</span>
+                                        </small>
+                                        <!-- Admin 전용: ILIKE Score -->
+                                        <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and child.ilikeScore != null}"
+                                               class="badge bg-warning text-dark"
+                                               style="font-size: 0.7rem; white-space: nowrap;"
+                                               th:title="'ILIKE 제목 매칭 점수'">
+                                            <i class="fas fa-search me-1"></i><span th:text="${#numbers.formatDecimal(child.ilikeScore, 1, 2)}">0.00</span>
+                                        </small>
+                                        <!-- Admin 전용: Time Decay Score -->
+                                        <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and child.timeDecayScore != null}"
+                                               class="badge bg-secondary text-white"
+                                               style="font-size: 0.7rem; white-space: nowrap;"
+                                               th:title="'Time Decay 점수 (날짜 기반 최신순, 0.05 ~ 1.0)'">
+                                            <i class="fas fa-clock me-1"></i><span th:text="${#numbers.formatDecimal(child.timeDecayScore, 1, 3)}">0.000</span>
+                                        </small>
                                         <button class="like-button"
                                                 th:attr="data-article-id=${child.id}">
                                             <i class="fas fa-heart like-icon"></i>

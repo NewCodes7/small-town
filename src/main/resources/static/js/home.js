@@ -396,7 +396,9 @@ function initSortDropdown() {
 
     // 현재 URL에서 sort 파라미터 가져오기
     const url = new URL(window.location.href);
-    const currentSort = url.searchParams.get('sort') || 'latest';
+    const keyword = url.searchParams.get('keyword');
+    // 검색어가 있으면 적합도순, 없으면 최신순이 기본값
+    const currentSort = url.searchParams.get('sort') || (keyword ? 'relevance' : 'latest');
 
     // 정렬 레이블 업데이트
     const sortLabels = {
