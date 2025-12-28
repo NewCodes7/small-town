@@ -2,8 +2,11 @@ package com.newcodes7.small_town.global.entity;
 
 import java.time.LocalDateTime;
 
+import org.hibernate.annotations.Type;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import com.newcodes7.small_town.global.config.VectorType;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -17,6 +20,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /**
  * Term 엔티티 - 형태소 분석으로 추출된 용어를 저장
@@ -73,6 +77,22 @@ public class Term {
      */
     @Column(name = "has_translation")
     private Boolean hasTranslation;
+
+    /**
+     * 임베딩 벡터 (1536차원, OpenAI text-embedding-3-small)
+     * 의미적 유사 Term 검색에 사용
+     */
+    @Type(VectorType.class)
+    @Column(name = "embedding", columnDefinition = "vector(1536)")
+    @Setter
+    private float[] embedding;
+
+    /**
+     * 임베딩 생성 일시
+     */
+    @Column(name = "embedding_generated_at")
+    @Setter
+    private LocalDateTime embeddingGeneratedAt;
 
     /**
      * 생성일시

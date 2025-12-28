@@ -11,6 +11,9 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.newcodes7.small_town.global.config.VectorType;
+
+import org.hibernate.annotations.Type;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -58,7 +61,10 @@ public class Article {
 
     @Column(name = "translated_title", length = 200)
     private String translatedTitle;
-    
+
+    @Column(name = "generated_title", length = 300)
+    private String generatedTitle;
+
     @Column(columnDefinition = "TEXT")
     private String summary;
     
@@ -90,7 +96,18 @@ public class Article {
     
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
-    
+
+    // Vector Embedding Fields
+    @Column(columnDefinition = "TEXT")
+    private String content;
+
+    @Type(VectorType.class)
+    @Column(columnDefinition = "vector(1536)")
+    private float[] embedding;
+
+    @Column(name = "embedding_generated_at")
+    private LocalDateTime embeddingGeneratedAt;
+
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "corporation_id", nullable = false)
