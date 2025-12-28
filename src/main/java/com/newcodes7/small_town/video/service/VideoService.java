@@ -76,22 +76,38 @@ public class VideoService {
             if (regions.contains("overseas")) {
                 domesticTypes.add(0);
             }
+            // 빈 리스트면 null로 변환 (Native Query용)
+            if (domesticTypes.isEmpty()) {
+                domesticTypes = null;
+            }
         }
 
-        // 키워드가 있으면 유의어를 포함한 Term 기반 검색을 위한 Video ID 조회
         List<Long> termBasedVideoIds = null;
         if (keyword != null && !keyword.trim().isEmpty()) {
             termBasedVideoIds = getVideoIdsByKeywordWithSynonyms(keyword);
+            // 빈 리스트면 null로 변환 (Native Query용)
+            if (termBasedVideoIds != null && termBasedVideoIds.isEmpty()) {
+                termBasedVideoIds = null;
+            }
         }
 
         if (view.equals("list")) {
             Pageable pageable = PageRequest.of(page, size);
-            Page<Video> videos = videoRepository.findVideosWithFilters(keyword, termBasedVideoIds, domesticTypes, sort, category, pageable);
+            Page<Video> videos = videoRepository.findVideosWithFilters(
+                keyword,
+                termBasedVideoIds,
+                domesticTypes,
+                sort,
+                category,
+                pageable
+            );
             return videos.map(VideoListResponseDto::new);
         }
 
         if (view.equals("grouped")) {
-            return getVideosGroupedByCorporationWithPaging(keyword, termBasedVideoIds, domesticTypes, category, page, size);
+            // 빈 리스트를 null로 변환 (Native Query용)
+            List<String> safeCategory = (category != null && !category.isEmpty()) ? category : null;
+            return getVideosGroupedByCorporationWithPaging(keyword, termBasedVideoIds, domesticTypes, safeCategory, page, size);
         }
 
         return Page.empty();
@@ -106,8 +122,8 @@ public class VideoService {
         List<Video> allVideos = videoRepository.findVideosWithFilters(
             keyword,
             termBasedVideoIds,
-            domesticTypes != null ? domesticTypes : new ArrayList<>(),
-            category != null ? category : new ArrayList<>()
+            domesticTypes,
+            category
         );
 
         long totalCorporations = allVideos.stream()
@@ -116,14 +132,12 @@ public class VideoService {
             .count();
 
         // 2. 비디오 조회 (페이징 없이 모두 가져옴)
+        // Native Query는 null 전달 (이미 상위에서 변환됨)
         List<Video> videos = videoRepository.findTop3VideosGroupedByCorporation(
             keyword,
-            termBasedVideoIds != null ? termBasedVideoIds : new ArrayList<>(),
-            termBasedVideoIds != null ? termBasedVideoIds.size() : 0,
-            domesticTypes != null ? domesticTypes : new ArrayList<>(),
-            domesticTypes != null ? domesticTypes.size() : 0,
-            category != null ? category : new ArrayList<>(),
-            category != null ? category.size() : 0,
+            termBasedVideoIds,
+            domesticTypes,
+            category,
             0,
             Integer.MAX_VALUE
         );

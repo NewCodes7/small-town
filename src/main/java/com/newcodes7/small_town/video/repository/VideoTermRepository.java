@@ -77,7 +77,7 @@ public interface VideoTermRepository extends JpaRepository<VideoTerm, Long> {
            "SUM(vt.frequency) as totalFrequency, " +
            "COUNT(DISTINCT vt.video.id) as videoCount " +
            "FROM VideoTerm vt " +
-           "WHERE LOWER(vt.term.term) LIKE LOWER(CONCAT('%', :search, '%')) " +
+           "WHERE LOWER(vt.term.term) LIKE LOWER(CONCAT('%', COALESCE(:search, ''), '%')) " +
            "GROUP BY vt.term.id, vt.term.term, vt.term.termType, vt.term.decomposedTerm, vt.term.createdAt")
     List<TermStatistics> findTermStatisticsBySearch(@Param("search") String search, Pageable pageable);
 
@@ -90,7 +90,7 @@ public interface VideoTermRepository extends JpaRepository<VideoTerm, Long> {
     /**
      * Term 통계 총 개수 조회 (검색 포함)
      */
-    @Query("SELECT COUNT(DISTINCT vt.term.id) FROM VideoTerm vt WHERE LOWER(vt.term.term) LIKE LOWER(CONCAT('%', :search, '%'))")
+    @Query("SELECT COUNT(DISTINCT vt.term.id) FROM VideoTerm vt WHERE LOWER(vt.term.term) LIKE LOWER(CONCAT('%', COALESCE(:search, ''), '%'))")
     long countDistinctTermsBySearch(@Param("search") String search);
 
     /**
@@ -101,9 +101,9 @@ public interface VideoTermRepository extends JpaRepository<VideoTerm, Long> {
     @Query("SELECT vt.term.term as term, " +
            "SUM(vt.frequency) as totalFrequency " +
            "FROM VideoTerm vt " +
-           "WHERE LOWER(vt.term.term) LIKE LOWER(CONCAT(:query, '%')) " +
-           "OR LOWER(vt.term.decomposedTerm) LIKE LOWER(CONCAT(:query, '%')) " +
-           "OR LOWER(vt.term.chosung) LIKE LOWER(CONCAT(:query, '%')) " +
+           "WHERE LOWER(vt.term.term) LIKE LOWER(CONCAT(COALESCE(:query, ''), '%')) " +
+           "OR LOWER(vt.term.decomposedTerm) LIKE LOWER(CONCAT(COALESCE(:query, ''), '%')) " +
+           "OR LOWER(vt.term.chosung) LIKE LOWER(CONCAT(COALESCE(:query, ''), '%')) " +
            "GROUP BY vt.term.term " +
            "ORDER BY SUM(vt.frequency) DESC")
     List<AutocompleteSuggestion> findAutocompleteTerms(@Param("query") String query, Pageable pageable);
@@ -117,13 +117,13 @@ public interface VideoTermRepository extends JpaRepository<VideoTerm, Long> {
            "SUM(vt.frequency) as totalFrequency " +
            "FROM VideoTerm vt " +
            "WHERE " +
-           "(LOWER(vt.term.term) LIKE LOWER(CONCAT(:query1, '%')) " +
-           "OR LOWER(vt.term.decomposedTerm) LIKE LOWER(CONCAT(:query1, '%')) " +
-           "OR LOWER(vt.term.chosung) LIKE LOWER(CONCAT(:query1, '%'))) " +
+           "(LOWER(vt.term.term) LIKE LOWER(CONCAT(COALESCE(:query1, ''), '%')) " +
+           "OR LOWER(vt.term.decomposedTerm) LIKE LOWER(CONCAT(COALESCE(:query1, ''), '%')) " +
+           "OR LOWER(vt.term.chosung) LIKE LOWER(CONCAT(COALESCE(:query1, ''), '%'))) " +
            "OR " +
-           "(LOWER(vt.term.term) LIKE LOWER(CONCAT(:query2, '%')) " +
-           "OR LOWER(vt.term.decomposedTerm) LIKE LOWER(CONCAT(:query2, '%')) " +
-           "OR LOWER(vt.term.chosung) LIKE LOWER(CONCAT(:query2, '%'))) " +
+           "(LOWER(vt.term.term) LIKE LOWER(CONCAT(COALESCE(:query2, ''), '%')) " +
+           "OR LOWER(vt.term.decomposedTerm) LIKE LOWER(CONCAT(COALESCE(:query2, ''), '%')) " +
+           "OR LOWER(vt.term.chosung) LIKE LOWER(CONCAT(COALESCE(:query2, ''), '%'))) " +
            "GROUP BY vt.term.term " +
            "ORDER BY SUM(vt.frequency) DESC")
     List<AutocompleteSuggestion> findAutocompleteTermsWithPatterns(

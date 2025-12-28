@@ -19,6 +19,13 @@ public interface ArticleTermRepository extends JpaRepository<ArticleTerm, Long> 
     List<ArticleTerm> findByArticleId(@Param("articleId") Long articleId);
 
     /**
+     * 특정 article의 모든 term 조회 (score 내림차순, Term fetch join)
+     * 임베딩 생성 시 사용
+     */
+    @Query("SELECT at FROM ArticleTerm at JOIN FETCH at.term WHERE at.article.id = :articleId ORDER BY at.score DESC")
+    List<ArticleTerm> findByArticleIdOrderByScoreDesc(@Param("articleId") Long articleId);
+
+    /**
      * 특정 article의 모든 term 삭제
      */
     @Modifying
@@ -143,13 +150,13 @@ public interface ArticleTermRepository extends JpaRepository<ArticleTerm, Long> 
            "SUM(at.frequency) as totalFrequency " +
            "FROM ArticleTerm at " +
            "WHERE " +
-           "(LOWER(at.term.term) LIKE LOWER(CONCAT(:query1, '%')) " +
-           "OR LOWER(at.term.decomposedTerm) LIKE LOWER(CONCAT(:query1, '%')) " +
-           "OR LOWER(at.term.chosung) LIKE LOWER(CONCAT(:query1, '%'))) " +
+           "(LOWER(at.term.term) LIKE LOWER(CONCAT(COALESCE(:query1, ''), '%')) " +
+           "OR LOWER(at.term.decomposedTerm) LIKE LOWER(CONCAT(COALESCE(:query1, ''), '%')) " +
+           "OR LOWER(at.term.chosung) LIKE LOWER(CONCAT(COALESCE(:query1, ''), '%'))) " +
            "OR " +
-           "(LOWER(at.term.term) LIKE LOWER(CONCAT(:query2, '%')) " +
-           "OR LOWER(at.term.decomposedTerm) LIKE LOWER(CONCAT(:query2, '%')) " +
-           "OR LOWER(at.term.chosung) LIKE LOWER(CONCAT(:query2, '%'))) " +
+           "(LOWER(at.term.term) LIKE LOWER(CONCAT(COALESCE(:query2, ''), '%')) " +
+           "OR LOWER(at.term.decomposedTerm) LIKE LOWER(CONCAT(COALESCE(:query2, ''), '%')) " +
+           "OR LOWER(at.term.chosung) LIKE LOWER(CONCAT(COALESCE(:query2, ''), '%'))) " +
            "GROUP BY at.term.term " +
            "ORDER BY SUM(at.frequency) DESC")
     List<AutocompleteSuggestion> findAutocompleteTermsWithPatterns(

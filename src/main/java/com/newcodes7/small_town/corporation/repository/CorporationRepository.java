@@ -38,16 +38,16 @@ public interface CorporationRepository extends JpaRepository<Corporation, Long>,
      * 블로그가 있는 기업 중에서 이름 또는 대체 이름으로 검색 (자동완성용, 접두사 일치)
      * 검색 대상: name, alternateName, decomposedName, decomposedAlternateName, chosungName, chosungAlternateName
      */
-    @Query("SELECT DISTINCT c FROM Corporation c " +
+    @Query("SELECT c FROM Corporation c " +
            "JOIN Article a ON a.corporation.id = c.id " +
            "WHERE c.deletedAt IS NULL " +
            "AND a.deletedAt IS NULL " +
-           "AND (LOWER(c.name) LIKE LOWER(CONCAT(:query, '%')) " +
-           "OR LOWER(c.alternateName) LIKE LOWER(CONCAT(:query, '%')) " +
-           "OR LOWER(c.decomposedName) LIKE LOWER(CONCAT(:query, '%')) " +
-           "OR LOWER(c.decomposedAlternateName) LIKE LOWER(CONCAT(:query, '%')) " +
-           "OR LOWER(c.chosungName) LIKE LOWER(CONCAT(:query, '%')) " +
-           "OR LOWER(c.chosungAlternateName) LIKE LOWER(CONCAT(:query, '%'))) " +
+           "AND (LOWER(c.name) LIKE LOWER(CONCAT(COALESCE(:query, ''), '%')) " +
+           "OR LOWER(c.alternateName) LIKE LOWER(CONCAT(COALESCE(:query, ''), '%')) " +
+           "OR LOWER(c.decomposedName) LIKE LOWER(CONCAT(COALESCE(:query, ''), '%')) " +
+           "OR LOWER(c.decomposedAlternateName) LIKE LOWER(CONCAT(COALESCE(:query, ''), '%')) " +
+           "OR LOWER(c.chosungName) LIKE LOWER(CONCAT(COALESCE(:query, ''), '%')) " +
+           "OR LOWER(c.chosungAlternateName) LIKE LOWER(CONCAT(COALESCE(:query, ''), '%'))) " +
            "ORDER BY c.name ASC")
     List<Corporation> findCorporationsWithArticlesByNameContaining(@Param("query") String query, Pageable pageable);
 
@@ -55,16 +55,16 @@ public interface CorporationRepository extends JpaRepository<Corporation, Long>,
      * 비디오가 있는 기업 중에서 이름 또는 대체 이름으로 검색 (자동완성용, 접두사 일치)
      * 검색 대상: name, alternateName, decomposedName, decomposedAlternateName, chosungName, chosungAlternateName
      */
-    @Query("SELECT DISTINCT c FROM Corporation c " +
+    @Query("SELECT c FROM Corporation c " +
            "JOIN Video v ON v.corporation.id = c.id " +
            "WHERE c.deletedAt IS NULL " +
            "AND v.deletedAt IS NULL " +
-           "AND (LOWER(c.name) LIKE LOWER(CONCAT(:query, '%')) " +
-           "OR LOWER(c.alternateName) LIKE LOWER(CONCAT(:query, '%')) " +
-           "OR LOWER(c.decomposedName) LIKE LOWER(CONCAT(:query, '%')) " +
-           "OR LOWER(c.decomposedAlternateName) LIKE LOWER(CONCAT(:query, '%')) " +
-           "OR LOWER(c.chosungName) LIKE LOWER(CONCAT(:query, '%')) " +
-           "OR LOWER(c.chosungAlternateName) LIKE LOWER(CONCAT(:query, '%'))) " +
+           "AND (LOWER(c.name) LIKE LOWER(CONCAT(COALESCE(:query, ''), '%')) " +
+           "OR LOWER(c.alternateName) LIKE LOWER(CONCAT(COALESCE(:query, ''), '%')) " +
+           "OR LOWER(c.decomposedName) LIKE LOWER(CONCAT(COALESCE(:query, ''), '%')) " +
+           "OR LOWER(c.decomposedAlternateName) LIKE LOWER(CONCAT(COALESCE(:query, ''), '%')) " +
+           "OR LOWER(c.chosungName) LIKE LOWER(CONCAT(COALESCE(:query, ''), '%')) " +
+           "OR LOWER(c.chosungAlternateName) LIKE LOWER(CONCAT(COALESCE(:query, ''), '%'))) " +
            "ORDER BY c.name ASC")
     List<Corporation> findCorporationsWithVideosByNameContaining(@Param("query") String query, Pageable pageable);
 }

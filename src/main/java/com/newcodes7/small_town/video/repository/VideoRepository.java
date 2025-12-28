@@ -34,16 +34,17 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
            "JOIN FETCH v.corporation c " +
            "LEFT JOIN FETCH v.category cat " +
            "WHERE v.deletedAt IS NULL " +
-           "AND (:keyword IS NULL OR LOWER(v.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(v.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "AND (:keyword IS NULL OR :keyword = '' " +
+           "     OR LOWER(v.title) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "     OR LOWER(v.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
            "     OR (:termBasedVideoIds IS NOT NULL AND v.id IN :termBasedVideoIds)) " +
            "AND (:domesticTypes IS NULL OR c.isDomestic IN :domesticTypes) " +
            "AND (:category IS NULL OR cat.name IN :category) " +
            "ORDER BY " +
            "CASE WHEN :sort = 'popular' THEN " +
-           "(COALESCE(v.viewCount, 0) * 0.6 + " +
-           " COALESCE(v.likeCount, 0) * 0.3) " +
+           "(COALESCE(v.viewCount, 0) * 0.6 + COALESCE(v.likeCount, 0) * 0.3) " +
            "END DESC, " +
-           "CASE WHEN :sort = 'relevance' AND :keyword IS NOT NULL THEN " +
+           "CASE WHEN :sort = 'relevance' AND :keyword IS NOT NULL AND :keyword != '' THEN " +
            "(CASE " +
            "  WHEN LOWER(v.title) LIKE LOWER(CONCAT(:keyword, '%')) OR LOWER(v.translatedTitle) LIKE LOWER(CONCAT(:keyword, '%')) THEN 3 " +
            "  WHEN LOWER(v.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(v.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%')) THEN 2 " +
@@ -64,7 +65,9 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
            "JOIN FETCH v.corporation c " +
            "LEFT JOIN FETCH v.category cat " +
            "WHERE v.deletedAt IS NULL " +
-           "AND (:keyword IS NULL OR LOWER(v.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(v.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "AND (:keyword IS NULL OR :keyword = '' " +
+           "     OR LOWER(v.title) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+           "     OR LOWER(v.translatedTitle) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
            "     OR (:termBasedVideoIds IS NOT NULL AND v.id IN :termBasedVideoIds)) " +
            "AND (:domesticTypes IS NULL OR c.isDomestic IN :domesticTypes) " +
            "AND (:category IS NULL OR cat.name IN :category)")
@@ -100,11 +103,11 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
            "    JOIN corporation c ON v.corporation_id = c.id " +
            "    LEFT JOIN category cat ON v.category_id = cat.id " +
            "    WHERE v.deleted_at IS NULL " +
-           "    AND (COALESCE(:keyword, '') = '' OR LOWER(v.title) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
-           "         OR LOWER(v.translated_title) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
-           "         OR (:termBasedVideoIdsSize > 0 AND v.id IN (:termBasedVideoIds))) " +
-           "    AND (COALESCE(:domesticTypesSize, 0) = 0 OR c.is_domestic IN (:domesticTypes)) " +
-           "    AND (COALESCE(:categorySize, 0) = 0 OR cat.name IN (:category)) " +
+           "    AND (:keyword IS NULL OR :keyword = '' OR v.title ILIKE CONCAT('%', :keyword, '%') " +
+           "         OR v.translated_title ILIKE CONCAT('%', :keyword, '%') " +
+           "         OR (COALESCE(array_length(CAST(:termBasedVideoIds AS bigint[]), 1), 0) > 0 AND v.id = ANY(CAST(:termBasedVideoIds AS bigint[])))) " +
+           "    AND (COALESCE(array_length(CAST(:domesticTypes AS integer[]), 1), 0) = 0 OR c.is_domestic = ANY(CAST(:domesticTypes AS integer[]))) " +
+           "    AND (COALESCE(array_length(CAST(:category AS text[]), 1), 0) = 0 OR cat.name = ANY(CAST(:category AS text[]))) " +
            "), " +
            "latest_corps AS ( " +
            "    SELECT corporation_id, MAX(published_at) as latest_published_at " +
@@ -121,11 +124,8 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
            nativeQuery = true)
     List<Video> findTop3VideosGroupedByCorporation(@Param("keyword") String keyword,
                                                    @Param("termBasedVideoIds") List<Long> termBasedVideoIds,
-                                                   @Param("termBasedVideoIdsSize") int termBasedVideoIdsSize,
                                                    @Param("domesticTypes") List<Integer> domesticTypes,
-                                                   @Param("domesticTypesSize") int domesticTypesSize,
                                                    @Param("category") List<String> category,
-                                                   @Param("categorySize") int categorySize,
                                                    @Param("offset") int offset,
                                                    @Param("limit") int limit);
 
