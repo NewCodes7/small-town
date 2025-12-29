@@ -60,7 +60,7 @@ public class Video {
     @Column(name = "video_id", nullable = false, length = 50, unique = true)
     private String videoId;
 
-    @Column(nullable = false, length = 500)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String link;
 
     @Column(name = "view_count")
@@ -69,7 +69,7 @@ public class Video {
     @Column(name = "like_count")
     private Integer likeCount;
 
-    @Column(name = "thumbnail_url")
+    @Column(name = "thumbnail_url", columnDefinition = "TEXT")
     private String thumbnailUrl;
 
     @Column(name = "published_at")

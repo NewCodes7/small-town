@@ -68,16 +68,16 @@ public class Article {
     @Column(columnDefinition = "TEXT")
     private String summary;
     
-    @Column(nullable = false, length = 500)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String link;
-    
+
     @Column(name = "view_count")
     private Integer viewCount;
-    
+
     @Column(name = "like_count")
     private Integer likeCount;
-    
-    @Column(name = "thumbnail_image")
+
+    @Column(name = "thumbnail_image", columnDefinition = "TEXT")
     private String thumbnailImage;
     
     @Column(name = "reading_time")
