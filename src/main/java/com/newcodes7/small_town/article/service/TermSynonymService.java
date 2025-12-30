@@ -115,6 +115,129 @@ public class TermSynonymService {
     }
 
     /**
+     * 유의어 관계 수정
+     * 기존 유의어 관계를 삭제하고 새로운 관계를 생성
+     *
+     * @param synonymId 수정할 TermSynonym ID
+     * @param newTermId1 새로운 첫 번째 term ID
+     * @param newTermId2 새로운 두 번째 term ID
+     * @return 수정된 TermSynonym
+     * @throws IllegalArgumentException 유의어가 존재하지 않거나 새로운 관계가 이미 존재하는 경우
+     */
+    @Transactional
+    public TermSynonym updateSynonym(Long synonymId, Long newTermId1, Long newTermId2) {
+        // 기존 유의어 관계 확인
+        TermSynonym existingSynonym = termSynonymRepository.findById(synonymId)
+            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유의어 관계입니다. ID: " + synonymId));
+
+        // 기존 term 정보
+        Long oldTermId1 = existingSynonym.getTerm().getId();
+        Long oldTermId2 = existingSynonym.getSynonymTerm().getId();
+        String oldTerm1Name = existingSynonym.getTerm().getTerm();
+        String oldTerm2Name = existingSynonym.getSynonymTerm().getTerm();
+
+        log.info("유의어 수정 요청 - synonymId: {}, 기존: [{}({}), {}({})] -> 새로운: [{}, {}]",
+            synonymId, oldTerm1Name, oldTermId1, oldTerm2Name, oldTermId2, newTermId1, newTermId2);
+
+        // 기존과 같은 관계면 그대로 반환
+        if ((oldTermId1.equals(newTermId1) && oldTermId2.equals(newTermId2)) ||
+            (oldTermId1.equals(newTermId2) && oldTermId2.equals(newTermId1))) {
+            log.info("유의어 수정 건너뜀: 기존과 동일한 관계 - synonymId: {}", synonymId);
+            return existingSynonym;
+        }
+
+        log.info("유의어 관계 수정 진행: '{}' ↔ '{}' 삭제 후 새로운 관계 생성",
+            oldTerm1Name, oldTerm2Name);
+
+        // 기존 유의어 관계 삭제
+        termSynonymRepository.delete(existingSynonym);
+
+        // 새로운 유의어 관계 생성
+        return addSynonym(newTermId1, newTermId2);
+    }
+
+    /**
+     * term 문자열로 유의어 관계 수정
+     * 존재하지 않는 term은 자동으로 생성
+     *
+     * @param synonymId 수정할 TermSynonym ID
+     * @param termStr1 첫 번째 term 문자열
+     * @param termStr2 두 번째 term 문자열
+     * @return 수정된 TermSynonym
+     */
+    @Transactional
+    public TermSynonym updateSynonymByTermString(Long synonymId, String termStr1, String termStr2) {
+        // 기존 유의어 확인
+        TermSynonym existingSynonym = termSynonymRepository.findById(synonymId)
+            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유의어 관계입니다. ID: " + synonymId));
+
+        log.info("유의어 수정 (문자열 기반) - synonymId: {}, 새로운: ['{}', '{}']",
+            synonymId, termStr1, termStr2);
+
+        // 기존 유의어 삭제
+        termSynonymRepository.delete(existingSynonym);
+
+        // Term 조회 또는 생성
+        Term term1 = termRepository.findByTermAndTermType(termStr1, "NNG")
+            .orElseGet(() -> createNewTerm(termStr1));
+        Term term2 = termRepository.findByTermAndTermType(termStr2, "NNG")
+            .orElseGet(() -> createNewTerm(termStr2));
+
+        // 새로운 유의어 생성
+        return addSynonym(term1.getId(), term2.getId());
+    }
+
+    /**
+     * 혼합 형태로 유의어 관계 수정 (termId + termString)
+     *
+     * @param synonymId 수정할 TermSynonym ID
+     * @param termId1 첫 번째 term ID (nullable)
+     * @param termStr1 첫 번째 term 문자열 (nullable)
+     * @param termId2 두 번째 term ID (nullable)
+     * @param termStr2 두 번째 term 문자열 (nullable)
+     * @return 수정된 TermSynonym
+     */
+    @Transactional
+    public TermSynonym updateSynonymMixed(Long synonymId, Long termId1, String termStr1,
+                                          Long termId2, String termStr2) {
+        // 기존 유의어 확인
+        TermSynonym existingSynonym = termSynonymRepository.findById(synonymId)
+            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유의어 관계입니다. ID: " + synonymId));
+
+        log.info("유의어 수정 (혼합 형태) - synonymId: {}", synonymId);
+
+        // 기존 유의어 삭제
+        termSynonymRepository.delete(existingSynonym);
+
+        // Term 1 처리
+        Term term1;
+        if (termId1 != null) {
+            term1 = termRepository.findById(termId1)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 term입니다. ID: " + termId1));
+        } else if (termStr1 != null && !termStr1.trim().isEmpty()) {
+            term1 = termRepository.findByTermAndTermType(termStr1.trim(), "NNG")
+                .orElseGet(() -> createNewTerm(termStr1.trim()));
+        } else {
+            throw new IllegalArgumentException("term1에 대한 ID 또는 문자열이 필요합니다.");
+        }
+
+        // Term 2 처리
+        Term term2;
+        if (termId2 != null) {
+            term2 = termRepository.findById(termId2)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 term입니다. ID: " + termId2));
+        } else if (termStr2 != null && !termStr2.trim().isEmpty()) {
+            term2 = termRepository.findByTermAndTermType(termStr2.trim(), "NNG")
+                .orElseGet(() -> createNewTerm(termStr2.trim()));
+        } else {
+            throw new IllegalArgumentException("term2에 대한 ID 또는 문자열이 필요합니다.");
+        }
+
+        // 새로운 유의어 생성
+        return addSynonym(term1.getId(), term2.getId());
+    }
+
+    /**
      * 유의어 관계 삭제
      *
      * @param synonymId TermSynonym ID

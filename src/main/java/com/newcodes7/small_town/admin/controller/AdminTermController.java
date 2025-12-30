@@ -965,6 +965,97 @@ public class AdminTermController {
     }
 
     /**
+     * 유의어 관계 수정 API (ID 기반, 문자열 기반, 혼합 형태 모두 지원)
+     */
+    @PutMapping("/term-synonyms/{id}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> updateSynonym(@PathVariable Long id, @RequestBody Map<String, Object> request) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            com.newcodes7.small_town.global.entity.TermSynonym synonym = null;
+
+            // ID 기반 (termId1 + termId2)
+            if (request.containsKey("termId1") && request.containsKey("termId2")) {
+                Long termId1 = ((Number) request.get("termId1")).longValue();
+                Long termId2 = ((Number) request.get("termId2")).longValue();
+
+                synonym = termSynonymService.updateSynonym(id, termId1, termId2);
+            }
+            // 문자열 기반 (termString1 + termString2)
+            else if (request.containsKey("termString1") && request.containsKey("termString2")) {
+                String termString1 = (String) request.get("termString1");
+                String termString2 = (String) request.get("termString2");
+
+                if (termString1 == null || termString1.trim().isEmpty() ||
+                    termString2 == null || termString2.trim().isEmpty()) {
+                    response.put("success", false);
+                    response.put("message", "두 개의 term 문자열이 필요합니다.");
+                    return ResponseEntity.badRequest().body(response);
+                }
+
+                synonym = termSynonymService.updateSynonymByTermString(id, termString1.trim(), termString2.trim());
+            }
+            // 혼합 형태 (termId1 + termString2)
+            else if (request.containsKey("termId1") && request.containsKey("termString2")) {
+                Long termId1 = ((Number) request.get("termId1")).longValue();
+                String termString2 = (String) request.get("termString2");
+
+                if (termString2 == null || termString2.trim().isEmpty()) {
+                    response.put("success", false);
+                    response.put("message", "term 문자열이 필요합니다.");
+                    return ResponseEntity.badRequest().body(response);
+                }
+
+                synonym = termSynonymService.updateSynonymMixed(id, termId1, null, null, termString2.trim());
+            }
+            // 혼합 형태 (termString1 + termId2)
+            else if (request.containsKey("termString1") && request.containsKey("termId2")) {
+                String termString1 = (String) request.get("termString1");
+                Long termId2 = ((Number) request.get("termId2")).longValue();
+
+                if (termString1 == null || termString1.trim().isEmpty()) {
+                    response.put("success", false);
+                    response.put("message", "term 문자열이 필요합니다.");
+                    return ResponseEntity.badRequest().body(response);
+                }
+
+                synonym = termSynonymService.updateSynonymMixed(id, null, termString1.trim(), termId2, null);
+            }
+            else {
+                response.put("success", false);
+                response.put("message", "termId1/termId2, termString1/termString2, 또는 혼합 형태가 필요합니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            if (synonym != null) {
+                response.put("success", true);
+                response.put("message", "유의어 관계가 성공적으로 수정되었습니다.");
+                response.put("synonymId", synonym.getId());
+                response.put("term1", synonym.getTerm().getTerm());
+                response.put("term2", synonym.getSynonymTerm().getTerm());
+            } else {
+                response.put("success", false);
+                response.put("message", "유의어 수정에 실패했습니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+
+        } catch (Exception e) {
+            log.error("유의어 수정 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "유의어 수정 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
      * 유의어 관계 삭제 API
      */
     @DeleteMapping("/term-synonyms/{id}")

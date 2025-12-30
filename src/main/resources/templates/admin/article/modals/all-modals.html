@@ -139,6 +139,39 @@
         </div>
     </div>
 
+    <!-- 유의어 수정 모달 -->
+    <div class="modal fade" id="editSynonymModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">유의어 수정</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editSynonymId">
+                    <div class="mb-3">
+                        <label for="editTerm1Search" class="form-label">첫 번째 Term</label>
+                        <input type="text" class="form-control" id="editTerm1Search" placeholder="검색...">
+                        <select class="form-select mt-2" id="editTerm1Select" size="5">
+                            <option value="">검색 결과가 여기에 표시됩니다</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editTerm2Search" class="form-label">두 번째 Term</label>
+                        <input type="text" class="form-control" id="editTerm2Search" placeholder="검색...">
+                        <select class="form-select mt-2" id="editTerm2Select" size="5">
+                            <option value="">검색 결과가 여기에 표시됩니다</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="button" class="btn btn-primary" id="updateSynonymBtn">수정</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 일괄 유의어 추천 모달 -->
     <div class="modal fade" id="batchRecommendModal" tabindex="-1">
         <div class="modal-dialog modal-xl">

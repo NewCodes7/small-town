@@ -18,6 +18,14 @@ function loadSynonyms() {
                             <td><span class="badge bg-primary">${syn.term2}</span> <small class="text-muted">(${syn.term2Type})</small></td>
                             <td>${new Date(syn.createdAt).toLocaleString()}</td>
                             <td>
+                                <button class="btn btn-sm btn-warning edit-synonym-btn me-1"
+                                    data-synonym-id="${syn.id}"
+                                    data-term1-id="${syn.term1Id}"
+                                    data-term2-id="${syn.term2Id}"
+                                    data-term1-name="${syn.term1}"
+                                    data-term2-name="${syn.term2}">
+                                    <i class="fas fa-edit"></i> 수정
+                                </button>
                                 <button class="btn btn-sm btn-danger delete-synonym-btn" data-synonym-id="${syn.id}">
                                     <i class="fas fa-trash"></i> 삭제
                                 </button>
@@ -61,7 +69,7 @@ function searchTerms(query, selectId) {
         .catch(error => console.error('Error:', error));
 }
 
-// Term 검색 입력 이벤트
+// Term 검색 입력 이벤트 (추가 모달)
 const term1Search = document.getElementById('term1Search');
 const term2Search = document.getElementById('term2Search');
 
@@ -74,6 +82,22 @@ if (term1Search) {
 if (term2Search) {
     term2Search.addEventListener('input', function() {
         searchTerms(this.value, 'term2Select');
+    });
+}
+
+// Term 검색 입력 이벤트 (수정 모달)
+const editTerm1Search = document.getElementById('editTerm1Search');
+const editTerm2Search = document.getElementById('editTerm2Search');
+
+if (editTerm1Search) {
+    editTerm1Search.addEventListener('input', function() {
+        searchTerms(this.value, 'editTerm1Select');
+    });
+}
+
+if (editTerm2Search) {
+    editTerm2Search.addEventListener('input', function() {
+        searchTerms(this.value, 'editTerm2Select');
     });
 }
 
@@ -122,8 +146,100 @@ if (saveSynonymBtn) {
     });
 }
 
-// 유의어 삭제
+// 유의어 수정
+const updateSynonymBtn = document.getElementById('updateSynonymBtn');
+if (updateSynonymBtn) {
+    updateSynonymBtn.addEventListener('click', function() {
+        const synonymId = document.getElementById('editSynonymId').value;
+        const term1Id = document.getElementById('editTerm1Select').value;
+        const term2Id = document.getElementById('editTerm2Select').value;
+        const term1Search = document.getElementById('editTerm1Search').value.trim();
+        const term2Search = document.getElementById('editTerm2Search').value.trim();
+
+        // 요청 본문 구성
+        let requestBody = {};
+
+        // Term 1 처리: ID가 있으면 ID 사용, 없으면 검색 필드 값 사용
+        if (term1Id) {
+            requestBody.termId1 = parseInt(term1Id);
+        } else if (term1Search) {
+            requestBody.termString1 = term1Search;
+        } else {
+            alert('첫 번째 term을 입력하거나 선택해주세요.');
+            return;
+        }
+
+        // Term 2 처리: ID가 있으면 ID 사용, 없으면 검색 필드 값 사용
+        if (term2Id) {
+            requestBody.termId2 = parseInt(term2Id);
+        } else if (term2Search) {
+            requestBody.termString2 = term2Search;
+        } else {
+            alert('두 번째 term을 입력하거나 선택해주세요.');
+            return;
+        }
+
+        console.log('[유의어 수정] synonymId:', synonymId, 'requestBody:', requestBody);
+
+        fetch(`/admin/term-synonyms/${synonymId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                bootstrap.Modal.getInstance(document.getElementById('editSynonymModal')).hide();
+                loadSynonyms();
+
+                // 입력 초기화
+                document.getElementById('editSynonymId').value = '';
+                document.getElementById('editTerm1Search').value = '';
+                document.getElementById('editTerm2Search').value = '';
+                document.getElementById('editTerm1Select').innerHTML = '<option value="">검색 결과가 여기에 표시됩니다</option>';
+                document.getElementById('editTerm2Select').innerHTML = '<option value="">검색 결과가 여기에 표시됩니다</option>';
+            } else {
+                alert('유의어 수정 실패: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('유의어 수정 중 오류가 발생했습니다.');
+        });
+    });
+}
+
+// 유의어 수정 및 삭제 이벤트
 document.addEventListener('click', function(e) {
+    // 수정 버튼 클릭
+    if (e.target.classList.contains('edit-synonym-btn') || e.target.closest('.edit-synonym-btn')) {
+        const btn = e.target.classList.contains('edit-synonym-btn') ? e.target : e.target.closest('.edit-synonym-btn');
+        const synonymId = btn.dataset.synonymId;
+        const term1Id = btn.dataset.term1Id;
+        const term2Id = btn.dataset.term2Id;
+        const term1Name = btn.dataset.term1Name;
+        const term2Name = btn.dataset.term2Name;
+
+        // 모달에 현재 데이터 설정
+        document.getElementById('editSynonymId').value = synonymId;
+
+        // 검색 필드 초기화 및 현재 값 표시
+        document.getElementById('editTerm1Search').value = term1Name;
+        document.getElementById('editTerm2Search').value = term2Name;
+
+        // 선택 필드에 현재 term 설정
+        document.getElementById('editTerm1Select').innerHTML = `<option value="${term1Id}" selected>${term1Name}</option>`;
+        document.getElementById('editTerm2Select').innerHTML = `<option value="${term2Id}" selected>${term2Name}</option>`;
+
+        // 모달 표시
+        const editModal = new bootstrap.Modal(document.getElementById('editSynonymModal'));
+        editModal.show();
+    }
+
+    // 삭제 버튼 클릭
     if (e.target.classList.contains('delete-synonym-btn') || e.target.closest('.delete-synonym-btn')) {
         const btn = e.target.classList.contains('delete-synonym-btn') ? e.target : e.target.closest('.delete-synonym-btn');
         const synonymId = btn.dataset.synonymId;
