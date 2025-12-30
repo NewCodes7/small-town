@@ -37,4 +37,14 @@ public interface LikeLogRepository extends JpaRepository<LikeLog, Long> {
     // 사용자가 좋아요한 아티클과 좋아요 시간 조회
     @Query("SELECT ll FROM LikeLog ll JOIN FETCH ll.article a JOIN FETCH a.corporation WHERE ll.user.id = :userId AND ll.deletedAt IS NULL ORDER BY ll.createdAt DESC")
     java.util.List<LikeLog> findLikedArticlesWithTimestampByUserId(@Param("userId") Long userId);
+
+    // Admin: 모든 좋아요 로그 조회 (페이징)
+    // Article이 삭제되지 않은 것만 조회 (article.deletedAt IS NULL 조건 추가)
+    @Query("SELECT ll FROM LikeLog ll " +
+           "LEFT JOIN FETCH ll.user " +
+           "JOIN FETCH ll.article a " +
+           "LEFT JOIN FETCH a.corporation " +
+           "WHERE ll.deletedAt IS NULL AND a.deletedAt IS NULL " +
+           "ORDER BY ll.createdAt DESC")
+    org.springframework.data.domain.Page<LikeLog> findAllWithDetailsAndDeletedAtIsNull(org.springframework.data.domain.Pageable pageable);
 }

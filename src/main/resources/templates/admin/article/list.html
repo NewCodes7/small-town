@@ -106,6 +106,12 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" th:classappend="${currentTab == 'likelogs'} ? 'active'"
+                           th:href="@{/admin/articles(tab='likelogs')}">
+                            <i class="fas fa-heart me-2"></i>좋아요 로그
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" th:classappend="${currentTab == 'keywords'} ? 'active'"
                            th:href="@{/admin/articles(tab='keywords')}">
                             <i class="fas fa-filter me-2"></i>키워드 관리
@@ -178,6 +184,11 @@
                 <!-- Users 탭 -->
                 <div th:if="${currentTab == 'users'}">
                     <div th:replace="~{admin/article/tabs/users::content}"></div>
+                </div>
+
+                <!-- Like Logs 탭 -->
+                <div th:if="${currentTab == 'likelogs'}">
+                    <div th:replace="~{admin/article/tabs/likelogs::content}"></div>
                 </div>
 
                 <!-- Keywords 탭 -->

@@ -186,7 +186,6 @@ public class DefaultBlogCrawler implements BlogCrawler {
             String link = parseLink(element);
             if (link == null) return null;
 
-            String summary = parseSummary(element);
             String thumbnailImage = parseThumbnailImage(element, corporation);
             LocalDateTime publishedAt = parsePublishedDate(element);
 

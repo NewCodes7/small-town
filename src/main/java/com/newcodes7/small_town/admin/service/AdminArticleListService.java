@@ -42,6 +42,7 @@ public class AdminArticleListService {
     private final VideoTermRepository videoTermRepository;
     private final SearchLogService searchLogService;
     private final UserRepository userRepository;
+    private final com.newcodes7.small_town.article.repository.LikeLogRepository likeLogRepository;
 
     /**
      * Article List 페이지 데이터 DTO
@@ -63,6 +64,7 @@ public class AdminArticleListService {
         private int videoTermTotalPages;
         private Page<SearchLog> searchLogs;
         private Page<com.newcodes7.small_town.auth.entity.User> users;
+        private Page<com.newcodes7.small_town.article.entity.LikeLog> likeLogs;
     }
 
     /**
@@ -79,7 +81,7 @@ public class AdminArticleListService {
             } else {
                 return PageRequest.of(page, size, Sort.by("totalFrequency").descending());
             }
-        } else if (tab.equals("searchlogs") || tab.equals("users")) {
+        } else if (tab.equals("searchlogs") || tab.equals("users") || tab.equals("likelogs")) {
             return PageRequest.of(page, size, Sort.by("createdAt").descending());
         } else {
             return PageRequest.of(page, size, Sort.by("publishedAt").descending());
@@ -106,6 +108,7 @@ public class AdminArticleListService {
                 .videoTermTotalPages(calculateTermTotalPages(getVideoTermStatsTotal(tab, search), size))
                 .searchLogs(getSearchLogs(tab, page, size))
                 .users(getUsers(tab, search, page, size))
+                .likeLogs(getLikeLogs(tab, page, size))
                 .build();
     }
 
@@ -242,5 +245,14 @@ public class AdminArticleListService {
         } else {
             return userRepository.findAll(userPageable);
         }
+    }
+
+    private Page<com.newcodes7.small_town.article.entity.LikeLog> getLikeLogs(String tab, int page, int size) {
+        if (!tab.equals("likelogs")) {
+            return null;
+        }
+
+        Pageable likeLogPageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        return likeLogRepository.findAllWithDetailsAndDeletedAtIsNull(likeLogPageable);
     }
 }
