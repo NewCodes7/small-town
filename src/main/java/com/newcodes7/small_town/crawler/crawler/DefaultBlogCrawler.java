@@ -193,7 +193,6 @@ public class DefaultBlogCrawler implements BlogCrawler {
             return Article.builder()
                     .corporation(corporation)
                     .title(title)
-                    .summary(summary)
                     .link(link)
                     .content("") // 본문은 별도 백필 API로 추출 (크롤링 성능 고려)
                     .thumbnailImage(thumbnailImage)
@@ -282,25 +281,6 @@ public class DefaultBlogCrawler implements BlogCrawler {
                     e.getMessage(), linkElement.outerHtml().substring(0, Math.min(200, linkElement.outerHtml().length())));
             return null;
         }
-    }
-
-    /**
-     * 요약 파싱
-     */
-    private String parseSummary(Element element) {
-        Element summaryElement = element.selectFirst(
-            ".summary, .excerpt, .description, .content, p, " +
-            "[class*='summary'], [class*='excerpt'], [class*='desc']"
-        );
-
-        if (summaryElement == null) return "";
-
-        String summary = summaryElement.text().trim();
-        if (summary.length() > 200) {
-            summary = summary.substring(0, 200) + "...";
-        }
-
-        return summary;
     }
 
     /**
@@ -762,14 +742,6 @@ public class DefaultBlogCrawler implements BlogCrawler {
             return null;
         }
         
-        String summary = "";
-        if (entry.getDescription() != null && entry.getDescription().getValue() != null) {
-            summary = Jsoup.parse(entry.getDescription().getValue()).text();
-            if (summary.length() > 200) {
-                summary = summary.substring(0, 200) + "...";
-            }
-        }
-        
         // 발행일 처리
         LocalDateTime publishedAt = LocalDateTime.now();
         Date publishedDate = entry.getPublishedDate();
@@ -784,7 +756,6 @@ public class DefaultBlogCrawler implements BlogCrawler {
         return Article.builder()
                 .corporation(corporation)
                 .title(title.trim())
-                .summary(summary)
                 .link(link)
                 .publishedAt(publishedAt)
                 .build();

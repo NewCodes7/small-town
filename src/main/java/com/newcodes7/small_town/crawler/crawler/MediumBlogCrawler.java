@@ -406,20 +406,9 @@ public class MediumBlogCrawler implements BlogCrawler {
                 publishedAt = TimeUtil.nowInSeoul();
             }
 
-            // 요약 (extendedPreviewContent의 subtitle)
-            String summary = "";
-            JsonNode extendedPreviewNode = postNode.get("extendedPreviewContent");
-            if (extendedPreviewNode != null) {
-                JsonNode subtitleNode = extendedPreviewNode.get("subtitle");
-                if (subtitleNode != null) {
-                    summary = subtitleNode.asText();
-                }
-            }
-
             return Article.builder()
                     .corporation(corporation)
                     .title(title)
-                    .summary(summary)
                     .link(link)
                     .content("") // 본문은 별도 백필 API로 추출 (크롤링 성능 고려)
                     .thumbnailImage(thumbnailImage)
