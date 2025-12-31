@@ -79,8 +79,9 @@ public class Corporation {
     @Column(name = "youtube_channel_id", length = 100)
     private String youtubeChannelId;
 
-    @Column(name = "view_count")
-    private Integer viewCount;
+    @Column(name = "view_count", nullable = false, columnDefinition = "integer default 0")
+    @Builder.Default
+    private Integer viewCount = 0;
 
     @JsonIgnore
     @OneToMany(mappedBy = "corporation", cascade = CascadeType.ALL)
