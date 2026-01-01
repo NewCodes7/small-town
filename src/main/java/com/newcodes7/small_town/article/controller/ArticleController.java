@@ -911,12 +911,12 @@ public class ArticleController {
      */
     @GetMapping("/new-home")
     public String newHome(Model model) {
-        // 최신 블로그 글 20개 조회 (중복 제거를 위해 더 많이 가져옴)
+        // 최신 블로그 글 40개 조회 (중복 제거를 위해 더 많이 가져옴)
         Page<ArticleResponseDto> allArticles = articleService.getArticlesWithFilters(
             null,  // keyword
             null,  // regions
             0,     // page
-            20,    // size - 여유있게 가져옴
+            40,    // size - 여유있게 가져옴
             "latest",  // sort
             "list",    // view
             null   // category
@@ -935,12 +935,12 @@ public class ArticleController {
         }
         List<ArticleResponseDto> latestArticles = new ArrayList<>(uniqueArticles.values());
 
-        // 최신 영상 20개 조회 (중복 제거를 위해 더 많이 가져옴)
+        // 최신 영상 40개 조회 (중복 제거를 위해 더 많이 가져옴)
         Page<com.newcodes7.small_town.video.dto.VideoResponseDto> allVideos = videoService.getVideosWithFilters(
             null,  // keyword
             null,  // regions
             0,     // page
-            20,    // size - 여유있게 가져옴
+            40,    // size - 여유있게 가져옴
             "latest",  // sort
             "list",    // view
             null   // category
