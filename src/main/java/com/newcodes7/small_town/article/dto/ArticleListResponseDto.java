@@ -5,8 +5,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.newcodes7.small_town.global.entity.Article;
-import com.newcodes7.small_town.global.entity.Category;
-import com.newcodes7.small_town.global.entity.Tag;
 
 import lombok.Getter;
 
@@ -24,8 +22,8 @@ public class ArticleListResponseDto implements ArticleResponseDto {
     private final Integer readingTime;
     private final String publishedAt;
     private final CorporationDto corporation;
-    private final Category category;
-    private final List<Tag> tags;
+    private final CategoryDto category;
+    private final List<TagDto> tags;
 
     /**
      * BM25 검색 스코어 (Admin 전용, 검색 시에만 사용)
@@ -101,9 +99,9 @@ public class ArticleListResponseDto implements ArticleResponseDto {
         this.publishedAt = article.getPublishedAt() != null ?
             article.getPublishedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : null;
         this.corporation = new CorporationDto(article.getCorporation());
-        this.category = article.getCategory();
+        this.category = article.getCategory() != null ? new CategoryDto(article.getCategory()) : null;
         this.tags = article.getArticleTags().stream()
-            .map(articleTag -> articleTag.getTag())
+            .map(articleTag -> new TagDto(articleTag.getTag()))
             .collect(Collectors.toList());
         this.bm25Score = bm25Score;
         this.vectorScore = vectorScore;

@@ -59,7 +59,7 @@ public class AdminThemeController {
      * 테마 생성
      */
     @PostMapping
-    public ResponseEntity<Theme> createTheme(
+    public ResponseEntity<ThemeSimpleResponseDto> createTheme(
             @RequestBody @Valid ThemeCreateRequestDto dto,
             @AuthenticationPrincipal UserDetails userDetails) {
         if (!isAdmin(userDetails)) {
@@ -67,14 +67,15 @@ public class AdminThemeController {
         }
 
         Theme theme = themeService.createTheme(dto);
-        return ResponseEntity.ok(theme);
+        ThemeSimpleResponseDto response = new ThemeSimpleResponseDto(theme);
+        return ResponseEntity.ok(response);
     }
 
     /**
      * 테마 수정
      */
     @PutMapping("/{themeId}")
-    public ResponseEntity<Theme> updateTheme(
+    public ResponseEntity<ThemeSimpleResponseDto> updateTheme(
             @PathVariable Long themeId,
             @RequestBody @Valid ThemeUpdateRequestDto dto,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -83,7 +84,8 @@ public class AdminThemeController {
         }
 
         Theme theme = themeService.updateTheme(themeId, dto);
-        return ResponseEntity.ok(theme);
+        ThemeSimpleResponseDto response = new ThemeSimpleResponseDto(theme);
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -105,7 +107,7 @@ public class AdminThemeController {
      * 테마에 아티클 추가
      */
     @PostMapping("/{themeId}/articles")
-    public ResponseEntity<ThemeArticle> addArticleToTheme(
+    public ResponseEntity<ThemeArticleResponseDto> addArticleToTheme(
             @PathVariable Long themeId,
             @RequestBody @Valid ThemeArticleAddRequestDto dto,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -114,7 +116,8 @@ public class AdminThemeController {
         }
 
         ThemeArticle themeArticle = themeService.addArticleToTheme(themeId, dto);
-        return ResponseEntity.ok(themeArticle);
+        ThemeArticleResponseDto response = new ThemeArticleResponseDto(themeArticle);
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -137,7 +140,7 @@ public class AdminThemeController {
      * 테마에 비디오 추가
      */
     @PostMapping("/{themeId}/videos")
-    public ResponseEntity<ThemeVideo> addVideoToTheme(
+    public ResponseEntity<ThemeVideoResponseDto> addVideoToTheme(
             @PathVariable Long themeId,
             @RequestBody @Valid ThemeVideoAddRequestDto dto,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -146,7 +149,8 @@ public class AdminThemeController {
         }
 
         ThemeVideo themeVideo = themeService.addVideoToTheme(themeId, dto);
-        return ResponseEntity.ok(themeVideo);
+        ThemeVideoResponseDto response = new ThemeVideoResponseDto(themeVideo);
+        return ResponseEntity.ok(response);
     }
 
     /**
