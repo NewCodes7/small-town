@@ -99,13 +99,16 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            cursor: move;
             transition: all 0.2s ease;
         }
 
         .content-item:hover {
             border-color: var(--primary-green);
             box-shadow: 0 4px 12px rgba(3, 199, 90, 0.1);
+        }
+
+        .content-item:hover .content-title {
+            color: var(--primary-green);
         }
 
         .content-item.dragging {
@@ -142,6 +145,7 @@
         .content-info {
             flex: 1;
             min-width: 0;
+            cursor: pointer;
         }
 
         .content-title {
@@ -151,6 +155,7 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            transition: color 0.2s ease;
         }
 
         .content-meta {
@@ -238,10 +243,15 @@
             align-items: flex-start;
             gap: 12px;
             transition: all 0.2s ease;
+            cursor: pointer;
         }
 
         .search-result-item:hover {
             background: #E5E7EB;
+        }
+
+        .search-result-item:hover .result-title {
+            color: var(--primary-green);
         }
 
         .result-info {
@@ -440,6 +450,7 @@
                     const isArticle = content.contentType === 'article';
                     const item = isArticle ? content.article : content.video;
                     const contentId = isArticle ? `article:${item.id}` : `video:${item.id}`;
+                    const linkUrl = isArticle ? `/articles/${item.id}` : `/videos/${item.id}`;
 
                     return `
                         <div class="content-item" data-content-id="${contentId}">
@@ -447,11 +458,11 @@
                             <span class="content-type-badge ${isArticle ? 'badge-article' : 'badge-video'}">
                                 ${isArticle ? '글' : '영상'}
                             </span>
-                            <div class="content-info">
+                            <div class="content-info" onclick="window.open('${linkUrl}', '_blank')">
                                 <div class="content-title">${item.translatedTitle || item.title}</div>
                                 <div class="content-meta">${item.corporation.name}</div>
                             </div>
-                            <button class="remove-btn" onclick="removeContent('${contentId}')">
+                            <button class="remove-btn" onclick="event.stopPropagation(); removeContent('${contentId}')">
                                 <i class="fas fa-times"></i> 제거
                             </button>
                         </div>
@@ -578,16 +589,19 @@
                         ? `article:${item.id}`
                         : `video:${item.id}`;
                     const isAdded = addedContentIds.has(contentId);
+                    const linkUrl = currentSearchType === 'article'
+                        ? `/articles/${item.id}`
+                        : `/videos/${item.id}`;
 
                     return `
-                        <div class="search-result-item">
+                        <div class="search-result-item" onclick="window.open('${linkUrl}', '_blank')">
                             <div class="result-info">
                                 <div class="result-title">${item.translatedTitle || item.title}</div>
                                 <div class="result-meta">${item.corporation.name}</div>
                             </div>
                             <button
                                 class="add-btn"
-                                onclick="addContent(${item.id})"
+                                onclick="event.stopPropagation(); addContent(${item.id})"
                                 ${isAdded ? 'disabled' : ''}>
                                 ${isAdded ? '추가됨' : '추가'}
                             </button>

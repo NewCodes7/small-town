@@ -279,41 +279,27 @@ public class ThemeService {
     }
 
     /**
-     * 첫 번째 컨텐츠의 썸네일 URL 가져오기
+     * 첫 번째 컨텐츠의 썸네일 URL 가져오기 (최적화 버전)
+     * displayOrder가 가장 작은 컨텐츠의 썸네일 URL만 직접 조회 (엔티티 로딩 없음)
      */
     private String getFirstContentThumbnail(Long themeId) {
-        // Article 목록 조회
-        List<ThemeArticle> themeArticles = themeArticleRepository.findByThemeIdOrderByDisplayOrderAsc(themeId);
-        List<ThemeContentDto> articleContents = themeArticles.stream()
-            .filter(ta -> ta.getArticle().getDeletedAt() == null)
-            .map(ta -> new ThemeContentDto(ta.getArticle(), ta.getDisplayOrder()))
-            .collect(Collectors.toList());
+        // Article 썸네일 조회
+        Optional<String> articleThumbnail = themeArticleRepository.findFirstThumbnailByThemeId(themeId);
 
-        // Video 목록 조회
-        List<ThemeVideo> themeVideos = themeVideoRepository.findByThemeIdOrderByDisplayOrderAsc(themeId);
-        List<ThemeContentDto> videoContents = themeVideos.stream()
-            .filter(tv -> tv.getVideo().getDeletedAt() == null)
-            .map(tv -> new ThemeContentDto(tv.getVideo(), tv.getDisplayOrder()))
-            .collect(Collectors.toList());
+        // Video 썸네일 조회
+        Optional<String> videoThumbnail = themeVideoRepository.findFirstThumbnailByThemeId(themeId);
 
-        // 두 리스트를 합쳐서 displayOrder로 정렬
-        List<ThemeContentDto> allContents = new ArrayList<>();
-        allContents.addAll(articleContents);
-        allContents.addAll(videoContents);
-        allContents.sort(Comparator.comparing(ThemeContentDto::getDisplayOrder));
-
-        // 첫 번째 컨텐츠의 썸네일 반환
-        if (allContents.isEmpty()) {
-            return null;
+        // Article 썸네일이 있으면 반환 (Article이 Video보다 우선)
+        if (articleThumbnail.isPresent()) {
+            return articleThumbnail.get();
         }
 
-        ThemeContentDto firstContent = allContents.get(0);
-        if (firstContent.getArticle() != null) {
-            return firstContent.getArticle().getThumbnailImage();
-        } else if (firstContent.getVideo() != null) {
-            return firstContent.getVideo().getThumbnailUrl();
+        // Video 썸네일이 있으면 반환
+        if (videoThumbnail.isPresent()) {
+            return videoThumbnail.get();
         }
 
+        // 둘 다 없으면 null
         return null;
     }
 }
