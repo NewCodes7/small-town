@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="ko"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title th:text="${article.translatedTitle != null ? article.translatedTitle : article.title} + ' - NewCodes'">Article - NewCodes</title>
+
+    <!-- SEO Meta Tags -->
+    <meta name="description" th:content="${article.translatedTitle != null ? article.translatedTitle : article.title}">
+    <meta property="og:title" th:content="${article.translatedTitle != null ? article.translatedTitle : article.title}">
+    <meta property="og:description" th:content="${article.translatedTitle != null ? article.translatedTitle : article.title}">
+    <meta property="og:image" th:content="${article.thumbnailImage}">
+    <meta property="og:type" content="article">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <style>
+        :root {
+            --primary-green: #03C75A;
+            --secondary-green: #E8F7EF;
+            --text-dark: #1F2937;
+            --text-light: #6B7280;
+            --border-light: #E5E7EB;
+            --bg-light: #F9FAFB;
+        }
+
+        .article-detail-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .article-detail-content {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 40px;
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        .article-detail-main {
+            padding: 40px;
+        }
+
+        .article-detail-thumbnail {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            background: linear-gradient(135deg, var(--secondary-green) 0%, #F0F8F0 100%);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .article-detail-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .article-detail-thumbnail-placeholder {
+            font-size: 5rem;
+            color: var(--primary-green);
+            opacity: 0.3;
+        }
+
+        .article-detail-header {
+            margin-bottom: 32px;
+        }
+
+        .article-detail-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--text-dark);
+            line-height: 1.4;
+            margin-bottom: 20px;
+        }
+
+        .article-detail-meta {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .article-detail-company {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: inherit;
+            transition: opacity 0.2s ease;
+        }
+
+        .article-detail-company:hover {
+            opacity: 0.7;
+        }
+
+        .article-detail-company-logo {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            object-fit: contain;
+            background: white;
+            border: 1px solid var(--border-light);
+        }
+
+        .article-detail-company-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--primary-green);
+        }
+
+        .article-detail-category {
+            padding: 8px 16px;
+            background: var(--secondary-green);
+            color: var(--primary-green);
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .article-detail-date {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-light);
+            font-size: 1rem;
+        }
+
+        .article-detail-actions {
+            display: flex;
+            gap: 16px;
+            margin-top: 32px;
+        }
+
+        .article-detail-link-btn {
+            flex: 1;
+            padding: 16px 32px;
+            background: var(--primary-green);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .article-detail-link-btn:hover {
+            background: #02B350;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(3, 199, 90, 0.3);
+        }
+
+        .article-detail-like-btn {
+            padding: 16px 24px;
+            background: transparent;
+            color: var(--text-light);
+            border: 2px solid var(--border-light);
+            border-radius: 12px;
+            font-size: 1.3rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .article-detail-like-btn:hover {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: #ef4444;
+            color: #ef4444;
+        }
+
+        .article-detail-like-btn.liked {
+            color: #ef4444;
+            border-color: #ef4444;
+        }
+
+        .article-detail-sidebar {
+            background: var(--bg-light);
+            padding: 40px 24px;
+            border-left: 1px solid var(--border-light);
+        }
+
+        .article-detail-related-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .article-detail-related-icon {
+            color: var(--primary-green);
+        }
+
+        .article-detail-related-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .article-detail-related-card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            border: 2px solid var(--border-light);
+            transition: all 0.2s ease;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .article-detail-related-card:hover {
+            border-color: var(--primary-green);
+            transform: translateX(4px);
+        }
+
+        .article-detail-related-card-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-dark);
+            line-height: 1.4;
+            margin-bottom: 8px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .article-detail-related-card-company {
+            font-size: 0.8rem;
+            color: var(--text-light);
+        }
+
+        .article-detail-related-placeholder {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-light);
+        }
+
+        .article-detail-related-placeholder i {
+            font-size: 2.5rem;
+            opacity: 0.3;
+            margin-bottom: 16px;
+            display: block;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .article-detail-content {
+                grid-template-columns: 1fr;
+            }
+
+            .article-detail-main {
+                padding: 30px 20px;
+            }
+
+            .article-detail-sidebar {
+                border-left: none;
+                border-top: 1px solid var(--border-light);
+                padding: 30px 20px;
+            }
+
+            .article-detail-title {
+                font-size: 1.5rem;
+            }
+
+            .article-detail-actions {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="article-detail-container">
+            <div class="article-detail-content">
+                <!-- Main Content -->
+                <div class="article-detail-main">
+                    <!-- Thumbnail -->
+                    <div class="article-detail-thumbnail">
+                        <img th:if="${article.thumbnailImage != null}"
+                             th:src="${article.thumbnailImage}"
+                             th:alt="${article.translatedTitle != null ? article.translatedTitle : article.title}">
+                        <i th:if="${article.thumbnailImage == null}" class="fas fa-code article-detail-thumbnail-placeholder"></i>
+                    </div>
+
+                    <!-- Header -->
+                    <div class="article-detail-header">
+                        <h1 class="article-detail-title" th:text="${article.translatedTitle != null ? article.translatedTitle : article.title}">
+                            Article Title
+                        </h1>
+
+                        <div class="article-detail-meta">
+                            <!-- Company -->
+                            <a th:href="@{/corporations/{id}(id=${article.corporation.id})}"
+                               class="article-detail-company">
+                                <img th:if="${article.corporation.effectiveLogoUrl != null}"
+                                     th:src="${article.corporation.effectiveLogoUrl}"
+                                     th:alt="${article.corporation.name}"
+                                     class="article-detail-company-logo">
+                                <span class="article-detail-company-name" th:text="${article.corporation.name}">Company</span>
+                            </a>
+
+                            <!-- Category -->
+                            <span class="article-detail-category" th:text="${article.category != null ? article.category.name : '기타'}">
+                                카테고리
+                            </span>
+
+                            <!-- Date -->
+                            <span class="article-detail-date">
+                                <i class="far fa-clock"></i>
+                                <span th:text="${#strings.replace(#strings.substring(article.publishedAt, 0, 10), '-', '.')}">2024.01.01</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="article-detail-actions">
+                        <a th:href="${article.link}"
+                           target="_blank"
+                           class="article-detail-link-btn">
+                            <span>원문 읽기</span>
+                            <i class="fas fa-external-link-alt"></i>
+                        </a>
+                        <button class="article-detail-like-btn"
+                                th:attr="data-article-id=${article.id}"
+                                onclick="toggleArticleLike(this, event)">
+                            <i class="far fa-heart"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sidebar - Related Articles -->
+                <div class="article-detail-sidebar">
+                    <h3 class="article-detail-related-title">
+                        <i class="fas fa-sparkles article-detail-related-icon"></i>
+                        연관 추천 글
+                    </h3>
+
+                    <div class="article-detail-related-list">
+                        <!-- Placeholder for now -->
+                        <div class="article-detail-related-placeholder">
+                            <i class="fas fa-magic"></i>
+                            <p>연관 추천 기능은<br>곧 제공될 예정입니다</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div layout:fragment="scripts">
+        <script th:inline="javascript">
+            // Toggle article like
+            async function toggleArticleLike(button, event) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const articleId = button.getAttribute('data-article-id');
+
+                try {
+                    const response = await fetch(`/api/articles/${articleId}/like`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const likeIcon = button.querySelector('i');
+
+                        if (data.isLiked) {
+                            button.classList.add('liked');
+                            likeIcon.classList.remove('far');
+                            likeIcon.classList.add('fas');
+                        } else {
+                            button.classList.remove('liked');
+                            likeIcon.classList.remove('fas');
+                            likeIcon.classList.add('far');
+                        }
+                    } else if (response.status === 401) {
+                        alert('좋아요를 하려면 로그인이 필요합니다.');
+                    }
+                } catch (error) {
+                    console.error('좋아요 처리 실패:', error);
+                }
+            }
+
+            // Load article like status
+            async function loadArticleLikeStatus() {
+                const likeBtn = document.querySelector('.article-detail-like-btn');
+                if (!likeBtn) return;
+
+                const articleId = likeBtn.getAttribute('data-article-id');
+
+                try {
+                    const response = await fetch(`/api/articles/${articleId}/like/status`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        const likeIcon = likeBtn.querySelector('i');
+
+                        if (data.isLiked) {
+                            likeBtn.classList.add('liked');
+                            likeIcon.classList.remove('far');
+                            likeIcon.classList.add('fas');
+                        }
+                    }
+                } catch (error) {
+                    console.error('좋아요 상태 로드 실패:', error);
+                }
+            }
+
+            // Increment view count
+            async function incrementViewCount() {
+                const likeBtn = document.querySelector('.article-detail-like-btn');
+                if (!likeBtn) return;
+
+                const articleId = likeBtn.getAttribute('data-article-id');
+
+                try {
+                    await fetch(`/api/articles/${articleId}/view`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'same-origin',
+                        redirect: 'manual'
+                    });
+                } catch (error) {
+                    console.log('조회수 증가 요청 실패:', error);
+                }
+            }
+
+            // Page load
+            document.addEventListener('DOMContentLoaded', function() {
+                loadArticleLikeStatus();
+                incrementViewCount();
+            });
+        </script>
+    </div>
+</body>
+</html>

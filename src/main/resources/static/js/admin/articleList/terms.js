@@ -152,42 +152,148 @@ if (reextractVideoTermsBtn) {
     });
 }
 
-// Term 삭제 버튼 클릭 (불용어 등록)
+// Term 배지 클릭 이벤트 (불용어 등록 메뉴 표시)
 document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('delete-term-btn') || e.target.closest('.delete-term-btn')) {
-        const btn = e.target.classList.contains('delete-term-btn') ? e.target : e.target.closest('.delete-term-btn');
-        const termId = btn.dataset.termId;
-        const term = btn.dataset.term;
-        const termType = btn.dataset.termType;
+    // term-badge-editable 클릭
+    if (e.target.classList.contains('term-badge-editable') || e.target.closest('.term-badge-editable')) {
+        e.stopPropagation();
+        const badge = e.target.classList.contains('term-badge-editable') ? e.target : e.target.closest('.term-badge-editable');
+        const termId = badge.dataset.termId;
+        const term = badge.dataset.term;
+        const articleTermId = badge.dataset.articleTermId;
 
-        if (confirm(`"${term}" (${termType})를 불용어로 등록하시겠습니까?\n\n이 term은 모든 article에서 삭제되며, 향후 추출되지 않습니다.`)) {
-            const reason = prompt('불용어 등록 사유를 입력하세요 (선택사항):', '');
-
-            fetch(`/admin/terms/${termId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    reason: reason || null
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert(data.message);
-                    location.reload();
-                } else {
-                    alert('Term 삭제 실패: ' + data.message);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Term 삭제 중 오류가 발생했습니다.');
-            });
-        }
+        // 컨텍스트 메뉴 표시
+        showTermContextMenu(badge, termId, term, articleTermId);
     }
 });
+
+// Term 컨텍스트 메뉴 표시
+function showTermContextMenu(badge, termId, term, articleTermId) {
+    // 기존 메뉴 제거
+    const existingMenu = document.querySelector('.term-context-menu');
+    if (existingMenu) {
+        existingMenu.remove();
+    }
+
+    // 메뉴 생성
+    const menu = document.createElement('div');
+    menu.className = 'term-context-menu';
+    menu.style.cssText = `
+        position: fixed;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        min-width: 200px;
+        padding: 8px 0;
+    `;
+
+    // 메뉴 항목 추가
+    menu.innerHTML = `
+        <div class="menu-item" style="padding: 10px 16px; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='white'" data-action="delete-article-term">
+            <i class="fas fa-minus-circle text-warning me-2"></i>
+            <span>이 글에서만 제거</span>
+        </div>
+        <div class="menu-item" style="padding: 10px 16px; cursor: pointer; transition: background 0.2s; border-top: 1px solid #eee;" onmouseover="this.style.background='#fff3f3'" onmouseout="this.style.background='white'" data-action="add-stopword">
+            <i class="fas fa-ban text-danger me-2"></i>
+            <span>불용어로 등록 (전체 삭제)</span>
+        </div>
+    `;
+
+    // 위치 계산
+    const rect = badge.getBoundingClientRect();
+    menu.style.left = rect.left + 'px';
+    menu.style.top = (rect.bottom + 5) + 'px';
+
+    // 메뉴 클릭 이벤트
+    menu.addEventListener('click', function(e) {
+        const menuItem = e.target.closest('.menu-item');
+        if (!menuItem) return;
+
+        const action = menuItem.dataset.action;
+
+        if (action === 'delete-article-term') {
+            // ArticleTerm만 삭제
+            deleteArticleTerm(articleTermId, term, badge);
+        } else if (action === 'add-stopword') {
+            // 불용어 등록 (전체 삭제)
+            addTermToStopwords(termId, term);
+        }
+
+        menu.remove();
+    });
+
+    document.body.appendChild(menu);
+
+    // 다른 곳 클릭 시 메뉴 닫기
+    setTimeout(() => {
+        document.addEventListener('click', function closeMenu(e) {
+            if (!menu.contains(e.target)) {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        });
+    }, 100);
+}
+
+// ArticleTerm 삭제 (이 글에서만 제거)
+function deleteArticleTerm(articleTermId, term, badge) {
+    const articleId = badge.dataset.articleId;
+
+    if (confirm(`"${term}"을(를) 이 글에서만 제거하시겠습니까?`)) {
+        fetch(`/admin/articles/${articleId}/terms/${articleTermId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                // Term 목록 새로고침
+                loadTermsForArticle(articleId);
+            } else {
+                alert('Term 삭제 실패: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Term 삭제 중 오류가 발생했습니다.');
+        });
+    }
+}
+
+// Term 불용어 등록 (전체 삭제)
+function addTermToStopwords(termId, term) {
+    if (confirm(`"${term}"을(를) 불용어로 등록하시겠습니까?\n\n이 term은 모든 article과 video에서 삭제되며, 향후 추출되지 않습니다.`)) {
+        const reason = prompt('불용어 등록 사유를 입력하세요 (선택사항):', '');
+
+        fetch(`/admin/terms/${termId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                reason: reason || null
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('Term 삭제 실패: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Term 삭제 중 오류가 발생했습니다.');
+        });
+    }
+}
 
 // Term 로드 및 표시 (페이지 로드 시)
 document.addEventListener('DOMContentLoaded', function() {

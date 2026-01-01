@@ -883,6 +883,27 @@ footer {
     text-align: center;
 }
 
+.mobile-nav-section-title {
+    padding: 16px 24px 8px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+}
+
+.mobile-nav-sub-link {
+    padding-left: 44px;
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+.mobile-nav-sub-link:hover {
+    padding-left: 48px;
+}
+
 /* Navigation always visible - no collapse */
 .navbar {
     display: flex;

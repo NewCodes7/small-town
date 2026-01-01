@@ -1,9 +1,13 @@
 package com.newcodes7.small_town.article.controller;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +85,8 @@ public class ArticleController {
     private final com.newcodes7.small_town.article.repository.LikeLogRepository likeLogRepository;
     private final com.newcodes7.small_town.video.repository.VideoLikeLogRepository videoLikeLogRepository;
     private final SemanticTermExpansionService semanticExpansionService;
+    private final com.newcodes7.small_town.video.service.VideoService videoService;
+    private final com.newcodes7.small_town.theme.service.ThemeService themeService;
 
     @GetMapping({"", "/"})
     public String home(
@@ -372,13 +378,57 @@ public class ArticleController {
     public String about(Model model) {
         long totalArticles = articleService.getTotalArticleCount();
         long totalCorporations = corporationService.getTotalCorporationCount();
-        
+
         model.addAttribute("totalArticles", totalArticles);
         model.addAttribute("totalCorporations", totalCorporations);
-        
+
         return "about";
     }
-    
+
+    @GetMapping("/articles/{id}")
+    public String articleDetailRedirect(@PathVariable Long id) {
+        Article article = articleRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Article not found"));
+
+        String slug = generateSlug(article);
+        String encodedSlug = URLEncoder.encode(slug, StandardCharsets.UTF_8);
+        return "redirect:/articles/" + id + "/" + encodedSlug;
+    }
+
+    @GetMapping("/articles/{id}/{slug}")
+    public String articleDetail(@PathVariable Long id, @PathVariable String slug, Model model) {
+        Article article = articleRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Article not found"));
+
+        // Article DTO 생성
+        ArticleListResponseDto articleDto = new ArticleListResponseDto(article);
+
+        model.addAttribute("article", articleDto);
+
+        return "article-detail";
+    }
+
+    private String generateSlug(Article article) {
+        // 번역된 제목이 있으면 사용, 없으면 원본 제목 사용
+        String title = article.getTranslatedTitle() != null ?
+            article.getTranslatedTitle() : article.getTitle();
+
+        String slug = title.toLowerCase()
+            .replaceAll("[^a-z0-9가-힣\\s-]", "") // 특수문자 제거 (한글, 영문, 숫자, 공백, 하이픈만 남김)
+            .replaceAll("\\s+", "-")               // 공백을 하이픈으로
+            .replaceAll("-+", "-")                 // 연속된 하이픈을 하나로
+            .replaceAll("^-|-$", "");              // 앞뒤 하이픈 제거
+
+        // 최대 100자로 제한
+        if (slug.length() > 100) {
+            slug = slug.substring(0, 100);
+            // 마지막 하이픈 제거
+            slug = slug.replaceAll("-$", "");
+        }
+
+        return slug;
+    }
+
     @GetMapping("/corporations")
     public String corporations(
             @RequestParam(defaultValue = "0") int page,

@@ -1,0 +1,1544 @@
+<!DOCTYPE html>
+<html lang="ko"
+        xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>NewCodes - 모든 기술블로그를 한 곳에서</title>
+    <th:block layout:fragment="meta" th:remove="tag">
+        <meta name="description" content="NewCodes에서 최신 기술 블로그와 IT 소식을 만나보세요. 개발자를 위한 다양한 아티클을 매일 업데이트합니다.">
+        <meta name="keywords" content="홈, 최신 기술, IT 뉴스, 개발자 커뮤니티, 기술 아티클, NewCodes">
+        <meta name="robots" content="index, follow">
+    </th:block>
+    <link rel="stylesheet" type="text/css" th:href="@{/css/home.css}">
+    <style>
+        /* New Home Page Styles */
+        .new-home-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Hero Section */
+        .hero-banner {
+            background: linear-gradient(135deg, var(--secondary-green) 0%, #F0F8F0 100%);
+            border-radius: 24px;
+            padding: 60px 40px;
+            margin-bottom: 60px;
+            border: 1px solid rgba(40, 199, 111, 0.1);
+            position: relative;
+            overflow: hidden;
+            height: 33vh;
+            min-height: 300px;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 2;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 16px;
+            padding: 20px;
+            margin: 0 auto;
+            max-width: 600px;
+            text-align: center;
+        }
+
+        .hero-title {
+            font-size: 3rem;
+            font-weight: 800;
+            color: var(--text-dark);
+            margin-bottom: 12px;
+            letter-spacing: -1px;
+        }
+
+        .hero-subtitle {
+            font-size: 1.2rem;
+            color: var(--text-light);
+            font-weight: 600;
+            margin-bottom: 0;
+        }
+
+        /* Floating Company Logos */
+        .floating-logos-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .floating-logo {
+            position: absolute;
+            animation: float 8s ease-in-out infinite;
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+            pointer-events: auto;
+        }
+
+        .floating-logo:hover {
+            opacity: 1;
+        }
+
+        .floating-logo-link {
+            display: block;
+            text-decoration: none;
+            transition: transform 0.3s ease;
+        }
+
+        .floating-logo-link:hover .logo-image {
+            transform: scale(1.05);
+        }
+
+        .logo-image {
+            width: 40px;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0px) translateX(0px) rotate(0deg);
+            }
+            25% {
+                transform: translateY(-20px) translateX(10px) rotate(2deg);
+            }
+            50% {
+                transform: translateY(-10px) translateX(-15px) rotate(-1deg);
+            }
+            75% {
+                transform: translateY(-25px) translateX(5px) rotate(1deg);
+            }
+        }
+
+        /* Fixed positions for 20 logos */
+        .floating-logo:nth-child(1) { top: 12%; left: 8%; animation-delay: 0s; }
+        .floating-logo:nth-child(2) { top: 18%; right: 12%; animation-delay: -1s; }
+        .floating-logo:nth-child(3) { top: 28%; left: 15%; animation-delay: -2s; }
+        .floating-logo:nth-child(4) { top: 25%; right: 6%; animation-delay: -3s; }
+        .floating-logo:nth-child(5) { top: 38%; left: 5%; animation-delay: -4s; }
+        .floating-logo:nth-child(6) { top: 35%; right: 20%; animation-delay: -5s; }
+        .floating-logo:nth-child(7) { top: 48%; left: 22%; animation-delay: -6s; }
+        .floating-logo:nth-child(8) { top: 45%; right: 8%; animation-delay: -7s; }
+        .floating-logo:nth-child(9) { top: 58%; left: 10%; animation-delay: -1.5s; }
+        .floating-logo:nth-child(10) { top: 55%; right: 25%; animation-delay: -2.5s; }
+        .floating-logo:nth-child(11) { top: 68%; left: 18%; animation-delay: -3.5s; }
+        .floating-logo:nth-child(12) { top: 65%; right: 10%; animation-delay: -4.5s; }
+        .floating-logo:nth-child(13) { top: 78%; left: 7%; animation-delay: -5.5s; }
+        .floating-logo:nth-child(14) { top: 75%; right: 22%; animation-delay: -6.5s; }
+        .floating-logo:nth-child(15) { top: 88%; left: 20%; animation-delay: -7.5s; }
+        .floating-logo:nth-child(16) { top: 85%; right: 15%; animation-delay: -0.5s; }
+        .floating-logo:nth-child(17) { top: 15%; left: 30%; animation-delay: -1.2s; }
+        .floating-logo:nth-child(18) { top: 42%; right: 28%; animation-delay: -2.7s; }
+        .floating-logo:nth-child(19) { top: 62%; left: 32%; animation-delay: -4.2s; }
+        .floating-logo:nth-child(20) { top: 72%; right: 18%; animation-delay: -5.8s; }
+
+        /* Section Headers */
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 28px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid var(--border-light);
+        }
+
+        .section-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .section-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--primary-green);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2rem;
+        }
+
+        .section-more {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 20px;
+            background: var(--secondary-green);
+            border: 2px solid var(--primary-green);
+            border-radius: 20px;
+            color: var(--primary-green);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .section-more:hover {
+            background: var(--primary-green);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+        }
+
+        /* Mobile View All Button */
+        .mobile-view-all {
+            display: none;
+            margin-top: 32px;
+            text-align: center;
+        }
+
+        .mobile-view-all-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 14px 32px;
+            background: white;
+            border: 2px solid var(--primary-green);
+            border-radius: 12px;
+            color: var(--primary-green);
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(34, 197, 94, 0.1);
+        }
+
+        .mobile-view-all-btn:hover {
+            background: var(--primary-green);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(34, 197, 94, 0.3);
+        }
+
+        .mobile-view-all-btn i {
+            font-size: 0.9rem;
+            transition: transform 0.3s ease;
+        }
+
+        .mobile-view-all-btn:hover i {
+            transform: translateX(4px);
+        }
+
+        /* Content Sections */
+        .content-section {
+            margin-bottom: 80px;
+        }
+
+        /* Blog Cards Grid */
+        .blog-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 300px));
+            gap: 20px;
+            justify-content: center;
+        }
+
+        .blog-card {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 2px solid var(--border-light);
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 12px rgba(3, 199, 90, 0.08);
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .blog-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(3, 199, 90, 0.15);
+            border-color: var(--primary-green);
+        }
+
+        .blog-card-thumbnail {
+            width: 100%;
+            height: 160px;
+            background: linear-gradient(135deg, var(--secondary-green) 0%, #F0F8F0 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .blog-card-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+        .blog-card:hover .blog-card-thumbnail img {
+            transform: scale(1.05);
+        }
+
+        .blog-card-thumbnail-placeholder {
+            font-size: 3.5rem;
+            color: var(--primary-green);
+            opacity: 0.35;
+        }
+
+        .blog-card-content {
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .blog-card-company {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .blog-card-company-logo {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            object-fit: contain;
+            background: white;
+            border: 1px solid var(--border-light);
+        }
+
+        .blog-card-company-name {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--primary-green);
+        }
+
+        .blog-card-title {
+            font-size: 1.0rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 10px;
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            min-height: 3.8rem;
+        }
+
+        .blog-card-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+            color: var(--text-light);
+            margin-top: auto;
+            padding-top: 10px;
+            border-top: 1px solid var(--border-light);
+        }
+
+        .blog-card-date {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .blog-card-date i {
+            font-size: 0.75rem;
+        }
+
+        .blog-card-link {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .blog-card-title-link {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .blog-card-title-link:hover .blog-card-title {
+            color: var(--primary-green);
+        }
+
+        .blog-card-company-link {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+            color: inherit;
+            transition: opacity 0.2s ease;
+        }
+
+        .blog-card-company-link:hover {
+            opacity: 0.7;
+        }
+
+        .like-button {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background: transparent;
+            border: none;
+            color: var(--text-light);
+            cursor: pointer;
+            font-size: 0.8rem;
+            padding: 4px 8px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            margin-left: auto;
+        }
+
+        .like-button:hover {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+
+        .like-button.liked {
+            color: #ef4444;
+        }
+
+        .like-button.liked .like-icon {
+            color: #ef4444;
+        }
+
+        .like-icon {
+            transition: all 0.2s ease;
+        }
+
+        .like-button.liked .like-icon {
+            animation: heartBeat 0.3s ease;
+        }
+
+        @keyframes heartBeat {
+            0%, 100% {
+                transform: scale(1);
+            }
+            25% {
+                transform: scale(1.3);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+            75% {
+                transform: scale(1.25);
+            }
+        }
+
+        .like-count {
+            font-weight: 600;
+        }
+
+        /* Video Cards Grid */
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 300px));
+            gap: 20px;
+            justify-content: center;
+        }
+
+        .video-card {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 2px solid var(--border-light);
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 12px rgba(3, 199, 90, 0.08);
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .video-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(3, 199, 90, 0.15);
+            border-color: var(--primary-green);
+        }
+
+        .video-card-thumbnail {
+            width: 100%;
+            height: 160px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .video-card-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .video-play-icon {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: var(--primary-green);
+            transition: all 0.3s ease;
+        }
+
+        .video-card:hover .video-play-icon {
+            transform: scale(1.15);
+            background: var(--primary-green);
+            color: white;
+        }
+
+        .video-card-content {
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .video-card-channel {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .video-card-channel-logo {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            object-fit: contain;
+            background: white;
+            border: 1px solid var(--border-light);
+        }
+
+        .video-card-channel-link {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+            color: inherit;
+            transition: opacity 0.2s ease;
+        }
+
+        .video-card-channel-link:hover {
+            opacity: 0.7;
+        }
+
+        .video-card-channel-name {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--primary-green);
+        }
+
+        .video-card-title {
+            font-size: 1.0rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 10px;
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            min-height: 3.8rem;
+        }
+
+        .video-card-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+            color: var(--text-light);
+            margin-top: auto;
+            padding-top: 10px;
+            border-top: 1px solid var(--border-light);
+        }
+
+        .video-card-date {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.75rem;
+            color: var(--text-light);
+        }
+
+        .video-card-date i {
+            font-size: 0.7rem;
+        }
+
+        /* Theme Collections */
+        .theme-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 300px));
+            gap: 20px;
+            padding: 20px 0;
+            justify-content: center;
+        }
+
+        .theme-collection {
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+            border-radius: 16px;
+            overflow: visible;
+            border: 2px solid var(--border-light);
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 4px 16px rgba(3, 199, 90, 0.12);
+            text-decoration: none;
+            color: inherit;
+            cursor: pointer;
+            position: relative;
+            z-index: 3;
+            margin-right: 24px;
+            opacity: 1;
+            isolation: isolate;
+            height: 100%;
+        }
+
+        /* Stacked card effect - cards behind on the right */
+        .theme-collection::before,
+        .theme-collection::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: linear-gradient(135deg, #ffffff 0%, #f8fffe 100%);
+            border-radius: 16px;
+            border: 2px solid var(--border-light);
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            pointer-events: none;
+        }
+
+        /* Second card layer (middle) - right behind */
+        .theme-collection::before {
+            transform: translateX(10px) translateY(6px) rotate(2deg);
+            z-index: -1;
+            box-shadow: 0 3px 10px rgba(3, 199, 90, 0.08);
+            background: linear-gradient(135deg, #fafffe 0%, #f0fdf8 100%);
+        }
+
+        /* Third card layer (back) - further right */
+        .theme-collection::after {
+            transform: translateX(18px) translateY(12px) rotate(4deg);
+            z-index: -2;
+            box-shadow: 0 2px 6px rgba(3, 199, 90, 0.05);
+            background: linear-gradient(135deg, #f5fffe 0%, #ecfdf5 100%);
+        }
+
+        /* Hover effect - cards fan out */
+        .theme-collection:hover {
+            transform: translateX(-8px) translateY(-4px) rotate(-2deg);
+            box-shadow: 0 16px 36px rgba(3, 199, 90, 0.2);
+            border-color: var(--primary-green);
+        }
+
+        .theme-collection:hover::before {
+            transform: translateX(16px) translateY(4px) rotate(4deg);
+            box-shadow: 0 8px 20px rgba(3, 199, 90, 0.14);
+            border-color: rgba(34, 197, 94, 0.4);
+        }
+
+        .theme-collection:hover::after {
+            transform: translateX(30px) translateY(8px) rotate(8deg);
+            box-shadow: 0 4px 12px rgba(3, 199, 90, 0.1);
+            border-color: rgba(34, 197, 94, 0.25);
+        }
+
+        .theme-thumbnail {
+            position: relative;
+            width: 100%;
+            height: 160px;
+            overflow: hidden;
+            background: linear-gradient(135deg, var(--secondary-green) 0%, #F0F8F0 100%);
+            border-radius: 14px 14px 0 0;
+            opacity: 1;
+            z-index: 2;
+        }
+
+        .theme-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+        .theme-collection:hover .theme-thumbnail img {
+            transform: scale(1.05);
+        }
+
+        .theme-thumbnail-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3.5rem;
+            color: var(--primary-green);
+            opacity: 0.35;
+        }
+
+
+        .theme-content {
+            padding: 18px;
+            background: #ffffff;
+            opacity: 1;
+            z-index: 2;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            border-radius: 0 0 14px 14px;
+            overflow: hidden;
+        }
+
+        .theme-title {
+            font-size: 1.0rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 10px;
+            line-height: 1.4;
+            min-height: 3.8rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .theme-description {
+            font-size: 0.85rem;
+            color: var(--text-light);
+            line-height: 1.4;
+            margin-bottom: 14px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            min-height: 2.38em;
+        }
+
+        .theme-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border-light);
+            margin-top: auto;
+        }
+
+        .theme-count {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.8rem;
+            color: var(--text-light);
+            font-weight: 600;
+        }
+
+        .theme-count i {
+            color: var(--primary-green);
+            font-size: 0.75rem;
+        }
+
+        .theme-cta {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.8rem;
+            color: var(--primary-green);
+            font-weight: 600;
+            transition: gap 0.3s ease;
+        }
+
+        .theme-cta i {
+            font-size: 0.7rem;
+        }
+
+        .theme-collection:hover .theme-cta {
+            gap: 8px;
+        }
+
+        /* Video Modal Styles */
+        .video-modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .video-modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .video-modal-content {
+            position: relative;
+            width: 90%;
+            max-width: 1200px;
+            aspect-ratio: 16 / 9;
+            animation: scaleIn 0.3s ease;
+        }
+
+        .video-modal-close {
+            position: absolute;
+            top: -40px;
+            right: 0;
+            color: #fff;
+            font-size: 35px;
+            font-weight: bold;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+            line-height: 1;
+            transition: color 0.3s ease;
+        }
+
+        .video-modal-close:hover {
+            color: #FF0000;
+        }
+
+        .video-modal iframe {
+            width: 100%;
+            height: 100%;
+            border: 0;
+            border-radius: 8px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes scaleIn {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .blog-grid,
+            .video-grid,
+            .theme-grid {
+                grid-template-columns: repeat(3, minmax(0, 300px));
+            }
+        }
+
+        @media (max-width: 768px) {
+            .new-home-container {
+                padding: 0 16px;
+            }
+
+            .hero-banner {
+                padding: 40px 24px;
+                margin-bottom: 40px;
+                min-height: 250px;
+            }
+
+            .hero-content {
+                padding: 15px;
+                max-width: 100%;
+            }
+
+            .hero-title {
+                font-size: 2rem;
+            }
+
+            .hero-subtitle {
+                font-size: 1rem;
+            }
+
+            .logo-image {
+                width: 35px;
+            }
+
+            /* Mobile logo positions */
+            .floating-logo:nth-child(1) { top: 8%; left: 5%; }
+            .floating-logo:nth-child(2) { top: 12%; right: 8%; }
+            .floating-logo:nth-child(3) { top: 22%; left: 10%; }
+            .floating-logo:nth-child(4) { top: 20%; right: 5%; }
+            .floating-logo:nth-child(5) { top: 32%; left: 3%; }
+            .floating-logo:nth-child(6) { top: 30%; right: 15%; }
+            .floating-logo:nth-child(7) { top: 42%; left: 18%; }
+            .floating-logo:nth-child(8) { top: 40%; right: 6%; }
+            .floating-logo:nth-child(9) { top: 52%; left: 8%; }
+            .floating-logo:nth-child(10) { top: 50%; right: 20%; }
+            .floating-logo:nth-child(11) { top: 62%; left: 15%; }
+            .floating-logo:nth-child(12) { top: 60%; right: 8%; }
+            .floating-logo:nth-child(13) { top: 72%; left: 5%; }
+            .floating-logo:nth-child(14) { top: 70%; right: 18%; }
+            .floating-logo:nth-child(15) { top: 82%; left: 12%; }
+            .floating-logo:nth-child(16) { top: 80%; right: 10%; }
+            .floating-logo:nth-child(17) { top: 16%; left: 25%; }
+            .floating-logo:nth-child(18) { top: 36%; right: 25%; }
+            .floating-logo:nth-child(19) { top: 56%; left: 28%; }
+            .floating-logo:nth-child(20) { top: 76%; right: 15%; }
+
+            .section-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
+            .section-title {
+                font-size: 1.5rem;
+            }
+
+            .blog-grid,
+            .video-grid,
+            .theme-grid {
+                grid-template-columns: repeat(2, minmax(0, 300px));
+            }
+
+            .theme-grid {
+                padding: 16px 0;
+            }
+
+            /* Reduce stack effect on tablet */
+            .theme-collection {
+                margin-right: 16px;
+            }
+
+            .theme-collection::before {
+                transform: translateX(8px) translateY(5px) rotate(1.5deg);
+            }
+
+            .theme-collection::after {
+                transform: translateX(14px) translateY(10px) rotate(3deg);
+            }
+
+            .theme-collection:hover {
+                transform: translateX(-6px) translateY(-3px) rotate(-1.5deg);
+            }
+
+            .theme-collection:hover::before {
+                transform: translateX(12px) translateY(3px) rotate(3deg);
+            }
+
+            .theme-collection:hover::after {
+                transform: translateX(22px) translateY(6px) rotate(6deg);
+            }
+
+            .content-section {
+                margin-bottom: 60px;
+            }
+
+            .mobile-view-all {
+                display: block;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .hero-banner {
+                min-height: 220px;
+            }
+
+            .hero-title {
+                font-size: 1.8rem;
+            }
+
+            .hero-subtitle {
+                font-size: 0.9rem;
+            }
+
+            .logo-image {
+                width: 30px;
+            }
+
+            .section-title {
+                font-size: 1.3rem;
+            }
+
+            .section-icon {
+                width: 36px;
+                height: 36px;
+                font-size: 1rem;
+            }
+
+            .blog-grid,
+            .video-grid,
+            .theme-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .theme-grid {
+                padding: 12px 0;
+            }
+
+            /* Minimal stack effect on small mobile */
+            .theme-collection {
+                margin-right: 12px;
+            }
+
+            .theme-collection::before {
+                transform: translateX(6px) translateY(4px) rotate(1deg);
+            }
+
+            .theme-collection::after {
+                transform: translateX(11px) translateY(8px) rotate(2deg);
+            }
+
+            .theme-collection:hover {
+                transform: translateX(-4px) translateY(-2px) rotate(-1deg);
+            }
+
+            .theme-collection:hover::before {
+                transform: translateX(9px) translateY(2px) rotate(2deg);
+            }
+
+            .theme-collection:hover::after {
+                transform: translateX(16px) translateY(4px) rotate(4deg);
+            }
+
+            .blog-card-thumbnail,
+            .video-card-thumbnail {
+                height: 140px;
+            }
+
+            .blog-card-content,
+            .video-card-content {
+                padding: 16px;
+            }
+
+            .blog-card-title,
+            .video-card-title {
+                font-size: 1rem;
+            }
+
+            .blog-card-company-name,
+            .video-card-channel {
+                font-size: 0.75rem;
+            }
+
+            .video-play-icon {
+                width: 45px;
+                height: 45px;
+                font-size: 1.1rem;
+            }
+
+            .mobile-view-all {
+                margin-top: 24px;
+            }
+
+            .mobile-view-all-btn {
+                padding: 12px 28px;
+                font-size: 0.95rem;
+            }
+
+            .theme-thumbnail {
+                height: 140px;
+            }
+
+            .theme-thumbnail-placeholder {
+                font-size: 3rem;
+            }
+
+
+            .theme-content {
+                padding: 16px;
+            }
+
+            .theme-title {
+                font-size: 1rem;
+            }
+
+            .theme-description {
+                font-size: 0.8rem;
+                margin-bottom: 12px;
+            }
+
+            .theme-meta {
+                padding-top: 10px;
+            }
+
+            .theme-count {
+                font-size: 0.75rem;
+            }
+
+            .theme-cta {
+                font-size: 0.75rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="new-home-container">
+
+            <!-- Latest Blog Articles Section -->
+            <section class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <span class="section-icon">
+                            <i class="fas fa-newspaper"></i>
+                        </span>
+                        최신 기술 블로그
+                    </h2>
+                    <a href="/" class="section-more">
+                        전체보기
+                        <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+
+                <div class="blog-grid">
+                    <!-- Blog Cards - Dynamic -->
+                    <div th:each="article : ${articles}" class="blog-card">
+                        <a th:href="@{/articles/{id}(id=${article.id})}" style="text-decoration: none; color: inherit;">
+                            <div class="blog-card-thumbnail"
+                                 th:style="${article.thumbnailImage != null ? 'background-image: url(' + article.thumbnailImage + '); background-size: cover; background-position: center;' : ''}">
+                                <i th:if="${article.thumbnailImage == null}" class="fas fa-code blog-card-thumbnail-placeholder"></i>
+                            </div>
+                        </a>
+                        <div class="blog-card-content">
+                            <div class="blog-card-company">
+                                <a th:href="@{/corporations/{id}(id=${article.corporation.id})}"
+                                   class="blog-card-company-link"
+                                   onclick="event.stopPropagation()">
+                                    <img th:if="${article.corporation.effectiveLogoUrl != null}"
+                                         th:src="${article.corporation.effectiveLogoUrl}"
+                                         th:alt="${article.corporation.name}"
+                                         class="blog-card-company-logo">
+                                    <span class="blog-card-company-name" th:text="${article.corporation.name}">Corporation</span>
+                                </a>
+                            </div>
+                            <a th:href="@{/articles/{id}(id=${article.id})}" class="blog-card-title-link">
+                                <h3 class="blog-card-title" th:text="${article.translatedTitle != null ? article.translatedTitle : article.title}">Article Title</h3>
+                            </a>
+                            <div class="blog-card-meta">
+                                <span class="blog-card-date">
+                                    <i class="far fa-clock"></i>
+                                    <span class="relative-time"
+                                          th:attr="data-date=${article.publishedAt}"
+                                          th:title="${article.publishedAt}"
+                                          th:text="${article.publishedAt}">날짜</span>
+                                </span>
+                                <button class="like-button"
+                                        th:attr="data-article-id=${article.id}"
+                                        onclick="event.stopPropagation(); toggleArticleLike(this, event)">
+                                    <i class="far fa-heart like-icon"></i>
+                                    <span class="like-count" th:text="${article.likeCount}">0</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mobile View All Button -->
+                <div class="mobile-view-all">
+                    <a href="/" class="mobile-view-all-btn">
+                        <span>블로그 전체보기</span>
+                        <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+            </section>
+
+            <!-- Latest Videos Section -->
+            <section class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <span class="section-icon">
+                            <i class="fab fa-youtube"></i>
+                        </span>
+                        최신 기업 영상 
+                    </h2>
+                    <a href="/videos" class="section-more">
+                        전체보기
+                        <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+
+                <div class="video-grid">
+                    <!-- Video Cards - Dynamic -->
+                    <div th:each="video : ${videos}"
+                         class="video-card"
+                         th:attr="data-video-id=${video.videoId}, data-video-title=${video.translatedTitle != null ? video.translatedTitle : video.title}, data-article-id=${video.id}"
+                         onclick="openVideoModal(this)"
+                         style="cursor: pointer;">
+                        <div class="video-card-thumbnail"
+                             th:style="${video.thumbnailUrl != null ? 'background-image: url(' + video.thumbnailUrl + '); background-size: cover; background-position: center;' : ''}">
+                            <div class="video-play-icon">
+                                <i class="fas fa-play"></i>
+                            </div>
+                        </div>
+                        <div class="video-card-content">
+                            <div class="video-card-channel">
+                                <a th:href="@{/corporations/{id}(id=${video.corporation.id})}"
+                                   class="video-card-channel-link"
+                                   onclick="event.stopPropagation()">
+                                    <img th:if="${video.corporation.effectiveLogoUrl != null}"
+                                         th:src="${video.corporation.effectiveLogoUrl}"
+                                         th:alt="${video.corporation.name}"
+                                         class="video-card-channel-logo">
+                                    <span class="video-card-channel-name" th:text="${video.corporation.name}">Channel Name</span>
+                                </a>
+                            </div>
+                            <h3 class="video-card-title" th:text="${video.translatedTitle != null ? video.translatedTitle : video.title}">Video Title</h3>
+                            <div class="video-card-meta">
+                                <span class="video-card-date">
+                                    <i class="far fa-clock"></i>
+                                    <span class="relative-time"
+                                          th:attr="data-date=${video.publishedAt}"
+                                          th:title="${video.publishedAt}"
+                                          th:text="${video.publishedAt}">날짜</span>
+                                </span>
+                                <button class="like-button"
+                                        th:attr="data-video-id=${video.id}"
+                                        onclick="event.stopPropagation(); toggleVideoLike(this, event)">
+                                    <i class="far fa-heart like-icon"></i>
+                                    <span class="like-count" th:text="${video.likeCount}">0</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mobile View All Button -->
+                <div class="mobile-view-all">
+                    <a href="/videos" class="mobile-view-all-btn">
+                        <span>영상 전체보기</span>
+                        <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+            </section>
+
+            <!-- Theme Collections Section -->
+            <section class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <span class="section-icon">
+                            <i class="fas fa-bookmark"></i>
+                        </span>
+                        테마별 추천 글
+                    </h2>
+                    <a href="#" class="section-more">
+                        전체보기
+                        <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+
+                <div class="theme-grid">
+                    <!-- Theme Collections - Dynamic -->
+                    <a th:each="theme : ${themes}"
+                       th:href="@{/themes/{id}(id=${theme.id})}"
+                       class="theme-collection">
+                        <div class="theme-thumbnail"
+                             th:style="${theme.thumbnailUrl != null ? 'background-image: url(' + theme.thumbnailUrl + '); background-size: cover; background-position: center;' : ''}">
+                            <div th:if="${theme.thumbnailUrl == null}" class="theme-thumbnail-placeholder">
+                                <i class="fas fa-bookmark"></i>
+                            </div>
+                        </div>
+                        <div class="theme-content">
+                            <h3 class="theme-title" th:text="${theme.name}">Theme Title</h3>
+                            <p class="theme-description" th:text="${theme.description}">Theme description</p>
+                            <div class="theme-meta">
+                                <div class="theme-count">
+                                    <i class="fas fa-bookmark"></i>
+                                    <span th:text="${theme.totalContentCount + '개 컨텐츠'}">0개 컨텐츠</span>
+                                </div>
+                                <div class="theme-cta">
+                                    <span>자세히 보기</span>
+                                    <i class="fas fa-arrow-right"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+
+                <!-- Mobile View All Button -->
+                <div class="mobile-view-all">
+                    <a href="#" class="mobile-view-all-btn">
+                        <span>테마 전체보기</span>
+                        <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+            </section>
+        </div>
+
+        <!-- Video Modal -->
+        <div id="videoModal" class="video-modal" onclick="closeVideoModal(event)">
+            <div class="video-modal-content">
+                <button class="video-modal-close" onclick="closeVideoModal(event)">&times;</button>
+                <iframe id="modalVideoPlayer"
+                        src=""
+                        title="YouTube video player"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        referrerpolicy="strict-origin-when-cross-origin"
+                        allowfullscreen>
+                </iframe>
+            </div>
+        </div>
+    </div>
+
+    <div layout:fragment="scripts">
+        <script>
+            // Open video modal
+            function openVideoModal(element) {
+                const videoId = element.getAttribute('data-video-id');
+                const videoTitle = element.getAttribute('data-video-title');
+                const articleId = element.getAttribute('data-article-id');
+                const modal = document.getElementById('videoModal');
+                const iframe = document.getElementById('modalVideoPlayer');
+
+                // Increment view count
+                if (articleId) {
+                    fetch(`/video/api/videos/${articleId}/view`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'same-origin',
+                        redirect: 'manual'
+                    }).catch(error => {
+                        console.log('조회수 증가 요청 실패:', error);
+                    });
+                }
+
+                // Set iframe src with autoplay
+                iframe.src = `https://www.youtube.com/embed/${videoId}?controls=1&modestbranding=1&rel=0&autoplay=1`;
+                iframe.title = videoTitle;
+
+                // Show modal
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden'; // Prevent background scrolling
+            }
+
+            // Close video modal
+            function closeVideoModal(event) {
+                const modal = document.getElementById('videoModal');
+                const iframe = document.getElementById('modalVideoPlayer');
+
+                // Only close if clicking on modal background or close button
+                if (event.target === modal || event.target.classList.contains('video-modal-close')) {
+                    modal.classList.remove('active');
+                    iframe.src = ''; // Stop video playback
+                    document.body.style.overflow = ''; // Restore scrolling
+                }
+            }
+
+            // Close modal with Escape key
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    const modal = document.getElementById('videoModal');
+                    if (modal.classList.contains('active')) {
+                        closeVideoModal({ target: modal });
+                    }
+                }
+            });
+
+            // 블로그 좋아요 토글
+            async function toggleArticleLike(button, event) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const articleId = button.getAttribute('data-article-id');
+                const icon = button.querySelector('.like-icon');
+                const countSpan = button.querySelector('.like-count');
+
+                try {
+                    const response = await fetch(`/api/articles/${articleId}/like`, {
+                        method: 'POST',
+                        credentials: 'include'
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+
+                        // Update UI
+                        countSpan.textContent = data.likeCount;
+
+                        if (data.isLiked) {
+                            button.classList.add('liked');
+                            icon.classList.remove('far');
+                            icon.classList.add('fas');
+                        } else {
+                            button.classList.remove('liked');
+                            icon.classList.remove('fas');
+                            icon.classList.add('far');
+                        }
+                    } else if (response.status === 401) {
+                        alert('좋아요를 하려면 로그인이 필요합니다.');
+                    }
+                } catch (error) {
+                    console.error('좋아요 처리 실패:', error);
+                }
+            }
+
+            // 비디오 좋아요 토글
+            async function toggleVideoLike(button, event) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const videoId = button.getAttribute('data-video-id');
+                const icon = button.querySelector('.like-icon');
+                const countSpan = button.querySelector('.like-count');
+
+                try {
+                    const response = await fetch(`/video/api/videos/${videoId}/like`, {
+                        method: 'POST',
+                        credentials: 'include'
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+
+                        // Update UI
+                        countSpan.textContent = data.likeCount;
+
+                        if (data.isLiked) {
+                            button.classList.add('liked');
+                            icon.classList.remove('far');
+                            icon.classList.add('fas');
+                        } else {
+                            button.classList.remove('liked');
+                            icon.classList.remove('fas');
+                            icon.classList.add('far');
+                        }
+                    } else if (response.status === 401) {
+                        alert('좋아요를 하려면 로그인이 필요합니다.');
+                    }
+                } catch (error) {
+                    console.error('좋아요 처리 실패:', error);
+                }
+            }
+
+            // 좋아요 상태 로드
+            async function loadLikeStatus() {
+                // Load article like status
+                const articleButtons = document.querySelectorAll('.like-button[data-article-id]');
+                for (const button of articleButtons) {
+                    const articleId = button.getAttribute('data-article-id');
+                    try {
+                        const response = await fetch(`/api/articles/${articleId}/like-status`, {
+                            credentials: 'include'
+                        });
+                        if (response.ok) {
+                            const data = await response.json();
+                            const icon = button.querySelector('.like-icon');
+                            const countSpan = button.querySelector('.like-count');
+
+                            countSpan.textContent = data.likeCount;
+
+                            if (data.hasLiked) {
+                                button.classList.add('liked');
+                                icon.classList.remove('far');
+                                icon.classList.add('fas');
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Article like status load failed:', error);
+                    }
+                }
+
+                // Load video like status
+                const videoButtons = document.querySelectorAll('.like-button[data-video-id]');
+                for (const button of videoButtons) {
+                    const videoId = button.getAttribute('data-video-id');
+                    try {
+                        const response = await fetch(`/video/api/videos/${videoId}/like-status`, {
+                            credentials: 'include'
+                        });
+                        if (response.ok) {
+                            const data = await response.json();
+                            const icon = button.querySelector('.like-icon');
+                            const countSpan = button.querySelector('.like-count');
+
+                            countSpan.textContent = data.likeCount;
+
+                            if (data.hasLiked) {
+                                button.classList.add('liked');
+                                icon.classList.remove('far');
+                                icon.classList.add('fas');
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Video like status load failed:', error);
+                    }
+                }
+            }
+
+            // 상대 시간 계산 함수
+            function getRelativeTime(dateString) {
+                const now = new Date();
+                const date = new Date(dateString);
+                const diffInSeconds = Math.floor((now - date) / 1000);
+
+                const minute = 60;
+                const hour = minute * 60;
+                const day = hour * 24;
+                const week = day * 7;
+                const month = day * 30;
+                const year = day * 365;
+
+                if (diffInSeconds < minute) {
+                    return '방금 전';
+                } else if (diffInSeconds < hour) {
+                    const minutes = Math.floor(diffInSeconds / minute);
+                    return `${minutes}분 전`;
+                } else if (diffInSeconds < day) {
+                    const hours = Math.floor(diffInSeconds / hour);
+                    return `${hours}시간 전`;
+                } else if (diffInSeconds < week) {
+                    const days = Math.floor(diffInSeconds / day);
+                    return `${days}일 전`;
+                } else if (diffInSeconds < month) {
+                    const weeks = Math.floor(diffInSeconds / week);
+                    return `${weeks}주일 전`;
+                } else if (diffInSeconds < year) {
+                    const months = Math.floor(diffInSeconds / month);
+                    return `${months}달 전`;
+                } else {
+                    const years = Math.floor(diffInSeconds / year);
+                    return `${years}년 전`;
+                }
+            }
+
+            // 날짜 포맷팅 함수
+            function formatDate(dateString) {
+                const date = new Date(dateString);
+                return date.toLocaleDateString('ko-KR', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            }
+
+            // 페이지 로드 시 상대 시간 적용 및 좋아요 상태 로드
+            document.addEventListener('DOMContentLoaded', function() {
+                // 상대 시간 표시
+                document.querySelectorAll('.relative-time').forEach(element => {
+                    const dateString = element.getAttribute('data-date');
+                    if (dateString) {
+                        // 상대 시간 표시
+                        element.textContent = getRelativeTime(dateString);
+                        // 툴팁에 포맷된 날짜 표시
+                        element.title = formatDate(dateString);
+                    }
+                });
+
+                // 좋아요 상태 로드
+                loadLikeStatus();
+            });
+        </script>
+    </div>
+</body>
+</html>
