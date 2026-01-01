@@ -104,10 +104,21 @@
                             <i class="fas fa-comment me-1"></i>피드백
                         </a>
                     </li>
-                    <li class="nav-item" id="adminMenu" style="display: none;">
-                        <a class="nav-link" th:href="@{/admin/corporations}">
+                    <li class="nav-item dropdown" id="adminMenu" style="display: none;">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-cog me-1"></i>관리
                         </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" th:href="@{/admin/corporations}">
+                                <i class="fas fa-building me-2"></i>기업 관리
+                            </a></li>
+                            <li><a class="dropdown-item" th:href="@{/admin/articles}">
+                                <i class="fas fa-newspaper me-2"></i>글 관리
+                            </a></li>
+                            <li><a class="dropdown-item" th:href="@{/admin/themes}">
+                                <i class="fas fa-bookmark me-2"></i>테마 관리
+                            </a></li>
+                        </ul>
                     </li>
                 </ul>
             </div>
@@ -186,9 +197,20 @@
                     </a>
                 </li>
                 <li class="mobile-nav-item" id="adminMenuMobile" style="display: none;">
-                    <a class="mobile-nav-link" th:href="@{/admin/corporations}">
-                        <i class="fas fa-cog"></i>
-                        <span>관리</span>
+                    <div class="mobile-nav-section-title">
+                        <i class="fas fa-cog me-2"></i>관리자 메뉴
+                    </div>
+                    <a class="mobile-nav-link mobile-nav-sub-link" th:href="@{/admin/corporations}">
+                        <i class="fas fa-building"></i>
+                        <span>기업 관리</span>
+                    </a>
+                    <a class="mobile-nav-link mobile-nav-sub-link" th:href="@{/admin/articles}">
+                        <i class="fas fa-newspaper"></i>
+                        <span>글 관리</span>
+                    </a>
+                    <a class="mobile-nav-link mobile-nav-sub-link" th:href="@{/admin/themes}">
+                        <i class="fas fa-bookmark"></i>
+                        <span>테마 관리</span>
                     </a>
                 </li>
             </ul>

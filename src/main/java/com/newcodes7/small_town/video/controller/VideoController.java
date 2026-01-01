@@ -360,6 +360,37 @@ public class VideoController {
         return ResponseEntity.ok(suggestions);
     }
 
+    /**
+     * API: 비디오 검색 (어드민용)
+     */
+    @GetMapping("/api/admin/videos/search")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> searchVideosForAdmin(
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "sort", defaultValue = "latest") String sort) {
+
+        Page<VideoResponseDto> videos = videoService.getVideosWithFilters(
+            keyword,
+            null,  // regions
+            page,
+            size,
+            sort,
+            "list",    // view
+            null       // category
+        );
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("content", videos.getContent());
+        response.put("totalElements", videos.getTotalElements());
+        response.put("totalPages", videos.getTotalPages());
+        response.put("currentPage", page);
+        response.put("hasNext", videos.hasNext());
+
+        return ResponseEntity.ok(response);
+    }
+
     private boolean isAdmin(UserDetails userDetails) {
         return userDetails.getAuthorities().stream()
                 .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"));

@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="ko"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>테마 관리 - 어드민</title>
+    <style>
+        .theme-admin-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+        }
+
+        .page-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--text-dark);
+        }
+
+        .create-theme-btn {
+            background: var(--primary-green);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .create-theme-btn:hover {
+            background: #02b567;
+            transform: translateY(-2px);
+        }
+
+        .themes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        .theme-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            border: 2px solid var(--border-light);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .theme-card:hover {
+            border-color: var(--primary-green);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(3, 199, 90, 0.15);
+        }
+
+        .theme-card-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .theme-thumbnail {
+            width: 80px;
+            height: 80px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--secondary-green) 0%, #F0F8F0 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            overflow: hidden;
+            background-size: cover;
+            background-position: center;
+        }
+
+        .theme-thumbnail-placeholder {
+            font-size: 2rem;
+            color: var(--primary-green);
+            opacity: 0.5;
+        }
+
+        .theme-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .theme-name {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .theme-description {
+            font-size: 0.9rem;
+            color: var(--text-light);
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .theme-stats {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+            padding: 12px;
+            background: var(--bg-light);
+            border-radius: 8px;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.9rem;
+            color: var(--text-light);
+        }
+
+        .stat-item i {
+            color: var(--primary-green);
+        }
+
+        .stat-value {
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        .theme-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .status-active {
+            background: #D1FAE5;
+            color: #065F46;
+        }
+
+        .status-inactive {
+            background: #FEE2E2;
+            color: #991B1B;
+        }
+
+        .theme-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .theme-action-btn {
+            flex: 1;
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-light);
+            background: white;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .theme-action-btn:hover {
+            background: var(--bg-light);
+        }
+
+        .btn-edit {
+            color: #2563EB;
+            border-color: #DBEAFE;
+        }
+
+        .btn-edit:hover {
+            background: #EFF6FF;
+        }
+
+        .btn-delete {
+            color: #DC2626;
+            border-color: #FEE2E2;
+        }
+
+        .btn-delete:hover {
+            background: #FEF2F2;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: slideUp 0.3s ease;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--text-light);
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close:hover {
+            background: var(--bg-light);
+            color: var(--text-dark);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+        }
+
+        .form-input,
+        .form-textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid var(--border-light);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus,
+        .form-textarea:focus {
+            outline: none;
+            border-color: var(--primary-green);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .form-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .btn-primary,
+        .btn-secondary {
+            flex: 1;
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: var(--primary-green);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #02b567;
+        }
+
+        .btn-secondary {
+            background: var(--bg-light);
+            color: var(--text-dark);
+        }
+
+        .btn-secondary:hover {
+            background: #E5E7EB;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            color: var(--primary-green);
+            opacity: 0.3;
+            margin-bottom: 20px;
+        }
+
+        .empty-state h3 {
+            font-size: 1.5rem;
+            color: var(--text-dark);
+            margin-bottom: 12px;
+        }
+
+        .empty-state p {
+            color: var(--text-light);
+            margin-bottom: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="theme-admin-container">
+            <!-- Page Header -->
+            <div class="page-header">
+                <h1 class="page-title">테마 관리</h1>
+                <button class="create-theme-btn" onclick="openCreateModal()">
+                    <i class="fas fa-plus"></i> 새 테마 만들기
+                </button>
+            </div>
+
+            <!-- Themes Grid -->
+            <div class="themes-grid" id="themesGrid">
+                <!-- Themes will be loaded here -->
+            </div>
+
+            <!-- Empty State -->
+            <div class="empty-state" id="emptyState" style="display: none;">
+                <i class="fas fa-layer-group"></i>
+                <h3>등록된 테마가 없습니다</h3>
+                <p>첫 번째 테마를 만들어보세요!</p>
+                <button class="create-theme-btn" onclick="openCreateModal()">
+                    <i class="fas fa-plus"></i> 새 테마 만들기
+                </button>
+            </div>
+        </div>
+
+        <!-- Create/Edit Theme Modal -->
+        <div id="themeModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title" id="modalTitle">새 테마 만들기</h2>
+                    <button class="modal-close" onclick="closeThemeModal()">&times;</button>
+                </div>
+
+                <form id="themeForm">
+                    <input type="hidden" id="themeId">
+
+                    <div class="form-group">
+                        <label class="form-label" for="themeName">테마 이름 *</label>
+                        <input type="text" id="themeName" class="form-input" placeholder="예: 신입 백엔드 개발자를 위한 글" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="themeDescription">설명</label>
+                        <textarea id="themeDescription" class="form-textarea" placeholder="테마에 대한 간단한 설명을 입력하세요"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="themeOrder">표시 순서</label>
+                        <input type="number" id="themeOrder" class="form-input" value="0" min="0">
+                    </div>
+
+                    <div class="form-group">
+                        <small style="color: var(--text-light);">
+                            <i class="fas fa-info-circle"></i> 썸네일은 테마의 첫 번째 컨텐츠 이미지가 자동으로 사용됩니다.
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-checkbox">
+                            <input type="checkbox" id="themeActive" checked>
+                            <span>활성화</span>
+                        </label>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn-secondary" onclick="closeThemeModal()">취소</button>
+                        <button type="submit" class="btn-primary">저장</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div layout:fragment="scripts">
+        <script>
+            let currentThemeId = null;
+
+            // Load themes on page load
+            document.addEventListener('DOMContentLoaded', function() {
+                loadThemes();
+            });
+
+            // Load all themes
+            async function loadThemes() {
+                try {
+                    const response = await fetch('/api/admin/themes');
+                    const themes = await response.json();
+
+                    const grid = document.getElementById('themesGrid');
+                    const emptyState = document.getElementById('emptyState');
+
+                    if (themes.length === 0) {
+                        grid.style.display = 'none';
+                        emptyState.style.display = 'block';
+                        return;
+                    }
+
+                    grid.style.display = 'grid';
+                    emptyState.style.display = 'none';
+
+                    grid.innerHTML = themes.map(theme => `
+                        <div class="theme-card" onclick="goToThemeDetail(${theme.id})">
+                            <div class="theme-card-header">
+                                <div class="theme-thumbnail" style="${theme.thumbnailUrl ? `background-image: url('${theme.thumbnailUrl}')` : ''}">
+                                    ${!theme.thumbnailUrl ? '<i class="fas fa-bookmark theme-thumbnail-placeholder"></i>' : ''}
+                                </div>
+                                <div class="theme-info">
+                                    <div class="theme-name">${theme.name}</div>
+                                    ${theme.description ? `<div class="theme-description">${theme.description}</div>` : ''}
+                                </div>
+                            </div>
+
+                            <div class="theme-stats">
+                                <div class="stat-item">
+                                    <i class="fas fa-file-alt"></i>
+                                    <span class="stat-value">${theme.articleCount}</span>
+                                    <span>글</span>
+                                </div>
+                                <div class="stat-item">
+                                    <i class="fas fa-video"></i>
+                                    <span class="stat-value">${theme.videoCount}</span>
+                                    <span>영상</span>
+                                </div>
+                                <div class="stat-item">
+                                    <i class="fas fa-layer-group"></i>
+                                    <span class="stat-value">${theme.totalContentCount}</span>
+                                    <span>총</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <span class="theme-status ${theme.isActive ? 'status-active' : 'status-inactive'}">
+                                    ${theme.isActive ? '활성화' : '비활성화'}
+                                </span>
+                            </div>
+
+                            <div class="theme-actions" onclick="event.stopPropagation()">
+                                <button class="theme-action-btn btn-edit" onclick="openEditModal(${theme.id})">
+                                    <i class="fas fa-edit"></i> 수정
+                                </button>
+                                <button class="theme-action-btn btn-delete" onclick="deleteTheme(${theme.id})">
+                                    <i class="fas fa-trash"></i> 삭제
+                                </button>
+                            </div>
+                        </div>
+                    `).join('');
+                } catch (error) {
+                    console.error('테마 목록 로드 실패:', error);
+                    alert('테마 목록을 불러오는데 실패했습니다.');
+                }
+            }
+
+            // Open create modal
+            function openCreateModal() {
+                currentThemeId = null;
+                document.getElementById('modalTitle').textContent = '새 테마 만들기';
+                document.getElementById('themeForm').reset();
+                document.getElementById('themeId').value = '';
+                document.getElementById('themeActive').checked = true;
+                document.getElementById('themeModal').classList.add('active');
+            }
+
+            // Open edit modal
+            async function openEditModal(themeId) {
+                try {
+                    const response = await fetch(`/api/admin/themes/${themeId}`);
+                    const theme = await response.json();
+
+                    currentThemeId = themeId;
+                    document.getElementById('modalTitle').textContent = '테마 수정';
+                    document.getElementById('themeId').value = theme.id;
+                    document.getElementById('themeName').value = theme.name;
+                    document.getElementById('themeDescription').value = theme.description || '';
+                    document.getElementById('themeOrder').value = theme.displayOrder || 0;
+                    document.getElementById('themeActive').checked = theme.isActive;
+                    document.getElementById('themeModal').classList.add('active');
+                } catch (error) {
+                    console.error('테마 로드 실패:', error);
+                    alert('테마 정보를 불러오는데 실패했습니다.');
+                }
+            }
+
+            // Close modal
+            function closeThemeModal() {
+                document.getElementById('themeModal').classList.remove('active');
+            }
+
+            // Submit form
+            document.getElementById('themeForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+
+                const themeId = document.getElementById('themeId').value;
+                const data = {
+                    name: document.getElementById('themeName').value,
+                    description: document.getElementById('themeDescription').value,
+                    displayOrder: parseInt(document.getElementById('themeOrder').value),
+                    isActive: document.getElementById('themeActive').checked
+                };
+
+                try {
+                    const url = themeId ? `/api/admin/themes/${themeId}` : '/api/admin/themes';
+                    const method = themeId ? 'PUT' : 'POST';
+
+                    const response = await fetch(url, {
+                        method: method,
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    if (response.ok) {
+                        closeThemeModal();
+                        loadThemes();
+                        alert(themeId ? '테마가 수정되었습니다.' : '테마가 생성되었습니다.');
+                    } else {
+                        throw new Error('저장 실패');
+                    }
+                } catch (error) {
+                    console.error('테마 저장 실패:', error);
+                    alert('테마 저장에 실패했습니다.');
+                }
+            });
+
+            // Delete theme
+            async function deleteTheme(themeId) {
+                if (!confirm('정말 이 테마를 삭제하시겠습니까?')) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/admin/themes/${themeId}`, {
+                        method: 'DELETE'
+                    });
+
+                    if (response.ok) {
+                        loadThemes();
+                        alert('테마가 삭제되었습니다.');
+                    } else {
+                        throw new Error('삭제 실패');
+                    }
+                } catch (error) {
+                    console.error('테마 삭제 실패:', error);
+                    alert('테마 삭제에 실패했습니다.');
+                }
+            }
+
+            // Go to theme detail page
+            function goToThemeDetail(themeId) {
+                window.location.href = `/admin/themes/${themeId}`;
+            }
+        </script>
+    </div>
+</body>
+</html>

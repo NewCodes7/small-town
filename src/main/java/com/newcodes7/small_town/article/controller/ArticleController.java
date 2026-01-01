@@ -809,6 +809,154 @@ public class ArticleController {
         return ResponseEntity.ok(result);
     }
 
+    /**
+     * 어드민용 검색 API (기존 home() 로직 사용)
+     */
+    @GetMapping("/api/admin/articles/search")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> searchArticlesForAdmin(
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "sort", defaultValue = "relevance") String sort) {
+
+        // 기존 home()과 동일한 검색 로직 사용
+        Page<? extends ArticleResponseDto> articles;
+
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            // Hybrid 검색 사용 (BM25 + Summary Vector + RRF)
+            articles = articleService.searchArticlesHybrid(
+                keyword.trim().toLowerCase(),
+                null,  // regions
+                null,  // category
+                page,
+                size,
+                sort
+            );
+        } else {
+            // 키워드 없으면 최신순 조회
+            articles = articleService.getArticlesWithFilters(
+                null,
+                null,
+                page,
+                size,
+                "latest",
+                "list",
+                null
+            );
+        }
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("content", articles.getContent());
+        response.put("totalElements", articles.getTotalElements());
+        response.put("totalPages", articles.getTotalPages());
+        response.put("currentPage", page);
+        response.put("hasNext", articles.hasNext());
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 임시 엔드포인트: 새로운 홈 페이지 디자인 미리보기
+     */
+    @GetMapping("/new-home")
+    public String newHome(Model model) {
+        // 최신 블로그 글 20개 조회 (중복 제거를 위해 더 많이 가져옴)
+        Page<ArticleResponseDto> allArticles = articleService.getArticlesWithFilters(
+            null,  // keyword
+            null,  // regions
+            0,     // page
+            20,    // size - 여유있게 가져옴
+            "latest",  // sort
+            "list",    // view
+            null   // category
+        );
+
+        // 기업별로 첫 번째 글만 선택 (최신순이므로 첫 번째가 가장 최신)
+        Map<Long, ArticleResponseDto> uniqueArticles = new LinkedHashMap<>();
+        for (ArticleResponseDto articleDto : allArticles.getContent()) {
+            // ArticleListResponseDto로 캐스팅하여 corporation 접근
+            ArticleListResponseDto article = (ArticleListResponseDto) articleDto;
+            Long corpId = article.getCorporation().getId();
+            if (!uniqueArticles.containsKey(corpId)) {
+                uniqueArticles.put(corpId, articleDto);
+                if (uniqueArticles.size() >= 8) break;  // 8개만 수집
+            }
+        }
+        List<ArticleResponseDto> latestArticles = new ArrayList<>(uniqueArticles.values());
+
+        // 최신 영상 20개 조회 (중복 제거를 위해 더 많이 가져옴)
+        Page<com.newcodes7.small_town.video.dto.VideoResponseDto> allVideos = videoService.getVideosWithFilters(
+            null,  // keyword
+            null,  // regions
+            0,     // page
+            20,    // size - 여유있게 가져옴
+            "latest",  // sort
+            "list",    // view
+            null   // category
+        );
+
+        // 기업별로 첫 번째 영상만 선택 (최신순이므로 첫 번째가 가장 최신)
+        Map<Long, com.newcodes7.small_town.video.dto.VideoResponseDto> uniqueVideos = new LinkedHashMap<>();
+        for (com.newcodes7.small_town.video.dto.VideoResponseDto videoDto : allVideos.getContent()) {
+            com.newcodes7.small_town.video.dto.VideoListResponseDto video = (com.newcodes7.small_town.video.dto.VideoListResponseDto) videoDto;
+            Long corpId = video.getCorporation().getId();
+            if (!uniqueVideos.containsKey(corpId)) {
+                uniqueVideos.put(corpId, videoDto);
+                if (uniqueVideos.size() >= 8) break;  // 8개만 수집
+            }
+        }
+        List<com.newcodes7.small_town.video.dto.VideoResponseDto> latestVideos = new ArrayList<>(uniqueVideos.values());
+
+        // 회사 목록 가져오기 (로고용)
+        Page<CorporationResponseDto> corporations = corporationService.getCorporationsWithFilters(
+            null, null, null, PageRequest.of(0, 50)
+        );
+        List<CorporationResponseDto> corporationsWithLogos = corporations.getContent().stream()
+            .limit(20)
+            .toList();
+
+        // 전체 글 수
+        long totalElements = articleService.getTotalArticleCount();
+
+        // 활성화된 테마 목록 조회 (최대 8개)
+        List<com.newcodes7.small_town.theme.dto.ThemeResponseDto> themes = themeService.getActiveThemes()
+            .stream()
+            .limit(8)
+            .toList();
+
+        model.addAttribute("articles", latestArticles);
+        model.addAttribute("videos", latestVideos);
+        model.addAttribute("corporations", corporationsWithLogos);
+        model.addAttribute("totalElements", totalElements);
+        model.addAttribute("themes", themes);
+
+        return "new-home";
+    }
+
+    /**
+     * API: 아티클 검색 (어드민용)
+     */
+    @GetMapping("/api/articles/search")
+    @ResponseBody
+    public ResponseEntity<Page<ArticleResponseDto>> searchArticles(
+            @RequestParam(name = "keyword", required = false) String keyword,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+
+        Page<ArticleResponseDto> articles = articleService.getArticlesWithFilters(
+            keyword,
+            null,  // regions
+            page,
+            size,
+            "latest",  // sort
+            "list",    // view
+            null       // category
+        );
+
+        return ResponseEntity.ok(articles);
+    }
+
     private boolean isAdmin(UserDetails userDetails) {
         return userDetails.getAuthorities().stream()
                 .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"));

@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="ko"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>테마 관리 - 어드민</title>
+    <style>
+        .theme-detail-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-light);
+            text-decoration: none;
+            margin-bottom: 24px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .back-button:hover {
+            color: var(--primary-green);
+        }
+
+        .theme-header {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 32px;
+            border: 2px solid var(--border-light);
+        }
+
+        .theme-title-section {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .theme-emoji-large {
+            font-size: 3rem;
+        }
+
+        .theme-title-info h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--text-dark);
+            margin-bottom: 8px;
+        }
+
+        .theme-description-text {
+            color: var(--text-light);
+            line-height: 1.6;
+        }
+
+        .content-management {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 24px;
+        }
+
+        .contents-list {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            border: 2px solid var(--border-light);
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .content-count {
+            background: var(--primary-green);
+            color: white;
+            font-size: 0.9rem;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+
+        .content-item {
+            background: white;
+            border: 2px solid var(--border-light);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: move;
+            transition: all 0.2s ease;
+        }
+
+        .content-item:hover {
+            border-color: var(--primary-green);
+            box-shadow: 0 4px 12px rgba(3, 199, 90, 0.1);
+        }
+
+        .content-item.dragging {
+            opacity: 0.5;
+        }
+
+        .drag-handle {
+            color: var(--text-light);
+            cursor: grab;
+        }
+
+        .drag-handle:active {
+            cursor: grabbing;
+        }
+
+        .content-type-badge {
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .badge-article {
+            background: #DBEAFE;
+            color: #1E40AF;
+        }
+
+        .badge-video {
+            background: #FCE7F3;
+            color: #9F1239;
+        }
+
+        .content-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .content-title {
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .content-meta {
+            font-size: 0.85rem;
+            color: var(--text-light);
+        }
+
+        .remove-btn {
+            background: #FEE2E2;
+            color: #DC2626;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .remove-btn:hover {
+            background: #FEF2F2;
+        }
+
+        .search-panel {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            border: 2px solid var(--border-light);
+            position: sticky;
+            top: 20px;
+        }
+
+        .search-box {
+            margin-bottom: 20px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid var(--border-light);
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary-green);
+        }
+
+        .content-type-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .type-tab {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid var(--border-light);
+            background: white;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .type-tab.active {
+            background: var(--primary-green);
+            color: white;
+            border-color: var(--primary-green);
+        }
+
+        .search-results {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .search-result-item {
+            background: var(--bg-light);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .search-result-item:hover {
+            background: #E5E7EB;
+        }
+
+        .result-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .result-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-dark);
+            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        .result-meta {
+            font-size: 0.8rem;
+            color: var(--text-light);
+        }
+
+        .add-btn {
+            background: var(--primary-green);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.2s ease;
+        }
+
+        .add-btn:hover {
+            background: #02b567;
+        }
+
+        .add-btn:disabled {
+            background: #D1D5DB;
+            cursor: not-allowed;
+        }
+
+        .empty-contents {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-light);
+        }
+
+        .empty-contents i {
+            font-size: 3rem;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+
+        @media (max-width: 1024px) {
+            .content-management {
+                grid-template-columns: 1fr;
+            }
+
+            .search-panel {
+                position: relative;
+                top: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="theme-detail-container">
+            <a href="/admin/themes" class="back-button">
+                <i class="fas fa-arrow-left"></i> 테마 목록으로
+            </a>
+
+            <!-- Theme Header -->
+            <div class="theme-header" id="themeHeader">
+                <!-- Loaded dynamically -->
+            </div>
+
+            <!-- Content Management -->
+            <div class="content-management">
+                <!-- Left: Contents List -->
+                <div class="contents-list">
+                    <div class="section-title">
+                        <span>컨텐츠 관리</span>
+                        <span class="content-count" id="contentCount">0</span>
+                    </div>
+
+                    <div id="contentsList">
+                        <!-- Contents loaded dynamically -->
+                    </div>
+
+                    <div class="empty-contents" id="emptyContents" style="display: none;">
+                        <i class="fas fa-inbox"></i>
+                        <p>아직 추가된 컨텐츠가 없습니다.<br>오른쪽 검색을 통해 컨텐츠를 추가하세요.</p>
+                    </div>
+                </div>
+
+                <!-- Right: Search Panel -->
+                <div class="search-panel">
+                    <div class="section-title">컨텐츠 추가</div>
+
+                    <div class="content-type-tabs">
+                        <button class="type-tab active" data-type="article" onclick="switchContentType('article')">
+                            <i class="fas fa-file-alt"></i> 글
+                        </button>
+                        <button class="type-tab" data-type="video" onclick="switchContentType('video')">
+                            <i class="fas fa-video"></i> 영상
+                        </button>
+                    </div>
+
+                    <div class="search-box">
+                        <input type="text" class="search-input" id="searchInput" placeholder="검색어를 입력하세요...">
+                    </div>
+
+                    <div class="search-results" id="searchResults">
+                        <p style="text-align: center; color: var(--text-light); padding: 20px;">
+                            검색어를 입력하면 결과가 표시됩니다
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div layout:fragment="scripts">
+        <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+        <script>
+            const themeId = window.location.pathname.split('/').pop();
+            let currentSearchType = 'article';
+            let currentContents = [];
+            let addedContentIds = new Set();
+
+            // Load theme data on page load
+            document.addEventListener('DOMContentLoaded', function() {
+                loadTheme();
+                setupSearch();
+                setupSortable();
+            });
+
+            // Load theme details
+            async function loadTheme() {
+                try {
+                    const response = await fetch(`/api/admin/themes/${themeId}`);
+                    const theme = await response.json();
+
+                    // Render header
+                    document.getElementById('themeHeader').innerHTML = `
+                        <div class="theme-title-section">
+                            <div class="theme-emoji-large">${theme.emoji || '📚'}</div>
+                            <div class="theme-title-info">
+                                <h1>${theme.name}</h1>
+                                ${theme.description ? `<p class="theme-description-text">${theme.description}</p>` : ''}
+                            </div>
+                        </div>
+                    `;
+
+                    // Store contents
+                    currentContents = theme.contents || [];
+                    renderContents();
+                } catch (error) {
+                    console.error('테마 로드 실패:', error);
+                    alert('테마 정보를 불러오는데 실패했습니다.');
+                }
+            }
+
+            // Render contents list
+            function renderContents() {
+                const contentsList = document.getElementById('contentsList');
+                const emptyContents = document.getElementById('emptyContents');
+                const contentCount = document.getElementById('contentCount');
+
+                contentCount.textContent = currentContents.length;
+
+                // Build added content IDs set
+                addedContentIds.clear();
+                currentContents.forEach(content => {
+                    const id = content.contentType === 'article'
+                        ? `article:${content.article.id}`
+                        : `video:${content.video.id}`;
+                    addedContentIds.add(id);
+                });
+
+                if (currentContents.length === 0) {
+                    contentsList.innerHTML = '';
+                    emptyContents.style.display = 'block';
+                    return;
+                }
+
+                emptyContents.style.display = 'none';
+
+                contentsList.innerHTML = currentContents.map((content, index) => {
+                    const isArticle = content.contentType === 'article';
+                    const item = isArticle ? content.article : content.video;
+                    const contentId = isArticle ? `article:${item.id}` : `video:${item.id}`;
+
+                    return `
+                        <div class="content-item" data-content-id="${contentId}">
+                            <i class="fas fa-grip-vertical drag-handle"></i>
+                            <span class="content-type-badge ${isArticle ? 'badge-article' : 'badge-video'}">
+                                ${isArticle ? '글' : '영상'}
+                            </span>
+                            <div class="content-info">
+                                <div class="content-title">${item.translatedTitle || item.title}</div>
+                                <div class="content-meta">${item.corporation.name}</div>
+                            </div>
+                            <button class="remove-btn" onclick="removeContent('${contentId}')">
+                                <i class="fas fa-times"></i> 제거
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // Setup sortable drag and drop
+            function setupSortable() {
+                const contentsList = document.getElementById('contentsList');
+
+                new Sortable(contentsList, {
+                    animation: 150,
+                    handle: '.drag-handle',
+                    ghostClass: 'dragging',
+                    onEnd: async function(evt) {
+                        // Get new order
+                        const items = [...contentsList.querySelectorAll('.content-item')];
+                        const newOrder = items.map(item => item.dataset.contentId);
+
+                        try {
+                            const response = await fetch(`/api/admin/themes/${themeId}/contents/reorder`, {
+                                method: 'PUT',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify(newOrder)
+                            });
+
+                            if (response.ok) {
+                                console.log('순서 변경 완료');
+                                loadTheme(); // Reload to update
+                            } else {
+                                throw new Error('순서 변경 실패');
+                            }
+                        } catch (error) {
+                            console.error('순서 변경 실패:', error);
+                            alert('순서 변경에 실패했습니다.');
+                            loadTheme(); // Reload original order
+                        }
+                    }
+                });
+            }
+
+            // Setup search
+            function setupSearch() {
+                const searchInput = document.getElementById('searchInput');
+                let searchTimeout;
+
+                searchInput.addEventListener('input', function() {
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(() => {
+                        performSearch(this.value);
+                    }, 300);
+                });
+            }
+
+            // Switch content type
+            function switchContentType(type) {
+                currentSearchType = type;
+
+                // Update tabs
+                document.querySelectorAll('.type-tab').forEach(tab => {
+                    if (tab.dataset.type === type) {
+                        tab.classList.add('active');
+                    } else {
+                        tab.classList.remove('active');
+                    }
+                });
+
+                // Clear search and re-search
+                const searchInput = document.getElementById('searchInput');
+                if (searchInput.value) {
+                    performSearch(searchInput.value);
+                }
+            }
+
+            // Perform search
+            async function performSearch(keyword) {
+                if (!keyword || keyword.trim().length === 0) {
+                    document.getElementById('searchResults').innerHTML = `
+                        <p style="text-align: center; color: var(--text-light); padding: 20px;">
+                            검색어를 입력하면 결과가 표시됩니다
+                        </p>
+                    `;
+                    return;
+                }
+
+                const endpoint = currentSearchType === 'article'
+                    ? `/api/admin/articles/search?keyword=${encodeURIComponent(keyword)}&page=0&size=20&sort=relevance`
+                    : `/api/admin/videos/search?keyword=${encodeURIComponent(keyword)}&page=0&size=20&sort=latest`;
+
+                try {
+                    const response = await fetch(endpoint);
+                    const data = await response.json();
+                    const results = data.content || [];
+
+                    renderSearchResults(results);
+                } catch (error) {
+                    console.error('검색 실패:', error);
+                    document.getElementById('searchResults').innerHTML = `
+                        <p style="text-align: center; color: var(--text-light); padding: 20px;">
+                            검색에 실패했습니다.
+                        </p>
+                    `;
+                }
+            }
+
+            // Render search results
+            function renderSearchResults(results) {
+                const searchResults = document.getElementById('searchResults');
+
+                if (results.length === 0) {
+                    searchResults.innerHTML = `
+                        <p style="text-align: center; color: var(--text-light); padding: 20px;">
+                            검색 결과가 없습니다.
+                        </p>
+                    `;
+                    return;
+                }
+
+                searchResults.innerHTML = results.map(item => {
+                    const contentId = currentSearchType === 'article'
+                        ? `article:${item.id}`
+                        : `video:${item.id}`;
+                    const isAdded = addedContentIds.has(contentId);
+
+                    return `
+                        <div class="search-result-item">
+                            <div class="result-info">
+                                <div class="result-title">${item.translatedTitle || item.title}</div>
+                                <div class="result-meta">${item.corporation.name}</div>
+                            </div>
+                            <button
+                                class="add-btn"
+                                onclick="addContent(${item.id})"
+                                ${isAdded ? 'disabled' : ''}>
+                                ${isAdded ? '추가됨' : '추가'}
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // Add content to theme
+            async function addContent(contentId) {
+                const endpoint = currentSearchType === 'article'
+                    ? `/api/admin/themes/${themeId}/articles`
+                    : `/api/admin/themes/${themeId}/videos`;
+
+                const data = currentSearchType === 'article'
+                    ? { articleId: contentId, displayOrder: currentContents.length }
+                    : { videoId: contentId, displayOrder: currentContents.length };
+
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    if (response.ok) {
+                        loadTheme();
+                        // Re-perform search to update buttons
+                        const searchInput = document.getElementById('searchInput');
+                        if (searchInput.value) {
+                            performSearch(searchInput.value);
+                        }
+                    } else {
+                        const error = await response.text();
+                        throw new Error(error);
+                    }
+                } catch (error) {
+                    console.error('컨텐츠 추가 실패:', error);
+                    alert('컨텐츠 추가에 실패했습니다: ' + error.message);
+                }
+            }
+
+            // Remove content from theme
+            async function removeContent(contentId) {
+                if (!confirm('이 컨텐츠를 테마에서 제거하시겠습니까?')) {
+                    return;
+                }
+
+                const [type, id] = contentId.split(':');
+                const endpoint = type === 'article'
+                    ? `/api/admin/themes/${themeId}/articles/${id}`
+                    : `/api/admin/themes/${themeId}/videos/${id}`;
+
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'DELETE'
+                    });
+
+                    if (response.ok) {
+                        loadTheme();
+                    } else {
+                        throw new Error('제거 실패');
+                    }
+                } catch (error) {
+                    console.error('컨텐츠 제거 실패:', error);
+                    alert('컨텐츠 제거에 실패했습니다.');
+                }
+            }
+        </script>
+    </div>
+</body>
+</html>
