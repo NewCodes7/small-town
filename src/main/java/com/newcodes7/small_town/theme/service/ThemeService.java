@@ -3,6 +3,7 @@ package com.newcodes7.small_town.theme.service;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Video;
+import com.newcodes7.small_town.global.util.KoreanCharacterUtil;
 import com.newcodes7.small_town.theme.dto.*;
 import com.newcodes7.small_town.theme.entity.Theme;
 import com.newcodes7.small_town.theme.entity.ThemeArticle;
@@ -109,8 +110,11 @@ public class ThemeService {
      */
     @Transactional
     public Theme createTheme(ThemeCreateRequestDto dto) {
+        String decomposedName = KoreanCharacterUtil.decomposeHangul(dto.getName());
+
         Theme theme = Theme.builder()
             .name(dto.getName())
+            .decomposedName(decomposedName)
             .description(dto.getDescription())
             .emoji(dto.getEmoji())
             .thumbnailUrl(dto.getThumbnailUrl())
@@ -133,6 +137,7 @@ public class ThemeService {
 
         if (dto.getName() != null) {
             theme.setName(dto.getName());
+            theme.setDecomposedName(KoreanCharacterUtil.decomposeHangul(dto.getName()));
         }
         if (dto.getDescription() != null) {
             theme.setDescription(dto.getDescription());

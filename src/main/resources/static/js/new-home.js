@@ -265,6 +265,18 @@
                 let suggestions = [];
                 let lastInputValue = '';
                 let programmaticChange = false;
+                let isAuthenticated = false;
+
+                // 로그인 상태 확인
+                fetch('/api/user-info', { credentials: 'include' })
+                    .then(response => response.json())
+                    .then(data => {
+                        isAuthenticated = data.authenticated || false;
+                    })
+                    .catch(error => {
+                        console.log('인증 상태 확인 실패:', error);
+                        isAuthenticated = false;
+                    });
 
                 // 검색창 입력 이벤트
                 searchInput.addEventListener('input', function() {
@@ -342,33 +354,108 @@
                 });
 
                 function displaySearchHistory() {
-                    const history = searchHistory.getHistory().slice(0, 6);
-                    if (history.length === 0) {
-                        autocompleteDropdown.style.display = 'none';
-                        return;
+                    if (isAuthenticated) {
+                        // 로그인 사용자: API에서 검색 기록 가져오기
+                        fetch('/api/search-history', { credentials: 'include' })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.length === 0) {
+                                    autocompleteDropdown.style.display = 'none';
+                                    return;
+                                }
+
+                                let html = '';
+                                let currentIndex = 0;
+
+                                data.slice(0, 6).forEach((item) => {
+                                    // 단순 키워드 검색(article이고 id 없음)은 시계 아이콘
+                                    let icon;
+                                    if (item.type === 'article' && !item.id) {
+                                        icon = 'fa-clock-rotate-left';
+                                    } else if (item.type === 'video') {
+                                        icon = 'fa-video';
+                                    } else if (item.type === 'corporation') {
+                                        icon = 'fa-building';
+                                    } else if (item.type === 'theme') {
+                                        icon = 'fa-layer-group';
+                                    } else {
+                                        icon = 'fa-clock-rotate-left';
+                                    }
+
+                                    html += `
+                                        <div class="autocomplete-item history-item"
+                                             data-type="${item.type}"
+                                             data-term="${item.keyword}"
+                                             ${item.id ? `data-id="${item.id}"` : ''}
+                                             data-index="${currentIndex}">
+                                            <i class="fas ${icon}" style="color: #9ca3af; margin-right: 12px;"></i>
+                                            <span class="autocomplete-term">${item.keyword}</span>
+                                        </div>
+                                    `;
+                                    currentIndex++;
+                                });
+
+                                autocompleteDropdown.innerHTML = html;
+                                autocompleteDropdown.style.display = 'block';
+
+                                attachHistoryClickHandlers();
+                            })
+                            .catch(error => {
+                                console.error('검색 기록 조회 실패:', error);
+                                autocompleteDropdown.style.display = 'none';
+                            });
+                    } else {
+                        // 비로그인 사용자: localStorage에서 검색 기록 가져오기
+                        const history = searchHistory.getHistory().slice(0, 6);
+                        if (history.length === 0) {
+                            autocompleteDropdown.style.display = 'none';
+                            return;
+                        }
+
+                        let html = '';
+                        history.forEach((item, index) => {
+                            html += `
+                                <div class="autocomplete-item history-item" data-type="article" data-term="${item}" data-index="${index}">
+                                    <i class="fas fa-clock-rotate-left" style="color: #9ca3af; margin-right: 12px;"></i>
+                                    <span class="autocomplete-term">${item}</span>
+                                </div>
+                            `;
+                        });
+
+                        autocompleteDropdown.innerHTML = html;
+                        autocompleteDropdown.style.display = 'block';
+
+                        attachHistoryClickHandlers();
                     }
+                }
 
-                    let html = '';
-                    history.forEach((item, index) => {
-                        html += `
-                            <div class="autocomplete-item history-item" data-type="history" data-term="${item}" data-index="${index}">
-                                <i class="fas fa-clock-rotate-left" style="color: #9ca3af; margin-right: 12px;"></i>
-                                <span class="autocomplete-term">${item}</span>
-                            </div>
-                        `;
-                    });
-
-                    autocompleteDropdown.innerHTML = html;
-                    autocompleteDropdown.style.display = 'block';
-
+                function attachHistoryClickHandlers() {
                     const items = autocompleteDropdown.querySelectorAll('.autocomplete-item');
                     items.forEach(item => {
                         item.addEventListener('click', function() {
+                            const type = this.dataset.type;
                             const term = this.dataset.term;
-                            searchInput.value = term;
-                            searchHistory.saveHistory(term);
-                            autocompleteDropdown.style.display = 'none';
-                            searchForm.submit();
+                            const id = this.dataset.id;
+
+                            if (type === 'corporation' && id) {
+                                window.location.href = `/corporations/${id}?keyword=${encodeURIComponent(term)}`;
+                            } else if (type === 'theme' && id) {
+                                window.location.href = `/themes/${id}?keyword=${encodeURIComponent(term)}`;
+                            } else if (type === 'video') {
+                                searchInput.value = term;
+                                if (!isAuthenticated) {
+                                    searchHistory.saveHistory(term);
+                                }
+                                autocompleteDropdown.style.display = 'none';
+                                window.location.href = `/videos?keyword=${encodeURIComponent(term)}`;
+                            } else {
+                                searchInput.value = term;
+                                if (!isAuthenticated) {
+                                    searchHistory.saveHistory(term);
+                                }
+                                autocompleteDropdown.style.display = 'none';
+                                searchForm.submit();
+                            }
                         });
                     });
 
@@ -396,7 +483,7 @@
 
                     matchedHistory.forEach((item) => {
                         html += `
-                            <div class="autocomplete-item history-item" data-type="history" data-term="${item}" data-index="${currentIndex}">
+                            <div class="autocomplete-item history-item" data-type="article" data-term="${item}" data-index="${currentIndex}">
                                 <i class="fas fa-clock-rotate-left" style="color: #9ca3af; margin-right: 12px;"></i>
                                 <span class="autocomplete-term">${item}</span>
                             </div>
@@ -415,6 +502,18 @@
                                                 `<i class="fas fa-building" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; color: var(--primary-green); font-size: 18px;"></i>`
                                             }
                                             <span class="autocomplete-term">${item.name}</span>
+                                        </div>
+                                    </div>
+                                `;
+                            } else if (item.type === 'theme') {
+                                html += `
+                                    <div class="autocomplete-item theme-item" data-type="theme" data-id="${item.id}" data-name="${item.name}" data-index="${currentIndex}">
+                                        <div style="display: flex; align-items: center; gap: 12px;">
+                                            <i class="fas fa-layer-group" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; color: var(--primary-green); font-size: 16px;"></i>
+                                            <div style="display: flex; flex-direction: column; gap: 2px;">
+                                                <span class="autocomplete-term" style="font-weight: 600;">${item.name}</span>
+                                                ${item.description ? `<span style="font-size: 0.75rem; color: #9ca3af;">${item.description.length > 30 ? item.description.substring(0, 30) + '...' : item.description}</span>` : ''}
+                                            </div>
                                         </div>
                                     </div>
                                 `;
@@ -440,13 +539,21 @@
                     const items = autocompleteDropdown.querySelectorAll('.autocomplete-item');
                     items.forEach(item => {
                         item.addEventListener('click', function() {
-                            if (this.dataset.type === 'corporation') {
-                                const corporationId = this.dataset.id;
-                                window.location.href = `/corporations/${corporationId}`;
+                            const type = this.dataset.type;
+                            const id = this.dataset.id;
+                            const term = this.dataset.term || this.dataset.name;
+
+                            if (type === 'corporation') {
+                                // 검색어를 URL 파라미터로 전달
+                                window.location.href = `/corporations/${id}?keyword=${encodeURIComponent(term)}`;
+                            } else if (type === 'theme') {
+                                // 검색어를 URL 파라미터로 전달
+                                window.location.href = `/themes/${id}?keyword=${encodeURIComponent(term)}`;
                             } else {
-                                const term = this.dataset.term;
                                 searchInput.value = term;
-                                searchHistory.saveHistory(term);
+                                if (!isAuthenticated) {
+                                    searchHistory.saveHistory(term);
+                                }
                                 autocompleteDropdown.style.display = 'none';
                                 searchForm.submit();
                             }
@@ -473,7 +580,10 @@
                         if (selectedItem.dataset.type === 'corporation') {
                             programmaticChange = true;
                             searchInput.value = selectedItem.dataset.name;
-                        } else if (selectedItem.dataset.type === 'term' || selectedItem.dataset.type === 'history') {
+                        } else if (selectedItem.dataset.type === 'theme') {
+                            programmaticChange = true;
+                            searchInput.value = selectedItem.dataset.name;
+                        } else if (selectedItem.dataset.type === 'term' || selectedItem.dataset.type === 'article' || selectedItem.dataset.type === 'history') {
                             programmaticChange = true;
                             searchInput.value = selectedItem.dataset.term;
                         }

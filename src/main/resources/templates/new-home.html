@@ -18,32 +18,24 @@
         <div class="new-home-container">
 
             <!-- Search Section -->
-            <section class="hero-banner">
-                <div class="hero-content">
-                    <h1 class="hero-title">NewCodes</h1>
-                    <p class="hero-subtitle">모든 기술블로그를 한 곳에서</p>
-
-                    <!-- Search Box -->
-                    <div class="hero-search-wrapper">
-                        <form id="searchForm" action="/" method="get" class="hero-search-form">
-                            <div class="hero-search-container">
-                                <i class="fas fa-search hero-search-icon"></i>
-                                <input type="text"
-                                       id="searchInput"
-                                       name="keyword"
-                                       class="hero-search-input"
-                                       placeholder="궁금한 기술, 회사, 주제를 검색해보세요!"
-                                       autocomplete="off">
-                                <button type="submit" class="hero-search-submit">
-                                    검색
-                                    <i class="fas fa-arrow-right"></i>
-                                </button>
-                                <!-- 자동완성 드롭다운 -->
-                                <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
-                            </div>
-                        </form>
+            <section class="hero-search-section">
+                <form id="searchForm" action="/" method="get" class="hero-search-form">
+                    <div class="hero-search-container">
+                        <i class="fas fa-search hero-search-icon"></i>
+                        <input type="text"
+                               id="searchInput"
+                               name="keyword"
+                               class="hero-search-input"
+                               placeholder="궁금한 기술, 회사, 주제를 검색해보세요!"
+                               autocomplete="off">
+                        <button type="submit" class="hero-search-submit">
+                            검색
+                            <i class="fas fa-arrow-right"></i>
+                        </button>
+                        <!-- 자동완성 드롭다운 -->
+                        <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
                     </div>
-                </div>
+                </form>
             </section>
 
             <!-- Latest Blog Articles Section -->

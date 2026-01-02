@@ -33,6 +33,9 @@ public class Theme {
     @Column(nullable = false, length = 100)
     private String name;
 
+    @Column(name = "decomposed_name", length = 300)
+    private String decomposedName;
+
     @Column(columnDefinition = "TEXT")
     private String description;
 

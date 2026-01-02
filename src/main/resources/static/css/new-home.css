@@ -5,49 +5,11 @@
             padding: 0 20px;
         }
 
-        /* Hero Section */
-        .hero-banner {
-            background: linear-gradient(135deg, var(--secondary-green) 0%, #F0F8F0 100%);
-            border-radius: 24px;
-            padding: 60px 40px;
-            margin-bottom: 60px;
-            border: 1px solid rgba(40, 199, 111, 0.1);
-            position: relative;
-            overflow: hidden;
-            height: auto;
-            min-height: 380px;
-        }
-
-        .hero-content {
-            position: relative;
-            z-index: 2;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 16px;
-            padding: 32px 28px;
-            margin: 0 auto;
+        /* Hero Search Section */
+        .hero-search-section {
             max-width: 700px;
-            text-align: center;
-        }
-
-        .hero-title {
-            font-size: 3rem;
-            font-weight: 800;
-            color: var(--text-dark);
-            margin-bottom: 12px;
-            letter-spacing: -1px;
-        }
-
-        .hero-subtitle {
-            font-size: 1.2rem;
-            color: var(--text-light);
-            font-weight: 600;
-            margin-bottom: 24px;
-        }
-
-        /* Search Box in Hero */
-        .hero-search-wrapper {
-            max-width: 600px;
-            margin: 0 auto;
+            margin: 0 auto 60px;
+            padding: 20px 0;
         }
 
         .hero-search-form {
@@ -137,6 +99,7 @@
             cursor: pointer;
             transition: background-color 0.2s;
             border-bottom: 1px solid #f0f0f0;
+            text-align: left;
         }
 
         .autocomplete-item:last-child {
@@ -154,6 +117,7 @@
         .autocomplete-term {
             font-weight: 500;
             color: var(--text-dark);
+            text-align: left;
         }
 
         /* Floating Company Logos */
@@ -946,24 +910,9 @@
                 padding: 0 16px;
             }
 
-            .hero-banner {
-                padding: 40px 24px;
+            .hero-search-section {
                 margin-bottom: 40px;
-                min-height: 320px;
-            }
-
-            .hero-content {
-                padding: 24px 20px;
-                max-width: 100%;
-            }
-
-            .hero-title {
-                font-size: 2rem;
-            }
-
-            .hero-subtitle {
-                font-size: 1rem;
-                margin-bottom: 20px;
+                padding: 16px 0;
             }
 
             .hero-search-container {
@@ -1071,22 +1020,9 @@
         }
 
         @media (max-width: 480px) {
-            .hero-banner {
-                min-height: 300px;
-                padding: 32px 16px;
-            }
-
-            .hero-content {
-                padding: 20px 16px;
-            }
-
-            .hero-title {
-                font-size: 1.8rem;
-            }
-
-            .hero-subtitle {
-                font-size: 0.9rem;
-                margin-bottom: 16px;
+            .hero-search-section {
+                margin-bottom: 32px;
+                padding: 12px 0;
             }
 
             .hero-search-input {

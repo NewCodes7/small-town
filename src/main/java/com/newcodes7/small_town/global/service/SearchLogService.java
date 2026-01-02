@@ -1,5 +1,6 @@
 package com.newcodes7.small_town.global.service;
 
+import com.newcodes7.small_town.auth.entity.User;
 import com.newcodes7.small_town.global.entity.SearchLog;
 import com.newcodes7.small_town.global.repository.SearchLogRepository;
 import jakarta.servlet.http.HttpServletRequest;
@@ -45,6 +46,31 @@ public class SearchLogService {
             searchLogRepository.save(searchLog);
         } catch (Exception e) {
             log.error("검색 로그 저장 실패: keyword={}, type={}", keyword, searchType, e);
+        }
+    }
+
+    /**
+     * 검색 로그 저장 (사용자 정보 포함, 비동기)
+     */
+    @Async
+    @Transactional
+    public void logSearch(String keyword, SearchLog.SearchType searchType, Long targetId, User user, HttpServletRequest request) {
+        try {
+            String ipAddress = getClientIp(request);
+            String userAgent = request.getHeader("User-Agent");
+
+            SearchLog searchLog = SearchLog.builder()
+                    .searchKeyword(keyword)
+                    .searchType(searchType)
+                    .targetId(targetId)
+                    .user(user)
+                    .ipAddress(ipAddress)
+                    .userAgent(userAgent)
+                    .build();
+
+            searchLogRepository.save(searchLog);
+        } catch (Exception e) {
+            log.error("검색 로그 저장 실패: keyword={}, type={}, targetId={}", keyword, searchType, targetId, e);
         }
     }
 

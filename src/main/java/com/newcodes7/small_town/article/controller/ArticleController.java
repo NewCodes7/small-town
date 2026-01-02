@@ -55,6 +55,9 @@ import com.newcodes7.small_town.global.util.Client;
 import com.newcodes7.small_town.global.util.KoreanCharacterUtil;
 import com.newcodes7.small_town.global.entity.SearchLog;
 import com.newcodes7.small_town.global.service.SearchLogService;
+import com.newcodes7.small_town.global.repository.SearchLogRepository;
+import com.newcodes7.small_town.theme.entity.Theme;
+import com.newcodes7.small_town.theme.repository.ThemeRepository;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -80,6 +83,7 @@ public class ArticleController {
     private final IndustryRepository industryRepository;
     private final ArticleTermRepository articleTermRepository;
     private final SearchLogService searchLogService;
+    private final SearchLogRepository searchLogRepository;
     private final ArticleRepository articleRepository;
     private final com.newcodes7.small_town.auth.repository.UserRepository userRepository;
     private final com.newcodes7.small_town.article.repository.LikeLogRepository likeLogRepository;
@@ -87,6 +91,7 @@ public class ArticleController {
     private final SemanticTermExpansionService semanticExpansionService;
     private final com.newcodes7.small_town.video.service.VideoService videoService;
     private final com.newcodes7.small_town.theme.service.ThemeService themeService;
+    private final ThemeRepository themeRepository;
 
     @GetMapping({"", "/"})
     public String home(
@@ -97,12 +102,20 @@ public class ArticleController {
             @RequestParam(name = "regions", required = false) List<String> regions,
             @RequestParam(name = "view", required = false) String view,
             @RequestParam(name = "category", required = false) List<String> category,
+            @AuthenticationPrincipal UserDetails userDetails,
             HttpServletRequest request,
             Model model) {
 
         // 검색 로그 저장
         if (keyword != null && !keyword.trim().isEmpty()) {
-            searchLogService.logSearch(keyword.trim(), SearchLog.SearchType.ARTICLE, request);
+            User user = null;
+            if (userDetails != null) {
+                user = userRepository.findByUsernameAndDeletedAtIsNull(userDetails.getUsername()).orElse(null);
+                if (user != null) {
+                    log.info("검색 로그 저장: userId={}, keyword={}, type=ARTICLE", user.getId(), keyword.trim());
+                }
+            }
+            searchLogService.logSearch(keyword.trim(), SearchLog.SearchType.ARTICLE, null, user, request);
         }
 
         // view 파라미터가 제공되지 않았을 때만 검색어에 따라 list로 강제 변경
@@ -308,11 +321,8 @@ public class ArticleController {
             hasLiked = userLikeService.hasLikedByIp(articleId, ipAddress);
         }
 
-        long likeCount = userLikeService.getLikeCount(articleId);
-
         Map<String, Object> response = new HashMap<>();
         response.put("hasLiked", hasLiked);
-        response.put("likeCount", likeCount);
         response.put("authenticated", userDetails != null);
 
         return ResponseEntity.ok(response);
@@ -494,8 +504,21 @@ public class ArticleController {
     public String corporationDetail(@PathVariable Long corporationId,
                                   @RequestParam(defaultValue = "0") int page,
                                   @RequestParam(defaultValue = "10") int size,
+                                  @RequestParam(required = false) String keyword,
+                                  @AuthenticationPrincipal UserDetails userDetails,
+                                  HttpServletRequest request,
                                   Model model) {
         CorporationDetailDto corporation = articleService.getCorporationDetail(corporationId);
+
+        // 검색 로그 저장 (keyword 파라미터가 있고 로그인한 경우)
+        if (keyword != null && !keyword.trim().isEmpty() && userDetails != null) {
+            User user = userRepository.findByUsernameAndDeletedAtIsNull(userDetails.getUsername()).orElse(null);
+            if (user != null) {
+                log.info("검색 로그 저장: userId={}, keyword={}, type=CORPORATION, targetId={}",
+                    user.getId(), keyword.trim(), corporationId);
+                searchLogService.logSearch(keyword.trim(), SearchLog.SearchType.CORPORATION, corporationId, user, request);
+            }
+        }
 
         Page<ArticleListResponseDto> articles = articleService.getArticlesByCorporation(corporationId, page, size);
 
@@ -624,7 +647,7 @@ public class ArticleController {
 
     /**
      * 자동완성 검색어 API
-     * 사용자 입력값으로 시작하는 term과 corporation을 빈도수 순으로 반환
+     * 사용자 입력값으로 시작하는 term, corporation, theme을 빈도수 순으로 반환
      *
      * GET /api/autocomplete?q=검색어
      */
@@ -644,13 +667,13 @@ public class ArticleController {
         // 검색어를 자모 분해 (예: "프로제" → "ㅍㅡㄹㅗㅈㅔ", "톳" → "ㅌㅗㅅ")
         String decomposedQuery = KoreanCharacterUtil.decomposeHangul(trimmedQuery);
 
-        // 기업 검색 (블로그가 있는 기업만, 최대 3개)
+        // 기업 검색 (블로그가 있는 기업만, 최대 2개)
         // 원본 검색어와 자모 분해 검색어 둘 다 검색하고 중복 제거
         Set<Long> corporationIds = new LinkedHashSet<>();
         List<Corporation> allCorporations = new ArrayList<>();
 
         // 1. 원본 검색어로 검색
-        List<Corporation> corporations1 = corporationService.searchCorporationsWithArticles(trimmedQuery, 3);
+        List<Corporation> corporations1 = corporationService.searchCorporationsWithArticles(trimmedQuery, 2);
         for (Corporation corp : corporations1) {
             if (corporationIds.add(corp.getId())) {
                 allCorporations.add(corp);
@@ -659,16 +682,16 @@ public class ArticleController {
 
         // 2. 자모 분해 검색어로 검색 (한글인 경우만)
         if (!trimmedQuery.equals(decomposedQuery)) {
-            List<Corporation> corporations2 = corporationService.searchCorporationsWithArticles(decomposedQuery, 3);
+            List<Corporation> corporations2 = corporationService.searchCorporationsWithArticles(decomposedQuery, 2);
             for (Corporation corp : corporations2) {
-                if (corporationIds.add(corp.getId()) && allCorporations.size() < 3) {
+                if (corporationIds.add(corp.getId()) && allCorporations.size() < 2) {
                     allCorporations.add(corp);
                 }
             }
         }
 
-        // 최대 3개만 사용
-        List<Corporation> corporations = allCorporations.stream().limit(3).collect(Collectors.toList());
+        // 최대 2개만 사용
+        List<Corporation> corporations = allCorporations.stream().limit(2).collect(Collectors.toList());
 
         for (Corporation corporation : corporations) {
             Map<String, Object> item = new HashMap<>();
@@ -688,12 +711,27 @@ public class ArticleController {
             suggestions.add(item);
         }
 
+        // 테마 검색 (최대 2개, 자모 분리 검색 지원)
+        PageRequest themePageRequest = PageRequest.of(0, 2);
+        List<Theme> themes = themeRepository.findByNameWithPatterns(
+            trimmedQuery, decomposedQuery, themePageRequest);
+
+        for (Theme theme : themes) {
+            Map<String, Object> item = new HashMap<>();
+            item.put("type", "theme");
+            item.put("id", theme.getId());
+            item.put("name", theme.getName());
+            item.put("description", theme.getDescription());
+            item.put("emoji", theme.getEmoji());
+            suggestions.add(item);
+        }
+
         // 한글 검색 패턴 생성 (예: "프롲" → ["프롲", "프로ㅈ"])
         List<String> searchPatterns = KoreanCharacterUtil.generateSearchPatterns(trimmedQuery);
 
-        // Term 검색 (최대 6개)
+        // Term 검색 (최대 4개)
         // 원본 검색어와 자모 분해된 검색어 둘 다 사용
-        PageRequest termPageRequest = PageRequest.of(0, 6);
+        PageRequest termPageRequest = PageRequest.of(0, 4);
         List<ArticleTermRepository.AutocompleteSuggestion> articleTermSuggestions;
 
         if (searchPatterns.size() == 2) {
@@ -717,6 +755,70 @@ public class ArticleController {
         }
 
         return ResponseEntity.ok(suggestions);
+    }
+
+    /**
+     * 사용자별 검색 기록 조회 API
+     * 로그인한 사용자의 최근 검색 기록을 반환 (최대 10개)
+     *
+     * GET /api/search-history
+     */
+    @GetMapping("/api/search-history")
+    @ResponseBody
+    public ResponseEntity<List<Map<String, Object>>> getSearchHistory(
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        List<Map<String, Object>> history = new ArrayList<>();
+
+        if (userDetails == null) {
+            log.debug("검색 기록 조회: 사용자 미인증");
+            return ResponseEntity.ok(history);
+        }
+
+        log.debug("검색 기록 조회: username={}", userDetails.getUsername());
+
+        // 사용자 조회
+        User user = userRepository.findByUsernameAndDeletedAtIsNull(userDetails.getUsername())
+            .orElse(null);
+
+        if (user == null) {
+            log.warn("검색 기록 조회: 사용자를 찾을 수 없음 username={}", userDetails.getUsername());
+            return ResponseEntity.ok(history);
+        }
+
+        log.debug("검색 기록 조회: 사용자 찾음 userId={}", user.getId());
+
+        // 최근 검색 기록 조회 (최대 50개 가져와서 중복 제거 후 10개)
+        PageRequest pageRequest = PageRequest.of(0, 50);
+        List<SearchLog> searchLogs = searchLogRepository.findRecentSearchesByUser(user, pageRequest);
+
+        log.info("검색 기록 조회: userId={}, 총 검색 로그 수={}", user.getId(), searchLogs.size());
+
+        // 중복 제거 (keyword + type + targetId 조합으로)
+        Set<String> seen = new LinkedHashSet<>();
+        for (SearchLog searchLog : searchLogs) {
+            String key = searchLog.getSearchKeyword() + "|" + searchLog.getSearchType() + "|" + searchLog.getTargetId();
+
+            if (!seen.contains(key) && seen.size() < 10) {
+                seen.add(key);
+
+                Map<String, Object> item = new HashMap<>();
+                item.put("type", searchLog.getSearchType().name().toLowerCase());
+                item.put("keyword", searchLog.getSearchKeyword());
+
+                if (searchLog.getTargetId() != null) {
+                    item.put("id", searchLog.getTargetId());
+                }
+
+                history.add(item);
+                log.debug("검색 기록 추가: keyword={}, type={}, targetId={}",
+                    searchLog.getSearchKeyword(), searchLog.getSearchType(), searchLog.getTargetId());
+            }
+        }
+
+        log.info("검색 기록 조회 완료: userId={}, 반환 개수={}", user.getId(), history.size());
+
+        return ResponseEntity.ok(history);
     }
 
     // 좋아요 페이지 렌더링

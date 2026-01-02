@@ -1,5 +1,6 @@
 package com.newcodes7.small_town.global.entity;
 
+import com.newcodes7.small_town.auth.entity.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -18,7 +19,8 @@ import org.springframework.data.annotation.CreatedDate;
 @Table(name = "search_logs", indexes = {
     @Index(name = "idx_search_keyword", columnList = "searchKeyword"),
     @Index(name = "idx_search_type", columnList = "searchType"),
-    @Index(name = "idx_created_at", columnList = "createdAt")
+    @Index(name = "idx_created_at", columnList = "createdAt"),
+    @Index(name = "idx_user_id", columnList = "user_id")
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -35,11 +37,24 @@ public class SearchLog {
     private String searchKeyword;
 
     /**
-     * 검색 타입 (ARTICLE, VIDEO)
+     * 검색 타입 (ARTICLE, VIDEO, CORPORATION, THEME)
      */
     @Column(nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
     private SearchType searchType;
+
+    /**
+     * 검색 대상 ID (corporation_id 또는 theme_id)
+     */
+    @Column(name = "target_id")
+    private Long targetId;
+
+    /**
+     * 검색 사용자 (로그인한 경우)
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
 
     /**
      * 사용자 IP 주소
@@ -61,9 +76,11 @@ public class SearchLog {
     private LocalDateTime createdAt;
 
     @Builder
-    public SearchLog(String searchKeyword, SearchType searchType, String ipAddress, String userAgent) {
+    public SearchLog(String searchKeyword, SearchType searchType, Long targetId, User user, String ipAddress, String userAgent) {
         this.searchKeyword = searchKeyword;
         this.searchType = searchType;
+        this.targetId = targetId;
+        this.user = user;
         this.ipAddress = ipAddress;
         this.userAgent = userAgent;
         this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
@@ -73,7 +90,9 @@ public class SearchLog {
      * 검색 타입
      */
     public enum SearchType {
-        ARTICLE,  // 기사 검색
-        VIDEO     // 영상 검색
+        ARTICLE,      // 기사 검색
+        VIDEO,        // 영상 검색
+        CORPORATION,  // 기업 검색
+        THEME         // 테마 검색
     }
 }
