@@ -1,5 +1,6 @@
 // 관리자 컨트롤 패널 기능
 let currentArticleId = null;
+let currentArticleTitle = null;
 let isVideoPage = false; // 영상 페이지인지 여부
 
 // 페이지 로드 시 사용자 정보 확인 및 관리자 버튼 표시
@@ -32,10 +33,11 @@ function setupAdminEventListeners() {
         // 관리자 버튼 클릭 처리
         const editBtn = e.target.closest('.admin-edit-btn');
         const summaryBtn = e.target.closest('.admin-summary-btn');
+        const themeBtn = e.target.closest('.admin-theme-btn');
         const deleteBtn = e.target.closest('.admin-delete-btn');
         const categoryDeleteBtn = e.target.closest('.admin-category-delete-btn');
 
-        if (editBtn || summaryBtn || deleteBtn) {
+        if (editBtn || summaryBtn || themeBtn || deleteBtn) {
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation();
@@ -46,6 +48,10 @@ function setupAdminEventListeners() {
             } else if (summaryBtn) {
                 currentArticleId = summaryBtn.dataset.articleId;
                 loadSummariesForEdit(currentArticleId);
+            } else if (themeBtn) {
+                currentArticleId = themeBtn.dataset.articleId;
+                currentArticleTitle = themeBtn.dataset.articleTitle;
+                openAddToThemeModal();
             } else if (deleteBtn) {
                 const articleId = deleteBtn.dataset.articleId;
                 const articleTitle = deleteBtn.dataset.articleTitle;
@@ -103,6 +109,11 @@ function setupAdminEventListeners() {
         addSummaryBtn.addEventListener('click', function() {
             addSummaryItem();
         });
+    }
+
+    const confirmAddToThemeBtn = document.getElementById('confirmAddToThemeBtn');
+    if (confirmAddToThemeBtn) {
+        confirmAddToThemeBtn.addEventListener('click', addArticleToTheme);
     }
 
     // 썸네일 미리보기
@@ -439,5 +450,107 @@ function deleteCategory(categoryId, categoryName) {
     .catch(error => {
         console.error('카테고리 삭제 중 오류:', error);
         alert('카테고리 삭제 중 오류가 발생했습니다: ' + error.message);
+    });
+}
+
+// 테마 추가 모달 열기
+function openAddToThemeModal() {
+    // 선택한 글 제목 표시
+    const titleElement = document.querySelector('#selectedArticleTitle span');
+    if (titleElement) {
+        titleElement.textContent = currentArticleTitle || '제목 없음';
+    }
+
+    // 테마 목록 로드
+    loadThemes();
+
+    // 모달 표시
+    const modal = new bootstrap.Modal(document.getElementById('addToThemeModal'));
+    modal.show();
+}
+
+// 테마 목록 로드
+function loadThemes() {
+    fetch('/api/admin/themes')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(themes => {
+            const themeSelect = document.getElementById('themeSelect');
+            if (themeSelect) {
+                // 기존 옵션 제거 (첫 번째 "선택하세요" 옵션 제외)
+                while (themeSelect.options.length > 1) {
+                    themeSelect.remove(1);
+                }
+
+                // 테마 목록 추가
+                themes.forEach(theme => {
+                    const option = document.createElement('option');
+                    option.value = theme.id;
+                    option.textContent = `${theme.emoji || '📁'} ${theme.name}`;
+                    themeSelect.appendChild(option);
+                });
+            }
+        })
+        .catch(error => {
+            console.error('테마 목록 로드 중 오류:', error);
+            alert('테마 목록을 불러오는 중 오류가 발생했습니다.');
+        });
+}
+
+// 테마에 아티클 추가
+function addArticleToTheme() {
+    const themeId = document.getElementById('themeSelect').value;
+    const displayOrder = document.getElementById('themeDisplayOrder').value || 0;
+
+    if (!themeId) {
+        alert('테마를 선택해주세요.');
+        return;
+    }
+
+    if (!currentArticleId) {
+        alert('선택된 글이 없습니다.');
+        return;
+    }
+
+    const requestData = {
+        articleId: parseInt(currentArticleId),
+        displayOrder: parseInt(displayOrder)
+    };
+
+    fetch(`/api/admin/themes/${themeId}/articles`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.message || `HTTP error! status: ${response.status}`);
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        alert('테마에 글이 성공적으로 추가되었습니다.');
+        const modal = bootstrap.Modal.getInstance(document.getElementById('addToThemeModal'));
+        modal.hide();
+
+        // 폼 초기화
+        document.getElementById('themeSelect').value = '';
+        document.getElementById('themeDisplayOrder').value = 0;
+    })
+    .catch(error => {
+        console.error('테마 추가 중 오류:', error);
+        if (error.message.includes('이미 테마에 추가된 아티클입니다')) {
+            alert('이 글은 이미 선택한 테마에 추가되어 있습니다.');
+        } else {
+            alert('테마에 글을 추가하는 중 오류가 발생했습니다: ' + error.message);
+        }
     });
 }
