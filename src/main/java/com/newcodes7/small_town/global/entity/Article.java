@@ -103,10 +103,12 @@ public class Article {
     @Column(columnDefinition = "TEXT")
     private String content;
 
+    @Basic(fetch = FetchType.LAZY)
     @Type(VectorType.class)
     @Column(columnDefinition = "vector(1536)")
     private float[] embedding;
 
+    @Basic(fetch = FetchType.LAZY)
     @Column(name = "embedding_generated_at")
     private LocalDateTime embeddingGeneratedAt;
 
