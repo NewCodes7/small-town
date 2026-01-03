@@ -971,27 +971,25 @@ public class ArticleService {
 
     /**
      * ILIKE 검색 수행 (폴백)
+     * 제목에 키워드가 직접 포함된 경우 검색 (고유명사, 회사명 등)
+     *
+     * NOTE: BM25가 이미 Term 기반 검색을 수행하므로,
+     *       이 메서드는 순수하게 title/translatedTitle LIKE 매칭만 수행합니다.
+     *
+     * @param keyword 검색 키워드
+     * @param regions 지역 필터
+     * @param category 카테고리 필터
+     * @return 제목에 키워드가 포함된 Article ID 목록
      */
     private List<Long> performILIKESearch(String keyword, List<String> regions, List<String> category) {
-        // 지역 필터 변환
+        // 순수한 제목 직접 매칭만 수행 (ILIKE 본연의 역할)
         List<Integer> domesticTypes = convertRegionsToTypes(regions);
-
-        // Term 기반 검색
-        List<Long> termBasedArticleIds = getArticleIdsByKeywordWithSynonyms(keyword);
-
-        // LIKE 패턴
         String searchPattern = "%" + keyword + "%";
         List<String> safeCategory = (category != null && !category.isEmpty()) ? category : null;
 
-        // 검색 실행
-        List<Article> articles;
-        if (termBasedArticleIds != null && !termBasedArticleIds.isEmpty()) {
-            articles = articleRepository.findArticlesWithFiltersWithTerms(
-                    searchPattern, termBasedArticleIds, domesticTypes, safeCategory);
-        } else {
-            articles = articleRepository.findArticlesWithFiltersWithoutTerms(
-                    searchPattern, domesticTypes, safeCategory);
-        }
+        // 항상 WithoutTerms 쿼리 사용 (LOWER(title) LIKE ... OR LOWER(translatedTitle) LIKE ...)
+        List<Article> articles = articleRepository.findArticlesWithFiltersWithoutTerms(
+                searchPattern, domesticTypes, safeCategory);
 
         return articles.stream()
                 .map(Article::getId)
