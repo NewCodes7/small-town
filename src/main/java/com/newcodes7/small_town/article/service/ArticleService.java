@@ -533,8 +533,8 @@ public class ArticleService {
      */
     @Transactional(readOnly = true, noRollbackFor = {Exception.class, RuntimeException.class})
     /**
-     * Hybrid 검색 + RRF 리랭킹 + Time Decay
-     * BM25 (키워드 정확도) + ILIKE (폴백) → RRF로 통합 → 최신순 가중치 적용
+     * Hybrid 검색 + RRF 리랭킹
+     * BM25 (키워드 정확도) + ILIKE (폴백) → RRF로 통합
      *
      * NOTE: Vector Search는 비활성화되어 있습니다.
      *
@@ -544,7 +544,7 @@ public class ArticleService {
      * @param page 페이지 번호
      * @param size 페이지 크기
      * @param sort 정렬 방식
-     * @return 검색 결과 (RRF + Time Decay 스코어 기반 정렬)
+     * @return 검색 결과 (RRF 스코어 기반 정렬)
      */
     public Page<ArticleSearchResultDto> searchArticlesHybrid(
             String keyword,
@@ -587,70 +587,87 @@ public class ArticleService {
 
         log.info("RRF 리랭킹 완료 - 최종 결과: {}개", rrfScores.size());
 
-        // 5. Article 조회 (RRF 순위대로)
-        List<Long> articleIds = new ArrayList<>(rrfScores.keySet());
-        List<Article> allArticles = articleRepository.findAllById(articleIds);
+        // 5. RRF 점수로 정렬 (메모리에서, ID + 점수만 사용)
+        List<Map.Entry<Long, Double>> sortedByRRF = rrfScores.entrySet().stream()
+                .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
+                .toList();
 
-        // 6. 필터 적용 (region, category) - 이미 검색 시 필터링되었지만 재확인
-        allArticles = filterArticles(allArticles, regions, category);
+        // 6. 페이징 계산
+        int offset = page * size;
+        int totalResults = sortedByRRF.size();
 
-        // 7. DTO 생성 (RRF 스코어, BM25 스코어, ILIKE 스코어, Time Decay 스코어 포함)
-        List<ArticleSearchResultDto> results = allArticles.stream()
-                .map(article -> {
-                    Long articleId = article.getId();
+        // 7. sort 파라미터에 따른 처리
+        List<Long> pageArticleIds;
 
-                    // 각 검색 방법별 스코어
-                    Double bm25Score = bm25Results.get(articleId);
-                    Double ilikeScore = ilikeResults.get(articleId);
-                    Double rrfScore = rrfScores.get(articleId);
+        if ("latest".equals(sort) || "oldest".equals(sort)) {
+            // 최신순/오래된순: 상위 100개 조회 후 발행일로 정렬 (절충안)
+            int bufferSize = Math.min(100, totalResults);
+            pageArticleIds = sortedByRRF.stream()
+                    .limit(bufferSize)
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toList());
 
-                    // Time Decay 스코어 계산
-                    Double timeDecayScore = calculateTimeDecayScore(article.getPublishedAt());
+            List<Article> bufferArticles = articleRepository.findAllById(pageArticleIds);
 
-                    // foundByVector는 항상 false (Vector Search 비활성화됨)
-                    boolean foundByVector = false;
+            // 발행일로 정렬
+            bufferArticles.sort((a, b) -> {
+                LocalDateTime dateA = a.getPublishedAt() != null ? a.getPublishedAt() : LocalDateTime.MIN;
+                LocalDateTime dateB = b.getPublishedAt() != null ? b.getPublishedAt() : LocalDateTime.MIN;
+                return "latest".equals(sort) ? dateB.compareTo(dateA) : dateA.compareTo(dateB);
+            });
 
-                    return new ArticleSearchResultDto(article, foundByVector, bm25Score, null, rrfScore, ilikeScore, timeDecayScore);
-                })
-                .collect(Collectors.toList());
+            // DTO 생성
+            List<ArticleSearchResultDto> results = bufferArticles.stream()
+                    .skip(offset)
+                    .limit(size)
+                    .map(article -> {
+                        Long articleId = article.getId();
+                        Double bm25Score = bm25Results.get(articleId);
+                        Double ilikeScore = ilikeResults.get(articleId);
+                        Double rrfScore = rrfScores.get(articleId);
+                        return new ArticleSearchResultDto(article, false, bm25Score, null, rrfScore, ilikeScore, null);
+                    })
+                    .collect(Collectors.toList());
 
-        // 8. 정렬 방식에 따라 정렬
-        results.sort((a, b) -> {
-            // sort 파라미터에 따른 정렬
-            if ("latest".equals(sort)) {
-                // 최신순: publishedAt 내림차순
-                LocalDateTime dateA = a.getPublishedAt() != null ? LocalDateTime.parse(a.getPublishedAt().replace(" ", "T")) : LocalDateTime.MIN;
-                LocalDateTime dateB = b.getPublishedAt() != null ? LocalDateTime.parse(b.getPublishedAt().replace(" ", "T")) : LocalDateTime.MIN;
-                return dateB.compareTo(dateA);
-            } else if ("oldest".equals(sort)) {
-                // 오래된순: publishedAt 오름차순
-                LocalDateTime dateA = a.getPublishedAt() != null ? LocalDateTime.parse(a.getPublishedAt().replace(" ", "T")) : LocalDateTime.MAX;
-                LocalDateTime dateB = b.getPublishedAt() != null ? LocalDateTime.parse(b.getPublishedAt().replace(" ", "T")) : LocalDateTime.MAX;
-                return dateA.compareTo(dateB);
-            } else {
-                // 적합도순 (relevance 또는 기본값): RRF + Time Decay
-                Double rrfScoreA = rrfScores.get(a.getId());
-                Double rrfScoreB = rrfScores.get(b.getId());
+            return new PageImpl<>(results, PageRequest.of(page, size), bufferArticles.size());
 
-                // Time Decay 점수 계산 (최신 글일수록 높은 점수)
-                Double timeDecayA = calculateTimeDecayScore(
-                    a.getPublishedAt() != null ? LocalDateTime.parse(a.getPublishedAt().replace(" ", "T")) : null
-                );
-                Double timeDecayB = calculateTimeDecayScore(
-                    b.getPublishedAt() != null ? LocalDateTime.parse(b.getPublishedAt().replace(" ", "T")) : null
-                );
-
-                // 최종 점수 = RRF 스코어 (99%) + Time Decay (1%)
-                // Time Decay 가중치를 낮춰 검색 적합도를 우선시하되, 최신성도 약간 반영
-                double finalScoreA = (rrfScoreA != null ? rrfScoreA : 0.0) * 0.99 + timeDecayA * 0.01;
-                double finalScoreB = (rrfScoreB != null ? rrfScoreB : 0.0) * 0.99 + timeDecayB * 0.01;
-
-                return Double.compare(finalScoreB, finalScoreA);
+        } else {
+            // 적합도순 (기본값): RRF 순위대로 상위 N개만 조회
+            if (offset >= totalResults) {
+                return Page.empty(PageRequest.of(page, size));
             }
-        });
 
-        // 9. 페이징
-        return paginateResults(results, page, size);
+            pageArticleIds = sortedByRRF.stream()
+                    .skip(offset)
+                    .limit(size)
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toList());
+
+            // 상위 N개만 Article 조회
+            List<Article> pageArticles = articleRepository.findAllById(pageArticleIds);
+
+            // Article ID 순서를 RRF 순서대로 재정렬
+            Map<Long, Article> articleMap = pageArticles.stream()
+                    .collect(Collectors.toMap(Article::getId, a -> a));
+
+            List<Article> sortedArticles = pageArticleIds.stream()
+                    .map(articleMap::get)
+                    .filter(a -> a != null)
+                    .collect(Collectors.toList());
+
+            // DTO 생성
+            List<ArticleSearchResultDto> results = sortedArticles.stream()
+                    .map(article -> {
+                        Long articleId = article.getId();
+                        Double bm25Score = bm25Results.get(articleId);
+                        Double ilikeScore = ilikeResults.get(articleId);
+                        Double rrfScore = rrfScores.get(articleId);
+                        return new ArticleSearchResultDto(article, false, bm25Score, null, rrfScore, ilikeScore, null);
+                    })
+                    .collect(Collectors.toList());
+
+            return new PageImpl<>(results, PageRequest.of(page, size), totalResults);
+        }
     }
 
     /**
@@ -1207,37 +1224,6 @@ public class ArticleService {
         return category.contains(article.getCategory().getName());
     }
 
-    /**
-     * 날짜 기반 Time Decay 점수 계산
-     * 최신 글일수록 높은 점수, 오래된 글일수록 낮은 점수 반환
-     *
-     * @param publishedAt 게시글 발행일
-     * @return Time Decay 점수 (0.0 ~ 1.0)
-     */
-    private double calculateTimeDecayScore(LocalDateTime publishedAt) {
-        // 발행일이 없는 경우 낮은 점수
-        if (publishedAt == null) {
-            return 0.1;
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-
-        // 미래 날짜인 경우 최고 점수
-        if (publishedAt.isAfter(now)) {
-            return 1.0;
-        }
-
-        // 경과 일수 계산
-        long daysSincePublished = java.time.Duration.between(publishedAt, now).toDays();
-
-        // Exponential Decay: score = e^(-decay_rate * days)
-        // decay_rate = 0.01: 100일 후 약 0.37 (37%), 200일 후 약 0.14 (14%)
-        double decayRate = 0.01;
-        double score = Math.exp(-decayRate * daysSincePublished);
-
-        // 최소값 설정 (너무 오래된 글도 0이 되지 않도록)
-        return Math.max(score, 0.05);
-    }
 
     /**
      * 검색 결과 정렬
