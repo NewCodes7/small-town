@@ -559,7 +559,23 @@ public class ArticleService {
         }
 
         // 1. BM25 검색 (ArticleTerm 기반 키워드 검색 - 정확도 높음)
-        Map<Long, Double> bm25Results = performBM25SearchWithScores(keyword, regions, category);
+        // 발행일 정보도 함께 가져옴
+        Map<Long, Double> bm25Results = new HashMap<>();
+        Map<Long, LocalDateTime> publishedAtMap = new HashMap<>();
+
+        // BM25 검색 실행 및 발행일 추출
+        List<Object[]> bm25RawResults = performBM25SearchRaw(keyword, regions, category);
+        for (Object[] row : bm25RawResults) {
+            Long articleId = ((Number) row[0]).longValue();
+            Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
+            java.sql.Timestamp timestamp = row.length > 2 ? (java.sql.Timestamp) row[2] : null;
+            LocalDateTime publishedAt = timestamp != null ? timestamp.toLocalDateTime() : null;
+
+            bm25Results.put(articleId, score);
+            if (publishedAt != null) {
+                publishedAtMap.put(articleId, publishedAt);
+            }
+        }
         log.info("BM25 검색 결과: {}개", bm25Results.size());
 
         // 2. ILIKE 폴백 (고유명사 등 BM25가 놓칠 수 있는 경우)
@@ -600,26 +616,40 @@ public class ArticleService {
         List<Long> pageArticleIds;
 
         if ("latest".equals(sort) || "oldest".equals(sort)) {
-            // 최신순/오래된순: 상위 100개 조회 후 발행일로 정렬 (절충안)
-            int bufferSize = Math.min(100, totalResults);
-            pageArticleIds = sortedByRRF.stream()
-                    .limit(bufferSize)
+            // 최신순/오래된순: publishedAtMap을 사용하여 메모리에서 정렬 후 10개만 조회
+            List<Map.Entry<Long, Double>> sortedByDate = sortedByRRF.stream()
+                    .sorted((e1, e2) -> {
+                        LocalDateTime date1 = publishedAtMap.getOrDefault(e1.getKey(), LocalDateTime.MIN);
+                        LocalDateTime date2 = publishedAtMap.getOrDefault(e2.getKey(), LocalDateTime.MIN);
+                        return "latest".equals(sort) ? date2.compareTo(date1) : date1.compareTo(date2);
+                    })
+                    .toList();
+
+            if (offset >= totalResults) {
+                return Page.empty(PageRequest.of(page, size));
+            }
+
+            // 페이지에 해당하는 10개만 추출
+            pageArticleIds = sortedByDate.stream()
+                    .skip(offset)
+                    .limit(size)
                     .map(Map.Entry::getKey)
                     .collect(Collectors.toList());
 
-            List<Article> bufferArticles = articleRepository.findAllById(pageArticleIds);
+            // 10개만 조회
+            List<Article> pageArticles = articleRepository.findAllById(pageArticleIds);
 
-            // 발행일로 정렬
-            bufferArticles.sort((a, b) -> {
-                LocalDateTime dateA = a.getPublishedAt() != null ? a.getPublishedAt() : LocalDateTime.MIN;
-                LocalDateTime dateB = b.getPublishedAt() != null ? b.getPublishedAt() : LocalDateTime.MIN;
-                return "latest".equals(sort) ? dateB.compareTo(dateA) : dateA.compareTo(dateB);
-            });
+            // Article ID 순서를 정렬된 순서대로 재정렬
+            Map<Long, Article> articleMap = pageArticles.stream()
+                    .collect(Collectors.toMap(Article::getId, a -> a));
+
+            List<Article> sortedArticles = pageArticleIds.stream()
+                    .map(articleMap::get)
+                    .filter(a -> a != null)
+                    .collect(Collectors.toList());
 
             // DTO 생성
-            List<ArticleSearchResultDto> results = bufferArticles.stream()
-                    .skip(offset)
-                    .limit(size)
+            List<ArticleSearchResultDto> results = sortedArticles.stream()
                     .map(article -> {
                         Long articleId = article.getId();
                         Double bm25Score = bm25Results.get(articleId);
@@ -629,7 +659,7 @@ public class ArticleService {
                     })
                     .collect(Collectors.toList());
 
-            return new PageImpl<>(results, PageRequest.of(page, size), bufferArticles.size());
+            return new PageImpl<>(results, PageRequest.of(page, size), totalResults);
 
         } else {
             // 적합도순 (기본값): RRF 순위대로 상위 N개만 조회
@@ -705,6 +735,126 @@ public class ArticleService {
     private List<Long> performBM25Search(String keyword, List<String> regions, List<String> category) {
         Map<Long, Double> results = performBM25SearchWithScores(keyword, regions, category);
         return new ArrayList<>(results.keySet());
+    }
+
+    /**
+     * BM25 검색 수행 (raw 결과 반환: id, score, published_at)
+     * latest/oldest 정렬 시 published_at 정보가 필요할 때 사용
+     */
+    private List<Object[]> performBM25SearchRaw(String keyword, List<String> regions, List<String> category) {
+        try {
+            // 1. 검색어를 의미적으로 확장 (직접 매칭 + 유의어 + 임베딩 유사어)
+            Map<String, Double> expandedTerms = semanticExpansionService.expandSearchTerms(keyword);
+
+            if (expandedTerms.isEmpty()) {
+                log.warn("검색어 '{}' 확장 결과가 비어있습니다.", keyword);
+                return Collections.emptyList();
+            }
+
+            // 2. 직접 매칭 Term과 확장 Term 분리
+            List<String> directMatchTerms = new ArrayList<>();
+            Map<String, Double> expandedOnlyTerms = new LinkedHashMap<>();
+
+            for (Map.Entry<String, Double> entry : expandedTerms.entrySet()) {
+                if (entry.getValue() == 1.0) {
+                    directMatchTerms.add(entry.getKey());
+                } else {
+                    expandedOnlyTerms.put(entry.getKey(), entry.getValue());
+                }
+            }
+
+            // 3. 가중치 기반 BM25 쿼리 생성
+            StringBuilder queryBuilder = new StringBuilder();
+
+            // 3-1. 모든 직접 매칭 Term이 포함된 경우 (AND 절, 최고 우선순위)
+            if (directMatchTerms.size() >= 2) {
+                String andBoost = "3.0";
+
+                queryBuilder.append("(");
+                for (int i = 0; i < directMatchTerms.size(); i++) {
+                    if (i > 0) queryBuilder.append(" AND ");
+                    queryBuilder.append("title:").append(quoteTerm(directMatchTerms.get(i)));
+                }
+                queryBuilder.append(")^").append(andBoost);
+
+                queryBuilder.append(" OR (");
+                for (int i = 0; i < directMatchTerms.size(); i++) {
+                    if (i > 0) queryBuilder.append(" AND ");
+                    queryBuilder.append("translated_title:").append(quoteTerm(directMatchTerms.get(i)));
+                }
+                queryBuilder.append(")^").append(andBoost);
+
+                queryBuilder.append(" OR (");
+                for (int i = 0; i < directMatchTerms.size(); i++) {
+                    if (i > 0) queryBuilder.append(" AND ");
+                    queryBuilder.append("search_terms:").append(quoteTerm(directMatchTerms.get(i)));
+                }
+                queryBuilder.append(")^").append(andBoost);
+
+                log.debug("AND 절 생성 - 직접 매칭 Term: {}", directMatchTerms);
+            }
+
+            // 3-2. 개별 직접 매칭 Term (OR 절, 중간 우선순위)
+            for (String term : directMatchTerms) {
+                if (queryBuilder.length() > 0) {
+                    queryBuilder.append(" OR ");
+                }
+
+                String boostValue = "2.0";
+                String quotedTerm = quoteTerm(term);
+                queryBuilder.append(String.format(
+                    "(title:%s^%s OR translated_title:%s^%s OR search_terms:%s^%s)",
+                    quotedTerm, boostValue, quotedTerm, boostValue, quotedTerm, boostValue
+                ));
+            }
+
+            // 3-3. 유의어 및 임베딩 유사어 (OR 절, 낮은 우선순위)
+            for (Map.Entry<String, Double> entry : expandedOnlyTerms.entrySet()) {
+                String term = entry.getKey();
+                Double weight = entry.getValue();
+
+                if (queryBuilder.length() > 0) {
+                    queryBuilder.append(" OR ");
+                }
+
+                String boostValue = String.format("%.1f", weight * 2.0);
+                String quotedTerm = quoteTerm(term);
+
+                queryBuilder.append(String.format(
+                    "(title:%s^%s OR translated_title:%s^%s OR search_terms:%s^%s)",
+                    quotedTerm, boostValue, quotedTerm, boostValue, quotedTerm, boostValue
+                ));
+            }
+
+            String searchQuery = queryBuilder.toString();
+            log.debug("BM25 검색 쿼리 생성 - 직접 Term: {}, 확장 Term: {}", directMatchTerms, expandedOnlyTerms.keySet());
+
+            // 4. 지역 필터 변환
+            List<Integer> domesticTypes = convertRegionsToTypes(regions);
+            List<String> safeCategory = (category != null && !category.isEmpty()) ? category : null;
+
+            // 5. BM25 검색 실행 (필터 조합에 따라 적절한 쿼리 호출)
+            List<Object[]> results;
+            boolean hasDomesticTypes = domesticTypes != null && !domesticTypes.isEmpty();
+            boolean hasCategory = safeCategory != null && !safeCategory.isEmpty();
+
+            if (hasDomesticTypes && hasCategory) {
+                results = articleRepository.searchByBM25WithBothFilters(searchQuery, domesticTypes, safeCategory, 100);
+            } else if (hasDomesticTypes) {
+                results = articleRepository.searchByBM25WithDomesticTypes(searchQuery, domesticTypes, 100);
+            } else if (hasCategory) {
+                results = articleRepository.searchByBM25WithCategory(searchQuery, safeCategory, 100);
+            } else {
+                results = articleRepository.searchByBM25(searchQuery, 100);
+            }
+
+            log.info("BM25 raw 검색 완료 - 키워드: '{}', 결과 수: {}", keyword, results.size());
+            return results;
+
+        } catch (Exception e) {
+            log.error("BM25 raw 검색 실패: {}", e.getMessage(), e);
+            return Collections.emptyList();
+        }
     }
 
     /**
@@ -828,7 +978,7 @@ public class ArticleService {
                 results = articleRepository.searchByBM25(searchQuery, 100);
             }
 
-            // 5. ID와 스코어 추출
+            // 5. ID, 스코어, 발행일 추출
             Map<Long, Double> scoreMap = new HashMap<>();
             for (Object[] row : results) {
                 Long articleId = ((Number) row[0]).longValue();

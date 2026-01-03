@@ -406,7 +406,8 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
      * @return BM25 스코어 순으로 정렬된 Article ID 리스트
      */
     @Query(value = "SELECT id, " +
-           "paradedb.score(id) as bm25_score " +
+           "paradedb.score(id) as bm25_score, " +
+           "published_at " +
            "FROM article_search_index " +
            "WHERE article_search_index @@@ paradedb.parse(:searchQuery) " +
            "ORDER BY bm25_score DESC " +
@@ -421,7 +422,8 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
      * BM25 검색 + 두 필터 모두 사용 (domesticTypes AND category)
      */
     @Query(value = "SELECT asi.id, " +
-           "paradedb.score(asi.id) as bm25_score " +
+           "paradedb.score(asi.id) as bm25_score, " +
+           "asi.published_at " +
            "FROM article_search_index asi " +
            "LEFT JOIN corporation c ON asi.corporation_id = c.id " +
            "LEFT JOIN category cat ON asi.category_id = cat.id " +
@@ -442,7 +444,8 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
      * BM25 검색 + domesticTypes 필터만
      */
     @Query(value = "SELECT asi.id, " +
-           "paradedb.score(asi.id) as bm25_score " +
+           "paradedb.score(asi.id) as bm25_score, " +
+           "asi.published_at " +
            "FROM article_search_index asi " +
            "LEFT JOIN corporation c ON asi.corporation_id = c.id " +
            "WHERE asi @@@ paradedb.parse(:searchQuery) " +
@@ -460,7 +463,8 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
      * BM25 검색 + category 필터만
      */
     @Query(value = "SELECT asi.id, " +
-           "paradedb.score(asi.id) as bm25_score " +
+           "paradedb.score(asi.id) as bm25_score, " +
+           "asi.published_at " +
            "FROM article_search_index asi " +
            "LEFT JOIN category cat ON asi.category_id = cat.id " +
            "WHERE asi @@@ paradedb.parse(:searchQuery) " +
