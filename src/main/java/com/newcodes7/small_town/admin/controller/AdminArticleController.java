@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.admin.service.AdminArticleListService;
 import com.newcodes7.small_town.article.repository.ArticleChunkRepository;
@@ -330,6 +331,7 @@ public class AdminArticleController {
     /**
      * 글 본문(content) 조회 API
      */
+    @Transactional(readOnly = true)
     @GetMapping("/articles/{articleId}/content")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> getArticleContent(@PathVariable Long articleId) {

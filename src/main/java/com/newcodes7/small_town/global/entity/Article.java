@@ -15,6 +15,7 @@ import com.newcodes7.small_town.global.config.VectorType;
 
 import org.hibernate.annotations.Type;
 
+import jakarta.persistence.Basic;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.ConstraintMode;
@@ -98,6 +99,7 @@ public class Article {
     private LocalDateTime deletedAt;
 
     // Vector Embedding Fields
+    @Basic(fetch = FetchType.LAZY)
     @Column(columnDefinition = "TEXT")
     private String content;
 

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.admin.service.EmbeddingBatchService;
 import com.newcodes7.small_town.article.repository.ArticleChunkRepository;
@@ -328,6 +329,7 @@ public class AdminEmbeddingController {
      * LLM을 통해 "3줄 요약 + 핵심 키워드"를 생성하고,
      * 이를 Article.summary 필드에 저장한 후 임베딩 생성
      */
+    @Transactional
     @GetMapping("/articles/{id}/generate-summary")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> generateArticleSummary(@PathVariable Long id) {
@@ -395,6 +397,7 @@ public class AdminEmbeddingController {
      *   "limit": 10 (optional, default: 10)
      * }
      */
+    @Transactional
     @org.springframework.web.bind.annotation.PostMapping("/articles/generate-summary-batch")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> generateArticleSummaryBatch(
@@ -554,6 +557,7 @@ public class AdminEmbeddingController {
      *   "limit": 10 (optional, default: 10)
      * }
      */
+    @Transactional
     @org.springframework.web.bind.annotation.PostMapping("/articles/generate-title-batch")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> generateArticleTitleBatch(
