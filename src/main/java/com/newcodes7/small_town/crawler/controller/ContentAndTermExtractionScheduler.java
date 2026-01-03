@@ -55,7 +55,7 @@ public class ContentAndTermExtractionScheduler {
      * Content 및 Term 추출 스케줄러
      * 매시간 30분에 실행 (예: 00:30, 01:30, 02:30, ...)
      */
-    @Scheduled(cron = "${content.extraction.schedule.cron:0 30 * * * ?}", zone = "Asia/Seoul")
+    // @Scheduled(cron = "${content.extraction.schedule.cron:0 30 * * * ?}", zone = "Asia/Seoul")
     public void scheduledContentAndTermExtraction() {
         log.info("=== 스케줄된 Content 및 Term 추출 작업 시작 ===");
 
