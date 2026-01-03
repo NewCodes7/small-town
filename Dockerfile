@@ -25,4 +25,9 @@ RUN mkdir -p /.cache && chmod 777 /.cache
 RUN mkdir -p /app/logs && chmod 777 /app/logs
 
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+
+# JVM 옵션 환경변수 (기본값: 2GB 메모리 서버 최적화)
+ENV JAVA_OPTS="-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
+
+# Shell form으로 변경하여 JAVA_OPTS 환경변수 사용
+ENTRYPOINT sh -c "java $JAVA_OPTS -jar app.jar"
