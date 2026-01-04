@@ -1303,42 +1303,4 @@
             }
         }
 
-        /* Default Thumbnail Styles */
-        .default-thumbnail {
-            position: relative;
-            overflow: hidden;
-            background: #E8FFF2;
-        }
-
-        .default-thumbnail-content {
-            position: relative;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-
-        .default-thumbnail-content i {
-            font-size: 2.5rem;
-            margin-bottom: 0.5rem;
-            opacity: 0.9;
-            color: #03C75A;
-            z-index: 2;
-            position: relative;
-        }
-
-        .thumbnail-pattern {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-image:
-                radial-gradient(circle at 20% 20%, rgba(255,255,255,0.1) 0%, transparent 50%),
-                radial-gradient(circle at 80% 80%, rgba(255,255,255,0.1) 0%, transparent 50%),
-                radial-gradient(circle at 40% 60%, rgba(255,255,255,0.05) 0%, transparent 50%);
-            z-index: 1;
-        }
+        /* Default Thumbnail Styles moved to default-thumbnail.css */
