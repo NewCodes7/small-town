@@ -93,7 +93,7 @@ public class ArticleService {
                key = "'filters-' + #keyword + '-' + #regions + '-' + #page + '-' + #size + '-' + #sort + '-' + #view + '-' + #category",
                condition = "#keyword == null")
     public Page<ArticleResponseDto> getArticlesWithFilters(String keyword, List<String> regions,
-                                                     int page, int size, String sort, String view, List<String> category, String ipAddress, String username) {
+                                                     int page, int size, String sort, String view, List<String> category) {
         List<Integer> domesticTypes = null;
         if (regions != null && !regions.isEmpty()) {
             domesticTypes = new ArrayList<>();
@@ -136,16 +136,8 @@ public class ArticleService {
                 articles = articleRepository.findArticlesWithFiltersWithoutTerms(searchPattern, domesticTypes, sort, category, pageable);
             }
 
-            // Fetch like statuses in batch
-            List<Long> articleIds = articles.getContent().stream()
-                .map(Article::getId)
-                .collect(Collectors.toList());
-            Map<Long, Boolean> likeStatusMap = getLikeStatusMap(articleIds, username, ipAddress);
-
-            return articles.map(article -> {
-                Boolean isLiked = likeStatusMap.get(article.getId());
-                return new ArticleListResponseDto(article, null, null, null, null, null, isLiked);
-            });
+            // 좋아요 상태는 별도 API로 조회하므로 null로 설정
+            return articles.map(article -> new ArticleListResponseDto(article, null, null, null, null, null, null));
         }
 
         if (view.equals("grouped")) {
@@ -153,7 +145,7 @@ public class ArticleService {
             String searchPattern = (keyword != null && !keyword.trim().isEmpty()) ? "%" + keyword + "%" : null;
             // 빈 리스트를 null로 변환 (PostgreSQL 타입 추론 오류 방지)
             List<String> safeCategory = (category != null && !category.isEmpty()) ? category : null;
-            return getArticlesGroupedByCorporationWithPaging(searchPattern, termBasedArticleIds, domesticTypes, safeCategory, sort, page, size, ipAddress, username);
+            return getArticlesGroupedByCorporationWithPaging(searchPattern, termBasedArticleIds, domesticTypes, safeCategory, sort, page, size);
         }
 
         return Page.empty();
@@ -164,9 +156,7 @@ public class ArticleService {
                                                                         List<Integer> domesticTypes,
                                                                         List<String> category,
                                                                         String sort,
-                                                                        int page, int size,
-                                                                        String ipAddress,
-                                                                        String username) {
+                                                                        int page, int size) {
         // Native Query에 빈 리스트 대신 0 전달
         List<Long> safeTermBasedArticleIds = termBasedArticleIds != null ? termBasedArticleIds : new ArrayList<>();
         int termBasedArticleIdsSize = safeTermBasedArticleIds.size();
@@ -203,28 +193,19 @@ public class ArticleService {
             size
         );
 
-        // 3. Fetch like statuses in batch for all articles
-        List<Long> articleIds = articles.stream()
-                .map(Article::getId)
-                .collect(Collectors.toList());
-        Map<Long, Boolean> likeStatusMap = getLikeStatusMap(articleIds, username, ipAddress);
-
-        // 4. 기업별로 그룹화하여 카드 생성
+        // 3. 기업별로 그룹화하여 카드 생성
         Map<Corporation, List<Article>> groupedArticles = articles.stream()
                 .collect(Collectors.groupingBy(Article::getCorporation,
                     LinkedHashMap::new,
                     Collectors.toList()
                 ));
 
-        // 5. 카드 리스트 생성 (이미 DB에서 정렬되어 온 순서 유지, 좋아요 상태 포함)
+        // 4. 카드 리스트 생성 (좋아요 상태는 별도 API로 조회하므로 null)
         List<GroupedArticlesDto> pagedCards = groupedArticles.entrySet().stream()
                 .map(entry -> new GroupedArticlesDto(
                         new CorporationDto(entry.getKey()),
                         entry.getValue().stream()
-                                .map(article -> {
-                                    Boolean isLiked = likeStatusMap.get(article.getId());
-                                    return new ArticleListResponseDto(article, null, null, null, null, null, isLiked);
-                                })
+                                .map(article -> new ArticleListResponseDto(article, null, null, null, null, null, null))
                                 .collect(Collectors.toList())
                 ))
                 .collect(Collectors.toList());
@@ -274,20 +255,12 @@ public class ArticleService {
         return new CorporationDetailDto(corporation, articleCount);
     }
     
-    public Page<ArticleListResponseDto> getArticlesByCorporation(Long corporationId, int page, int size, String ipAddress, String username) {
+    public Page<ArticleListResponseDto> getArticlesByCorporation(Long corporationId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         Page<Article> articles = articleRepository.findByCorporationId(corporationId, pageable);
 
-        // Fetch like statuses in batch
-        List<Long> articleIds = articles.getContent().stream()
-            .map(Article::getId)
-            .collect(Collectors.toList());
-        Map<Long, Boolean> likeStatusMap = getLikeStatusMap(articleIds, username, ipAddress);
-
-        return articles.map(article -> {
-            Boolean isLiked = likeStatusMap.get(article.getId());
-            return new ArticleListResponseDto(article, null, null, null, null, null, isLiked);
-        });
+        // 좋아요 상태는 별도 API로 조회하므로 null로 설정
+        return articles.map(article -> new ArticleListResponseDto(article, null, null, null, null, null, null));
     }
     
     public long getTotalArticleCount() {
@@ -299,7 +272,7 @@ public class ArticleService {
      * If username is provided (logged in), use UserLikeService
      * Otherwise, use LikeService with IP address
      */
-    private Map<Long, Boolean> getLikeStatusMap(List<Long> articleIds, String username, String ipAddress) {
+    public Map<Long, Boolean> getLikeStatusMap(List<Long> articleIds, String username, String ipAddress) {
         if (username != null && !username.trim().isEmpty()) {
             // Logged in user - use UserLikeService
             return userLikeService.getLikeStatusBatchByUser(articleIds, username);

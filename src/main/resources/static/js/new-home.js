@@ -128,37 +128,87 @@
                 }
             }
 
-            // 좋아요 상태 로드 (서버에서 제공한 data-liked 속성 사용)
-            function loadLikeStatus() {
-                // Load article like status from data-liked attribute
+            // 좋아요 상태 로드 (배치 API 호출)
+            async function loadLikeStatus() {
+                // Load article like status via batch API
                 const articleButtons = document.querySelectorAll('.like-button[data-article-id]');
-                articleButtons.forEach(button => {
-                    const isLiked = button.getAttribute('data-liked') === 'true';
-                    const icon = button.querySelector('.like-icon');
+                const articleIds = Array.from(articleButtons).map(button =>
+                    parseInt(button.getAttribute('data-article-id'))
+                );
 
-                    if (isLiked) {
-                        button.classList.add('liked');
-                        if (icon) {
-                            icon.classList.remove('far');
-                            icon.classList.add('fas');
+                if (articleIds.length > 0) {
+                    try {
+                        const response = await fetch('/api/articles/like-status/batch', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            credentials: 'include',
+                            body: JSON.stringify({ articleIds })
+                        });
+
+                        if (response.ok) {
+                            const data = await response.json();
+                            const likeStatus = data.likeStatus;
+
+                            articleButtons.forEach(button => {
+                                const articleId = parseInt(button.getAttribute('data-article-id'));
+                                const isLiked = likeStatus[articleId] || false;
+                                const icon = button.querySelector('.like-icon');
+
+                                if (isLiked) {
+                                    button.classList.add('liked');
+                                    if (icon) {
+                                        icon.classList.remove('far');
+                                        icon.classList.add('fas');
+                                    }
+                                }
+                            });
                         }
+                    } catch (error) {
+                        console.error('좋아요 상태 로드 실패:', error);
                     }
-                });
+                }
 
-                // Load video like status from data-liked attribute
+                // Load video like status via batch API
                 const videoButtons = document.querySelectorAll('.like-button[data-video-id]');
-                videoButtons.forEach(button => {
-                    const isLiked = button.getAttribute('data-liked') === 'true';
-                    const icon = button.querySelector('.like-icon');
+                const videoIds = Array.from(videoButtons).map(button =>
+                    parseInt(button.getAttribute('data-video-id'))
+                );
 
-                    if (isLiked) {
-                        button.classList.add('liked');
-                        if (icon) {
-                            icon.classList.remove('far');
-                            icon.classList.add('fas');
+                if (videoIds.length > 0) {
+                    try {
+                        const response = await fetch('/video/api/videos/like-status/batch', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            credentials: 'include',
+                            body: JSON.stringify({ videoIds })
+                        });
+
+                        if (response.ok) {
+                            const data = await response.json();
+                            const likeStatus = data.likeStatus;
+
+                            videoButtons.forEach(button => {
+                                const videoId = parseInt(button.getAttribute('data-video-id'));
+                                const isLiked = likeStatus[videoId] || false;
+                                const icon = button.querySelector('.like-icon');
+
+                                if (isLiked) {
+                                    button.classList.add('liked');
+                                    if (icon) {
+                                        icon.classList.remove('far');
+                                        icon.classList.add('fas');
+                                    }
+                                }
+                            });
                         }
+                    } catch (error) {
+                        console.error('좋아요 상태 로드 실패:', error);
                     }
-                });
+                }
             }
 
             // 상대 시간 계산 함수

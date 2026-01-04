@@ -69,7 +69,7 @@ public class VideoService {
                key = "'filters-' + #keyword + '-' + #regions + '-' + #page + '-' + #size + '-' + #sort + '-' + #view + '-' + #category",
                condition = "#keyword == null")
     public Page<VideoResponseDto> getVideosWithFilters(String keyword, List<String> regions,
-                                                        int page, int size, String sort, String view, List<String> category, String ipAddress, String username) {
+                                                        int page, int size, String sort, String view, List<String> category) {
         List<Integer> domesticTypes = null;
         if (regions != null && !regions.isEmpty()) {
             domesticTypes = new ArrayList<>();
@@ -105,16 +105,8 @@ public class VideoService {
                 pageable
             );
 
-            // Fetch like statuses in batch
-            List<Long> videoIds = videos.getContent().stream()
-                .map(Video::getId)
-                .collect(Collectors.toList());
-            Map<Long, Boolean> likeStatusMap = getLikeStatusMap(videoIds, username, ipAddress);
-
-            return videos.map(video -> {
-                Boolean isLiked = likeStatusMap.get(video.getId());
-                return new VideoListResponseDto(video, isLiked);
-            });
+            // 좋아요 상태는 별도 API로 조회하므로 null로 설정
+            return videos.map(video -> new VideoListResponseDto(video, null));
         }
 
         if (view.equals("grouped")) {
@@ -212,7 +204,7 @@ public class VideoService {
      * If username is provided (logged in), use VideoLikeService
      * Otherwise, use VideoLikeService with IP address
      */
-    private Map<Long, Boolean> getLikeStatusMap(List<Long> videoIds, String username, String ipAddress) {
+    public Map<Long, Boolean> getLikeStatusMap(List<Long> videoIds, String username, String ipAddress) {
         if (username != null && !username.trim().isEmpty()) {
             // Logged in user - use VideoLikeService
             return videoLikeService.getLikeStatusBatchByUser(videoIds, username);

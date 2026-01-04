@@ -97,17 +97,43 @@ document.querySelectorAll('.like-button').forEach(btn => {
     });
 });
 
-// 페이지 로드 시 좋아요 상태 확인 (서버에서 제공한 data-liked 속성 사용)
-function loadLikeStatuses() {
-    const likeButtons = document.querySelectorAll('.like-button');
+// 페이지 로드 시 좋아요 상태 확인 (배치 API로 조회)
+async function loadLikeStatuses() {
+    const likeButtons = document.querySelectorAll('.like-button[data-article-id]');
+    const articleIds = Array.from(likeButtons).map(btn =>
+        parseInt(btn.getAttribute('data-article-id'))
+    );
 
-    likeButtons.forEach(btn => {
-        const isLiked = btn.getAttribute('data-liked') === 'true';
+    if (articleIds.length === 0) {
+        return;
+    }
 
-        if (isLiked) {
-            btn.classList.add('liked');
+    try {
+        const response = await fetch('/api/articles/like-status/batch', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({ articleIds })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            const likeStatus = data.likeStatus;
+
+            likeButtons.forEach(btn => {
+                const articleId = parseInt(btn.getAttribute('data-article-id'));
+                const isLiked = likeStatus[articleId] || false;
+
+                if (isLiked) {
+                    btn.classList.add('liked');
+                }
+            });
         }
-    });
+    } catch (error) {
+        console.error('좋아요 상태 로드 실패:', error);
+    }
 }
 
 // 상대 시간 계산 함수

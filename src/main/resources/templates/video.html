@@ -1288,17 +1288,43 @@
                 });
             }
 
-            // 페이지 로드 시 좋아요 상태 확인 (서버에서 전달된 data-liked 속성 사용)
-            function loadLikeStatuses() {
-                const likeButtons = document.querySelectorAll('.like-button');
+            // 페이지 로드 시 좋아요 상태 확인 (배치 API로 조회)
+            async function loadLikeStatuses() {
+                const likeButtons = document.querySelectorAll('.like-button[data-video-id]');
+                const videoIds = Array.from(likeButtons).map(btn =>
+                    parseInt(btn.getAttribute('data-video-id'))
+                );
 
-                likeButtons.forEach(btn => {
-                    const isLiked = btn.getAttribute('data-liked') === 'true';
+                if (videoIds.length === 0) {
+                    return;
+                }
 
-                    if (isLiked) {
-                        btn.classList.add('liked');
+                try {
+                    const response = await fetch('/video/api/videos/like-status/batch', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({ videoIds })
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const likeStatus = data.likeStatus;
+
+                        likeButtons.forEach(btn => {
+                            const videoId = parseInt(btn.getAttribute('data-video-id'));
+                            const isLiked = likeStatus[videoId] || false;
+
+                            if (isLiked) {
+                                btn.classList.add('liked');
+                            }
+                        });
                     }
-                });
+                } catch (error) {
+                    console.error('좋아요 상태 로드 실패:', error);
+                }
             }
 
             // Bind click events to video cards (similar to article cards)

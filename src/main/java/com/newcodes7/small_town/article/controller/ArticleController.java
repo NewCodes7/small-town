@@ -181,7 +181,6 @@ public class ArticleController {
             ).map(dto -> (ArticleResponseDto) dto);
         } else {
             // 일반 목록 조회 또는 grouped view
-            String clientIp = com.newcodes7.small_town.global.util.Client.getClientIpAddress(request);
             articles = articleService.getArticlesWithFilters(
                 keyword != null && !keyword.trim().isEmpty() ? keyword.trim().toLowerCase() : null,
                 regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
@@ -189,9 +188,7 @@ public class ArticleController {
                 size,
                 effectiveSort,
                 effectiveView,
-                category == null || category.isEmpty() ? null : category.stream().sorted().toList(),
-                clientIp,
-                username
+                category == null || category.isEmpty() ? null : category.stream().sorted().toList()
             );
         }
 
@@ -248,8 +245,6 @@ public class ArticleController {
             HttpServletRequest request
         ) {
 
-        String clientIp = com.newcodes7.small_town.global.util.Client.getClientIpAddress(request);
-        String username = userDetails != null ? userDetails.getUsername() : null;
         Page<ArticleResponseDto> articles = articleService.getArticlesWithFilters(
             keyword != null && !keyword.trim().isEmpty() ? keyword.trim().toLowerCase() : null,
             regions == null || regions.isEmpty() ? null : regions,
@@ -257,9 +252,7 @@ public class ArticleController {
             size,
             sort,
             view,
-            category == null || category.isEmpty() ? null : category,
-            clientIp,
-            username
+            category == null || category.isEmpty() ? null : category
         );
 
         Map<String, Object> response = new HashMap<>();
@@ -535,9 +528,7 @@ public class ArticleController {
             }
         }
 
-        String clientIp = com.newcodes7.small_town.global.util.Client.getClientIpAddress(request);
-        String username = userDetails != null ? userDetails.getUsername() : null;
-        Page<ArticleListResponseDto> articles = articleService.getArticlesByCorporation(corporationId, page, size, clientIp, username);
+        Page<ArticleListResponseDto> articles = articleService.getArticlesByCorporation(corporationId, page, size);
 
         model.addAttribute("corporation", corporation);
         model.addAttribute("articles", articles);
@@ -1010,7 +1001,6 @@ public class ArticleController {
             );
         } else {
             // 키워드 없으면 최신순 조회
-            String clientIp = com.newcodes7.small_town.global.util.Client.getClientIpAddress(request);
             articles = articleService.getArticlesWithFilters(
                 null,
                 null,
@@ -1018,9 +1008,7 @@ public class ArticleController {
                 size,
                 "latest",
                 "list",
-                null,
-                clientIp,
-                username
+                null
             );
         }
 
@@ -1035,13 +1023,34 @@ public class ArticleController {
     }
 
     /**
+     * 배치 좋아요 상태 조회 API (Article)
+     */
+    @PostMapping("/api/articles/like-status/batch")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getBatchArticleLikeStatus(
+            @RequestBody Map<String, List<Long>> request,
+            @AuthenticationPrincipal UserDetails userDetails,
+            HttpServletRequest httpRequest) {
+
+        List<Long> articleIds = request.get("articleIds");
+        if (articleIds == null || articleIds.isEmpty()) {
+            return ResponseEntity.ok(Map.of("likeStatus", Map.of()));
+        }
+
+        String clientIp = com.newcodes7.small_town.global.util.Client.getClientIpAddress(httpRequest);
+        String username = userDetails != null ? userDetails.getUsername() : null;
+
+        Map<Long, Boolean> likeStatusMap = articleService.getLikeStatusMap(articleIds, username, clientIp);
+
+        return ResponseEntity.ok(Map.of("likeStatus", likeStatusMap));
+    }
+
+    /**
      * 새로운 홈 페이지
      */
     @GetMapping({"", "/"})
     public String newHome(Model model, @AuthenticationPrincipal UserDetails userDetails, HttpServletRequest request) {
-        // 최신 블로그 글 40개 조회 (중복 제거를 위해 더 많이 가져옴)
-        String clientIp = com.newcodes7.small_town.global.util.Client.getClientIpAddress(request);
-        String username = userDetails != null ? userDetails.getUsername() : null;
+        // 최신 블로그 글 40개 조회 (좋아요 상태는 별도 API로 조회)
         Page<ArticleResponseDto> allArticles = articleService.getArticlesWithFilters(
             null,  // keyword
             null,  // regions
@@ -1049,9 +1058,7 @@ public class ArticleController {
             40,    // size - 여유있게 가져옴
             "latest",  // sort
             "list",    // view
-            null,  // category
-            clientIp,
-            username
+            null   // category
         );
 
         // 기업별로 첫 번째 글만 선택 (최신순이므로 첫 번째가 가장 최신)
@@ -1067,7 +1074,7 @@ public class ArticleController {
         }
         List<ArticleResponseDto> latestArticles = new ArrayList<>(uniqueArticles.values());
 
-        // 최신 영상 40개 조회 (중복 제거를 위해 더 많이 가져옴)
+        // 최신 영상 40개 조회 (중복 제거를 위해 더 많이 가져옴, 좋아요 상태는 별도 API로 조회)
         Page<com.newcodes7.small_town.video.dto.VideoResponseDto> allVideos = videoService.getVideosWithFilters(
             null,  // keyword
             null,  // regions
@@ -1075,9 +1082,7 @@ public class ArticleController {
             40,    // size - 여유있게 가져옴
             "latest",  // sort
             "list",    // view
-            null,  // category
-            clientIp,
-            username
+            null   // category
         );
 
         // 기업별로 첫 번째 영상만 선택 (최신순이므로 첫 번째가 가장 최신)
@@ -1130,8 +1135,6 @@ public class ArticleController {
             @AuthenticationPrincipal UserDetails userDetails,
             HttpServletRequest request) {
 
-        String clientIp = com.newcodes7.small_town.global.util.Client.getClientIpAddress(request);
-        String username = userDetails != null ? userDetails.getUsername() : null;
         Page<ArticleResponseDto> articles = articleService.getArticlesWithFilters(
             keyword,
             null,  // regions
@@ -1139,9 +1142,7 @@ public class ArticleController {
             size,
             "latest",  // sort
             "list",    // view
-            null,      // category
-            clientIp,
-            username
+            null       // category
         );
 
         return ResponseEntity.ok(articles);

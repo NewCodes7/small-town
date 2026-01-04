@@ -102,6 +102,39 @@
             position: relative;
         }
 
+        .content-thumbnail.default-thumbnail {
+            background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+        }
+
+        .default-thumbnail-content {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+        }
+
+        .default-thumbnail-content i {
+            font-size: 3.5rem;
+            color: var(--primary-green);
+            opacity: 0.35;
+            z-index: 1;
+        }
+
+        .thumbnail-pattern {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image:
+                linear-gradient(30deg, transparent 12%, rgba(3, 199, 90, 0.05) 12%, rgba(3, 199, 90, 0.05) 14%, transparent 14%),
+                linear-gradient(150deg, transparent 12%, rgba(3, 199, 90, 0.05) 12%, rgba(3, 199, 90, 0.05) 14%, transparent 14%);
+            background-size: 60px 60px;
+            z-index: 0;
+        }
+
         .content-thumbnail-placeholder {
             font-size: 3.5rem;
             color: var(--primary-green);
@@ -320,12 +353,31 @@
                     <a th:href="${content.contentType == 'article' ? '/articles/' + content.article.id : 'https://www.youtube.com/watch?v=' + content.video.videoId}"
                        th:target="${content.contentType == 'article' ? '_self' : '_blank'}"
                        style="text-decoration: none; color: inherit;">
-                        <div class="content-thumbnail"
-                             th:style="${content.contentType == 'article'
-                                        ? (content.article.thumbnailImage != null ? 'background-image: url(' + content.article.thumbnailImage + '); background-size: cover; background-position: center;' : '')
-                                        : (content.video.thumbnailUrl != null ? 'background-image: url(' + content.video.thumbnailUrl + '); background-size: cover; background-position: center;' : '')}">
-                            <i th:if="${(content.contentType == 'article' and content.article.thumbnailImage == null) or (content.contentType == 'video' and content.video.thumbnailUrl == null)}"
-                               th:class="${content.contentType == 'article' ? 'fas fa-code content-thumbnail-placeholder' : 'fab fa-youtube content-thumbnail-placeholder'}"></i>
+                        <!-- Article with thumbnail -->
+                        <div th:if="${content.contentType == 'article' and content.article.thumbnailImage != null and !content.article.thumbnailImage.isEmpty()}"
+                             class="content-thumbnail"
+                             th:style="'background-image: url(' + ${content.article.thumbnailImage} + '); background-size: cover; background-position: center;'">
+                        </div>
+                        <!-- Article without thumbnail -->
+                        <div th:if="${content.contentType == 'article' and (content.article.thumbnailImage == null or content.article.thumbnailImage.isEmpty())}"
+                             class="content-thumbnail default-thumbnail">
+                            <div class="default-thumbnail-content">
+                                <i class="fas fa-code"></i>
+                                <div class="thumbnail-pattern"></div>
+                            </div>
+                        </div>
+                        <!-- Video with thumbnail -->
+                        <div th:if="${content.contentType == 'video' and content.video.thumbnailUrl != null and !content.video.thumbnailUrl.isEmpty()}"
+                             class="content-thumbnail"
+                             th:style="'background-image: url(' + ${content.video.thumbnailUrl} + '); background-size: cover; background-position: center;'">
+                        </div>
+                        <!-- Video without thumbnail -->
+                        <div th:if="${content.contentType == 'video' and (content.video.thumbnailUrl == null or content.video.thumbnailUrl.isEmpty())}"
+                             class="content-thumbnail default-thumbnail">
+                            <div class="default-thumbnail-content">
+                                <i class="fab fa-youtube"></i>
+                                <div class="thumbnail-pattern"></div>
+                            </div>
                         </div>
                     </a>
 

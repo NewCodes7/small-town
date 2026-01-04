@@ -56,6 +56,29 @@ public class VideoController {
     private final VideoTermRepository videoTermRepository;
     private final SearchLogService searchLogService;
 
+    /**
+     * 배치 좋아요 상태 조회 API (Video)
+     */
+    @PostMapping("/api/videos/like-status/batch")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getBatchVideoLikeStatus(
+            @RequestBody Map<String, List<Long>> request,
+            @AuthenticationPrincipal UserDetails userDetails,
+            HttpServletRequest httpRequest) {
+
+        List<Long> videoIds = request.get("videoIds");
+        if (videoIds == null || videoIds.isEmpty()) {
+            return ResponseEntity.ok(Map.of("likeStatus", Map.of()));
+        }
+
+        String clientIp = com.newcodes7.small_town.global.util.Client.getClientIpAddress(httpRequest);
+        String username = userDetails != null ? userDetails.getUsername() : null;
+
+        Map<Long, Boolean> likeStatusMap = videoService.getLikeStatusMap(videoIds, username, clientIp);
+
+        return ResponseEntity.ok(Map.of("likeStatus", likeStatusMap));
+    }
+
     @GetMapping({"", "/"})
     public String videoHome(
             @RequestParam(name = "page", defaultValue = "0") int page,
@@ -80,9 +103,6 @@ public class VideoController {
             effectiveView = "list";
         }
 
-        String clientIp = com.newcodes7.small_town.global.util.Client.getClientIpAddress(request);
-        String username = userDetails != null ? userDetails.getUsername() : null;
-
         Page<VideoResponseDto> videos = videoService.getVideosWithFilters(
             keyword != null && !keyword.trim().isEmpty() ? keyword.trim().toLowerCase() : null,
             regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
@@ -90,9 +110,7 @@ public class VideoController {
             size,
             sort,
             effectiveView,
-            category == null || category.isEmpty() ? null : category.stream().sorted().toList(),
-            clientIp,
-            username
+            category == null || category.isEmpty() ? null : category.stream().sorted().toList()
         );
 
         log.info("필터 조건: keyword='{}', regions={}, {}개의 영상 조회",
@@ -380,9 +398,6 @@ public class VideoController {
             @AuthenticationPrincipal UserDetails userDetails,
             HttpServletRequest request) {
 
-        String clientIp = com.newcodes7.small_town.global.util.Client.getClientIpAddress(request);
-        String username = userDetails != null ? userDetails.getUsername() : null;
-
         Page<VideoResponseDto> videos = videoService.getVideosWithFilters(
             keyword,
             null,  // regions
@@ -390,9 +405,7 @@ public class VideoController {
             size,
             sort,
             "list",    // view
-            null,      // category
-            clientIp,
-            username
+            null       // category
         );
 
         Map<String, Object> response = new HashMap<>();

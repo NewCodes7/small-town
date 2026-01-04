@@ -53,8 +53,8 @@ public class CachePreloadService {
     public void preloadFilterInNewTransaction(String keyword, List<String> regions, int page, int size,
                                               String sort, String view, List<String> category) {
         try {
-            // Cache preload doesn't need user-specific data, pass null for ipAddress and username
-            articleService.getArticlesWithFilters(keyword, regions, page, size, sort, view, category, null, null);
+            // Cache preload with no user-specific data
+            articleService.getArticlesWithFilters(keyword, regions, page, size, sort, view, category);
             log.debug("캐시 프리로드 성공 - regions: {}, page: {}, sort: {}, view: {}",
                      regions, page, sort, view);
         } catch (Exception e) {
