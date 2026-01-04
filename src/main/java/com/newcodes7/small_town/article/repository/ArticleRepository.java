@@ -394,6 +394,34 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
             @Param("corporationId") Long corporationId,
             Pageable pageable);
 
+    /**
+     * ILIKE 검색용 경량 쿼리 (ID와 published_at만 반환, 최대 100개)
+     * 메모리 최적화를 위해 전체 Article 엔티티 대신 필요한 필드만 조회
+     *
+     * @param keyword 검색 키워드 (LIKE 패턴 포함, 예: "%keyword%")
+     * @param domesticTypes 지역 필터 (1: 국내, 0: 해외)
+     * @param domesticTypesSize domesticTypes 리스트 크기
+     * @param category 카테고리 필터
+     * @param categorySize category 리스트 크기
+     * @return [Article ID, published_at] 형태의 Object[] 리스트 (최대 100개)
+     */
+    @Query(value = "SELECT a.id, a.published_at " +
+           "FROM article a " +
+           "JOIN corporation c ON a.corporation_id = c.id " +
+           "LEFT JOIN category cat ON a.category_id = cat.id " +
+           "WHERE a.deleted_at IS NULL " +
+           "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(:keyword) OR LOWER(a.translated_title) LIKE LOWER(:keyword)) " +
+           "AND (:domesticTypesSize = 0 OR c.is_domestic IN (:domesticTypes)) " +
+           "AND (:categorySize = 0 OR cat.name IN (:category)) " +
+           "LIMIT 100",
+           nativeQuery = true)
+    List<Object[]> findArticleIdsWithPublishedAtByFilters(
+            @Param("keyword") String keyword,
+            @Param("domesticTypes") List<Integer> domesticTypes,
+            @Param("domesticTypesSize") int domesticTypesSize,
+            @Param("category") List<String> category,
+            @Param("categorySize") int categorySize);
+
     // ===== BM25 검색 (ArticleTerm 기반) =====
 
     /**

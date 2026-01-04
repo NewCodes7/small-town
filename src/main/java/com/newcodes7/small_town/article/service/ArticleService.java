@@ -580,11 +580,21 @@ public class ArticleService {
 
         // 2. ILIKE 폴백 (고유명사 등 BM25가 놓칠 수 있는 경우)
         Map<Long, Double> ilikeResults = new HashMap<>();
-        List<Long> ilikeIds = performILIKESearch(keyword, regions, category);
-        if (ilikeIds != null && !ilikeIds.isEmpty()) {
-            // ILIKE 결과는 모두 동일한 스코어 부여
-            for (Long id : ilikeIds) {
-                ilikeResults.put(id, 1.0);
+        List<Object[]> ilikeRawResults = performILIKESearchRaw(keyword, regions, category);
+        if (ilikeRawResults != null && !ilikeRawResults.isEmpty()) {
+            // ILIKE 결과 처리: ID, published_at 추출
+            for (Object[] row : ilikeRawResults) {
+                Long articleId = ((Number) row[0]).longValue();
+                java.sql.Timestamp timestamp = row.length > 1 ? (java.sql.Timestamp) row[1] : null;
+                LocalDateTime publishedAt = timestamp != null ? timestamp.toLocalDateTime() : null;
+
+                // ILIKE 결과는 모두 동일한 스코어 부여
+                ilikeResults.put(articleId, 1.0);
+
+                // published_at 정보도 publishedAtMap에 추가
+                if (publishedAt != null && !publishedAtMap.containsKey(articleId)) {
+                    publishedAtMap.put(articleId, publishedAt);
+                }
             }
             log.info("ILIKE 검색 결과: {}개", ilikeResults.size());
         }
@@ -716,9 +726,12 @@ public class ArticleService {
 
         // 2. ILIKE 폴백 (BM25로 못 찾은 경우 또는 보완)
         // 제목에 키워드가 직접 포함된 경우 (고유명사, ArticleTerm에 없는 단어)
-        List<Long> ilikIds = performILIKESearch(keyword, regions, category);
-        if (ilikIds != null && !ilikIds.isEmpty()) {
-            articleIds.addAll(ilikIds);
+        List<Object[]> ilikeRawResults = performILIKESearchRaw(keyword, regions, category);
+        if (ilikeRawResults != null && !ilikeRawResults.isEmpty()) {
+            for (Object[] row : ilikeRawResults) {
+                Long articleId = ((Number) row[0]).longValue();
+                articleIds.add(articleId);
+            }
         }
 
         // 3. Article 조회
@@ -1143,24 +1156,30 @@ public class ArticleService {
      * NOTE: BM25가 이미 Term 기반 검색을 수행하므로,
      *       이 메서드는 순수하게 title/translatedTitle LIKE 매칭만 수행합니다.
      *
+     * 메모리 최적화: ID와 published_at만 조회 (전체 Article 엔티티 로드 안 함)
+     * 성능 최적화: 최대 100개로 제한
+     *
      * @param keyword 검색 키워드
      * @param regions 지역 필터
      * @param category 카테고리 필터
-     * @return 제목에 키워드가 포함된 Article ID 목록
+     * @return [Article ID, published_at] 형태의 Object[] 리스트
      */
-    private List<Long> performILIKESearch(String keyword, List<String> regions, List<String> category) {
+    private List<Object[]> performILIKESearchRaw(String keyword, List<String> regions, List<String> category) {
         // 순수한 제목 직접 매칭만 수행 (ILIKE 본연의 역할)
         List<Integer> domesticTypes = convertRegionsToTypes(regions);
         String searchPattern = "%" + keyword + "%";
         List<String> safeCategory = (category != null && !category.isEmpty()) ? category : null;
 
-        // 항상 WithoutTerms 쿼리 사용 (LOWER(title) LIKE ... OR LOWER(translatedTitle) LIKE ...)
-        List<Article> articles = articleRepository.findArticlesWithFiltersWithoutTerms(
-                searchPattern, domesticTypes, safeCategory);
+        // Safe 리스트 생성 (빈 리스트 대신 null 방지)
+        List<Integer> safeDomesticTypes = domesticTypes != null ? domesticTypes : new ArrayList<>();
+        int domesticTypesSize = safeDomesticTypes.size();
 
-        return articles.stream()
-                .map(Article::getId)
-                .collect(Collectors.toList());
+        List<String> safeCategorySized = safeCategory != null ? safeCategory : new ArrayList<>();
+        int categorySize = safeCategorySized.size();
+
+        // 경량 쿼리 사용: ID와 published_at만 조회 (최대 100개)
+        return articleRepository.findArticleIdsWithPublishedAtByFilters(
+                searchPattern, safeDomesticTypes, domesticTypesSize, safeCategorySized, categorySize);
     }
 
     /**
