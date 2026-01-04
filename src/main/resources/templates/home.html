@@ -399,12 +399,12 @@
                                     th:title="${article.publishedAt}"
                                     th:text="${article.publishedAt}"
                                     style="white-space: nowrap;">2024-01-01</small>
-                                <!-- Admin 전용: RRF Score (최우선 표시) -->
+                                <!-- Admin 전용: Final Score (최우선 표시) -->
                                 <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and article.rrfScore != null}"
                                        class="badge bg-primary text-white"
                                        style="font-size: 0.75rem; white-space: nowrap;"
-                                       th:title="'RRF 최종 점수 (BM25 + Vector + ILIKE 통합)'">
-                                    <i class="fas fa-star me-1"></i>RRF: <span th:text="${#numbers.formatDecimal(article.rrfScore, 1, 4)}">0.0000</span>
+                                       th:title="'Binary Boost 최종 점수 (BM25 기본 + ILIKE 매칭 시 +5.0 보너스)'">
+                                    <i class="fas fa-star me-1"></i>Final: <span th:text="${#numbers.formatDecimal(article.rrfScore, 1, 2)}">0.00</span>
                                 </small>
                                 <!-- Admin 전용: BM25 Score -->
                                 <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and article.bm25Score != null}"
@@ -509,12 +509,12 @@
                                 </div>
                                 <div class="d-flex align-items-center gap-2">
                                     <small class="text-muted relative-time" th:attr="data-date=${firstArticle.publishedAt}" th:title="${firstArticle.publishedAt}" th:text="${firstArticle.publishedAt}" style="white-space: nowrap;"></small>
-                                    <!-- Admin 전용: RRF Score (최우선 표시) -->
+                                    <!-- Admin 전용: Final Score (최우선 표시) -->
                                     <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and firstArticle.rrfScore != null}"
                                            class="badge bg-primary text-white"
                                            style="font-size: 0.75rem; white-space: nowrap;"
-                                           th:title="'RRF 최종 점수 (BM25 + Vector + ILIKE 통합)'">
-                                        <i class="fas fa-star me-1"></i>RRF: <span th:text="${#numbers.formatDecimal(firstArticle.rrfScore, 1, 4)}">0.0000</span>
+                                           th:title="'Binary Boost 최종 점수 (BM25 기본 + ILIKE 매칭 시 +5.0 보너스)'">
+                                        <i class="fas fa-star me-1"></i>Final: <span th:text="${#numbers.formatDecimal(firstArticle.rrfScore, 1, 2)}">0.00</span>
                                     </small>
                                     <!-- Admin 전용: BM25 Score -->
                                     <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and firstArticle.bm25Score != null}"

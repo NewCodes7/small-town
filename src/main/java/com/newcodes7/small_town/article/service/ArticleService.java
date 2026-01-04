@@ -520,21 +520,13 @@ public class ArticleService {
     }
 
     /**
-     * 하이브리드 검색 - 키워드 검색과 벡터 검색 결합
-     * foundByVector 플래그로 벡터 검색 결과 구분
+     * Hybrid 검색 + Binary Boost 스코어링
+     * BM25 (키워드 정확도) + ILIKE (폴백) → Binary Boost로 통합
      *
-     * @param keyword 검색 키워드
-     * @param regions 지역 필터
-     * @param category 카테고리 필터
-     * @param page 페이지 번호
-     * @param size 페이지 크기
-     * @param sort 정렬 방식
-     * @return 하이브리드 검색 결과
-     */
-    @Transactional(readOnly = true, noRollbackFor = {Exception.class, RuntimeException.class})
-    /**
-     * Hybrid 검색 + RRF 리랭킹
-     * BM25 (키워드 정확도) + ILIKE (폴백) → RRF로 통합
+     * 스코어링 방식:
+     * - BM25 매칭: BM25 스코어 사용 (정교한 relevance 점수)
+     * - BM25 + ILIKE 매칭: BM25 스코어 + 5.0 보너스 (제목에 정확히 포함)
+     * - ILIKE만 매칭: 1.0 고정 점수 (BM25가 놓친 고유명사 등)
      *
      * NOTE: Vector Search는 비활성화되어 있습니다.
      *
@@ -543,9 +535,10 @@ public class ArticleService {
      * @param category 카테고리 필터
      * @param page 페이지 번호
      * @param size 페이지 크기
-     * @param sort 정렬 방식
-     * @return 검색 결과 (RRF 스코어 기반 정렬)
+     * @param sort 정렬 방식 (relevance: 최종 스코어순, latest: 최신순, oldest: 오래된순)
+     * @return 검색 결과 (Binary Boost 스코어 기반 정렬)
      */
+    @Transactional(readOnly = true, noRollbackFor = {Exception.class, RuntimeException.class})
     public Page<ArticleSearchResultDto> searchArticlesHybrid(
             String keyword,
             List<String> regions,
@@ -599,35 +592,52 @@ public class ArticleService {
             log.info("ILIKE 검색 결과: {}개", ilikeResults.size());
         }
 
-        // 3. RRF 리랭킹 (BM25 + ILIKE)
-        List<Map<Long, Double>> searchResultsList = Arrays.asList(
-                bm25Results,
-                ilikeResults
-        );
-        Map<Long, Double> rrfScores = rerankWithRRF(searchResultsList);
+        // 3. Binary Boost 방식으로 최종 점수 계산
+        // BM25 스코어를 기본으로, ILIKE 매칭 시 보너스 추가
+        Map<Long, Double> finalScores = new HashMap<>();
 
-        if (rrfScores.isEmpty()) {
+        // BM25 스코어 복사
+        finalScores.putAll(bm25Results);
+
+        // ILIKE 매칭 시 보너스 추가
+        final double ILIKE_BOOST = 5.0;  // BM25 평균 스코어를 고려한 보너스 (튜닝 가능)
+        final double ILIKE_ONLY_SCORE = 1.0;  // ILIKE만 매칭된 경우 낮은 고정 점수
+
+        for (Long articleId : ilikeResults.keySet()) {
+            finalScores.merge(articleId, ILIKE_ONLY_SCORE,
+                (bm25Score, ilikeScore) -> bm25Score + ILIKE_BOOST);
+        }
+
+        if (finalScores.isEmpty()) {
             log.warn("모든 검색 방법에서 결과가 없습니다: '{}'", keyword);
             return Page.empty();
         }
 
-        log.info("RRF 리랭킹 완료 - 최종 결과: {}개", rrfScores.size());
+        log.info("Binary Boost 완료 - BM25: {}개, ILIKE: {}개, 최종: {}개",
+            bm25Results.size(), ilikeResults.size(), finalScores.size());
 
-        // 5. RRF 점수로 정렬 (메모리에서, ID + 점수만 사용)
-        List<Map.Entry<Long, Double>> sortedByRRF = rrfScores.entrySet().stream()
+        // ILIKE만 발견한 Article 로깅 (분석용 - ILIKE 필요성 검증)
+        Set<Long> ilikeOnly = new HashSet<>(ilikeResults.keySet());
+        ilikeOnly.removeAll(bm25Results.keySet());
+        if (!ilikeOnly.isEmpty()) {
+            log.info("ILIKE만 발견한 Article: {}개 (키워드: '{}')", ilikeOnly.size(), keyword);
+        }
+
+        // 4. 최종 점수로 정렬 (메모리에서, ID + 점수만 사용)
+        List<Map.Entry<Long, Double>> sortedByScore = finalScores.entrySet().stream()
                 .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
                 .toList();
 
-        // 6. 페이징 계산
+        // 5. 페이징 계산
         int offset = page * size;
-        int totalResults = sortedByRRF.size();
+        int totalResults = sortedByScore.size();
 
-        // 7. sort 파라미터에 따른 처리
+        // 6. sort 파라미터에 따른 처리
         List<Long> pageArticleIds;
 
         if ("latest".equals(sort) || "oldest".equals(sort)) {
             // 최신순/오래된순: publishedAtMap을 사용하여 메모리에서 정렬 후 10개만 조회
-            List<Map.Entry<Long, Double>> sortedByDate = sortedByRRF.stream()
+            List<Map.Entry<Long, Double>> sortedByDate = sortedByScore.stream()
                     .sorted((e1, e2) -> {
                         LocalDateTime date1 = publishedAtMap.getOrDefault(e1.getKey(), LocalDateTime.MIN);
                         LocalDateTime date2 = publishedAtMap.getOrDefault(e2.getKey(), LocalDateTime.MIN);
@@ -664,20 +674,20 @@ public class ArticleService {
                         Long articleId = article.getId();
                         Double bm25Score = bm25Results.get(articleId);
                         Double ilikeScore = ilikeResults.get(articleId);
-                        Double rrfScore = rrfScores.get(articleId);
-                        return new ArticleSearchResultDto(article, false, bm25Score, null, rrfScore, ilikeScore, null);
+                        Double finalScore = finalScores.get(articleId);
+                        return new ArticleSearchResultDto(article, false, bm25Score, null, finalScore, ilikeScore, null);
                     })
                     .collect(Collectors.toList());
 
             return new PageImpl<>(results, PageRequest.of(page, size), totalResults);
 
         } else {
-            // 적합도순 (기본값): RRF 순위대로 상위 N개만 조회
+            // 적합도순 (기본값): 최종 점수 순위대로 상위 N개만 조회
             if (offset >= totalResults) {
                 return Page.empty(PageRequest.of(page, size));
             }
 
-            pageArticleIds = sortedByRRF.stream()
+            pageArticleIds = sortedByScore.stream()
                     .skip(offset)
                     .limit(size)
                     .map(Map.Entry::getKey)
@@ -686,7 +696,7 @@ public class ArticleService {
             // 상위 N개만 Article 조회
             List<Article> pageArticles = articleRepository.findAllById(pageArticleIds);
 
-            // Article ID 순서를 RRF 순서대로 재정렬
+            // Article ID 순서를 최종 점수 순서대로 재정렬
             Map<Long, Article> articleMap = pageArticles.stream()
                     .collect(Collectors.toMap(Article::getId, a -> a));
 
@@ -701,8 +711,8 @@ public class ArticleService {
                         Long articleId = article.getId();
                         Double bm25Score = bm25Results.get(articleId);
                         Double ilikeScore = ilikeResults.get(articleId);
-                        Double rrfScore = rrfScores.get(articleId);
-                        return new ArticleSearchResultDto(article, false, bm25Score, null, rrfScore, ilikeScore, null);
+                        Double finalScore = finalScores.get(articleId);
+                        return new ArticleSearchResultDto(article, false, bm25Score, null, finalScore, ilikeScore, null);
                     })
                     .collect(Collectors.toList());
 
@@ -1276,50 +1286,6 @@ public class ArticleService {
             log.error("Summary 벡터 검색 중 오류 발생", e);
             return Collections.emptyMap();
         }
-    }
-
-    /**
-     * Reciprocal Rank Fusion (RRF) 리랭킹
-     * 여러 검색 결과(BM25, Summary Vector, Chunk Vector)를 순위 기반으로 결합
-     *
-     * RRF Score = Σ 1 / (k + rank_in_search_i)
-     * k = 60 (일반적으로 사용되는 상수)
-     *
-     * @param searchResults 각 검색 방법별 결과 (Article ID -> Score)
-     * @return Article ID -> RRF Score 맵 (내림차순 정렬)
-     */
-    private Map<Long, Double> rerankWithRRF(List<Map<Long, Double>> searchResults) {
-        final int K = 60;  // RRF 상수
-
-        Map<Long, Double> rrfScores = new HashMap<>();
-
-        for (Map<Long, Double> results : searchResults) {
-            if (results == null || results.isEmpty()) {
-                continue;
-            }
-
-            // 스코어 내림차순으로 정렬하여 순위 부여
-            List<Map.Entry<Long, Double>> sortedEntries = results.entrySet().stream()
-                    .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
-                    .toList();
-
-            // RRF 스코어 계산
-            for (int rank = 0; rank < sortedEntries.size(); rank++) {
-                Long articleId = sortedEntries.get(rank).getKey();
-                double rrfScore = 1.0 / (K + rank + 1);  // rank는 0부터 시작
-                rrfScores.merge(articleId, rrfScore, Double::sum);
-            }
-        }
-
-        // RRF 스코어 내림차순 정렬
-        return rrfScores.entrySet().stream()
-                .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        Map.Entry::getValue,
-                        (e1, e2) -> e1,
-                        LinkedHashMap::new
-                ));
     }
 
     /**
