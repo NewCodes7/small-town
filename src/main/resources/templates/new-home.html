@@ -56,10 +56,17 @@
                 <div class="blog-grid">
                     <!-- Blog Cards - Dynamic -->
                     <div th:each="article : ${articles}" class="blog-card">
-                        <a th:href="@{/articles/{id}(id=${article.id})}" style="text-decoration: none; color: inherit;">
-                            <div class="blog-card-thumbnail"
-                                 th:style="${article.thumbnailImage != null ? 'background-image: url(' + article.thumbnailImage + '); background-size: cover; background-position: center;' : ''}">
-                                <i th:if="${article.thumbnailImage == null}" class="fas fa-code blog-card-thumbnail-placeholder"></i>
+                        <a th:href="${article.link}" target="_blank" style="text-decoration: none; color: inherit;">
+                            <div th:if="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}"
+                                 class="blog-card-thumbnail"
+                                 th:style="'background-image: url(' + ${article.thumbnailImage} + '); background-size: cover; background-position: center;'">
+                            </div>
+                            <div th:unless="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}"
+                                 class="blog-card-thumbnail default-thumbnail">
+                                <div class="default-thumbnail-content">
+                                    <i class="fas fa-code"></i>
+                                    <div class="thumbnail-pattern"></div>
+                                </div>
                             </div>
                         </a>
                         <div class="blog-card-content">
@@ -74,7 +81,7 @@
                                     <span class="blog-card-company-name" th:text="${article.corporation.name}">Corporation</span>
                                 </a>
                             </div>
-                            <a th:href="@{/articles/{id}(id=${article.id})}" class="blog-card-title-link">
+                            <a th:href="${article.link}" target="_blank" class="blog-card-title-link">
                                 <h3 class="blog-card-title" th:text="${article.translatedTitle != null ? article.translatedTitle : article.title}">Article Title</h3>
                             </a>
                             <div class="blog-card-meta">
@@ -128,8 +135,19 @@
                          th:attr="data-video-id=${video.videoId}, data-video-title=${video.translatedTitle != null ? video.translatedTitle : video.title}, data-article-id=${video.id}"
                          onclick="openVideoModal(this)"
                          style="cursor: pointer;">
-                        <div class="video-card-thumbnail"
-                             th:style="${video.thumbnailUrl != null ? 'background-image: url(' + video.thumbnailUrl + '); background-size: cover; background-position: center;' : ''}">
+                        <div th:if="${video.thumbnailUrl != null && !video.thumbnailUrl.isEmpty()}"
+                             class="video-card-thumbnail"
+                             th:style="'background-image: url(' + ${video.thumbnailUrl} + '); background-size: cover; background-position: center;'">
+                            <div class="video-play-icon">
+                                <i class="fas fa-play"></i>
+                            </div>
+                        </div>
+                        <div th:unless="${video.thumbnailUrl != null && !video.thumbnailUrl.isEmpty()}"
+                             class="video-card-thumbnail default-thumbnail">
+                            <div class="default-thumbnail-content">
+                                <i class="fab fa-youtube"></i>
+                                <div class="thumbnail-pattern"></div>
+                            </div>
                             <div class="video-play-icon">
                                 <i class="fas fa-play"></i>
                             </div>
@@ -196,10 +214,15 @@
                     <a th:each="theme : ${themes}"
                        th:href="@{/themes/{id}(id=${theme.id})}"
                        class="theme-collection">
-                        <div class="theme-thumbnail"
-                             th:style="${theme.thumbnailUrl != null ? 'background-image: url(' + theme.thumbnailUrl + '); background-size: cover; background-position: center;' : ''}">
-                            <div th:if="${theme.thumbnailUrl == null}" class="theme-thumbnail-placeholder">
+                        <div th:if="${theme.thumbnailUrl != null && !theme.thumbnailUrl.isEmpty()}"
+                             class="theme-thumbnail"
+                             th:style="'background-image: url(' + ${theme.thumbnailUrl} + '); background-size: cover; background-position: center;'">
+                        </div>
+                        <div th:unless="${theme.thumbnailUrl != null && !theme.thumbnailUrl.isEmpty()}"
+                             class="theme-thumbnail default-thumbnail">
+                            <div class="default-thumbnail-content">
                                 <i class="fas fa-bookmark"></i>
+                                <div class="thumbnail-pattern"></div>
                             </div>
                         </div>
                         <div class="theme-content">
