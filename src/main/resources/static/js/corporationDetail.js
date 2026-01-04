@@ -97,29 +97,17 @@ document.querySelectorAll('.like-button').forEach(btn => {
     });
 });
 
-// 페이지 로드 시 좋아요 상태 확인
-async function loadLikeStatuses() {
+// 페이지 로드 시 좋아요 상태 확인 (서버에서 제공한 data-liked 속성 사용)
+function loadLikeStatuses() {
     const likeButtons = document.querySelectorAll('.like-button');
-    
-    for (const btn of likeButtons) {
-        const articleId = btn.getAttribute('data-article-id');
-        
-        try {
-            const response = await fetch(`/api/articles/${articleId}/like-status`, {
-                credentials: 'same-origin'
-            });
-            if (response.ok) {
-                const data = await response.json();
-                const likeIcon = btn.querySelector('.like-icon');
-                
-                if (data.hasLiked) {
-                    btn.classList.add('liked');
-                }
-            }
-        } catch (error) {
-            console.error('좋아요 상태 로드 중 오류 발생:', error);
+
+    likeButtons.forEach(btn => {
+        const isLiked = btn.getAttribute('data-liked') === 'true';
+
+        if (isLiked) {
+            btn.classList.add('liked');
         }
-    }
+    });
 }
 
 // 상대 시간 계산 함수

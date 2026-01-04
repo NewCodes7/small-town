@@ -86,7 +86,8 @@
                                           th:text="${article.publishedAt}">날짜</span>
                                 </span>
                                 <button class="like-button"
-                                        th:attr="data-article-id=${article.id}"
+                                        th:attr="data-article-id=${article.id},
+                                                data-liked=${article.isLiked != null and article.isLiked}"
                                         onclick="event.stopPropagation(); toggleArticleLike(this, event)">
                                     <i class="far fa-heart like-icon"></i>
                                     <span class="like-count" th:text="${article.likeCount}">0</span>
@@ -155,7 +156,8 @@
                                           th:text="${video.publishedAt}">날짜</span>
                                 </span>
                                 <button class="like-button"
-                                        th:attr="data-video-id=${video.id}"
+                                        th:attr="data-video-id=${video.id},
+                                                data-liked=${video.isLiked != null and video.isLiked}"
                                         onclick="event.stopPropagation(); toggleVideoLike(this, event)">
                                     <i class="far fa-heart like-icon"></i>
                                     <span class="like-count" th:text="${video.likeCount}">0</span>

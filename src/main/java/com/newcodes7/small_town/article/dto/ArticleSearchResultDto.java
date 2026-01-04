@@ -96,7 +96,24 @@ public class ArticleSearchResultDto extends ArticleListResponseDto {
      * @param timeDecayScore Time Decay 스코어
      */
     public ArticleSearchResultDto(Article article, boolean foundByVector, Double bm25Score, Double vectorScore, Double rrfScore, Double ilikeScore, Double timeDecayScore) {
-        super(article, bm25Score, vectorScore, rrfScore, ilikeScore, timeDecayScore);
+        super(article, bm25Score, vectorScore, rrfScore, ilikeScore, timeDecayScore, null);
+        this.foundByVector = foundByVector;
+    }
+
+    /**
+     * Article 엔티티, 벡터 검색 플래그, 모든 검색 스코어와 좋아요 상태로 DTO 생성 (최종)
+     *
+     * @param article Article 엔티티
+     * @param foundByVector 벡터 검색으로만 찾았는지 여부
+     * @param bm25Score BM25 검색 스코어
+     * @param vectorScore 벡터 유사도 스코어
+     * @param rrfScore RRF 스코어 (Final Score)
+     * @param ilikeScore ILIKE 검색 스코어
+     * @param timeDecayScore Time Decay 스코어
+     * @param isLiked 사용자 좋아요 상태
+     */
+    public ArticleSearchResultDto(Article article, boolean foundByVector, Double bm25Score, Double vectorScore, Double rrfScore, Double ilikeScore, Double timeDecayScore, Boolean isLiked) {
+        super(article, bm25Score, vectorScore, rrfScore, ilikeScore, timeDecayScore, isLiked);
         this.foundByVector = foundByVector;
     }
 }

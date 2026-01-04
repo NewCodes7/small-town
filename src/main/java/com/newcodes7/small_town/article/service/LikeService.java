@@ -45,4 +45,37 @@ public class LikeService {
     public long getLikeCount(Long articleId) {
         return likeRepository.countByArticleId(articleId);
     }
+
+    /**
+     * 여러 article의 좋아요 상태를 한 번에 조회 (Batch)
+     * N+1 문제 해결을 위한 메서드
+     *
+     * @param articleIds 조회할 article ID 목록
+     * @param ipAddress 사용자 IP 주소
+     * @return articleId -> isLiked 매핑 (true: 좋아요함, false: 좋아요 안함)
+     */
+    @Transactional(readOnly = true)
+    public java.util.Map<Long, Boolean> getLikeStatusBatch(java.util.List<Long> articleIds, String ipAddress) {
+        if (articleIds == null || articleIds.isEmpty()) {
+            return java.util.Collections.emptyMap();
+        }
+
+        if (ipAddress == null || ipAddress.isEmpty()) {
+            // IP가 없으면 모두 false
+            return articleIds.stream()
+                .collect(java.util.stream.Collectors.toMap(id -> id, id -> false));
+        }
+
+        // 한 번의 쿼리로 좋아요한 article ID 목록 조회
+        java.util.List<Long> likedArticleIds = likeRepository.findLikedArticleIdsByIpAddressAndArticleIds(
+            ipAddress, articleIds
+        );
+
+        // Set으로 변환하여 빠른 조회
+        java.util.Set<Long> likedSet = new java.util.HashSet<>(likedArticleIds);
+
+        // Map 생성: articleId -> isLiked
+        return articleIds.stream()
+            .collect(java.util.stream.Collectors.toMap(id -> id, likedSet::contains));
+    }
 }

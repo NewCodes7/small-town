@@ -58,35 +58,48 @@ public class ArticleListResponseDto implements ArticleResponseDto {
      */
     private final Double timeDecayScore;
 
+    /**
+     * 사용자 좋아요 상태 (IP 기반)
+     * true: 좋아요함, false: 좋아요 안함, null: 미확인
+     */
+    private final Boolean isLiked;
+
     public ArticleListResponseDto(Article article) {
-        this(article, null, null, null, null, null);
+        this(article, null, null, null, null, null, null);
     }
 
     /**
      * 검색 스코어를 포함한 생성자 (검색 결과용)
      */
     protected ArticleListResponseDto(Article article, Double bm25Score, Double vectorScore) {
-        this(article, bm25Score, vectorScore, null, null, null);
+        this(article, bm25Score, vectorScore, null, null, null, null);
     }
 
     /**
      * 모든 검색 스코어를 포함한 생성자 (하이브리드 검색 결과용)
      */
     protected ArticleListResponseDto(Article article, Double bm25Score, Double vectorScore, Double rrfScore) {
-        this(article, bm25Score, vectorScore, rrfScore, null, null);
+        this(article, bm25Score, vectorScore, rrfScore, null, null, null);
     }
 
     /**
      * 모든 검색 스코어를 포함한 생성자 (하이브리드 검색 결과용 - ilikeScore 포함)
      */
     protected ArticleListResponseDto(Article article, Double bm25Score, Double vectorScore, Double rrfScore, Double ilikeScore) {
-        this(article, bm25Score, vectorScore, rrfScore, ilikeScore, null);
+        this(article, bm25Score, vectorScore, rrfScore, ilikeScore, null, null);
     }
 
     /**
      * 모든 검색 스코어를 포함한 생성자 (하이브리드 검색 결과용 - timeDecayScore 포함)
      */
     protected ArticleListResponseDto(Article article, Double bm25Score, Double vectorScore, Double rrfScore, Double ilikeScore, Double timeDecayScore) {
+        this(article, bm25Score, vectorScore, rrfScore, ilikeScore, timeDecayScore, null);
+    }
+
+    /**
+     * 모든 검색 스코어와 좋아요 상태를 포함한 생성자 (최종)
+     */
+    public ArticleListResponseDto(Article article, Double bm25Score, Double vectorScore, Double rrfScore, Double ilikeScore, Double timeDecayScore, Boolean isLiked) {
         this.id = article.getId();
         this.title = article.getTitle();
         this.translatedTitle = article.getTranslatedTitle();
@@ -108,5 +121,6 @@ public class ArticleListResponseDto implements ArticleResponseDto {
         this.rrfScore = rrfScore;
         this.ilikeScore = ilikeScore;
         this.timeDecayScore = timeDecayScore;
+        this.isLiked = isLiked;
     }
 }

@@ -47,4 +47,12 @@ public interface LikeLogRepository extends JpaRepository<LikeLog, Long> {
            "WHERE ll.deletedAt IS NULL AND a.deletedAt IS NULL " +
            "ORDER BY ll.createdAt DESC")
     org.springframework.data.domain.Page<LikeLog> findAllWithDetailsAndDeletedAtIsNull(org.springframework.data.domain.Pageable pageable);
+
+    // 사용자가 좋아요한 article ID 목록 조회 (배치)
+    @Query("SELECT ll.article.id FROM LikeLog ll WHERE ll.user.id = :userId AND ll.article.id IN :articleIds AND ll.deletedAt IS NULL")
+    java.util.List<Long> findLikedArticleIdsByUserIdAndArticleIds(@Param("userId") Long userId, @Param("articleIds") java.util.List<Long> articleIds);
+
+    // IP 주소로 좋아요한 article ID 목록 조회 (배치)
+    @Query("SELECT ll.article.id FROM LikeLog ll WHERE ll.ipAddress = :ipAddress AND ll.article.id IN :articleIds AND ll.user IS NULL AND ll.deletedAt IS NULL")
+    java.util.List<Long> findLikedArticleIdsByIpAddressAndArticleIds(@Param("ipAddress") String ipAddress, @Param("articleIds") java.util.List<Long> articleIds);
 }

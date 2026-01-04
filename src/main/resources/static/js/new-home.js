@@ -128,59 +128,37 @@
                 }
             }
 
-            // 좋아요 상태 로드
-            async function loadLikeStatus() {
-                // Load article like status
+            // 좋아요 상태 로드 (서버에서 제공한 data-liked 속성 사용)
+            function loadLikeStatus() {
+                // Load article like status from data-liked attribute
                 const articleButtons = document.querySelectorAll('.like-button[data-article-id]');
-                for (const button of articleButtons) {
-                    const articleId = button.getAttribute('data-article-id');
-                    try {
-                        const response = await fetch(`/api/articles/${articleId}/like-status`, {
-                            credentials: 'include'
-                        });
-                        if (response.ok) {
-                            const data = await response.json();
-                            const icon = button.querySelector('.like-icon');
-                            const countSpan = button.querySelector('.like-count');
+                articleButtons.forEach(button => {
+                    const isLiked = button.getAttribute('data-liked') === 'true';
+                    const icon = button.querySelector('.like-icon');
 
-                            countSpan.textContent = data.likeCount;
-
-                            if (data.hasLiked) {
-                                button.classList.add('liked');
-                                icon.classList.remove('far');
-                                icon.classList.add('fas');
-                            }
+                    if (isLiked) {
+                        button.classList.add('liked');
+                        if (icon) {
+                            icon.classList.remove('far');
+                            icon.classList.add('fas');
                         }
-                    } catch (error) {
-                        console.error('Article like status load failed:', error);
                     }
-                }
+                });
 
-                // Load video like status
+                // Load video like status from data-liked attribute
                 const videoButtons = document.querySelectorAll('.like-button[data-video-id]');
-                for (const button of videoButtons) {
-                    const videoId = button.getAttribute('data-video-id');
-                    try {
-                        const response = await fetch(`/video/api/videos/${videoId}/like-status`, {
-                            credentials: 'include'
-                        });
-                        if (response.ok) {
-                            const data = await response.json();
-                            const icon = button.querySelector('.like-icon');
-                            const countSpan = button.querySelector('.like-count');
+                videoButtons.forEach(button => {
+                    const isLiked = button.getAttribute('data-liked') === 'true';
+                    const icon = button.querySelector('.like-icon');
 
-                            countSpan.textContent = data.likeCount;
-
-                            if (data.hasLiked) {
-                                button.classList.add('liked');
-                                icon.classList.remove('far');
-                                icon.classList.add('fas');
-                            }
+                    if (isLiked) {
+                        button.classList.add('liked');
+                        if (icon) {
+                            icon.classList.remove('far');
+                            icon.classList.add('fas');
                         }
-                    } catch (error) {
-                        console.error('Video like status load failed:', error);
                     }
-                }
+                });
             }
 
             // 상대 시간 계산 함수

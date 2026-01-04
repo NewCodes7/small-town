@@ -62,6 +62,8 @@ public class ArticleService {
     private final ArticleChunkRepository chunkRepository;
     private final ArticleEmbeddingService embeddingService;
     private final SemanticTermExpansionService semanticExpansionService;
+    private final LikeService likeService;
+    private final UserLikeService userLikeService;
 
     public ArticleService(ArticleRepository articleRepository,
                          @Qualifier("articleCorporationRepository") CorporationRepository corporationRepository,
@@ -71,7 +73,9 @@ public class ArticleService {
                          MorphemeAnalyzer morphemeAnalyzer,
                          ArticleChunkRepository chunkRepository,
                          ArticleEmbeddingService embeddingService,
-                         SemanticTermExpansionService semanticExpansionService) {
+                         SemanticTermExpansionService semanticExpansionService,
+                         LikeService likeService,
+                         UserLikeService userLikeService) {
         this.articleRepository = articleRepository;
         this.corporationRepository = corporationRepository;
         this.articleTermRepository = articleTermRepository;
@@ -81,13 +85,15 @@ public class ArticleService {
         this.chunkRepository = chunkRepository;
         this.embeddingService = embeddingService;
         this.semanticExpansionService = semanticExpansionService;
+        this.likeService = likeService;
+        this.userLikeService = userLikeService;
     }
 
     @Cacheable(value = "corporationArticles",
                key = "'filters-' + #keyword + '-' + #regions + '-' + #page + '-' + #size + '-' + #sort + '-' + #view + '-' + #category",
                condition = "#keyword == null")
     public Page<ArticleResponseDto> getArticlesWithFilters(String keyword, List<String> regions,
-                                                     int page, int size, String sort, String view, List<String> category) {
+                                                     int page, int size, String sort, String view, List<String> category, String ipAddress, String username) {
         List<Integer> domesticTypes = null;
         if (regions != null && !regions.isEmpty()) {
             domesticTypes = new ArrayList<>();
@@ -130,7 +136,16 @@ public class ArticleService {
                 articles = articleRepository.findArticlesWithFiltersWithoutTerms(searchPattern, domesticTypes, sort, category, pageable);
             }
 
-            return articles.map(ArticleListResponseDto::new);
+            // Fetch like statuses in batch
+            List<Long> articleIds = articles.getContent().stream()
+                .map(Article::getId)
+                .collect(Collectors.toList());
+            Map<Long, Boolean> likeStatusMap = getLikeStatusMap(articleIds, username, ipAddress);
+
+            return articles.map(article -> {
+                Boolean isLiked = likeStatusMap.get(article.getId());
+                return new ArticleListResponseDto(article, null, null, null, null, null, isLiked);
+            });
         }
 
         if (view.equals("grouped")) {
@@ -138,7 +153,7 @@ public class ArticleService {
             String searchPattern = (keyword != null && !keyword.trim().isEmpty()) ? "%" + keyword + "%" : null;
             // 빈 리스트를 null로 변환 (PostgreSQL 타입 추론 오류 방지)
             List<String> safeCategory = (category != null && !category.isEmpty()) ? category : null;
-            return getArticlesGroupedByCorporationWithPaging(searchPattern, termBasedArticleIds, domesticTypes, safeCategory, sort, page, size);
+            return getArticlesGroupedByCorporationWithPaging(searchPattern, termBasedArticleIds, domesticTypes, safeCategory, sort, page, size, ipAddress, username);
         }
 
         return Page.empty();
@@ -149,7 +164,9 @@ public class ArticleService {
                                                                         List<Integer> domesticTypes,
                                                                         List<String> category,
                                                                         String sort,
-                                                                        int page, int size) {
+                                                                        int page, int size,
+                                                                        String ipAddress,
+                                                                        String username) {
         // Native Query에 빈 리스트 대신 0 전달
         List<Long> safeTermBasedArticleIds = termBasedArticleIds != null ? termBasedArticleIds : new ArrayList<>();
         int termBasedArticleIdsSize = safeTermBasedArticleIds.size();
@@ -186,19 +203,28 @@ public class ArticleService {
             size
         );
 
-        // 3. 기업별로 그룹화하여 카드 생성
+        // 3. Fetch like statuses in batch for all articles
+        List<Long> articleIds = articles.stream()
+                .map(Article::getId)
+                .collect(Collectors.toList());
+        Map<Long, Boolean> likeStatusMap = getLikeStatusMap(articleIds, username, ipAddress);
+
+        // 4. 기업별로 그룹화하여 카드 생성
         Map<Corporation, List<Article>> groupedArticles = articles.stream()
                 .collect(Collectors.groupingBy(Article::getCorporation,
                     LinkedHashMap::new,
                     Collectors.toList()
                 ));
 
-        // 4. 카드 리스트 생성 (이미 DB에서 정렬되어 온 순서 유지)
+        // 5. 카드 리스트 생성 (이미 DB에서 정렬되어 온 순서 유지, 좋아요 상태 포함)
         List<GroupedArticlesDto> pagedCards = groupedArticles.entrySet().stream()
                 .map(entry -> new GroupedArticlesDto(
                         new CorporationDto(entry.getKey()),
                         entry.getValue().stream()
-                                .map(ArticleListResponseDto::new)
+                                .map(article -> {
+                                    Boolean isLiked = likeStatusMap.get(article.getId());
+                                    return new ArticleListResponseDto(article, null, null, null, null, null, isLiked);
+                                })
                                 .collect(Collectors.toList())
                 ))
                 .collect(Collectors.toList());
@@ -248,16 +274,41 @@ public class ArticleService {
         return new CorporationDetailDto(corporation, articleCount);
     }
     
-    public Page<ArticleListResponseDto> getArticlesByCorporation(Long corporationId, int page, int size) {
+    public Page<ArticleListResponseDto> getArticlesByCorporation(Long corporationId, int page, int size, String ipAddress, String username) {
         Pageable pageable = PageRequest.of(page, size);
         Page<Article> articles = articleRepository.findByCorporationId(corporationId, pageable);
-        return articles.map(ArticleListResponseDto::new);
+
+        // Fetch like statuses in batch
+        List<Long> articleIds = articles.getContent().stream()
+            .map(Article::getId)
+            .collect(Collectors.toList());
+        Map<Long, Boolean> likeStatusMap = getLikeStatusMap(articleIds, username, ipAddress);
+
+        return articles.map(article -> {
+            Boolean isLiked = likeStatusMap.get(article.getId());
+            return new ArticleListResponseDto(article, null, null, null, null, null, isLiked);
+        });
     }
     
     public long getTotalArticleCount() {
         return articleRepository.countByDeletedAtIsNull();
     }
-    
+
+    /**
+     * Helper method to get like status map based on user authentication
+     * If username is provided (logged in), use UserLikeService
+     * Otherwise, use LikeService with IP address
+     */
+    private Map<Long, Boolean> getLikeStatusMap(List<Long> articleIds, String username, String ipAddress) {
+        if (username != null && !username.trim().isEmpty()) {
+            // Logged in user - use UserLikeService
+            return userLikeService.getLikeStatusBatchByUser(articleIds, username);
+        } else {
+            // Anonymous user - use LikeService with IP
+            return userLikeService.getLikeStatusBatchByIp(articleIds, ipAddress);
+        }
+    }
+
     @Transactional
     @CacheEvict(value = "corporationArticles", allEntries = true)
     @CachePreload
@@ -536,7 +587,8 @@ public class ArticleService {
      * @param page 페이지 번호
      * @param size 페이지 크기
      * @param sort 정렬 방식 (relevance: 최종 스코어순, latest: 최신순, oldest: 오래된순)
-     * @return 검색 결과 (Binary Boost 스코어 기반 정렬)
+     * @param ipAddress 사용자 IP 주소 (좋아요 상태 조회용)
+     * @return 검색 결과 (Binary Boost 스코어 기반 정렬, 좋아요 상태 포함)
      */
     @Transactional(readOnly = true, noRollbackFor = {Exception.class, RuntimeException.class})
     public Page<ArticleSearchResultDto> searchArticlesHybrid(
@@ -545,7 +597,9 @@ public class ArticleService {
             List<String> category,
             int page,
             int size,
-            String sort) {
+            String sort,
+            String ipAddress,
+            String username) {
 
         if (keyword == null || keyword.trim().isEmpty()) {
             return Page.empty();
@@ -659,6 +713,9 @@ public class ArticleService {
             // 10개만 조회
             List<Article> pageArticles = articleRepository.findAllById(pageArticleIds);
 
+            // 좋아요 상태 batch 조회 (N+1 방지)
+            Map<Long, Boolean> likeStatusMap = getLikeStatusMap(pageArticleIds, username, ipAddress);
+
             // Article ID 순서를 정렬된 순서대로 재정렬
             Map<Long, Article> articleMap = pageArticles.stream()
                     .collect(Collectors.toMap(Article::getId, a -> a));
@@ -668,14 +725,15 @@ public class ArticleService {
                     .filter(a -> a != null)
                     .collect(Collectors.toList());
 
-            // DTO 생성
+            // DTO 생성 (좋아요 상태 포함)
             List<ArticleSearchResultDto> results = sortedArticles.stream()
                     .map(article -> {
                         Long articleId = article.getId();
                         Double bm25Score = bm25Results.get(articleId);
                         Double ilikeScore = ilikeResults.get(articleId);
                         Double finalScore = finalScores.get(articleId);
-                        return new ArticleSearchResultDto(article, false, bm25Score, null, finalScore, ilikeScore, null);
+                        Boolean isLiked = likeStatusMap.getOrDefault(articleId, false);
+                        return new ArticleSearchResultDto(article, false, bm25Score, null, finalScore, ilikeScore, null, isLiked);
                     })
                     .collect(Collectors.toList());
 
@@ -696,6 +754,9 @@ public class ArticleService {
             // 상위 N개만 Article 조회
             List<Article> pageArticles = articleRepository.findAllById(pageArticleIds);
 
+            // 좋아요 상태 batch 조회 (N+1 방지)
+            Map<Long, Boolean> likeStatusMap = getLikeStatusMap(pageArticleIds, username, ipAddress);
+
             // Article ID 순서를 최종 점수 순서대로 재정렬
             Map<Long, Article> articleMap = pageArticles.stream()
                     .collect(Collectors.toMap(Article::getId, a -> a));
@@ -705,14 +766,15 @@ public class ArticleService {
                     .filter(a -> a != null)
                     .collect(Collectors.toList());
 
-            // DTO 생성
+            // DTO 생성 (좋아요 상태 포함)
             List<ArticleSearchResultDto> results = sortedArticles.stream()
                     .map(article -> {
                         Long articleId = article.getId();
                         Double bm25Score = bm25Results.get(articleId);
                         Double ilikeScore = ilikeResults.get(articleId);
                         Double finalScore = finalScores.get(articleId);
-                        return new ArticleSearchResultDto(article, false, bm25Score, null, finalScore, ilikeScore, null);
+                        Boolean isLiked = likeStatusMap.getOrDefault(articleId, false);
+                        return new ArticleSearchResultDto(article, false, bm25Score, null, finalScore, ilikeScore, null, isLiked);
                     })
                     .collect(Collectors.toList());
 

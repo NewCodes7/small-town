@@ -148,7 +148,7 @@
                                        th:attr="data-date=${article.publishedAt}"
                                        th:title="${article.publishedAt}"
                                        th:text="${article.publishedAt}">2024-01-01</small>
-                                <button class="like-button" th:attr="data-article-id=${article.id}">
+                                <button class="like-button" th:attr="data-article-id=${article.id}, data-liked=${article.isLiked != null and article.isLiked}">
                                     <i class="fas fa-heart like-icon"></i>
                                 </button>
                             </div>

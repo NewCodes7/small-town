@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
@@ -64,6 +65,7 @@ public class VideoController {
             @RequestParam(name = "regions", required = false) List<String> regions,
             @RequestParam(name = "view", defaultValue = "grouped") String view,
             @RequestParam(name = "category", required = false) List<String> category,
+            @AuthenticationPrincipal UserDetails userDetails,
             HttpServletRequest request,
             Model model) {
 
@@ -78,6 +80,9 @@ public class VideoController {
             effectiveView = "list";
         }
 
+        String clientIp = com.newcodes7.small_town.global.util.Client.getClientIpAddress(request);
+        String username = userDetails != null ? userDetails.getUsername() : null;
+
         Page<VideoResponseDto> videos = videoService.getVideosWithFilters(
             keyword != null && !keyword.trim().isEmpty() ? keyword.trim().toLowerCase() : null,
             regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
@@ -85,7 +90,9 @@ public class VideoController {
             size,
             sort,
             effectiveView,
-            category == null || category.isEmpty() ? null : category.stream().sorted().toList()
+            category == null || category.isEmpty() ? null : category.stream().sorted().toList(),
+            clientIp,
+            username
         );
 
         log.info("필터 조건: keyword='{}', regions={}, {}개의 영상 조회",
@@ -369,7 +376,12 @@ public class VideoController {
             @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size,
-            @RequestParam(name = "sort", defaultValue = "latest") String sort) {
+            @RequestParam(name = "sort", defaultValue = "latest") String sort,
+            @AuthenticationPrincipal UserDetails userDetails,
+            HttpServletRequest request) {
+
+        String clientIp = com.newcodes7.small_town.global.util.Client.getClientIpAddress(request);
+        String username = userDetails != null ? userDetails.getUsername() : null;
 
         Page<VideoResponseDto> videos = videoService.getVideosWithFilters(
             keyword,
@@ -378,7 +390,9 @@ public class VideoController {
             size,
             sort,
             "list",    // view
-            null       // category
+            null,      // category
+            clientIp,
+            username
         );
 
         Map<String, Object> response = new HashMap<>();

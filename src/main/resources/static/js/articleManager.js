@@ -600,30 +600,16 @@ class ArticleManager {
         });
     }
 
-    async loadLikeStatuses() {
+    loadLikeStatuses() {
         const likeButtons = document.querySelectorAll('.like-button');
-        
-        for (const btn of likeButtons) {
-            const articleId = btn.getAttribute('data-article-id');
-            
-            try {
-                const response = await fetch(`/api/articles/${articleId}/like-status`, {
-                    credentials: 'same-origin'
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    
-                    if (data.authenticated && data.hasLiked) {
-                        btn.classList.add('liked');
-                    }
-                    
-                    const likeCount = btn.querySelector('.like-count');
-                    likeCount.textContent = data.likeCount;
-                }
-            } catch (error) {
-                console.error('좋아요 상태 로드 중 오류 발생:', error);
+
+        likeButtons.forEach(btn => {
+            const isLiked = btn.getAttribute('data-liked') === 'true';
+
+            if (isLiked) {
+                btn.classList.add('liked');
             }
-        }
+        });
     }
 }
 

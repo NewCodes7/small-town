@@ -905,6 +905,14 @@
             }
         }
 
+        @media (max-width: 400px) {
+            .section-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+        }
+
         @media (max-width: 768px) {
             .new-home-container {
                 padding: 0 16px;
@@ -964,12 +972,6 @@
             .floating-logo:nth-child(18) { top: 36%; right: 25%; }
             .floating-logo:nth-child(19) { top: 56%; left: 28%; }
             .floating-logo:nth-child(20) { top: 76%; right: 15%; }
-
-            .section-header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 12px;
-            }
 
             .section-title {
                 font-size: 1.5rem;

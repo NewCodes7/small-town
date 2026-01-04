@@ -139,6 +139,80 @@ public class UserLikeService {
     }
 
     /**
+     * 여러 article의 좋아요 상태를 한 번에 조회 (Batch) - 로그인 사용자용
+     * N+1 문제 해결을 위한 메서드
+     *
+     * @param articleIds 조회할 article ID 목록
+     * @param userEmail 사용자 이메일
+     * @return articleId -> isLiked 매핑 (true: 좋아요함, false: 좋아요 안함)
+     */
+    @Transactional(readOnly = true)
+    public java.util.Map<Long, Boolean> getLikeStatusBatchByUser(java.util.List<Long> articleIds, String userEmail) {
+        if (articleIds == null || articleIds.isEmpty()) {
+            return java.util.Collections.emptyMap();
+        }
+
+        if (userEmail == null || userEmail.trim().isEmpty()) {
+            // 이메일이 없으면 모두 false
+            return articleIds.stream()
+                .collect(java.util.stream.Collectors.toMap(id -> id, id -> false));
+        }
+
+        // 사용자 조회
+        User user = userRepository.findByUsernameAndDeletedAtIsNull(userEmail).orElse(null);
+        if (user == null) {
+            // 사용자가 없으면 모두 false
+            return articleIds.stream()
+                .collect(java.util.stream.Collectors.toMap(id -> id, id -> false));
+        }
+
+        // 한 번의 쿼리로 좋아요한 article ID 목록 조회
+        java.util.List<Long> likedArticleIds = likeLogRepository.findLikedArticleIdsByUserIdAndArticleIds(
+            user.getId(), articleIds
+        );
+
+        // Set으로 변환하여 빠른 조회
+        java.util.Set<Long> likedSet = new java.util.HashSet<>(likedArticleIds);
+
+        // Map 생성: articleId -> isLiked
+        return articleIds.stream()
+            .collect(java.util.stream.Collectors.toMap(id -> id, likedSet::contains));
+    }
+
+    /**
+     * 여러 article의 좋아요 상태를 한 번에 조회 (Batch) - IP 주소용
+     * N+1 문제 해결을 위한 메서드
+     *
+     * @param articleIds 조회할 article ID 목록
+     * @param ipAddress IP 주소
+     * @return articleId -> isLiked 매핑 (true: 좋아요함, false: 좋아요 안함)
+     */
+    @Transactional(readOnly = true)
+    public java.util.Map<Long, Boolean> getLikeStatusBatchByIp(java.util.List<Long> articleIds, String ipAddress) {
+        if (articleIds == null || articleIds.isEmpty()) {
+            return java.util.Collections.emptyMap();
+        }
+
+        if (ipAddress == null || ipAddress.trim().isEmpty()) {
+            // IP가 없으면 모두 false
+            return articleIds.stream()
+                .collect(java.util.stream.Collectors.toMap(id -> id, id -> false));
+        }
+
+        // 한 번의 쿼리로 좋아요한 article ID 목록 조회
+        java.util.List<Long> likedArticleIds = likeLogRepository.findLikedArticleIdsByIpAddressAndArticleIds(
+            ipAddress, articleIds
+        );
+
+        // Set으로 변환하여 빠른 조회
+        java.util.Set<Long> likedSet = new java.util.HashSet<>(likedArticleIds);
+
+        // Map 생성: articleId -> isLiked
+        return articleIds.stream()
+            .collect(java.util.stream.Collectors.toMap(id -> id, likedSet::contains));
+    }
+
+    /**
      * 사용자가 좋아요한 아티클 목록 조회 (페이지네이션)
      */
     @Transactional(readOnly = true)

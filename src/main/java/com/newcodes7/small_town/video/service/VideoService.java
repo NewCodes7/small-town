@@ -45,6 +45,7 @@ public class VideoService {
     private final TermRepository termRepository;
     private final TermSynonymService termSynonymService;
     private final MorphemeAnalyzer morphemeAnalyzer;
+    private final VideoLikeService videoLikeService;
 
     public VideoService(VideoRepository videoRepository,
                        @Qualifier("articleCorporationRepository") CorporationRepository corporationRepository,
@@ -52,7 +53,8 @@ public class VideoService {
                        VideoTermRepository videoTermRepository,
                        TermRepository termRepository,
                        TermSynonymService termSynonymService,
-                       MorphemeAnalyzer morphemeAnalyzer) {
+                       MorphemeAnalyzer morphemeAnalyzer,
+                       VideoLikeService videoLikeService) {
         this.videoRepository = videoRepository;
         this.corporationRepository = corporationRepository;
         this.categoryRepository = categoryRepository;
@@ -60,13 +62,14 @@ public class VideoService {
         this.termRepository = termRepository;
         this.termSynonymService = termSynonymService;
         this.morphemeAnalyzer = morphemeAnalyzer;
+        this.videoLikeService = videoLikeService;
     }
 
     @Cacheable(value = "corporationVideos",
                key = "'filters-' + #keyword + '-' + #regions + '-' + #page + '-' + #size + '-' + #sort + '-' + #view + '-' + #category",
                condition = "#keyword == null")
     public Page<VideoResponseDto> getVideosWithFilters(String keyword, List<String> regions,
-                                                        int page, int size, String sort, String view, List<String> category) {
+                                                        int page, int size, String sort, String view, List<String> category, String ipAddress, String username) {
         List<Integer> domesticTypes = null;
         if (regions != null && !regions.isEmpty()) {
             domesticTypes = new ArrayList<>();
@@ -101,7 +104,17 @@ public class VideoService {
                 category,
                 pageable
             );
-            return videos.map(VideoListResponseDto::new);
+
+            // Fetch like statuses in batch
+            List<Long> videoIds = videos.getContent().stream()
+                .map(Video::getId)
+                .collect(Collectors.toList());
+            Map<Long, Boolean> likeStatusMap = getLikeStatusMap(videoIds, username, ipAddress);
+
+            return videos.map(video -> {
+                Boolean isLiked = likeStatusMap.get(video.getId());
+                return new VideoListResponseDto(video, isLiked);
+            });
         }
 
         if (view.equals("grouped")) {
@@ -192,6 +205,21 @@ public class VideoService {
 
     public long getTotalVideoCount() {
         return videoRepository.countByDeletedAtIsNull();
+    }
+
+    /**
+     * Helper method to get like status map based on user authentication
+     * If username is provided (logged in), use VideoLikeService
+     * Otherwise, use VideoLikeService with IP address
+     */
+    private Map<Long, Boolean> getLikeStatusMap(List<Long> videoIds, String username, String ipAddress) {
+        if (username != null && !username.trim().isEmpty()) {
+            // Logged in user - use VideoLikeService
+            return videoLikeService.getLikeStatusBatchByUser(videoIds, username);
+        } else {
+            // Anonymous user - use VideoLikeService with IP
+            return videoLikeService.getLikeStatusBatchByIp(videoIds, ipAddress);
+        }
     }
 
     /**

@@ -22,7 +22,17 @@ public class VideoListResponseDto implements VideoResponseDto {
     private final String publishedAt;
     private final CorporationDto corporation;
 
+    /**
+     * 사용자 좋아요 상태 (IP 또는 User 기반)
+     * true: 좋아요함, false: 좋아요 안함, null: 미확인
+     */
+    private final Boolean isLiked;
+
     public VideoListResponseDto(Video video) {
+        this(video, null);
+    }
+
+    public VideoListResponseDto(Video video, Boolean isLiked) {
         this.id = video.getId();
         this.title = video.getTitle();
         this.translatedTitle = video.getTranslatedTitle();
@@ -35,5 +45,6 @@ public class VideoListResponseDto implements VideoResponseDto {
         this.publishedAt = video.getPublishedAt() != null ?
             video.getPublishedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : null;
         this.corporation = new CorporationDto(video.getCorporation());
+        this.isLiked = isLiked;
     }
 }

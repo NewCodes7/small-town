@@ -37,4 +37,12 @@ public interface VideoLikeLogRepository extends JpaRepository<VideoLikeLog, Long
     // 사용자가 좋아요한 비디오와 좋아요 시간 조회
     @Query("SELECT vll FROM VideoLikeLog vll JOIN FETCH vll.video v JOIN FETCH v.corporation WHERE vll.user.id = :userId AND vll.deletedAt IS NULL ORDER BY vll.createdAt DESC")
     java.util.List<VideoLikeLog> findLikedVideosWithTimestampByUserId(@Param("userId") Long userId);
+
+    // 사용자가 좋아요한 video ID 목록 조회 (배치)
+    @Query("SELECT vll.video.id FROM VideoLikeLog vll WHERE vll.user.id = :userId AND vll.video.id IN :videoIds AND vll.deletedAt IS NULL")
+    java.util.List<Long> findLikedVideoIdsByUserIdAndVideoIds(@Param("userId") Long userId, @Param("videoIds") java.util.List<Long> videoIds);
+
+    // IP 주소로 좋아요한 video ID 목록 조회 (배치)
+    @Query("SELECT vll.video.id FROM VideoLikeLog vll WHERE vll.ipAddress = :ipAddress AND vll.video.id IN :videoIds AND vll.user IS NULL AND vll.deletedAt IS NULL")
+    java.util.List<Long> findLikedVideoIdsByIpAddressAndVideoIds(@Param("ipAddress") String ipAddress, @Param("videoIds") java.util.List<Long> videoIds);
 }

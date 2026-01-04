@@ -433,7 +433,8 @@
                                     th:text="${video.publishedAt}"
                                     style="white-space: nowrap;">2024-01-01</small>
                                 <button class="like-button"
-                                        th:attr="data-video-id=${video.id}">
+                                        th:attr="data-video-id=${video.id},
+                                                data-liked=${video.isLiked != null and video.isLiked}">
                                     <i class="fas fa-heart like-icon"></i>
                                 </button>
                             </div>
@@ -506,7 +507,8 @@
                                 <div class="d-flex align-items-center gap-2">
                                     <small class="text-muted relative-time" th:attr="data-date=${firstVideo.publishedAt}" th:title="${firstVideo.publishedAt}" th:text="${firstVideo.publishedAt}" style="white-space: nowrap;"></small>
                                     <button class="like-button"
-                                            th:attr="data-video-id=${firstVideo.id}">
+                                            th:attr="data-video-id=${firstVideo.id},
+                                                    data-liked=${firstVideo.isLiked != null and firstVideo.isLiked}">
                                         <i class="fas fa-heart like-icon"></i>
                                     </button>
                                 </div>
@@ -555,7 +557,8 @@
                                     <span class="d-flex align-items-center gap-2">
                                         <small class="text-muted relative-time" th:attr="data-date=${child.publishedAt}" th:title="${child.publishedAt}" th:text="${child.publishedAt}" style="white-space: nowrap;"></small>
                                         <button class="like-button"
-                                            th:attr="data-video-id=${child.id}">
+                                            th:attr="data-video-id=${child.id},
+                                                    data-liked=${child.isLiked != null and child.isLiked}">
                                             <i class="fas fa-heart like-icon"></i>
                                         </button>
                                     </span>
@@ -1285,48 +1288,17 @@
                 });
             }
 
-            // 페이지 로드 시 좋아요 상태 확인
-            async function loadLikeStatuses() {
+            // 페이지 로드 시 좋아요 상태 확인 (서버에서 전달된 data-liked 속성 사용)
+            function loadLikeStatuses() {
                 const likeButtons = document.querySelectorAll('.like-button');
 
-                // 사용자 인증 상태 확인
-                let userInfo = null;
-                try {
-                    const response = await fetch('/api/user-info', { credentials: 'include' });
-                    if (response.ok) {
-                        userInfo = await response.json();
+                likeButtons.forEach(btn => {
+                    const isLiked = btn.getAttribute('data-liked') === 'true';
+
+                    if (isLiked) {
+                        btn.classList.add('liked');
                     }
-                } catch (error) {
-                    console.error('사용자 정보 로드 중 오류 발생:', error);
-                }
-
-                for (const btn of likeButtons) {
-                    const videoId = parseInt(btn.getAttribute('data-video-id'));
-
-                    try {
-                        if (userInfo && userInfo.authenticated) {
-                            // 로그인 사용자: 서버에서 조회
-                            const response = await fetch(`/video/api/videos/${videoId}/like-status`, {
-                                credentials: 'same-origin'
-                            });
-                            if (response.ok) {
-                                const data = await response.json();
-
-                                if (data.hasLiked) {
-                                    btn.classList.add('liked');
-                                }
-                            }
-                        } else {
-                            // 비로그인 사용자: localStorage에서 조회
-                            const likedIds = getLikedVideoIds();
-                            if (likedIds.includes(videoId)) {
-                                btn.classList.add('liked');
-                            }
-                        }
-                    } catch (error) {
-                        console.error('좋아요 상태 로드 중 오류 발생:', error);
-                    }
-                }
+                });
             }
 
             // Bind click events to video cards (similar to article cards)
