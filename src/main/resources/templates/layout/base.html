@@ -70,7 +70,12 @@
                 </a>
                 <ul class="navbar-nav ms-4 desktop-nav">
                     <li class="nav-item">
-                        <a class="nav-link" th:href="@{/}" data-nav="blog">
+                        <a class="nav-link" th:href="@{/}" data-nav="home">
+                            <i class="fas fa-home me-1"></i>홈
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/articles}" data-nav="blog">
                             <i class="fas fa-blog me-1"></i>블로그
                         </a>
                     </li>
@@ -167,7 +172,13 @@
             </div>
             <ul class="mobile-drawer-nav">
                 <li class="mobile-nav-item">
-                    <a class="mobile-nav-link" th:href="@{/}" data-nav="blog">
+                    <a class="mobile-nav-link" th:href="@{/}" data-nav="home">
+                        <i class="fas fa-home"></i>
+                        <span>홈</span>
+                    </a>
+                </li>
+                <li class="mobile-nav-item">
+                    <a class="mobile-nav-link" th:href="@{/articles}" data-nav="blog">
                         <i class="fas fa-blog"></i>
                         <span>블로그</span>
                     </a>
@@ -788,18 +799,25 @@
                 link.classList.remove('active');
             });
 
-            // YouTube 페이지 확인 (/video로 시작하는 경로)
-            if (currentPath.startsWith('/video')) {
-                const youtubeLink = document.querySelector('[data-nav="youtube"]');
-                if (youtubeLink) {
-                    youtubeLink.classList.add('active');
+            // 홈 페이지 (루트 경로)
+            if (currentPath === '/' || currentPath === '') {
+                const homeLink = document.querySelector('[data-nav="home"]');
+                if (homeLink) {
+                    homeLink.classList.add('active');
                 }
             }
-            // 홈/블로그 페이지 (루트 경로)
-            else if (currentPath === '/' || currentPath === '') {
+            // 블로그 페이지 (/articles 경로)
+            else if (currentPath.startsWith('/articles')) {
                 const blogLink = document.querySelector('[data-nav="blog"]');
                 if (blogLink) {
                     blogLink.classList.add('active');
+                }
+            }
+            // YouTube 페이지 확인 (/video로 시작하는 경로)
+            else if (currentPath.startsWith('/video')) {
+                const youtubeLink = document.querySelector('[data-nav="youtube"]');
+                if (youtubeLink) {
+                    youtubeLink.classList.add('active');
                 }
             }
         }

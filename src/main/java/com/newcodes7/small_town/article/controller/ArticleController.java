@@ -93,7 +93,7 @@ public class ArticleController {
     private final com.newcodes7.small_town.theme.service.ThemeService themeService;
     private final ThemeRepository themeRepository;
 
-    @GetMapping({"", "/"})
+    @GetMapping("/articles")
     public String home(
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "10") int size,
@@ -1035,9 +1035,9 @@ public class ArticleController {
     }
 
     /**
-     * 임시 엔드포인트: 새로운 홈 페이지 디자인 미리보기
+     * 새로운 홈 페이지
      */
-    @GetMapping("/new-home")
+    @GetMapping({"", "/"})
     public String newHome(Model model, @AuthenticationPrincipal UserDetails userDetails, HttpServletRequest request) {
         // 최신 블로그 글 40개 조회 (중복 제거를 위해 더 많이 가져옴)
         String clientIp = com.newcodes7.small_town.global.util.Client.getClientIpAddress(request);

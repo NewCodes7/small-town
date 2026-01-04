@@ -38,6 +38,47 @@
                 </form>
             </section>
 
+            <!-- Company Logos Slider Section -->
+            <div class="section-header">
+                <h2 class="section-title">
+                    <span class="section-icon">
+                        <i class="fas fa-building"></i>
+                    </span>
+                    구독 중인 기업
+                </h2>
+                <a th:href="@{/corporations}" class="section-more">
+                    전체 보기
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+            <section class="company-logos-section">
+                <div class="logos-container">
+                    <div class="logos-track">
+                        <!-- 첫 번째 세트 -->
+                        <a th:each="corporation : ${corporations}"
+                           th:href="@{/corporations/{id}(id=${corporation.id})}"
+                           class="logo-item"
+                           th:title="${corporation.name}">
+                            <img th:if="${corporation.effectiveLogoUrl != null}"
+                                 th:src="${corporation.effectiveLogoUrl}"
+                                 th:alt="${corporation.name}"
+                                 class="company-logo-img">
+                        </a>
+                        <!-- 두 번째 세트 (무한 스크롤용 복제) -->
+                        <a th:each="corporation : ${corporations}"
+                           th:href="@{/corporations/{id}(id=${corporation.id})}"
+                           class="logo-item"
+                           th:title="${corporation.name}"
+                           aria-hidden="true">
+                            <img th:if="${corporation.effectiveLogoUrl != null}"
+                                 th:src="${corporation.effectiveLogoUrl}"
+                                 th:alt="${corporation.name}"
+                                 class="company-logo-img">
+                        </a>
+                    </div>
+                </div>
+            </section>
+
             <!-- Latest Blog Articles Section -->
             <section class="content-section">
                 <div class="section-header">
@@ -47,7 +88,7 @@
                         </span>
                         최신 기술 블로그
                     </h2>
-                    <a href="/" class="section-more">
+                    <a href="/articles" class="section-more">
                         전체보기
                         <i class="fas fa-arrow-right"></i>
                     </a>
