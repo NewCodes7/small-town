@@ -241,6 +241,15 @@ public class CrawlingService {
             long elapsedTime = System.currentTimeMillis() - startTime;
             log.info("BM25 검색 인덱스 갱신 완료 ({}ms)", elapsedTime);
 
+            // Term 자동완성 Materialized View 갱신
+            log.info("Term 자동완성 인덱스 갱신 시작");
+            long termStartTime = System.currentTimeMillis();
+
+            articleRepository.refreshTermAutocompleteIndex();
+
+            long termElapsedTime = System.currentTimeMillis() - termStartTime;
+            log.info("Term 자동완성 인덱스 갱신 완료 ({}ms)", termElapsedTime);
+
         } catch (Exception e) {
             log.error("BM25 검색 인덱스 갱신 중 오류 발생: {}", e.getMessage(), e);
             // 인덱스 갱신 실패는 크롤링 자체를 실패시키지 않음

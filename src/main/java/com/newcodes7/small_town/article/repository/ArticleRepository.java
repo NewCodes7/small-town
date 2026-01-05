@@ -514,6 +514,21 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query(value = "REFRESH MATERIALIZED VIEW CONCURRENTLY article_search_index", nativeQuery = true)
     void refreshArticleSearchIndex();
 
+    /**
+     * Term total_frequency 업데이트 (자동완성 최적화용)
+     * 크롤링 후 또는 ArticleTerm 업데이트 후 호출
+     */
+    @Modifying
+    @Query(value = """
+        UPDATE term t
+        SET total_frequency = COALESCE((
+            SELECT SUM(at.frequency)
+            FROM article_term at
+            WHERE at.term_id = t.id
+        ), 0)
+        """, nativeQuery = true)
+    void refreshTermAutocompleteIndex();
+
     // ===== Article Summary 관련 쿼리 =====
 
     /**

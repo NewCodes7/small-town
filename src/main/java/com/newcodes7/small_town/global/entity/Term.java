@@ -95,6 +95,15 @@ public class Term {
     private LocalDateTime embeddingGeneratedAt;
 
     /**
+     * 총 빈도수 (자동완성 성능 최적화용)
+     * article_term의 frequency 합계를 비정규화하여 저장
+     * 크롤링 후 자동 갱신됨
+     */
+    @Column(name = "total_frequency")
+    @Setter
+    private Long totalFrequency;
+
+    /**
      * 생성일시
      */
     @CreatedDate

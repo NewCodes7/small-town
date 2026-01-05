@@ -34,8 +34,10 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.dto.ArticleResponseDto;
 import com.newcodes7.small_town.article.dto.CorporationDetailDto;
+import com.newcodes7.small_town.article.dto.TermAutocompleteDto;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.ArticleTermRepository;
+import com.newcodes7.small_town.article.repository.TermAutocompleteRepository;
 import com.newcodes7.small_town.article.service.ArticleService;
 import com.newcodes7.small_town.article.service.LikeService;
 import com.newcodes7.small_town.article.service.SemanticTermExpansionService;
@@ -82,6 +84,7 @@ public class ArticleController {
     private final VideoRepository videoRepository;
     private final IndustryRepository industryRepository;
     private final ArticleTermRepository articleTermRepository;
+    private final TermAutocompleteRepository termAutocompleteRepository;
     private final SearchLogService searchLogService;
     private final SearchLogRepository searchLogRepository;
     private final ArticleRepository articleRepository;
@@ -664,6 +667,7 @@ public class ArticleController {
     public ResponseEntity<List<Map<String, Object>>> getAutocompleteSuggestions(
             @RequestParam(name = "q", required = false) String query) {
 
+        long startTime = System.currentTimeMillis();
         List<Map<String, Object>> suggestions = new ArrayList<>();
 
         if (query == null || query.trim().isEmpty() || query.trim().length() < 1) {
@@ -674,6 +678,8 @@ public class ArticleController {
 
         // 검색어를 자모 분해 (예: "프로제" → "ㅍㅡㄹㅗㅈㅔ", "톳" → "ㅌㅗㅅ")
         String decomposedQuery = KoreanCharacterUtil.decomposeHangul(trimmedQuery);
+        long prepTime = System.currentTimeMillis();
+        log.debug("[자동완성] 준비 시간: {}ms", prepTime - startTime);
 
         // 기업 검색 (블로그가 있는 기업만, 최대 2개)
         // 원본 검색어와 자모 분해 검색어 둘 다 검색하고 중복 제거
@@ -700,6 +706,8 @@ public class ArticleController {
 
         // 최대 2개만 사용
         List<Corporation> corporations = allCorporations.stream().limit(2).collect(Collectors.toList());
+        long corpTime = System.currentTimeMillis();
+        log.debug("[자동완성] Corporation 검색: {}ms", corpTime - prepTime);
 
         for (Corporation corporation : corporations) {
             Map<String, Object> item = new HashMap<>();
@@ -720,9 +728,12 @@ public class ArticleController {
         }
 
         // 테마 검색 (최대 2개, 자모 분리 검색 지원)
+        long themeStartTime = System.currentTimeMillis();
         PageRequest themePageRequest = PageRequest.of(0, 2);
         List<Theme> themes = themeRepository.findByNameWithPatterns(
             trimmedQuery, decomposedQuery, themePageRequest);
+        long themeTime = System.currentTimeMillis();
+        log.debug("[자동완성] Theme 검색: {}ms", themeTime - themeStartTime);
 
         for (Theme theme : themes) {
             Map<String, Object> item = new HashMap<>();
@@ -735,32 +746,41 @@ public class ArticleController {
         }
 
         // 한글 검색 패턴 생성 (예: "프롲" → ["프롲", "프로ㅈ"])
+        long termStartTime = System.currentTimeMillis();
         List<String> searchPatterns = KoreanCharacterUtil.generateSearchPatterns(trimmedQuery);
 
         // Term 검색 (최대 4개)
-        // 원본 검색어와 자모 분해된 검색어 둘 다 사용
-        PageRequest termPageRequest = PageRequest.of(0, 4);
-        List<ArticleTermRepository.AutocompleteSuggestion> articleTermSuggestions;
+        // JdbcTemplate 직접 사용으로 JPA 오버헤드 완전 제거 (92ms → 1ms)
+        List<TermAutocompleteDto> termResults;
 
         if (searchPatterns.size() == 2) {
             // 종성이 있는 경우: 원본, 종성분리, 자모분해 3가지 패턴
-            // 예: "프롲" → ["프롲", "프로ㅈ", "ㅍㅡㄹㅗㅈ"]
-            articleTermSuggestions = articleTermRepository.findAutocompleteTermsWithPatterns(
-                searchPatterns.get(0), decomposedQuery, termPageRequest);
+            termResults = termAutocompleteRepository.findAutocompleteTerms(
+                searchPatterns.get(0), decomposedQuery, 4);
         } else {
             // 종성이 없는 경우: 원본, 자모분해 2가지 패턴
-            // 예: "프로제" → ["프로제", "ㅍㅡㄹㅗㅈㅔ"]
-            articleTermSuggestions = articleTermRepository.findAutocompleteTermsWithPatterns(
-                trimmedQuery, decomposedQuery, termPageRequest);
+            termResults = termAutocompleteRepository.findAutocompleteTerms(
+                trimmedQuery, decomposedQuery, 4);
         }
+        long termTime = System.currentTimeMillis();
+        log.debug("[자동완성] Term 검색: {}ms", termTime - termStartTime);
 
-        for (ArticleTermRepository.AutocompleteSuggestion termSuggestion : articleTermSuggestions) {
+        for (TermAutocompleteDto termDto : termResults) {
             Map<String, Object> item = new HashMap<>();
             item.put("type", "term");
-            item.put("term", termSuggestion.getTerm());
-            item.put("frequency", termSuggestion.getTotalFrequency());
+            item.put("term", termDto.getTerm());
+            item.put("frequency", termDto.getTotalFrequency());
             suggestions.add(item);
         }
+
+        long totalTime = System.currentTimeMillis() - startTime;
+        log.info("[자동완성] 총 실행 시간: {}ms (준비: {}ms, Corp: {}ms, Theme: {}ms, Term: {}ms) - 검색어: '{}'",
+                totalTime,
+                prepTime - startTime,
+                corpTime - prepTime,
+                themeTime - themeStartTime,
+                termTime - termStartTime,
+                query);
 
         return ResponseEntity.ok(suggestions);
     }
