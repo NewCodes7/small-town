@@ -26,6 +26,13 @@ public interface ArticleTermRepository extends JpaRepository<ArticleTerm, Long> 
     List<ArticleTerm> findByArticleIdOrderByScoreDesc(@Param("articleId") Long articleId);
 
     /**
+     * 여러 article의 모든 term을 한 번에 조회 (bulk 조회, Term fetch join)
+     * @param articleIds Article ID 목록
+     */
+    @Query("SELECT at FROM ArticleTerm at JOIN FETCH at.term WHERE at.article.id IN :articleIds ORDER BY at.score DESC")
+    List<ArticleTerm> findByArticleIdInOrderByScoreDesc(@Param("articleIds") List<Long> articleIds);
+
+    /**
      * 특정 article의 모든 term 삭제
      */
     @Modifying

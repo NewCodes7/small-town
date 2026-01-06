@@ -193,6 +193,72 @@ public class AdminTermController {
     }
 
     /**
+     * 여러 Article의 Term을 한 번에 조회하는 Bulk API
+     * @param articleIds 쉼표로 구분된 Article ID 목록 (예: "1,2,3,4,5")
+     */
+    @GetMapping("/articles/terms/bulk")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getBulkArticleTerms(
+            @RequestParam("articleIds") String articleIds) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // 쉼표로 구분된 ID 파싱
+            String[] idStrings = articleIds.split(",");
+            List<Long> articleIdList = new ArrayList<>();
+            for (String idStr : idStrings) {
+                try {
+                    articleIdList.add(Long.parseLong(idStr.trim()));
+                } catch (NumberFormatException e) {
+                    log.warn("유효하지 않은 article ID: {}", idStr);
+                }
+            }
+
+            if (articleIdList.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "유효한 Article ID가 없습니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // 모든 ArticleTerm을 한 번의 쿼리로 조회
+            List<com.newcodes7.small_town.global.entity.ArticleTerm> allTerms =
+                    articleTermRepository.findByArticleIdInOrderByScoreDesc(articleIdList);
+
+            // Article ID별로 그룹화
+            Map<Long, List<Map<String, Object>>> termsByArticle = new HashMap<>();
+            for (com.newcodes7.small_town.global.entity.ArticleTerm articleTerm : allTerms) {
+                Long articleId = articleTerm.getArticle().getId();
+
+                termsByArticle.putIfAbsent(articleId, new ArrayList<>());
+
+                Map<String, Object> termData = new HashMap<>();
+                termData.put("id", articleTerm.getId());
+                termData.put("termId", articleTerm.getTerm().getId());
+                termData.put("term", articleTerm.getTerm().getTerm());
+                termData.put("termType", articleTerm.getTerm().getTermType());
+                termData.put("frequency", articleTerm.getFrequency());
+                termData.put("score", articleTerm.getScore());
+
+                termsByArticle.get(articleId).add(termData);
+            }
+
+            response.put("success", true);
+            response.put("termsByArticle", termsByArticle);
+            response.put("totalArticles", articleIdList.size());
+            response.put("articlesWithTerms", termsByArticle.size());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Bulk article terms 조회 중 오류 발생", e);
+            response.put("success", false);
+            response.put("message", "Bulk terms 조회 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
      * Article에 Term 추가 API
      */
     @PostMapping("/articles/{articleId}/terms")
@@ -779,6 +845,70 @@ public class AdminTermController {
             log.error("Video term 조회 중 오류 발생: {}", e.getMessage(), e);
             response.put("success", false);
             response.put("message", "Term 조회 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 여러 Video의 Term을 한 번에 조회하는 Bulk API
+     * @param videoIds 쉼표로 구분된 Video ID 목록 (예: "1,2,3,4,5")
+     */
+    @GetMapping("/videos/terms/bulk")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getBulkVideoTerms(
+            @RequestParam("videoIds") String videoIds) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // 쉼표로 구분된 ID 파싱
+            String[] idStrings = videoIds.split(",");
+            List<Long> videoIdList = new ArrayList<>();
+            for (String idStr : idStrings) {
+                try {
+                    videoIdList.add(Long.parseLong(idStr.trim()));
+                } catch (NumberFormatException e) {
+                    log.warn("유효하지 않은 video ID: {}", idStr);
+                }
+            }
+
+            if (videoIdList.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "유효한 Video ID가 없습니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // VideoTermRepository에 bulk 조회 메서드가 있다고 가정
+            List<com.newcodes7.small_town.global.entity.VideoTerm> allTerms =
+                    videoTermService.getVideoTermsByVideoIds(videoIdList);
+
+            // Video ID별로 그룹화
+            Map<Long, List<Map<String, Object>>> termsByVideo = new HashMap<>();
+            for (com.newcodes7.small_town.global.entity.VideoTerm videoTerm : allTerms) {
+                Long videoId = videoTerm.getVideo().getId();
+
+                termsByVideo.putIfAbsent(videoId, new ArrayList<>());
+
+                Map<String, Object> termData = new HashMap<>();
+                termData.put("id", videoTerm.getId());
+                termData.put("term", videoTerm.getTerm().getTerm());
+                termData.put("termType", videoTerm.getTerm().getTermType());
+                termData.put("frequency", videoTerm.getFrequency());
+
+                termsByVideo.get(videoId).add(termData);
+            }
+
+            response.put("success", true);
+            response.put("termsByVideo", termsByVideo);
+            response.put("totalVideos", videoIdList.size());
+            response.put("videosWithTerms", termsByVideo.size());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Bulk video terms 조회 중 오류 발생", e);
+            response.put("success", false);
+            response.put("message", "Bulk terms 조회 중 오류가 발생했습니다: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
     }

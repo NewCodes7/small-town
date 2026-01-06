@@ -829,97 +829,122 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// Term 로드 및 표시 (페이지 로드 시)
+// Term 로드 및 표시 (페이지 로드 시) - Bulk API 사용
 document.addEventListener('DOMContentLoaded', function() {
-    // Article Term 로드
+    // Article Term 로드 - Bulk API로 한 번에 조회
     const termsContainers = document.querySelectorAll('.terms-container');
-    termsContainers.forEach(container => {
-        const articleId = container.dataset.articleId;
+    if (termsContainers.length > 0) {
+        // 모든 article ID 수집
+        const articleIds = Array.from(termsContainers).map(container => container.dataset.articleId);
 
-        fetch(`/admin/articles/${articleId}/terms`)
+        // Bulk API 호출
+        fetch(`/admin/articles/terms/bulk?articleIds=${articleIds.join(',')}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    if (data.terms && data.terms.length > 0) {
-                        // Term을 score 기준으로 정렬
-                        const sortedTerms = data.terms.sort((a, b) => (b.score || 0) - (a.score || 0));
+                    const termsByArticle = data.termsByArticle;
 
-                        // Term을 뱃지로 표시 (클릭 가능)
-                        let html = '<div class="d-flex flex-wrap gap-1">';
-                        sortedTerms.forEach((term, index) => {
-                            const scorePercent = ((term.score || 0) * 100).toFixed(0);
-                            const badgeClass = (term.score || 0) > 0.7 ? 'bg-danger' : (term.score || 0) > 0.4 ? 'bg-warning text-dark' : 'bg-info';
-                            html += `
-                                <span class="badge ${badgeClass} term-badge-editable"
-                                        style="cursor: pointer;"
-                                        data-article-id="${articleId}"
-                                        data-article-term-id="${term.id}"
-                                        data-term-id="${term.termId}"
-                                        data-term="${term.term}"
-                                        data-score="${term.score || 0}"
-                                        data-frequency="${term.frequency}"
-                                        title="클릭하여 수정/삭제 (${term.termType})">
-                                    ${term.term} <small>score: ${scorePercent}%</small>
-                                </span>
-                            `;
-                        });
-                        html += `<button class="btn btn-sm btn-success add-term-btn" data-article-id="${articleId}">
-                                    <i class="fas fa-plus"></i> Term 추가
-                                    </button>`;
-                        html += '</div>';
-                        html += `<small class="text-muted mt-1 d-block">총 ${sortedTerms.length}개 term</small>`;
+                    // 각 container에 해당 article의 term 표시
+                    termsContainers.forEach(container => {
+                        const articleId = container.dataset.articleId;
+                        const terms = termsByArticle[articleId];
 
-                        container.innerHTML = html;
-                    } else {
-                        container.innerHTML = '<span class="badge bg-secondary">Term 없음</span>';
-                    }
+                        if (terms && terms.length > 0) {
+                            // Term을 뱃지로 표시 (클릭 가능)
+                            let html = '<div class="d-flex flex-wrap gap-1">';
+                            terms.forEach((term, index) => {
+                                const scorePercent = ((term.score || 0) * 100).toFixed(0);
+                                const badgeClass = (term.score || 0) > 0.7 ? 'bg-danger' : (term.score || 0) > 0.4 ? 'bg-warning text-dark' : 'bg-info';
+                                html += `
+                                    <span class="badge ${badgeClass} term-badge-editable"
+                                            style="cursor: pointer;"
+                                            data-article-id="${articleId}"
+                                            data-article-term-id="${term.id}"
+                                            data-term-id="${term.termId}"
+                                            data-term="${term.term}"
+                                            data-score="${term.score || 0}"
+                                            data-frequency="${term.frequency}"
+                                            title="클릭하여 수정/삭제 (${term.termType})">
+                                        ${term.term} <small>score: ${scorePercent}%</small>
+                                    </span>
+                                `;
+                            });
+                            html += `<button class="btn btn-sm btn-success add-term-btn" data-article-id="${articleId}">
+                                        <i class="fas fa-plus"></i> Term 추가
+                                        </button>`;
+                            html += '</div>';
+                            html += `<small class="text-muted mt-1 d-block">총 ${terms.length}개 term</small>`;
+
+                            container.innerHTML = html;
+                        } else {
+                            container.innerHTML = '<span class="badge bg-secondary">Term 없음</span>';
+                        }
+                    });
                 } else {
-                    container.innerHTML = '<span class="badge bg-secondary">-</span>';
+                    // 실패 시 각 container에 에러 표시
+                    termsContainers.forEach(container => {
+                        container.innerHTML = '<span class="badge bg-secondary">-</span>';
+                    });
                 }
             })
             .catch(error => {
                 console.error('Error loading terms:', error);
-                container.innerHTML = '<span class="badge bg-danger"><i class="fas fa-exclamation"></i> 오류</span>';
+                termsContainers.forEach(container => {
+                    container.innerHTML = '<span class="badge bg-danger"><i class="fas fa-exclamation"></i> 오류</span>';
+                });
             });
-    });
+    }
 
-    // Video Term 로드
+    // Video Term 로드 - Bulk API로 한 번에 조회
     const videoTermsContainers = document.querySelectorAll('.video-terms-container');
-    videoTermsContainers.forEach(container => {
-        const videoId = container.dataset.videoId;
+    if (videoTermsContainers.length > 0) {
+        // 모든 video ID 수집
+        const videoIds = Array.from(videoTermsContainers).map(container => container.dataset.videoId);
 
-        fetch(`/admin/videos/${videoId}/terms`)
+        // Bulk API 호출
+        fetch(`/admin/videos/terms/bulk?videoIds=${videoIds.join(',')}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    if (data.terms && data.terms.length > 0) {
-                        const sortedTerms = data.terms.sort((a, b) => b.frequency - a.frequency);
+                    const termsByVideo = data.termsByVideo;
 
-                        let html = '<div class="d-flex flex-wrap gap-1">';
-                        sortedTerms.forEach((term, index) => {
-                            const badgeClass = term.frequency > 2 ? 'bg-danger' : term.frequency > 1 ? 'bg-warning text-dark' : 'bg-info';
-                            html += `
-                                <span class="badge ${badgeClass}" title="${term.termType}">
-                                    ${term.term} <small>x${term.frequency}</small>
-                                </span>
-                            `;
-                        });
-                        html += '</div>';
-                        html += `<small class="text-muted mt-1 d-block">총 ${sortedTerms.length}개 term</small>`;
+                    // 각 container에 해당 video의 term 표시
+                    videoTermsContainers.forEach(container => {
+                        const videoId = container.dataset.videoId;
+                        const terms = termsByVideo[videoId];
 
-                        container.innerHTML = html;
-                    } else {
-                        container.innerHTML = '<span class="badge bg-secondary">Term 없음</span>';
-                    }
+                        if (terms && terms.length > 0) {
+                            let html = '<div class="d-flex flex-wrap gap-1">';
+                            terms.forEach((term, index) => {
+                                const badgeClass = term.frequency > 2 ? 'bg-danger' : term.frequency > 1 ? 'bg-warning text-dark' : 'bg-info';
+                                html += `
+                                    <span class="badge ${badgeClass}" title="${term.termType}">
+                                        ${term.term} <small>x${term.frequency}</small>
+                                    </span>
+                                `;
+                            });
+                            html += '</div>';
+                            html += `<small class="text-muted mt-1 d-block">총 ${terms.length}개 term</small>`;
+
+                            container.innerHTML = html;
+                        } else {
+                            container.innerHTML = '<span class="badge bg-secondary">Term 없음</span>';
+                        }
+                    });
                 } else {
-                    container.innerHTML = '<span class="badge bg-secondary">-</span>';
+                    // 실패 시 각 container에 에러 표시
+                    videoTermsContainers.forEach(container => {
+                        container.innerHTML = '<span class="badge bg-secondary">-</span>';
+                    });
                 }
             })
             .catch(error => {
                 console.error('Error loading video terms:', error);
-                container.innerHTML = '<span class="badge bg-danger"><i class="fas fa-exclamation"></i> 오류</span>';
+                videoTermsContainers.forEach(container => {
+                    container.innerHTML = '<span class="badge bg-danger"><i class="fas fa-exclamation"></i> 오류</span>';
+                });
             });
-    });
+    }
 });
 
 // ===== Term 재분석 기능 =====

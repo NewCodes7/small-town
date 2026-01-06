@@ -226,6 +226,14 @@ public class VideoTermService {
     }
 
     /**
+     * 여러 Video의 Term을 한 번에 조회
+     */
+    @Transactional(readOnly = true)
+    public List<VideoTerm> getVideoTermsByVideoIds(List<Long> videoIds) {
+        return videoTermRepository.findByVideoIdInOrderByFrequencyDesc(videoIds);
+    }
+
+    /**
      * Term 추출 결과 DTO
      */
     public static class VideoTermExtractionResult {

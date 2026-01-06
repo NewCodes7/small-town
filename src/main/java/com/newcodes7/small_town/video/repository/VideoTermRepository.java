@@ -19,6 +19,13 @@ public interface VideoTermRepository extends JpaRepository<VideoTerm, Long> {
     List<VideoTerm> findByVideoId(@Param("videoId") Long videoId);
 
     /**
+     * 여러 video의 모든 term을 한 번에 조회 (bulk 조회, Term fetch join)
+     * @param videoIds Video ID 목록
+     */
+    @Query("SELECT vt FROM VideoTerm vt JOIN FETCH vt.term WHERE vt.video.id IN :videoIds ORDER BY vt.frequency DESC")
+    List<VideoTerm> findByVideoIdInOrderByFrequencyDesc(@Param("videoIds") List<Long> videoIds);
+
+    /**
      * 특정 video의 모든 term 삭제
      */
     @Modifying
