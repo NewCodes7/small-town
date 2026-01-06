@@ -477,10 +477,12 @@
     display: flex;
     align-items: center;
     gap: 16px;
+    flex-wrap: wrap;
 }
 
 .search-form-inline {
     flex: 1;
+    min-width: 280px;
 }
 
 .search-form-inline .input-group {
@@ -491,6 +493,19 @@
     min-width: 200px;
 }
 
+/* Medium screens - Stack filter controls */
+@media (max-width: 992px) {
+    .search-row {
+        gap: 12px;
+    }
+
+    .search-form-inline {
+        flex-basis: 100%;
+        min-width: 100%;
+    }
+}
+
+/* Mobile screens - Full column layout */
 @media (max-width: 768px) {
     .search-row {
         flex-direction: column;
@@ -498,6 +513,19 @@
     }
 
     .search-form-inline {
+        width: 100%;
+    }
+
+    .filter-toggle-container {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .industry-filter-dropdown {
+        width: 100%;
+    }
+
+    .industry-filter-btn {
         width: 100%;
     }
 }

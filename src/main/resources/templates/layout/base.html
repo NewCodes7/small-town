@@ -70,37 +70,37 @@
                 </a>
                 <ul class="navbar-nav ms-4 desktop-nav">
                     <li class="nav-item">
-                        <a class="nav-link" th:href="@{/}" data-nav="home">
+                        <a class="nav-link" th:href="@{/}" data-nav="home" title="홈">
                             <i class="fas fa-home me-1"></i>홈
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" th:href="@{/articles}" data-nav="blog">
+                        <a class="nav-link" th:href="@{/articles}" data-nav="blog" title="블로그">
                             <i class="fas fa-blog me-1"></i>블로그
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" th:href="@{/video}" data-nav="youtube">
+                        <a class="nav-link" th:href="@{/video}" data-nav="youtube" title="유튜브">
                             <i class="fab fa-youtube me-1"></i>유튜브
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" th:href="@{/corporations}" data-nav="corporations">
+                        <a class="nav-link" th:href="@{/corporations}" data-nav="corporations" title="구독 기업">
                             <i class="fas fa-building me-1"></i>구독 기업
                         </a>
                     </li>
                     <li class="nav-item" style="position: relative;">
-                        <a class="nav-link" th:href="@{/liked-articles}" data-nav="liked">
+                        <a class="nav-link" th:href="@{/liked-articles}" data-nav="liked" title="좋아요">
                             <i class="fas fa-heart me-1"></i>좋아요
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#" onclick="openFeedbackModal(); return false;" data-nav="feedback">
+                        <a class="nav-link" href="#" onclick="openFeedbackModal(); return false;" data-nav="feedback" title="피드백">
                             <i class="fas fa-comment me-1"></i>피드백
                         </a>
                     </li>
                     <li class="nav-item dropdown" id="adminMenu" style="display: none;">
-                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" title="관리">
                             <i class="fas fa-cog me-1"></i>관리
                         </a>
                         <ul class="dropdown-menu">
