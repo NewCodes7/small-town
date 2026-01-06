@@ -15,6 +15,13 @@
         .status-IN_PROGRESS { background-color: #0d6efd; }
         .status-COMPLETED { background-color: #198754; }
         .status-REJECTED { background-color: #dc3545; }
+
+        /* 피드백 메시지 개행 유지 */
+        .feedback-message {
+            white-space: pre-line;
+            word-wrap: break-word;
+            max-width: 400px;
+        }
     </style>
 </head>
 <body>
@@ -98,7 +105,7 @@
                                 <span class="status-badge" th:classappend="'status-' + ${feedback.status.name()}" th:text="${feedback.status.description}">접수</span>
                             </td>
                             <td th:text="${#temporals.format(feedback.createdAt, 'yyyy-MM-dd HH:mm')}">2023-01-01 12:00</td>
-                            <td th:text="${feedback.message}">메시지 내용...</td>
+                            <td class="feedback-message" th:text="${feedback.message}">메시지 내용...</td>
                             <td>
                                 <div class="dropdown">
                                     <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" th:id="'dropdownMenuButton' + ${feedback.id}" data-bs-toggle="dropdown" aria-expanded="false">
