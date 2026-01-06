@@ -519,36 +519,42 @@
                         currentIndex++;
                     });
 
+                    // 자동완성 결과 표시 (최적화된 형식)
+                    // Corporation: [0, name, id, logoUrl]
+                    // Theme: [1, id, name]
+                    // Term: "termString"
                     if (data && data.length > 0) {
                         data.forEach((item) => {
-                            if (item.type === 'corporation') {
+                            if (Array.isArray(item) && item[0] === 0) {
+                                // 기업 검색 결과: [0, name, id, logoUrl]
+                                const [type, name, id, logoUrl] = item;
                                 html += `
-                                    <div class="autocomplete-item corporation-item" data-type="corporation" data-id="${item.id}" data-name="${item.name}" data-index="${currentIndex}">
+                                    <div class="autocomplete-item corporation-item" data-type="corporation" data-id="${id}" data-name="${name}" data-index="${currentIndex}">
                                         <div style="display: flex; align-items: center; gap: 12px;">
-                                            ${item.logoUrl ?
-                                                `<img src="${item.logoUrl}" alt="${item.name}" style="width: 24px; height: 24px; border-radius: 4px; object-fit: contain;">` :
+                                            ${logoUrl ?
+                                                `<img src="${logoUrl}" alt="${name}" style="width: 24px; height: 24px; border-radius: 4px; object-fit: contain;">` :
                                                 `<i class="fas fa-building" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; color: var(--primary-green); font-size: 18px;"></i>`
                                             }
-                                            <span class="autocomplete-term">${item.name}</span>
+                                            <span class="autocomplete-term">${name}</span>
                                         </div>
                                     </div>
                                 `;
-                            } else if (item.type === 'theme') {
+                            } else if (Array.isArray(item) && item[0] === 1) {
+                                // 테마 검색 결과: [1, id, name]
+                                const [type, id, name] = item;
                                 html += `
-                                    <div class="autocomplete-item theme-item" data-type="theme" data-id="${item.id}" data-name="${item.name}" data-index="${currentIndex}">
+                                    <div class="autocomplete-item theme-item" data-type="theme" data-id="${id}" data-name="${name}" data-index="${currentIndex}">
                                         <div style="display: flex; align-items: center; gap: 12px;">
                                             <i class="fas fa-layer-group" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; color: var(--primary-green); font-size: 16px;"></i>
-                                            <div style="display: flex; flex-direction: column; gap: 2px;">
-                                                <span class="autocomplete-term" style="font-weight: 600;">${item.name}</span>
-                                                ${item.description ? `<span style="font-size: 0.75rem; color: #9ca3af;">${item.description.length > 30 ? item.description.substring(0, 30) + '...' : item.description}</span>` : ''}
-                                            </div>
+                                            <span class="autocomplete-term" style="font-weight: 600;">${name}</span>
                                         </div>
                                     </div>
                                 `;
-                            } else {
+                            } else if (typeof item === 'string') {
+                                // Term 검색 결과: "termString"
                                 html += `
-                                    <div class="autocomplete-item term-item" data-type="term" data-term="${item.term}" data-index="${currentIndex}">
-                                        <span class="autocomplete-term">${item.term}</span>
+                                    <div class="autocomplete-item term-item" data-type="term" data-term="${item}" data-index="${currentIndex}">
+                                        <span class="autocomplete-term">${item}</span>
                                     </div>
                                 `;
                             }

@@ -12,6 +12,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -661,14 +662,19 @@ public class ArticleController {
      * 사용자 입력값으로 시작하는 term, corporation, theme을 빈도수 순으로 반환
      *
      * GET /api/autocomplete?q=검색어
+     *
+     * 응답 형식 (순서 보존, 크기 최적화):
+     * - Corporation: [0, name, id, logoUrl]
+     * - Theme: [1, id, name]
+     * - Term: "termString"
      */
     @GetMapping("/api/autocomplete")
     @ResponseBody
-    public ResponseEntity<List<Map<String, Object>>> getAutocompleteSuggestions(
+    public ResponseEntity<List<Object>> getAutocompleteSuggestions(
             @RequestParam(name = "q", required = false) String query) {
 
         long startTime = System.currentTimeMillis();
-        List<Map<String, Object>> suggestions = new ArrayList<>();
+        List<Object> suggestions = new ArrayList<>();
 
         if (query == null || query.trim().isEmpty() || query.trim().length() < 1) {
             return ResponseEntity.ok(suggestions);
@@ -681,105 +687,129 @@ public class ArticleController {
         long prepTime = System.currentTimeMillis();
         log.debug("[자동완성] 준비 시간: {}ms", prepTime - startTime);
 
-        // 기업 검색 (블로그가 있는 기업만, 최대 2개)
-        // 원본 검색어와 자모 분해 검색어 둘 다 검색하고 중복 제거
-        Set<Long> corporationIds = new LinkedHashSet<>();
-        List<Corporation> allCorporations = new ArrayList<>();
+        // ===== 병렬 검색 (CompletableFuture 사용) =====
+        long parallelStartTime = System.currentTimeMillis();
 
-        // 1. 원본 검색어로 검색
-        List<Corporation> corporations1 = corporationService.searchCorporationsWithArticles(trimmedQuery, 2);
-        for (Corporation corp : corporations1) {
-            if (corporationIds.add(corp.getId())) {
-                allCorporations.add(corp);
-            }
-        }
+        // 1. Corporation 검색 (비동기)
+        CompletableFuture<List<Object>> corporationFuture = CompletableFuture.supplyAsync(() -> {
+            long corpStartTime = System.currentTimeMillis();
+            List<Object> corpResults = new ArrayList<>();
 
-        // 2. 자모 분해 검색어로 검색 (한글인 경우만)
-        if (!trimmedQuery.equals(decomposedQuery)) {
-            List<Corporation> corporations2 = corporationService.searchCorporationsWithArticles(decomposedQuery, 2);
-            for (Corporation corp : corporations2) {
-                if (corporationIds.add(corp.getId()) && allCorporations.size() < 2) {
+            Set<Long> corporationIds = new LinkedHashSet<>();
+            List<Corporation> allCorporations = new ArrayList<>();
+
+            // 원본 검색어로 검색
+            List<Corporation> corporations1 = corporationService.searchCorporationsWithArticles(trimmedQuery, 2);
+            for (Corporation corp : corporations1) {
+                if (corporationIds.add(corp.getId())) {
                     allCorporations.add(corp);
                 }
             }
-        }
 
-        // 최대 2개만 사용
-        List<Corporation> corporations = allCorporations.stream().limit(2).collect(Collectors.toList());
-        long corpTime = System.currentTimeMillis();
-        log.debug("[자동완성] Corporation 검색: {}ms", corpTime - prepTime);
-
-        for (Corporation corporation : corporations) {
-            Map<String, Object> item = new HashMap<>();
-            item.put("type", "corporation");
-
-            // 검색어와 매칭된 이름을 표시 (대체명 우선)
-            String displayName = corporation.getName();
-            if (corporation.getAlternateName() != null &&
-                !corporation.getAlternateName().isEmpty() &&
-                corporation.getDecomposedAlternateName().toLowerCase().startsWith(decomposedQuery)) {
-                displayName = corporation.getAlternateName();
+            // 자모 분해 검색어로 검색 (한글인 경우만)
+            if (!trimmedQuery.equals(decomposedQuery)) {
+                List<Corporation> corporations2 = corporationService.searchCorporationsWithArticles(decomposedQuery, 2);
+                for (Corporation corp : corporations2) {
+                    if (corporationIds.add(corp.getId()) && allCorporations.size() < 2) {
+                        allCorporations.add(corp);
+                    }
+                }
             }
 
-            item.put("name", displayName);
-            item.put("id", corporation.getId());
-            item.put("logoUrl", corporation.getEffectiveLogoUrl());
-            suggestions.add(item);
-        }
+            // 최대 2개만 사용
+            List<Corporation> corporations = allCorporations.stream().limit(2).collect(Collectors.toList());
 
-        // 테마 검색 (최대 2개, 자모 분리 검색 지원)
-        long themeStartTime = System.currentTimeMillis();
-        PageRequest themePageRequest = PageRequest.of(0, 2);
-        List<Theme> themes = themeRepository.findByNameWithPatterns(
-            trimmedQuery, decomposedQuery, themePageRequest);
-        long themeTime = System.currentTimeMillis();
-        log.debug("[자동완성] Theme 검색: {}ms", themeTime - themeStartTime);
+            for (Corporation corporation : corporations) {
+                // 검색어와 매칭된 이름을 표시 (대체명 우선)
+                String displayName = corporation.getName();
+                if (corporation.getAlternateName() != null &&
+                    !corporation.getAlternateName().isEmpty() &&
+                    corporation.getDecomposedAlternateName().toLowerCase().startsWith(decomposedQuery)) {
+                    displayName = corporation.getAlternateName();
+                }
 
-        for (Theme theme : themes) {
-            Map<String, Object> item = new HashMap<>();
-            item.put("type", "theme");
-            item.put("id", theme.getId());
-            item.put("name", theme.getName());
-            item.put("description", theme.getDescription());
-            item.put("emoji", theme.getEmoji());
-            suggestions.add(item);
-        }
+                // [0, name, id, logoUrl] - 명시적 배열 사용
+                corpResults.add(new Object[]{0, displayName, corporation.getId(), corporation.getEffectiveLogoUrl()});
+            }
 
-        // 한글 검색 패턴 생성 (예: "프롲" → ["프롲", "프로ㅈ"])
-        long termStartTime = System.currentTimeMillis();
-        List<String> searchPatterns = KoreanCharacterUtil.generateSearchPatterns(trimmedQuery);
+            long corpTime = System.currentTimeMillis() - corpStartTime;
+            log.debug("[자동완성] Corporation 검색: {}ms", corpTime);
+            return corpResults;
+        }).exceptionally(ex -> {
+            log.error("[자동완성] Corporation 검색 실패", ex);
+            return new ArrayList<>();
+        });
 
-        // Term 검색 (최대 4개)
-        // JdbcTemplate 직접 사용으로 JPA 오버헤드 완전 제거 (92ms → 1ms)
-        List<TermAutocompleteDto> termResults;
+        // 2. Theme 검색 (비동기)
+        CompletableFuture<List<Object>> themeFuture = CompletableFuture.supplyAsync(() -> {
+            long themeStartTime = System.currentTimeMillis();
+            List<Object> themeResults = new ArrayList<>();
 
-        if (searchPatterns.size() == 2) {
-            // 종성이 있는 경우: 원본, 종성분리, 자모분해 3가지 패턴
-            termResults = termAutocompleteRepository.findAutocompleteTerms(
-                searchPatterns.get(0), decomposedQuery, 4);
-        } else {
-            // 종성이 없는 경우: 원본, 자모분해 2가지 패턴
-            termResults = termAutocompleteRepository.findAutocompleteTerms(
-                trimmedQuery, decomposedQuery, 4);
-        }
-        long termTime = System.currentTimeMillis();
-        log.debug("[자동완성] Term 검색: {}ms", termTime - termStartTime);
+            PageRequest themePageRequest = PageRequest.of(0, 2);
+            List<Theme> themes = themeRepository.findByNameWithPatterns(
+                trimmedQuery, decomposedQuery, themePageRequest);
 
-        for (TermAutocompleteDto termDto : termResults) {
-            Map<String, Object> item = new HashMap<>();
-            item.put("type", "term");
-            item.put("term", termDto.getTerm());
-            item.put("frequency", termDto.getTotalFrequency());
-            suggestions.add(item);
-        }
+            for (Theme theme : themes) {
+                // [1, id, name] - 명시적 배열 사용
+                themeResults.add(new Object[]{1, theme.getId(), theme.getName()});
+            }
 
+            long themeTime = System.currentTimeMillis() - themeStartTime;
+            log.debug("[자동완성] Theme 검색: {}ms", themeTime);
+            return themeResults;
+        }).exceptionally(ex -> {
+            log.error("[자동완성] Theme 검색 실패", ex);
+            return new ArrayList<>();
+        });
+
+        // 3. Term 검색 (비동기)
+        CompletableFuture<List<Object>> termFuture = CompletableFuture.supplyAsync(() -> {
+            long termStartTime = System.currentTimeMillis();
+            List<Object> termResults = new ArrayList<>();
+
+            // 한글 검색 패턴 생성 (예: "프롲" → ["프롲", "프로ㅈ"])
+            List<String> searchPatterns = KoreanCharacterUtil.generateSearchPatterns(trimmedQuery);
+
+            // Term 검색 (최대 4개)
+            List<TermAutocompleteDto> termDtos;
+
+            if (searchPatterns.size() == 2) {
+                // 종성이 있는 경우: 원본, 종성분리, 자모분해 3가지 패턴
+                termDtos = termAutocompleteRepository.findAutocompleteTerms(
+                    searchPatterns.get(0), decomposedQuery, 4);
+            } else {
+                // 종성이 없는 경우: 원본, 자모분해 2가지 패턴
+                termDtos = termAutocompleteRepository.findAutocompleteTerms(
+                    trimmedQuery, decomposedQuery, 4);
+            }
+
+            for (TermAutocompleteDto termDto : termDtos) {
+                // Just the term string
+                termResults.add(termDto.getTerm());
+            }
+
+            long termTime = System.currentTimeMillis() - termStartTime;
+            log.debug("[자동완성] Term 검색: {}ms", termTime);
+            return termResults;
+        }).exceptionally(ex -> {
+            log.error("[자동완성] Term 검색 실패", ex);
+            return new ArrayList<>();
+        });
+
+        // 모든 비동기 작업 완료 대기 및 결과 합치기
+        CompletableFuture.allOf(corporationFuture, themeFuture, termFuture).join();
+
+        // 순서대로 결과 추가 (Corporation → Theme → Term)
+        suggestions.addAll(corporationFuture.join());
+        suggestions.addAll(themeFuture.join());
+        suggestions.addAll(termFuture.join());
+
+        long parallelTime = System.currentTimeMillis() - parallelStartTime;
         long totalTime = System.currentTimeMillis() - startTime;
-        log.info("[자동완성] 총 실행 시간: {}ms (준비: {}ms, Corp: {}ms, Theme: {}ms, Term: {}ms) - 검색어: '{}'",
+        log.info("[자동완성] 총 실행 시간: {}ms (준비: {}ms, 병렬검색: {}ms) - 검색어: '{}'",
                 totalTime,
                 prepTime - startTime,
-                corpTime - prepTime,
-                themeTime - themeStartTime,
-                termTime - termStartTime,
+                parallelTime,
                 query);
 
         return ResponseEntity.ok(suggestions);

@@ -6,6 +6,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -290,13 +291,17 @@ public class VideoController {
      * 사용자 입력값으로 시작하는 term과 corporation을 빈도수 순으로 반환
      *
      * GET /video/api/autocomplete?q=검색어
+     *
+     * 응답 형식 (순서 보존, 크기 최적화):
+     * - Corporation: [0, name, id, logoUrl]
+     * - Term: "termString"
      */
     @GetMapping("/api/autocomplete")
     @ResponseBody
-    public ResponseEntity<List<Map<String, Object>>> getAutocompleteSuggestions(
+    public ResponseEntity<List<Object>> getAutocompleteSuggestions(
             @RequestParam(name = "q", required = false) String query) {
 
-        List<Map<String, Object>> suggestions = new ArrayList<>();
+        List<Object> suggestions = new ArrayList<>();
 
         if (query == null || query.trim().isEmpty() || query.trim().length() < 1) {
             return ResponseEntity.ok(suggestions);
@@ -307,80 +312,95 @@ public class VideoController {
         // 검색어를 자모 분해 (예: "프로제" → "ㅍㅡㄹㅗㅈㅔ", "톳" → "ㅌㅗㅅ")
         String decomposedQuery = KoreanCharacterUtil.decomposeHangul(trimmedQuery);
 
-        // 기업 검색 (비디오가 있는 기업만, 최대 3개)
-        // 원본 검색어와 자모 분해 검색어 둘 다 검색하고 중복 제거
-        Set<Long> corporationIds = new LinkedHashSet<>();
-        List<com.newcodes7.small_town.global.entity.Corporation> allCorporations = new ArrayList<>();
+        // ===== 병렬 검색 (CompletableFuture 사용) =====
+        // 1. Corporation 검색 (비동기)
+        CompletableFuture<List<Object>> corporationFuture = CompletableFuture.supplyAsync(() -> {
+            List<Object> corpResults = new ArrayList<>();
 
-        // 1. 원본 검색어로 검색
-        List<com.newcodes7.small_town.global.entity.Corporation> corporations1 =
-                corporationService.searchCorporationsWithVideos(trimmedQuery, 3);
-        for (com.newcodes7.small_town.global.entity.Corporation corp : corporations1) {
-            if (corporationIds.add(corp.getId())) {
-                allCorporations.add(corp);
-            }
-        }
+            Set<Long> corporationIds = new LinkedHashSet<>();
+            List<com.newcodes7.small_town.global.entity.Corporation> allCorporations = new ArrayList<>();
 
-        // 2. 자모 분해 검색어로 검색 (한글인 경우만)
-        if (!trimmedQuery.equals(decomposedQuery)) {
-            List<com.newcodes7.small_town.global.entity.Corporation> corporations2 =
-                    corporationService.searchCorporationsWithVideos(decomposedQuery, 3);
-            for (com.newcodes7.small_town.global.entity.Corporation corp : corporations2) {
-                if (corporationIds.add(corp.getId()) && allCorporations.size() < 3) {
+            // 원본 검색어로 검색
+            List<com.newcodes7.small_town.global.entity.Corporation> corporations1 =
+                    corporationService.searchCorporationsWithVideos(trimmedQuery, 3);
+            for (com.newcodes7.small_town.global.entity.Corporation corp : corporations1) {
+                if (corporationIds.add(corp.getId())) {
                     allCorporations.add(corp);
                 }
             }
-        }
 
-        // 최대 3개만 사용
-        List<com.newcodes7.small_town.global.entity.Corporation> corporations =
-                allCorporations.stream().limit(3).collect(Collectors.toList());
-
-        for (com.newcodes7.small_town.global.entity.Corporation corporation : corporations) {
-            Map<String, Object> item = new HashMap<>();
-            item.put("type", "corporation");
-
-            // 검색어와 매칭된 이름을 표시 (대체명 우선)
-            String displayName = corporation.getName();
-            if (corporation.getAlternateName() != null &&
-                !corporation.getAlternateName().isEmpty() &&
-                corporation.getDecomposedAlternateName().toLowerCase().startsWith(decomposedQuery)) {
-                displayName = corporation.getAlternateName();
+            // 자모 분해 검색어로 검색 (한글인 경우만)
+            if (!trimmedQuery.equals(decomposedQuery)) {
+                List<com.newcodes7.small_town.global.entity.Corporation> corporations2 =
+                        corporationService.searchCorporationsWithVideos(decomposedQuery, 3);
+                for (com.newcodes7.small_town.global.entity.Corporation corp : corporations2) {
+                    if (corporationIds.add(corp.getId()) && allCorporations.size() < 3) {
+                        allCorporations.add(corp);
+                    }
+                }
             }
 
-            item.put("name", displayName);
-            item.put("id", corporation.getId());
-            item.put("logoUrl", corporation.getEffectiveLogoUrl());
-            suggestions.add(item);
-        }
+            // 최대 3개만 사용
+            List<com.newcodes7.small_town.global.entity.Corporation> corporations =
+                    allCorporations.stream().limit(3).collect(Collectors.toList());
 
-        // 한글 검색 패턴 생성 (예: "프롲" → ["프롲", "프로ㅈ"])
-        List<String> searchPatterns = KoreanCharacterUtil.generateSearchPatterns(trimmedQuery);
+            for (com.newcodes7.small_town.global.entity.Corporation corporation : corporations) {
+                // 검색어와 매칭된 이름을 표시 (대체명 우선)
+                String displayName = corporation.getName();
+                if (corporation.getAlternateName() != null &&
+                    !corporation.getAlternateName().isEmpty() &&
+                    corporation.getDecomposedAlternateName().toLowerCase().startsWith(decomposedQuery)) {
+                    displayName = corporation.getAlternateName();
+                }
 
-        // Term 검색 (최대 6개)
-        // 원본 검색어와 자모 분해된 검색어 둘 다 사용
-        PageRequest termPageRequest = PageRequest.of(0, 6);
-        List<VideoTermRepository.AutocompleteSuggestion> videoTermSuggestions;
+                // [0, name, id, logoUrl] - 명시적 배열 사용
+                corpResults.add(new Object[]{0, displayName, corporation.getId(), corporation.getEffectiveLogoUrl()});
+            }
 
-        if (searchPatterns.size() == 2) {
-            // 종성이 있는 경우: 원본, 종성분리, 자모분해 3가지 패턴
-            // 예: "프롲" → ["프롲", "프로ㅈ", "ㅍㅡㄹㅗㅈ"]
-            videoTermSuggestions = videoTermRepository.findAutocompleteTermsWithPatterns(
-                searchPatterns.get(0), decomposedQuery, termPageRequest);
-        } else {
-            // 종성이 없는 경우: 원본, 자모분해 2가지 패턴
-            // 예: "프로제" → ["프로제", "ㅍㅡㄹㅗㅈㅔ"]
-            videoTermSuggestions = videoTermRepository.findAutocompleteTermsWithPatterns(
-                trimmedQuery, decomposedQuery, termPageRequest);
-        }
+            return corpResults;
+        }).exceptionally(ex -> {
+            log.error("[비디오 자동완성] Corporation 검색 실패", ex);
+            return new ArrayList<>();
+        });
 
-        for (VideoTermRepository.AutocompleteSuggestion termSuggestion : videoTermSuggestions) {
-            Map<String, Object> item = new HashMap<>();
-            item.put("type", "term");
-            item.put("term", termSuggestion.getTerm());
-            item.put("frequency", termSuggestion.getTotalFrequency());
-            suggestions.add(item);
-        }
+        // 2. Term 검색 (비동기)
+        CompletableFuture<List<Object>> termFuture = CompletableFuture.supplyAsync(() -> {
+            List<Object> termResults = new ArrayList<>();
+
+            // 한글 검색 패턴 생성 (예: "프롲" → ["프롲", "프로ㅈ"])
+            List<String> searchPatterns = KoreanCharacterUtil.generateSearchPatterns(trimmedQuery);
+
+            // Term 검색 (최대 6개)
+            PageRequest termPageRequest = PageRequest.of(0, 6);
+            List<VideoTermRepository.AutocompleteSuggestion> videoTermSuggestions;
+
+            if (searchPatterns.size() == 2) {
+                // 종성이 있는 경우: 원본, 종성분리, 자모분해 3가지 패턴
+                videoTermSuggestions = videoTermRepository.findAutocompleteTermsWithPatterns(
+                    searchPatterns.get(0), decomposedQuery, termPageRequest);
+            } else {
+                // 종성이 없는 경우: 원본, 자모분해 2가지 패턴
+                videoTermSuggestions = videoTermRepository.findAutocompleteTermsWithPatterns(
+                    trimmedQuery, decomposedQuery, termPageRequest);
+            }
+
+            for (VideoTermRepository.AutocompleteSuggestion termSuggestion : videoTermSuggestions) {
+                // Just the term string
+                termResults.add(termSuggestion.getTerm());
+            }
+
+            return termResults;
+        }).exceptionally(ex -> {
+            log.error("[비디오 자동완성] Term 검색 실패", ex);
+            return new ArrayList<>();
+        });
+
+        // 모든 비동기 작업 완료 대기 및 결과 합치기
+        CompletableFuture.allOf(corporationFuture, termFuture).join();
+
+        // 순서대로 결과 추가 (Corporation → Term)
+        suggestions.addAll(corporationFuture.join());
+        suggestions.addAll(termFuture.join());
 
         return ResponseEntity.ok(suggestions);
     }

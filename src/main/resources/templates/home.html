@@ -1614,27 +1614,42 @@
                     currentIndex++;
                 });
 
-                // 자동완성 결과 표시
+                // 자동완성 결과 표시 (최적화된 형식)
+                // Corporation: [0, name, id, logoUrl]
+                // Theme: [1, id, name]
+                // Term: "termString"
                 if (data && data.length > 0) {
                     data.forEach((item) => {
-                        if (item.type === 'corporation') {
-                            // 기업 검색 결과
+                        if (Array.isArray(item) && item[0] === 0) {
+                            // 기업 검색 결과: [0, name, id, logoUrl]
+                            const [type, name, id, logoUrl] = item;
                             html += `
-                                <div class="autocomplete-item corporation-item" data-type="corporation" data-id="${item.id}" data-name="${item.name}" data-index="${currentIndex}">
+                                <div class="autocomplete-item corporation-item" data-type="corporation" data-id="${id}" data-name="${name}" data-index="${currentIndex}">
                                     <div style="display: flex; align-items: center; gap: 12px;">
-                                        ${item.logoUrl ?
-                                            `<img src="${item.logoUrl}" alt="${item.name}" style="width: 24px; height: 24px; border-radius: 4px; object-fit: contain;">` :
+                                        ${logoUrl ?
+                                            `<img src="${logoUrl}" alt="${name}" style="width: 24px; height: 24px; border-radius: 4px; object-fit: contain;">` :
                                             `<i class="fas fa-building" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; color: var(--primary-green); font-size: 18px;"></i>`
                                         }
-                                        <span class="autocomplete-term">${item.name}</span>
+                                        <span class="autocomplete-term">${name}</span>
                                     </div>
                                 </div>
                             `;
-                        } else {
-                            // Term 검색 결과
+                        } else if (Array.isArray(item) && item[0] === 1) {
+                            // 테마 검색 결과: [1, id, name]
+                            const [type, id, name] = item;
                             html += `
-                                <div class="autocomplete-item term-item" data-type="term" data-term="${item.term}" data-index="${currentIndex}">
-                                    <span class="autocomplete-term">${item.term}</span>
+                                <div class="autocomplete-item theme-item" data-type="theme" data-id="${id}" data-name="${name}" data-index="${currentIndex}">
+                                    <div style="display: flex; align-items: center; gap: 12px;">
+                                        <i class="fas fa-tag" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; color: var(--primary-green); font-size: 18px;"></i>
+                                        <span class="autocomplete-term">${name}</span>
+                                    </div>
+                                </div>
+                            `;
+                        } else if (typeof item === 'string') {
+                            // Term 검색 결과: "termString"
+                            html += `
+                                <div class="autocomplete-item term-item" data-type="term" data-term="${item}" data-index="${currentIndex}">
+                                    <span class="autocomplete-term">${item}</span>
                                 </div>
                             `;
                         }
@@ -1659,6 +1674,13 @@
                             // 기업 페이지로 이동
                             const corporationId = this.dataset.id;
                             window.location.href = `/corporations/${corporationId}`;
+                        } else if (this.dataset.type === 'theme') {
+                            // 테마 검색
+                            const themeName = this.dataset.name;
+                            searchInput.value = themeName;
+                            searchHistory.saveHistory(themeName); // 검색 기록 저장
+                            autocompleteDropdown.style.display = 'none';
+                            document.getElementById('searchForm').submit();
                         } else {
                             // Term 또는 History 검색
                             const term = this.dataset.term;
@@ -1689,7 +1711,7 @@
                 // 항목 선택 시 검색창 값 변경
                 if (selectedIndex >= 0 && selectedIndex < items.length) {
                     const selectedItem = items[selectedIndex];
-                    if (selectedItem.dataset.type === 'corporation') {
+                    if (selectedItem.dataset.type === 'corporation' || selectedItem.dataset.type === 'theme') {
                         programmaticChange = true; // 플래그 설정
                         searchInput.value = selectedItem.dataset.name;
                     } else if (selectedItem.dataset.type === 'term' || selectedItem.dataset.type === 'history') {
