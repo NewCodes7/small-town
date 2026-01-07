@@ -89,48 +89,64 @@ public interface ArticleTermRepository extends JpaRepository<ArticleTerm, Long> 
     List<Long> findArticleIdsByTermIds(@Param("termIds") List<Long> termIds);
 
     /**
-     * Term 통계 조회 (많이 사용된 순)
-     * Term 엔티티를 참조하여 중복 없이 통계 집계
-     * Pageable의 sort를 통해 정렬 가능 (frequency, createdAt)
+     * Term 통계 조회 (많이 사용된 순) - 최적화 버전
+     * term 테이블의 비정규화 컬럼(total_frequency, article_count)을 직접 사용
+     * 성능: 192만 건 article_term 집계 → 11만 건 term 테이블 직접 조회
+     *
+     * Spring Data JPA의 Pageable은 자동으로 LIMIT/OFFSET을 처리합니다.
      */
-    @Query("SELECT at.term.id as termId, " +
-           "at.term.term as term, " +
-           "at.term.termType as termType, " +
-           "at.term.decomposedTerm as decomposedTerm, " +
-           "at.term.createdAt as createdAt, " +
-           "SUM(at.frequency) as totalFrequency, " +
-           "COUNT(DISTINCT at.article.id) as articleCount " +
-           "FROM ArticleTerm at " +
-           "GROUP BY at.term.id, at.term.term, at.term.termType, at.term.decomposedTerm, at.term.createdAt")
+    @Query(value = """
+        SELECT t.id as termId,
+               t.term as term,
+               t.term_type as termType,
+               t.decomposed_term as decomposedTerm,
+               t.created_at as createdAt,
+               t.total_frequency as totalFrequency,
+               t.article_count as articleCount
+        FROM term t
+        WHERE t.total_frequency > 0
+        ORDER BY t.total_frequency DESC, t.created_at DESC
+        """,
+        countQuery = "SELECT COUNT(*) FROM term WHERE total_frequency > 0",
+        nativeQuery = true)
     List<TermStatistics> findTermStatistics(Pageable pageable);
 
     /**
-     * Term 통계 조회 (검색 기능 포함)
-     * Term 문자열로 검색
-     * Pageable의 sort를 통해 정렬 가능 (frequency, createdAt)
+     * Term 통계 조회 (검색 기능 포함) - 최적화 버전
+     * term 테이블의 비정규화 컬럼(total_frequency, article_count)을 직접 사용하여 검색
+     * 성능: 192만 건 article_term 집계 → 11만 건 term 테이블 직접 조회
+     *
+     * Spring Data JPA의 Pageable은 자동으로 LIMIT/OFFSET을 처리합니다.
      */
-    @Query("SELECT at.term.id as termId, " +
-           "at.term.term as term, " +
-           "at.term.termType as termType, " +
-           "at.term.decomposedTerm as decomposedTerm, " +
-           "at.term.createdAt as createdAt, " +
-           "SUM(at.frequency) as totalFrequency, " +
-           "COUNT(DISTINCT at.article.id) as articleCount " +
-           "FROM ArticleTerm at " +
-           "WHERE LOWER(at.term.term) LIKE LOWER(CONCAT('%', :search, '%')) " +
-           "GROUP BY at.term.id, at.term.term, at.term.termType, at.term.decomposedTerm, at.term.createdAt")
-    List<TermStatistics> findTermStatisticsBySearch(@Param("search") String search, Pageable pageable);
+    @Query(value = """
+        SELECT t.id as termId,
+               t.term as term,
+               t.term_type as termType,
+               t.decomposed_term as decomposedTerm,
+               t.created_at as createdAt,
+               t.total_frequency as totalFrequency,
+               t.article_count as articleCount
+        FROM term t
+        WHERE t.total_frequency > 0
+          AND LOWER(t.term) LIKE LOWER(CONCAT('%', ?1, '%'))
+        ORDER BY t.total_frequency DESC, t.created_at DESC
+        """,
+        countQuery = "SELECT COUNT(*) FROM term WHERE total_frequency > 0 AND LOWER(term) LIKE LOWER(CONCAT('%', ?1, '%'))",
+        nativeQuery = true)
+    List<TermStatistics> findTermStatisticsBySearch(String search, Pageable pageable);
 
     /**
-     * Term 통계 총 개수 조회
+     * Term 통계 총 개수 조회 - 최적화 버전
+     * term 테이블을 직접 조회하여 카운트
      */
-    @Query("SELECT COUNT(DISTINCT at.term.id) FROM ArticleTerm at")
+    @Query(value = "SELECT COUNT(*) FROM term WHERE total_frequency > 0", nativeQuery = true)
     long countDistinctTerms();
 
     /**
-     * Term 통계 총 개수 조회 (검색 포함)
+     * Term 통계 총 개수 조회 (검색 포함) - 최적화 버전
+     * term 테이블을 직접 조회하여 카운트
      */
-    @Query("SELECT COUNT(DISTINCT at.term.id) FROM ArticleTerm at WHERE LOWER(at.term.term) LIKE LOWER(CONCAT('%', :search, '%'))")
+    @Query(value = "SELECT COUNT(*) FROM term WHERE total_frequency > 0 AND LOWER(term) LIKE LOWER(CONCAT('%', :search, '%'))", nativeQuery = true)
     long countDistinctTermsBySearch(@Param("search") String search);
 
     /**
