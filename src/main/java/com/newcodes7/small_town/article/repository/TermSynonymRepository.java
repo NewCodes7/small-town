@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -58,10 +59,12 @@ public interface TermSynonymRepository extends JpaRepository<TermSynonym, Long> 
 
     /**
      * 특정 term이 포함된 모든 유의어 관계 삭제
+     * Term 삭제 전에 외래 키 제약 조건을 만족시키기 위해 먼저 실행
      */
+    @Modifying
     @Query("DELETE FROM TermSynonym ts " +
            "WHERE ts.term.id = :termId OR ts.synonymTerm.id = :termId")
-    void deleteAllByTermId(@Param("termId") Long termId);
+    int deleteAllByTermId(@Param("termId") Long termId);
 
     /**
      * 모든 유의어 관계 조회 (관리 UI용)

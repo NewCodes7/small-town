@@ -104,6 +104,15 @@ public class Term {
     private Long totalFrequency;
 
     /**
+     * 게시글 수 (통계 성능 최적화용)
+     * 이 term이 사용된 article의 개수 (중복 제거)
+     * article_term 추가/삭제 시 자동 갱신됨
+     */
+    @Column(name = "article_count")
+    @Setter
+    private Long articleCount;
+
+    /**
      * 생성일시
      */
     @CreatedDate

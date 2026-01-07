@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -71,4 +72,70 @@ public interface TermRepository extends JpaRepository<Term, Long> {
      */
     @Query("SELECT COUNT(t) FROM Term t")
     long countAllTerms();
+
+    // ===== 비정규화 컬럼 갱신 =====
+
+    /**
+     * 모든 Term의 total_frequency와 article_count를 재계산하여 업데이트
+     * 크롤링 후, Term 추출 후 일괄 실행
+     *
+     * 성능: 11만 개 term 기준 약 1-2초 소요
+     */
+    @Modifying
+    @Query(value = """
+        UPDATE term t
+        SET total_frequency = COALESCE(stats.total_freq, 0),
+            article_count = COALESCE(stats.article_cnt, 0)
+        FROM (
+            SELECT
+                at.term_id,
+                SUM(at.frequency) as total_freq,
+                COUNT(DISTINCT at.article_id) as article_cnt
+            FROM article_term at
+            GROUP BY at.term_id
+        ) stats
+        WHERE t.id = stats.term_id
+        """, nativeQuery = true)
+    int updateAllTermStatistics();
+
+    /**
+     * total_frequency가 0이거나 NULL인 Term들의 통계를 0으로 초기화
+     * ArticleTerm이 모두 삭제된 Term의 통계를 정리
+     */
+    @Modifying
+    @Query(value = """
+        UPDATE term t
+        SET total_frequency = 0,
+            article_count = 0
+        WHERE NOT EXISTS (
+            SELECT 1 FROM article_term at WHERE at.term_id = t.id
+        )
+        AND (t.total_frequency IS NULL OR t.total_frequency > 0
+             OR t.article_count IS NULL OR t.article_count > 0)
+        """, nativeQuery = true)
+    int resetOrphanedTermStatistics();
+
+    /**
+     * 특정 Term의 total_frequency와 article_count를 재계산하여 업데이트
+     * 단일 ArticleTerm 추가/삭제 시 사용
+     *
+     * @param termId 대상 Term ID
+     * @return 업데이트된 행 수 (0 또는 1)
+     */
+    @Modifying
+    @Query(value = """
+        UPDATE term t
+        SET total_frequency = COALESCE((
+                SELECT SUM(at.frequency)
+                FROM article_term at
+                WHERE at.term_id = :termId
+            ), 0),
+            article_count = COALESCE((
+                SELECT COUNT(DISTINCT at.article_id)
+                FROM article_term at
+                WHERE at.term_id = :termId
+            ), 0)
+        WHERE t.id = :termId
+        """, nativeQuery = true)
+    int updateTermStatistics(@Param("termId") Long termId);
 }

@@ -16,6 +16,7 @@ import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.ArticleTermRepository;
 import com.newcodes7.small_town.article.repository.StopwordRepository;
 import com.newcodes7.small_town.article.repository.TermRepository;
+import com.newcodes7.small_town.article.repository.TermSynonymRepository;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.ArticleTerm;
 import com.newcodes7.small_town.global.entity.Stopword;
@@ -36,6 +37,7 @@ public class ArticleTermService {
     private final ArticleTermRepository articleTermRepository;
     private final VideoTermRepository videoTermRepository;
     private final TermRepository termRepository;
+    private final TermSynonymRepository termSynonymRepository;
     private final StopwordRepository stopwordRepository;
     private final MorphemeAnalyzer morphemeAnalyzer;
 
@@ -115,6 +117,11 @@ public class ArticleTermService {
                 result.getProcessedArticles(), result.getSkippedArticles(),
                 result.getFailedArticles(), result.getTotalTerms(),
                 result.getProcessingTimeMs());
+
+        // Term 통계 갱신 (total_frequency, article_count)
+        if (result.getProcessedArticles() > 0) {
+            updateTermStatistics();
+        }
 
         return result;
     }
@@ -251,6 +258,9 @@ public class ArticleTermService {
             articleTermRepository.saveAll(articleTerms);
             log.info("Article ID {} term 저장 완료: {} terms (title 가중치: {}, content 가중치: {})",
                 article.getId(), articleTerms.size(), TITLE_WEIGHT, CONTENT_WEIGHT);
+
+            // 저장된 각 term의 통계 갱신 (단일 article 처리 시에만)
+            // 대량 처리 시에는 extractAndSaveAllArticleTerms에서 일괄 갱신
         }
 
         return articleTerms.size();
@@ -278,17 +288,23 @@ public class ArticleTermService {
         Term term = termRepository.findById(termId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 Term입니다. ID: " + termId));
 
-        // 1. 해당 term을 사용하는 모든 ArticleTerm 삭제 (최적화된 쿼리 사용)
+        // 1. 해당 term이 포함된 모든 TermSynonym 삭제 (외래 키 제약 조건 만족)
+        int synonymCount = termSynonymRepository.deleteAllByTermId(termId);
+        if (synonymCount > 0) {
+            log.info("TermSynonym {} 개 삭제 완료", synonymCount);
+        }
+
+        // 2. 해당 term을 사용하는 모든 ArticleTerm 삭제 (최적화된 쿼리 사용)
         int articleTermCount = articleTermRepository.countByTermId(termId);
         articleTermRepository.deleteByTermId(termId);
 
-        // 2. 해당 term을 사용하는 모든 VideoTerm 삭제 (최적화된 쿼리 사용)
+        // 3. 해당 term을 사용하는 모든 VideoTerm 삭제 (최적화된 쿼리 사용)
         int videoTermCount = videoTermRepository.countByTermId(termId);
         videoTermRepository.deleteByTermId(termId);
 
         int totalDeletedCount = articleTermCount + videoTermCount;
 
-        // 3. Term을 불용어로 등록
+        // 4. Term을 불용어로 등록
         if (!stopwordRepository.existsByTermAndTermType(term.getTerm(), term.getTermType())) {
             Stopword stopword = Stopword.builder()
                     .term(term.getTerm())
@@ -301,14 +317,14 @@ public class ArticleTermService {
             log.info("Term이 이미 불용어로 등록되어 있음: {} ({})", term.getTerm(), term.getTermType());
         }
 
-        // 4. Term 삭제
+        // 5. Term 삭제
         termRepository.delete(term);
 
-        // 5. 불용어 캐시 갱신
+        // 6. 불용어 캐시 갱신
         morphemeAnalyzer.refreshStopwordCache();
 
-        log.info("Term 삭제 완료: {} ({}), ArticleTerm {} 개, VideoTerm {} 개 삭제",
-                term.getTerm(), term.getTermType(), articleTermCount, videoTermCount);
+        log.info("Term 삭제 완료: {} ({}), TermSynonym {} 개, ArticleTerm {} 개, VideoTerm {} 개 삭제",
+                term.getTerm(), term.getTermType(), synonymCount, articleTermCount, videoTermCount);
 
         return totalDeletedCount;
     }
@@ -385,6 +401,11 @@ public class ArticleTermService {
                 result.getFailedArticles(), result.getTotalTerms(),
                 result.getProcessingTimeMs());
 
+        // Term 통계 갱신 (total_frequency, article_count)
+        if (result.getProcessedArticles() > 0) {
+            updateTermStatistics();
+        }
+
         return result;
     }
 
@@ -419,7 +440,53 @@ public class ArticleTermService {
         long endTime = System.currentTimeMillis();
         result.setProcessingTimeMs(endTime - startTime);
 
+        // Term 통계 갱신 (단일 article이므로 관련 term만 갱신)
+        updateTermStatisticsForArticle(article);
+
         return result;
+    }
+
+    /**
+     * 모든 Term의 통계 재계산 (total_frequency, article_count)
+     * 대량 작업 후 일괄 갱신
+     */
+    @Transactional
+    public void updateTermStatistics() {
+        log.info("모든 Term 통계 갱신 시작...");
+        long startTime = System.currentTimeMillis();
+
+        // 1. ArticleTerm이 있는 Term들의 통계 업데이트
+        int updatedCount = termRepository.updateAllTermStatistics();
+        log.info("ArticleTerm이 있는 Term 통계 업데이트 완료: {} 개", updatedCount);
+
+        // 2. ArticleTerm이 없는 Term들의 통계 초기화 (0으로 설정)
+        int resetCount = termRepository.resetOrphanedTermStatistics();
+        log.info("ArticleTerm이 없는 Term 통계 초기화 완료: {} 개", resetCount);
+
+        long endTime = System.currentTimeMillis();
+        log.info("모든 Term 통계 갱신 완료: 소요시간={}ms", endTime - startTime);
+    }
+
+    /**
+     * 특정 Article과 관련된 Term들의 통계만 갱신
+     * 단일 article 처리 시 사용
+     */
+    @Transactional
+    public void updateTermStatisticsForArticle(Article article) {
+        List<ArticleTerm> articleTerms = articleTermRepository.findByArticleId(article.getId());
+
+        if (articleTerms.isEmpty()) {
+            log.debug("Article ID {} has no terms to update statistics", article.getId());
+            return;
+        }
+
+        log.debug("Article ID {} 관련 Term 통계 갱신 시작: {} 개 term", article.getId(), articleTerms.size());
+
+        for (ArticleTerm articleTerm : articleTerms) {
+            termRepository.updateTermStatistics(articleTerm.getTerm().getId());
+        }
+
+        log.debug("Article ID {} 관련 Term 통계 갱신 완료", article.getId());
     }
 
     /**
