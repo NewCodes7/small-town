@@ -659,3 +659,39 @@ document.addEventListener('click', function(e) {
     }
 });
 
+// ========== Term 통계 탭 - Term 삭제 (불용어 등록) ==========
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('delete-term-btn') || e.target.closest('.delete-term-btn')) {
+        const btn = e.target.classList.contains('delete-term-btn') ? e.target : e.target.closest('.delete-term-btn');
+        const termId = btn.dataset.termId;
+        const term = btn.dataset.term;
+
+        if (confirm(`"${term}"을(를) 불용어로 등록하시겠습니까?\n\n이 term은 모든 article과 video에서 삭제되며, 향후 추출되지 않습니다.`)) {
+            const reason = prompt('불용어 등록 사유를 입력하세요 (선택사항):', '');
+
+            fetch(`/admin/terms/${termId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    reason: reason || null
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('Term 삭제 실패: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Term 삭제 중 오류가 발생했습니다.');
+            });
+        }
+    }
+});
+
