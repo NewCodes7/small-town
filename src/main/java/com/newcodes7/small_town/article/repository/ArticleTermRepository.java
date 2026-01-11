@@ -190,23 +190,34 @@ public interface ArticleTermRepository extends JpaRepository<ArticleTerm, Long> 
     /**
      * Term 자동완성 검색 (비정규화 컬럼 사용, 최적화 버전)
      * 성능: 1,384ms → 1-2ms (약 1000배 개선)
-     * Covering index를 활용: idx_term_lower_term_freq, idx_term_lower_decomposed_freq, idx_term_lower_chosung_freq
-     * Interface Projection 대신 Object[] 사용으로 매핑 오버헤드 제거
+     * UNION ALL 방식으로 각 인덱스를 확실하게 사용
+     * Covering index: idx_term_lower_term_freq, idx_term_lower_decomposed_freq, idx_term_lower_chosung_freq
      *
      * @param query1 검색 패턴 1 (예: "쿠버%") - 이미 소문자 변환 및 % 포함되어 전달됨
      * @param query2 검색 패턴 2 (예: "ㅋㅂ%") - 이미 소문자 변환 및 % 포함되어 전달됨
      * @param limit 반환할 최대 결과 수
      */
     @Query(value = """
-        SELECT term, total_frequency
-        FROM term
-        WHERE (LOWER(term) LIKE :query1
-           OR LOWER(decomposed_term) LIKE :query1
-           OR LOWER(chosung) LIKE :query1
-           OR LOWER(term) LIKE :query2
-           OR LOWER(decomposed_term) LIKE :query2
-           OR LOWER(chosung) LIKE :query2)
-        AND total_frequency > 0
+        SELECT DISTINCT term, total_frequency
+        FROM (
+            SELECT term, total_frequency FROM term
+            WHERE LOWER(term) LIKE :query1 AND total_frequency > 0
+            UNION ALL
+            SELECT term, total_frequency FROM term
+            WHERE LOWER(decomposed_term) LIKE :query1 AND total_frequency > 0
+            UNION ALL
+            SELECT term, total_frequency FROM term
+            WHERE LOWER(chosung) LIKE :query1 AND total_frequency > 0
+            UNION ALL
+            SELECT term, total_frequency FROM term
+            WHERE LOWER(term) LIKE :query2 AND total_frequency > 0
+            UNION ALL
+            SELECT term, total_frequency FROM term
+            WHERE LOWER(decomposed_term) LIKE :query2 AND total_frequency > 0
+            UNION ALL
+            SELECT term, total_frequency FROM term
+            WHERE LOWER(chosung) LIKE :query2 AND total_frequency > 0
+        ) AS combined
         ORDER BY total_frequency DESC
         LIMIT :limit
         """, nativeQuery = true)
