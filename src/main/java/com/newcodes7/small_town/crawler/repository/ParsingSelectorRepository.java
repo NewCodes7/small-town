@@ -3,6 +3,7 @@ package com.newcodes7.small_town.crawler.repository;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -19,6 +20,7 @@ public interface ParsingSelectorRepository extends JpaRepository<ParsingSelector
             .orElseGet(() -> ParsingSelector.defaultSelector(id));
     }
 
+    @Modifying
     @Query("DELETE FROM ParsingSelector p WHERE p.corporationId = :corporationId")
     void deleteByCorporationId(@Param("corporationId") Long corporationId);
 }

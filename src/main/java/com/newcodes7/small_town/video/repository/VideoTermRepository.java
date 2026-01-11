@@ -119,7 +119,10 @@ public interface VideoTermRepository extends JpaRepository<VideoTerm, Long> {
      * 자동완성을 위한 Term 검색 (여러 패턴 지원, 빈도수 순)
      * 여러 검색 패턴으로 term, 자모 분리된 term, 초성을 검색
      * 예: "프롲" 입력 시 ["프롲", "프로ㅈ"] 두 패턴으로 검색
+     *
+     * @deprecated Use {@link #findAutocompleteTermsOptimizedRaw} instead for better performance
      */
+    @Deprecated
     @Query("SELECT vt.term.term as term, " +
            "SUM(vt.frequency) as totalFrequency " +
            "FROM VideoTerm vt " +
@@ -137,6 +140,34 @@ public interface VideoTermRepository extends JpaRepository<VideoTerm, Long> {
         @Param("query1") String query1,
         @Param("query2") String query2,
         Pageable pageable);
+
+    /**
+     * Term 자동완성 검색 (비정규화 컬럼 사용, 최적화 버전)
+     * Covering index를 활용하여 term 테이블만 직접 조회
+     * 성능: VideoTerm JOIN 집계 제거, term 테이블의 total_frequency 활용
+     * Interface Projection 대신 Object[] 사용으로 매핑 오버헤드 제거
+     *
+     * @param query1 검색 패턴 1 (예: "쿠버%") - 이미 % 포함되어 전달됨
+     * @param query2 검색 패턴 2 (예: "ㅋㅂ%") - 이미 % 포함되어 전달됨
+     * @param limit 반환할 최대 결과 수
+     */
+    @Query(value = """
+        SELECT term, total_frequency
+        FROM term
+        WHERE (LOWER(term) LIKE :query1
+           OR LOWER(decomposed_term) LIKE :query1
+           OR LOWER(chosung) LIKE :query1
+           OR LOWER(term) LIKE :query2
+           OR LOWER(decomposed_term) LIKE :query2
+           OR LOWER(chosung) LIKE :query2)
+        AND total_frequency > 0
+        ORDER BY total_frequency DESC
+        LIMIT :limit
+        """, nativeQuery = true)
+    List<Object[]> findAutocompleteTermsOptimizedRaw(
+        @Param("query1") String query1,
+        @Param("query2") String query2,
+        @Param("limit") int limit);
 
     /**
      * Term 통계 인터페이스 (Projection)

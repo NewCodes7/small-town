@@ -190,17 +190,22 @@ public interface ArticleTermRepository extends JpaRepository<ArticleTerm, Long> 
     /**
      * Term 자동완성 검색 (비정규화 컬럼 사용, 최적화 버전)
      * 성능: 1,384ms → 1-2ms (약 1000배 개선)
-     * Interface Projection 대신 DTO 클래스 사용으로 매핑 오버헤드 제거
+     * Covering index를 활용: idx_term_lower_term_freq, idx_term_lower_decomposed_freq, idx_term_lower_chosung_freq
+     * Interface Projection 대신 Object[] 사용으로 매핑 오버헤드 제거
+     *
+     * @param query1 검색 패턴 1 (예: "쿠버%") - 이미 소문자 변환 및 % 포함되어 전달됨
+     * @param query2 검색 패턴 2 (예: "ㅋㅂ%") - 이미 소문자 변환 및 % 포함되어 전달됨
+     * @param limit 반환할 최대 결과 수
      */
     @Query(value = """
         SELECT term, total_frequency
         FROM term
-        WHERE (LOWER(term) LIKE LOWER(CONCAT(:query1, '%'))
-           OR LOWER(decomposed_term) LIKE LOWER(CONCAT(:query1, '%'))
-           OR LOWER(chosung) LIKE LOWER(CONCAT(:query1, '%'))
-           OR LOWER(term) LIKE LOWER(CONCAT(:query2, '%'))
-           OR LOWER(decomposed_term) LIKE LOWER(CONCAT(:query2, '%'))
-           OR LOWER(chosung) LIKE LOWER(CONCAT(:query2, '%')))
+        WHERE (LOWER(term) LIKE :query1
+           OR LOWER(decomposed_term) LIKE :query1
+           OR LOWER(chosung) LIKE :query1
+           OR LOWER(term) LIKE :query2
+           OR LOWER(decomposed_term) LIKE :query2
+           OR LOWER(chosung) LIKE :query2)
         AND total_frequency > 0
         ORDER BY total_frequency DESC
         LIMIT :limit

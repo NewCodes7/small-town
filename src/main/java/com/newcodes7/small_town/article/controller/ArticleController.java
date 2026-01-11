@@ -762,7 +762,7 @@ public class ArticleController {
             return new ArrayList<>();
         });
 
-        // 3. Term 검색 (비동기)
+        // 3. Term 검색 (비동기, Covering Index 최적화)
         CompletableFuture<List<Object>> termFuture = CompletableFuture.supplyAsync(() -> {
             long termStartTime = System.currentTimeMillis();
             List<Object> termResults = new ArrayList<>();
@@ -770,18 +770,23 @@ public class ArticleController {
             // 한글 검색 패턴 생성 (예: "프롲" → ["프롲", "프로ㅈ"])
             List<String> searchPatterns = KoreanCharacterUtil.generateSearchPatterns(trimmedQuery);
 
-            // Term 검색 (최대 4개)
-            List<TermAutocompleteDto> termDtos;
+            // 파라미터에 이미 소문자 변환 및 % 추가 (Covering Index 활용)
+            String query1Param;
+            String query2Param;
 
             if (searchPatterns.size() == 2) {
-                // 종성이 있는 경우: 원본, 종성분리, 자모분해 3가지 패턴
-                termDtos = termAutocompleteRepository.findAutocompleteTerms(
-                    searchPatterns.get(0), decomposedQuery, 4);
+                // 종성이 있는 경우: 원본, 자모분해 패턴
+                query1Param = searchPatterns.get(0).toLowerCase() + "%";
+                query2Param = decomposedQuery.toLowerCase() + "%";
             } else {
-                // 종성이 없는 경우: 원본, 자모분해 2가지 패턴
-                termDtos = termAutocompleteRepository.findAutocompleteTerms(
-                    trimmedQuery, decomposedQuery, 4);
+                // 종성이 없는 경우: 원본, 자모분해 패턴
+                query1Param = trimmedQuery + "%";
+                query2Param = decomposedQuery.toLowerCase() + "%";
             }
+
+            // Term 검색 (최대 4개)
+            List<TermAutocompleteDto> termDtos = termAutocompleteRepository.findAutocompleteTerms(
+                query1Param, query2Param, 4);
 
             for (TermAutocompleteDto termDto : termDtos) {
                 // Just the term string
