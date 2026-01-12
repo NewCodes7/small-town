@@ -41,7 +41,7 @@ public class S3ImageService {
     private int webpQuality;
 
     /*
-     * 현재 크롤링할 때 이미지 업로드 시 쓰이는 메서드 
+     * 현재 크롤링할 때 이미지 업로드 시 쓰이는 메서드
      */
     public String uploadImageFromUrl(String imageUrl, String corporationName) {
         try {
@@ -70,22 +70,39 @@ public class S3ImageService {
                 connection.setRequestProperty("Cache-Control", "no-cache");
                 log.debug("티스토리 이미지 요청에 특수 헤더 추가: {}", imageUrl);
             }
-            
+
             byte[] imageData;
             try (InputStream inputStream = connection.getInputStream()) {
                 imageData = inputStream.readAllBytes();
             }
 
-            // PNG로 변환
-            byte[] processedImageData = convertToPNG(imageData);
+            // SVG 파일 감지 (URL 확장자 또는 Content-Type 또는 파일 내용 기반)
+            boolean isSvg = isSvgImage(imageUrl, connection.getContentType(), imageData);
 
-            // S3 키 생성 (thumbnails/corporationName/yyyy/MM/dd/uuid.png)
-            String s3Key = generateS3Key(corporationName, "png");
+            byte[] processedImageData;
+            String fileExtension;
+            String contentType;
+
+            if (isSvg) {
+                // SVG는 변환 없이 원본 그대로 사용
+                processedImageData = imageData;
+                fileExtension = "svg";
+                contentType = "image/svg+xml";
+                log.debug("SVG 이미지 감지 - 원본 그대로 업로드: {}", imageUrl);
+            } else {
+                // PNG로 변환
+                processedImageData = convertToPNG(imageData);
+                fileExtension = "png";
+                contentType = "image/png";
+            }
+
+            // S3 키 생성
+            String s3Key = generateS3Key(corporationName, fileExtension);
 
             // S3에 업로드
             ObjectMetadata metadata = new ObjectMetadata();
             metadata.setContentLength(processedImageData.length);
-            metadata.setContentType("image/png");
+            metadata.setContentType(contentType);
             metadata.setCacheControl("max-age=31536000"); // 1년 캐시
 
             PutObjectRequest putObjectRequest = new PutObjectRequest(
@@ -105,11 +122,11 @@ public class S3ImageService {
                 log.info("이미지 업로드 완료 (CloudFront): {} -> {}", imageUrl, resultUrl);
             } else {
                 // 개발환경: 직접 S3 URL 사용
-                resultUrl = String.format("https://%s.s3.%s.amazonaws.com/%s", 
+                resultUrl = String.format("https://%s.s3.%s.amazonaws.com/%s",
                     bucketName, region, s3Key);
                 log.info("이미지 업로드 완료 (직접 S3): {} -> {}", imageUrl, resultUrl);
             }
-            
+
             return resultUrl;
 
         } catch (IOException e) {
@@ -124,6 +141,36 @@ public class S3ImageService {
             log.error("잘못된 URL 형식: {}", imageUrl, e);
             return imageUrl; // 잘못된 URL 형식 시 원본 URL 반환
         }
+    }
+
+    /**
+     * SVG 이미지 여부를 판단합니다.
+     *
+     * @param imageUrl 이미지 URL
+     * @param contentType HTTP Content-Type 헤더
+     * @param imageData 이미지 바이트 배열
+     * @return SVG 이미지 여부
+     */
+    private boolean isSvgImage(String imageUrl, String contentType, byte[] imageData) {
+        // 1. URL 확장자로 판단
+        if (imageUrl.toLowerCase().endsWith(".svg")) {
+            return true;
+        }
+
+        // 2. Content-Type으로 판단
+        if (contentType != null && contentType.toLowerCase().contains("svg")) {
+            return true;
+        }
+
+        // 3. 파일 내용으로 판단 (처음 몇 바이트 확인)
+        if (imageData.length > 5) {
+            String header = new String(imageData, 0, Math.min(1000, imageData.length));
+            if (header.contains("<svg") || header.contains("<?xml")) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
