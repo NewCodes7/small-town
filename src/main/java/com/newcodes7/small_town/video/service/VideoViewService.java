@@ -107,19 +107,20 @@ public class VideoViewService {
     }
 
     /**
-     * Video 엔티티의 조회수 캐시 업데이트
+     * Video 엔티티의 조회수 증가 (원자적 연산으로 동시성 안전)
      */
     private void updateVideoViewCount(Long videoId) {
-        long totalViews = videoViewLogRepository.countByVideoId(videoId);
-        videoRepository.updateViewCount(videoId, (int) totalViews);
+        videoRepository.incrementViewCount(videoId);
     }
 
     /**
-     * 영상의 총 조회수 조회
+     * 영상의 총 조회수 조회 (Video 엔티티의 캐시된 값 반환)
      */
     @Transactional(readOnly = true)
     public long getViewCount(Long videoId) {
-        return videoViewLogRepository.countByVideoId(videoId);
+        return videoRepository.findById(videoId)
+            .map(video -> video.getViewCount() != null ? video.getViewCount().longValue() : 0L)
+            .orElse(0L);
     }
 
     /**

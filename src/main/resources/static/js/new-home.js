@@ -259,6 +259,28 @@ function formatDate(dateString) {
     });
 }
 
+// 테마 클릭 시 조회수 증가
+function incrementThemeViewCount(themeId, element) {
+    fetch(`/api/themes/${themeId}/view`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        credentials: 'same-origin',
+        redirect: 'manual'
+    }).then(response => {
+        if (response.ok) {
+            return response.json();
+        }
+    }).then(data => {
+        if (data && data.incremented) {
+            console.log(`테마 ${themeId} 조회수 증가:`, data.viewCount);
+        }
+    }).catch(error => {
+        console.log('테마 조회수 증가 요청 실패:', error);
+    });
+}
+
 // 페이지 로드 시 상대 시간 적용 및 좋아요 상태 로드
 document.addEventListener('DOMContentLoaded', function() {
     // 상대 시간 표시
@@ -277,6 +299,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 검색 자동완성 초기화
     initSearchAutocomplete();
+
+    // 테마 클릭 이벤트 리스너 추가
+    document.querySelectorAll('.theme-collection').forEach(element => {
+        element.addEventListener('click', function(e) {
+            const themeId = this.getAttribute('href').split('/').pop().split('?')[0];
+            if (themeId) {
+                incrementThemeViewCount(themeId, this);
+            }
+        });
+    });
 });
 
 // ===== 검색 자동완성 기능 =====

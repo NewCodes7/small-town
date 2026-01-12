@@ -30,9 +30,10 @@ public interface CorporationRepository extends JpaRepository<Corporation, Long>,
 
     long countByDeletedAtIsNull();
 
-    @Modifying
-    @Query("UPDATE Corporation c SET c.viewCount = :viewCount WHERE c.id = :corporationId")
-    void updateViewCount(@Param("corporationId") Long corporationId, @Param("viewCount") int viewCount);
+    // 조회수 증가 (원자적 연산으로 동시성 안전)
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE Corporation c SET c.viewCount = c.viewCount + 1 WHERE c.id = :corporationId")
+    int incrementViewCount(@Param("corporationId") Long corporationId);
 
     /**
      * 블로그가 있는 기업 중에서 이름 또는 대체 이름으로 검색 (자동완성용, 접두사 일치)

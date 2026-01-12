@@ -63,11 +63,13 @@ public class Video {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String link;
 
-    @Column(name = "view_count")
-    private Integer viewCount;
+    @Column(name = "view_count", nullable = false, columnDefinition = "INTEGER DEFAULT 0")
+    @Builder.Default
+    private Integer viewCount = 0;
 
-    @Column(name = "like_count")
-    private Integer likeCount;
+    @Column(name = "like_count", nullable = false, columnDefinition = "INTEGER DEFAULT 0")
+    @Builder.Default
+    private Integer likeCount = 0;
 
     @Column(name = "thumbnail_url", columnDefinition = "TEXT")
     private String thumbnailUrl;

@@ -80,9 +80,10 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
     @Query("UPDATE Video v SET v.likeCount = :likeCount WHERE v.id = :videoId")
     void updateLikeCount(@Param("videoId") Long videoId, @Param("likeCount") int likeCount);
 
-    @Modifying
-    @Query("UPDATE Video v SET v.viewCount = :viewCount WHERE v.id = :videoId")
-    void updateViewCount(@Param("videoId") Long videoId, @Param("viewCount") int viewCount);
+    // 조회수 증가 (원자적 연산으로 동시성 안전)
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE Video v SET v.viewCount = v.viewCount + 1 WHERE v.id = :videoId")
+    int incrementViewCount(@Param("videoId") Long videoId);
 
     @Query("SELECT v FROM Video v " +
            "JOIN FETCH v.corporation c " +

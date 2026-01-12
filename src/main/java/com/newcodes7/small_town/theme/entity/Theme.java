@@ -53,6 +53,10 @@ public class Theme {
     @Builder.Default
     private Boolean isActive = true;
 
+    @Column(name = "view_count", nullable = false, columnDefinition = "INTEGER DEFAULT 0")
+    @Builder.Default
+    private Integer viewCount = 0;
+
     @CreatedDate
     @Column(name = "created_at")
     private LocalDateTime createdAt;

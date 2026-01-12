@@ -107,19 +107,20 @@ public class CorporationViewService {
     }
 
     /**
-     * Corporation 엔티티의 조회수 캐시 업데이트
+     * Corporation 엔티티의 조회수 증가 (원자적 연산으로 동시성 안전)
      */
     private void updateCorporationViewCount(Long corporationId) {
-        long totalViews = corporationViewLogRepository.countByCorporationId(corporationId);
-        corporationRepository.updateViewCount(corporationId, (int) totalViews);
+        corporationRepository.incrementViewCount(corporationId);
     }
 
     /**
-     * 기업의 총 조회수 조회
+     * 기업의 총 조회수 조회 (Corporation 엔티티의 캐시된 값 반환)
      */
     @Transactional(readOnly = true)
     public long getViewCount(Long corporationId) {
-        return corporationViewLogRepository.countByCorporationId(corporationId);
+        return corporationRepository.findById(corporationId)
+            .map(corporation -> corporation.getViewCount() != null ? corporation.getViewCount().longValue() : 0L)
+            .orElse(0L);
     }
 
     /**

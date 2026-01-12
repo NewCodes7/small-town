@@ -135,9 +135,10 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query("UPDATE Article a SET a.likeCount = :likeCount WHERE a.id = :articleId")
     void updateLikeCount(@Param("articleId") Long articleId, @Param("likeCount") int likeCount);
     
-    @Modifying
-    @Query("UPDATE Article a SET a.viewCount = :viewCount WHERE a.id = :articleId")
-    void updateViewCount(@Param("articleId") Long articleId, @Param("viewCount") int viewCount);
+    // 조회수 증가 (원자적 연산으로 동시성 안전)
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE Article a SET a.viewCount = a.viewCount + 1 WHERE a.id = :articleId")
+    int incrementViewCount(@Param("articleId") Long articleId);
     
     @Query("SELECT a FROM Article a " +
            "JOIN FETCH a.corporation c " +

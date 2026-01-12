@@ -79,6 +79,7 @@ public class AdminArticleController {
         model.addAttribute("articles", data.getArticles());
         model.addAttribute("videos", data.getVideos());
         model.addAttribute("corporations", data.getCorporations());
+        model.addAttribute("themes", data.getThemes());
         model.addAttribute("articlesWithTerms", data.getArticlesWithTerms());
         model.addAttribute("videosWithTerms", data.getVideosWithTerms());
         model.addAttribute("articleTermStats", data.getArticleTermStats());

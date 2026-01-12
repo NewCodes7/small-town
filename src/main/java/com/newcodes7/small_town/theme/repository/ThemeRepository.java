@@ -2,8 +2,10 @@ package com.newcodes7.small_town.theme.repository;
 
 import com.newcodes7.small_town.theme.entity.Theme;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -19,6 +21,9 @@ public interface ThemeRepository extends JpaRepository<Theme, Long> {
 
     // 전체 테마 조회 (삭제되지 않은 것만, 어드민용)
     List<Theme> findByDeletedAtIsNullOrderByDisplayOrderAsc();
+
+    // 전체 테마 조회 with Pagination (삭제되지 않은 것만, 어드민용)
+    Page<Theme> findByDeletedAtIsNull(Pageable pageable);
 
     // ID로 조회 (삭제되지 않은 것만)
     Optional<Theme> findByIdAndDeletedAtIsNull(Long id);
@@ -42,4 +47,9 @@ public interface ThemeRepository extends JpaRepository<Theme, Long> {
             @Param("pattern1") String pattern1,
             @Param("pattern2") String pattern2,
             Pageable pageable);
+
+    // 조회수 증가 (원자적 연산으로 동시성 안전)
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE Theme t SET t.viewCount = t.viewCount + 1 WHERE t.id = :themeId")
+    int incrementViewCount(@Param("themeId") Long themeId);
 }

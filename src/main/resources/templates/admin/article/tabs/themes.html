@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+    <div th:fragment="content" class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>순위</th>
+                            <th>ID</th>
+                            <th>테마명</th>
+                            <th>썸네일</th>
+                            <th>활성화</th>
+                            <th>조회수</th>
+                            <th>컨텐츠 수</th>
+                            <th>링크</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="theme, iterStat : ${themes.content}">
+                            <td>
+                                <strong th:text="${themes.number * themes.size + iterStat.index + 1}">1</strong>
+                            </td>
+                            <td th:text="${theme.id}"></td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span th:if="${theme.emoji != null && !theme.emoji.isEmpty()}" th:text="${theme.emoji}"></span>
+                                    <strong th:text="${theme.name}"></strong>
+                                </div>
+                            </td>
+                            <td>
+                                <img th:if="${theme.thumbnailUrl != null && !theme.thumbnailUrl.isEmpty()}"
+                                     th:src="${theme.thumbnailUrl}"
+                                     class="me-2" style="width: 80px; height: 50px; object-fit: cover; border-radius: 4px;" />
+                                <span th:unless="${theme.thumbnailUrl != null && !theme.thumbnailUrl.isEmpty()}">-</span>
+                            </td>
+                            <td>
+                                <span class="badge"
+                                      th:class="${theme.isActive} ? 'badge bg-success' : 'badge bg-secondary'"
+                                      th:text="${theme.isActive} ? '활성' : '비활성'">상태</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-primary" style="font-size: 14px; padding: 6px 12px;" th:text="${theme.viewCount ?: 0}">0</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-info" th:text="${theme.totalContentCount ?: 0}">0</span>
+                            </td>
+                            <td>
+                                <a th:href="@{/themes/{id}(id=${theme.id})}"
+                                   target="_blank"
+                                   class="btn btn-sm btn-primary">
+                                    <i class="fas fa-external-link-alt"></i> 페이지
+                                </a>
+                            </td>
+                        </tr>
+                        <tr th:if="${themes.empty}">
+                            <td colspan="8" class="text-center text-muted">등록된 테마가 없습니다.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 페이지네이션 -->
+            <nav th:if="${themes.totalPages > 1}">
+                <ul class="pagination justify-content-center">
+                    <!-- 첫 페이지로 -->
+                    <li class="page-item" th:classappend="${themes.first} ? 'disabled'">
+                        <a class="page-link" th:href="@{/admin/articles(page=0, tab='themes', search=${search})}">
+                            <i class="fas fa-angle-double-left"></i>
+                        </a>
+                    </li>
+
+                    <!-- 이전 페이지 -->
+                    <li class="page-item" th:classappend="${themes.first} ? 'disabled'">
+                        <a class="page-link"
+                           th:href="@{/admin/articles(page=${themes.number - 1}, tab='themes', search=${search})}">
+                            <i class="fas fa-angle-left"></i>
+                        </a>
+                    </li>
+
+                    <!-- 페이지 번호들 (최대 5개만 표시) -->
+                    <th:block th:with="
+                        startPage=${themes.number > 2 ? themes.number - 2 : 0},
+                        endPage=${themes.number + 2 < themes.totalPages - 1 ? themes.number + 2 : themes.totalPages - 1}
+                    ">
+                        <!-- 첫 페이지가 범위에 없으면 표시 -->
+                        <li class="page-item" th:if="${startPage > 0}">
+                            <a class="page-link" th:href="@{/admin/articles(page=0, tab='themes', search=${search})}">1</a>
+                        </li>
+                        <li class="page-item disabled" th:if="${startPage > 1}">
+                            <span class="page-link">...</span>
+                        </li>
+
+                        <!-- 현재 페이지 주변의 페이지들 -->
+                        <li class="page-item"
+                            th:each="page : ${#numbers.sequence(startPage, endPage)}"
+                            th:classappend="${page == themes.number} ? 'active'">
+                            <a class="page-link"
+                               th:href="@{/admin/articles(page=${page}, tab='themes', search=${search})}"
+                               th:text="${page + 1}"></a>
+                        </li>
+
+                        <!-- 마지막 페이지가 범위에 없으면 표시 -->
+                        <li class="page-item disabled" th:if="${endPage < themes.totalPages - 2}">
+                            <span class="page-link">...</span>
+                        </li>
+                        <li class="page-item" th:if="${endPage < themes.totalPages - 1}">
+                            <a class="page-link"
+                               th:href="@{/admin/articles(page=${themes.totalPages - 1}, tab='themes', search=${search})}"
+                               th:text="${themes.totalPages}"></a>
+                        </li>
+                    </th:block>
+
+                    <!-- 다음 페이지 -->
+                    <li class="page-item" th:classappend="${themes.last} ? 'disabled'">
+                        <a class="page-link"
+                           th:href="@{/admin/articles(page=${themes.number + 1}, tab='themes', search=${search})}">
+                            <i class="fas fa-angle-right"></i>
+                        </a>
+                    </li>
+
+                    <!-- 마지막 페이지로 -->
+                    <li class="page-item" th:classappend="${themes.last} ? 'disabled'">
+                        <a class="page-link"
+                           th:href="@{/admin/articles(page=${themes.totalPages - 1}, tab='themes', search=${search})}">
+                            <i class="fas fa-angle-double-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+
+</body>
+</html>

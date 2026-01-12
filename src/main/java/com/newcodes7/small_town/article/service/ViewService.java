@@ -108,19 +108,20 @@ public class ViewService {
     }
     
     /**
-     * Article 엔티티의 조회수 캐시 업데이트
+     * Article 엔티티의 조회수 증가 (원자적 연산으로 동시성 안전)
      */
     private void updateArticleViewCount(Long articleId) {
-        long totalViews = viewLogRepository.countByArticleId(articleId);
-        articleRepository.updateViewCount(articleId, (int) totalViews);
+        articleRepository.incrementViewCount(articleId);
     }
     
     /**
-     * 게시글의 총 조회수 조회
+     * 게시글의 총 조회수 조회 (Article 엔티티의 캐시된 값 반환)
      */
     @Transactional(readOnly = true)
     public long getViewCount(Long articleId) {
-        return viewLogRepository.countByArticleId(articleId);
+        return articleRepository.findById(articleId)
+            .map(article -> article.getViewCount() != null ? article.getViewCount().longValue() : 0L)
+            .orElse(0L);
     }
     
     /**

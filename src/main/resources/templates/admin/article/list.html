@@ -117,6 +117,12 @@
                             <i class="fas fa-filter me-2"></i>키워드 관리
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:classappend="${currentTab == 'themes'} ? 'active'"
+                           th:href="@{/admin/articles(tab='themes')}">
+                            <i class="fas fa-bookmark me-2"></i>테마 조회수
+                        </a>
+                    </li>
                 </ul>
 
                 <!-- 검색 폼 -->
@@ -194,6 +200,11 @@
                 <!-- Keywords 탭 -->
                 <div th:if="${currentTab == 'keywords'}">
                     <div th:replace="~{admin/article/tabs/keywords::content}"></div>
+                </div>
+
+                <!-- Themes 탭 -->
+                <div th:if="${currentTab == 'themes'}">
+                    <div th:replace="~{admin/article/tabs/themes::content}"></div>
                 </div>
             </div>
         </div>

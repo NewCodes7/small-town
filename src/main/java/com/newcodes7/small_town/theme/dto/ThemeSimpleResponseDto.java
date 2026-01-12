@@ -18,6 +18,8 @@ public class ThemeSimpleResponseDto {
     private final String thumbnailUrl;
     private final Integer displayOrder;
     private final Boolean isActive;
+    private final Integer viewCount;
+    private final Integer totalContentCount;
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
 
@@ -29,6 +31,8 @@ public class ThemeSimpleResponseDto {
         this.thumbnailUrl = theme.getThumbnailUrl();
         this.displayOrder = theme.getDisplayOrder();
         this.isActive = theme.getIsActive();
+        this.viewCount = theme.getViewCount();
+        this.totalContentCount = theme.getThemeArticles().size() + theme.getThemeVideos().size();
         this.createdAt = theme.getCreatedAt();
         this.updatedAt = theme.getUpdatedAt();
     }

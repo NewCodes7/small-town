@@ -18,6 +18,8 @@ import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.SearchLog;
 import com.newcodes7.small_town.global.entity.Video;
 import com.newcodes7.small_town.global.service.SearchLogService;
+import com.newcodes7.small_town.theme.dto.ThemeSimpleResponseDto;
+import com.newcodes7.small_town.theme.repository.ThemeRepository;
 import com.newcodes7.small_town.video.repository.VideoRepository;
 import com.newcodes7.small_town.video.repository.VideoTermRepository;
 
@@ -38,6 +40,7 @@ public class AdminArticleListService {
     private final ArticleRepository articleRepository;
     private final VideoRepository videoRepository;
     private final CorporationService corporationService;
+    private final ThemeRepository themeRepository;
     private final ArticleTermRepository articleTermRepository;
     private final VideoTermRepository videoTermRepository;
     private final SearchLogService searchLogService;
@@ -54,6 +57,7 @@ public class AdminArticleListService {
         private Page<Article> articles;
         private Page<Video> videos;
         private Page<CorporationResponseDto> corporations;
+        private Page<ThemeSimpleResponseDto> themes;
         private Page<Article> articlesWithTerms;
         private Page<Video> videosWithTerms;
         private List<ArticleTermRepository.TermStatistics> articleTermStats;
@@ -72,6 +76,8 @@ public class AdminArticleListService {
      */
     public Pageable createPageable(String tab, String sort, int page, int size) {
         if (tab.equals("corporations")) {
+            return PageRequest.of(page, size, Sort.by("viewCount").descending().and(Sort.by("name").ascending()));
+        } else if (tab.equals("themes")) {
             return PageRequest.of(page, size, Sort.by("viewCount").descending().and(Sort.by("name").ascending()));
         } else if (tab.equals("terms")) {
             return PageRequest.of(page, size, Sort.by("id").descending());
@@ -98,6 +104,7 @@ public class AdminArticleListService {
                 .articles(getArticles(tab, search, pageable))
                 .videos(getVideos(tab, search, pageable))
                 .corporations(getCorporations(tab, search, pageable))
+                .themes(getThemes(tab, search, pageable))
                 .articlesWithTerms(getArticlesWithTerms(tab, search, pageable))
                 .videosWithTerms(getVideosWithTerms(tab, search, pageable))
                 .articleTermStats(getArticleTermStats(tab, search, pageable))
@@ -254,5 +261,15 @@ public class AdminArticleListService {
 
         Pageable likeLogPageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         return likeLogRepository.findAllWithDetailsAndDeletedAtIsNull(likeLogPageable);
+    }
+
+    private Page<ThemeSimpleResponseDto> getThemes(String tab, String search, Pageable pageable) {
+        if (!tab.equals("themes")) {
+            return Page.empty(pageable);
+        }
+
+        // search 기능은 추후 필요시 구현
+        return themeRepository.findByDeletedAtIsNull(pageable)
+            .map(ThemeSimpleResponseDto::new);
     }
 }
