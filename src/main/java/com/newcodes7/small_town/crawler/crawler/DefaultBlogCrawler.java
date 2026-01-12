@@ -886,6 +886,12 @@ public class DefaultBlogCrawler implements BlogCrawler {
                 corporation.getName(), paginationType, maxPages != null ? maxPages : "무제한");
 
         try {
+            // NEXT_BUTTON 타입일 때는 다른 로직 사용
+            if ("NEXT_BUTTON".equals(paginationType)) {
+                return crawlWithNextButton(driver, corporation, allArticles, maxPages);
+            }
+
+            // URL_PARAMETER 타입일 때는 기존 로직 사용
             while (true) {
                 // 페이지 URL 생성 및 이동
                 String pageUrl = buildPageUrl(corporation.getBlogLink(), currentPage);
@@ -974,6 +980,91 @@ public class DefaultBlogCrawler implements BlogCrawler {
 
         // 기본값: 쿼리 파라미터로 추가
         return normalizedBaseUrl + (normalizedBaseUrl.contains("?") ? "&" : "?") + "page=" + pageNumber;
+    }
+
+    /**
+     * NEXT_BUTTON 타입 크롤링 (다음 버튼 클릭 방식)
+     */
+    private List<Article> crawlWithNextButton(WebDriver driver, Corporation corporation, List<Article> allArticles, Integer maxPages) throws InterruptedException {
+        int currentPage = 1;
+
+        // 첫 페이지 로드
+        driver.get(corporation.getBlogLink());
+        Thread.sleep(5000);
+
+        while (true) {
+            log.info("페이지 {} 크롤링 시작 (NEXT_BUTTON)", currentPage);
+
+            // 스크롤 시뮬레이션
+            performScrollSimulation(driver);
+
+            // 페이지에서 article 파싱
+            String pageSource = driver.getPageSource();
+            List<Article> pageArticles = parseArticlesFromPage(pageSource, corporation);
+            log.debug("발견된 article 요소 수: {}", pageArticles.size());
+
+            if (pageArticles.isEmpty()) {
+                log.info("페이지 {}에서 글을 찾지 못함 - 크롤링 종료", currentPage);
+                break;
+            }
+
+            allArticles.addAll(pageArticles);
+            log.info("페이지 {} 크롤링 완료: {}개 글 수집 (총 {}개)", currentPage, pageArticles.size(), allArticles.size());
+
+            // 최대 페이지 체크
+            if (maxPages != null && currentPage >= maxPages) {
+                log.info("최대 페이지 {}에 도달 - 크롤링 종료", maxPages);
+                break;
+            }
+
+            // 다음 버튼 찾기 및 클릭
+            String nextPageSelector = parsingSelector.getNextPageSelector();
+            if (nextPageSelector == null || nextPageSelector.trim().isEmpty()) {
+                log.warn("다음 페이지 셀렉터가 설정되지 않음 - 크롤링 종료");
+                break;
+            }
+
+            try {
+                // Jsoup으로 다음 버튼 존재 여부 확인
+                Document doc = Jsoup.parse(pageSource);
+                Elements nextButtons = doc.select(nextPageSelector);
+
+                if (nextButtons.isEmpty()) {
+                    log.info("다음 페이지 버튼을 찾을 수 없음 - 크롤링 종료");
+                    break;
+                }
+
+                // Selenium으로 다음 버튼 클릭
+                org.openqa.selenium.WebElement nextButton = driver.findElement(
+                    org.openqa.selenium.By.cssSelector(nextPageSelector)
+                );
+
+                if (!nextButton.isDisplayed() || !nextButton.isEnabled()) {
+                    log.info("다음 페이지 버튼이 비활성화됨 - 크롤링 종료");
+                    break;
+                }
+
+                log.debug("다음 페이지 버튼 클릭: {}", nextPageSelector);
+                nextButton.click();
+                Thread.sleep(3000); // 페이지 로드 대기
+
+                currentPage++;
+
+            } catch (org.openqa.selenium.NoSuchElementException e) {
+                log.info("다음 페이지 버튼을 찾을 수 없음 (Selenium) - 크롤링 종료");
+                break;
+            } catch (Exception e) {
+                log.warn("다음 페이지 버튼 클릭 실패: {} - 크롤링 종료", e.getMessage());
+                break;
+            }
+
+            Thread.sleep(2000); // 페이지 간 딜레이
+        }
+
+        log.info("NEXT_BUTTON 크롤링 완료 - 기업: {}, 총 페이지: {}, 총 글: {}개",
+                corporation.getName(), currentPage, allArticles.size());
+
+        return allArticles;
     }
 
     /**
