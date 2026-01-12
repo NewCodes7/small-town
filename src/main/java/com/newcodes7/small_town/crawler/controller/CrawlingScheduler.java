@@ -102,6 +102,45 @@ public class CrawlingScheduler {
     }
 
     /**
+     * 전체 페이지 크롤링 스케줄러
+     * 매 시간 30분에 실행 (ID 내림차순, lastFullCrawledAt이 null인 경우에만)
+     */
+    @Scheduled(cron = "${crawler.schedule.fullpage.cron:0 30 * * * ?}", zone = "Asia/Seoul")
+    public void scheduledFullPageCrawling() {
+        log.info("스케줄된 전체 페이지 크롤링 작업 시작");
+
+        try {
+            List<CrawlResult> results = crawlingService.scheduledFullPageCrawling();
+
+            long successCount = results.stream()
+                    .filter(CrawlResult::isSuccess)
+                    .count();
+
+            long failureCount = results.size() - successCount;
+
+            long totalNewArticles = results.stream()
+                    .filter(CrawlResult::isSuccess)
+                    .mapToLong(CrawlResult::getNewArticles)
+                    .sum();
+
+            log.info("스케줄된 전체 페이지 크롤링 작업 완료 - 성공: {}개, 실패: {}개, 신규 글: {}개",
+                successCount, failureCount, totalNewArticles);
+
+            // 실패한 경우 로그 출력
+            results.stream()
+                    .filter(result -> !result.isSuccess())
+                    .forEach(result -> {
+                        String corpName = result.getCorporation() != null ?
+                            result.getCorporation().getName() : "Unknown";
+                        log.warn("전체 페이지 크롤링 실패 - 기업: {}, 오류: {}", corpName, result.getErrorMessage());
+                    });
+
+        } catch (Exception e) {
+            log.error("스케줄된 전체 페이지 크롤링 작업 중 오류 발생", e);
+        }
+    }
+
+    /**
      * 제목 번역 및 AI 카테고리 분류 스케줄러
      */
     // @Scheduled(cron = "${crawler.schedule.analysis.cron:0 0 5 * * ?}", zone = "Asia/Seoul")

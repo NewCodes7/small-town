@@ -83,6 +83,12 @@ public class Corporation {
     @Builder.Default
     private Integer viewCount = 0;
 
+    @Column(name = "last_full_crawled_at")
+    private LocalDateTime lastFullCrawledAt;
+
+    @Column(name = "last_full_crawl_status", length = 20)
+    private String lastFullCrawlStatus;
+
     @JsonIgnore
     @OneToMany(mappedBy = "corporation", cascade = CascadeType.ALL)
     private List<Article> articles;

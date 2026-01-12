@@ -633,4 +633,98 @@ public class CrawlingService {
 
         return results;
     }
+
+    /**
+     * 스케줄된 전체 페이지 크롤링 (ID 내림차순, lastFullCrawledAt이 null인 경우에만)
+     * 최대 실행 시간: 25분 (30분 시작 -> 55분 종료)
+     * @return 크롤링 결과 목록
+     */
+    public List<CrawlResult> scheduledFullPageCrawling() {
+        log.info("스케줄된 전체 페이지 크롤링 시작");
+
+        long startTime = System.currentTimeMillis();
+        long maxExecutionTimeMs = 25 * 60 * 1000; // 25분
+
+        // ID 내림차순으로 기업 조회
+        List<Corporation> corporations = crawlerCorporationRepository.findAllWithBlogLinkOrderByIdDesc();
+        List<CrawlResult> results = new ArrayList<>();
+
+        // lastFullCrawledAt이 null인 기업만 필터링
+        List<Corporation> targetCorporations = corporations.stream()
+                .filter(corp -> corp.getLastFullCrawledAt() == null)
+                .toList();
+
+        log.info("크롤링 대상 기업: {}개 (전체: {}개)", targetCorporations.size(), corporations.size());
+
+        for (Corporation corporation : targetCorporations) {
+            // 시간 체크: 25분 경과 시 중단
+            long elapsedTime = System.currentTimeMillis() - startTime;
+            if (elapsedTime >= maxExecutionTimeMs) {
+                log.warn("작업 시간 제한 도달 (25분). 크롤링을 중단합니다. 처리: {}/{}",
+                        results.size(), targetCorporations.size());
+                break;
+            }
+
+            WebDriver driver = null;
+            try {
+                log.info("전체 페이지 크롤링 시작 - 기업: {} (ID: {})", corporation.getName(), corporation.getId());
+
+                driver = webDriverConfig.createWebDriver();
+                BlogCrawler crawler = selectCrawler(corporation.getBlogLink());
+
+                // crawlAllPages 호출
+                List<Article> articles = crawler.crawlAllPages(driver, corporation);
+                List<Article> newArticles = new ArrayList<>();
+
+                // 중복 체크 및 저장
+                for (Article article : articles) {
+                    if (!crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(article.getLink()).isPresent()) {
+                        articlePersistenceService.saveArticleWithAnalysisNoCache(article, corporation, crawler);
+                        newArticles.add(article);
+                    }
+                }
+
+                // 성공 시 상태 업데이트
+                corporation.setLastFullCrawledAt(LocalDateTime.now());
+                corporation.setLastFullCrawlStatus("SUCCESS");
+                crawlerCorporationRepository.save(corporation);
+
+                CrawlResult result = CrawlResult.success(corporation, newArticles, newArticles.size());
+                results.add(result);
+
+                log.info("전체 페이지 크롤링 완료 - 기업: {}, 수집: {}개, 신규: {}개",
+                        corporation.getName(), articles.size(), newArticles.size());
+
+                // 기업 간 딜레이
+                Thread.sleep(3000);
+
+            } catch (Exception e) {
+                log.error("전체 페이지 크롤링 실패 - 기업: {}, 오류: {}",
+                        corporation.getName(), e.getMessage(), e);
+
+                // 실패 시 상태 업데이트
+                corporation.setLastFullCrawledAt(LocalDateTime.now());
+                corporation.setLastFullCrawlStatus("FAILURE");
+                crawlerCorporationRepository.save(corporation);
+
+                results.add(CrawlResult.failure(corporation, "크롤링 실행 실패: " + e.getMessage()));
+            } finally {
+                if (driver != null) {
+                    webDriverConfig.forceCloseWebDriver(driver);
+                }
+            }
+        }
+
+        long totalElapsedMinutes = (System.currentTimeMillis() - startTime) / 60000;
+        log.info("스케줄된 전체 페이지 크롤링 완료 - 처리된 기업: {}개, 소요 시간: {}분",
+                results.size(), totalElapsedMinutes);
+
+        // 크롤링 완료 후 선택적 캐시 purge
+        if (!results.isEmpty()) {
+            purgeCacheForCrawlResults(results);
+            refreshBM25SearchIndex(results);
+        }
+
+        return results;
+    }
 }

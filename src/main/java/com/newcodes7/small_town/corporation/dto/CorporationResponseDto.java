@@ -39,7 +39,9 @@ public class CorporationResponseDto {
     private List<String> industries;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    
+    private LocalDateTime lastFullCrawledAt;
+    private String lastFullCrawlStatus;
+
     public String getRegionText() {
         return Boolean.TRUE.equals(isDomestic) ? "국내" : "해외";
     }
@@ -89,6 +91,8 @@ public class CorporationResponseDto {
         dto.setArticleCount(0L); // Default article count
         dto.setCreatedAt(corporation.getCreatedAt());
         dto.setUpdatedAt(corporation.getUpdatedAt());
+        dto.setLastFullCrawledAt(corporation.getLastFullCrawledAt());
+        dto.setLastFullCrawlStatus(corporation.getLastFullCrawlStatus());
         dto.setIndustries(
             corporation.getCorporationIndustries().stream()
                 .map(ci -> ci.getIndustry().getName())
@@ -115,6 +119,8 @@ public class CorporationResponseDto {
         dto.setArticleCount(0L); // Default article count
         dto.setCreatedAt(corporation.getCreatedAt());
         dto.setUpdatedAt(corporation.getUpdatedAt());
+        dto.setLastFullCrawledAt(corporation.getLastFullCrawledAt());
+        dto.setLastFullCrawlStatus(corporation.getLastFullCrawlStatus());
         dto.setIndustries(
             corporation.getCorporationIndustries().stream()
                 .map(ci -> ci.getIndustry().getName())

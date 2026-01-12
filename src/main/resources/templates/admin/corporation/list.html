@@ -98,11 +98,40 @@
                         
                         <!-- Industries -->
                         <div class="mb-3" th:if="${!corp.industries.isEmpty()}">
-                            <span class="badge tag-badge me-1 mb-1" 
+                            <span class="badge tag-badge me-1 mb-1"
                                   th:each="industry : ${corp.industries}"
                                   th:text="${industry}">Industry</span>
                         </div>
-                        
+
+                        <!-- Full Crawl Status -->
+                        <div class="mb-3" style="padding: 12px; border-radius: 12px; background: var(--secondary-green);">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fas fa-robot me-2" style="color: var(--primary-green);"></i>
+                                <small class="fw-bold" style="color: var(--text-dark);">전체 크롤링 상태</small>
+                            </div>
+                            <div th:if="${corp.lastFullCrawledAt != null}">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">
+                                        <i class="fas fa-clock me-1"></i>
+                                        <span th:text="${#temporals.format(corp.lastFullCrawledAt, 'yyyy-MM-dd HH:mm')}">2024-01-01 12:00</span>
+                                    </small>
+                                    <span th:if="${corp.lastFullCrawlStatus == 'SUCCESS'}"
+                                          class="badge" style="background: #10b981; color: white;">
+                                        <i class="fas fa-check-circle me-1"></i>성공
+                                    </span>
+                                    <span th:if="${corp.lastFullCrawlStatus == 'FAILURE'}"
+                                          class="badge bg-danger">
+                                        <i class="fas fa-exclamation-circle me-1"></i>실패
+                                    </span>
+                                </div>
+                            </div>
+                            <div th:unless="${corp.lastFullCrawledAt != null}">
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle me-1"></i>아직 전체 크롤링을 진행하지 않았습니다
+                                </small>
+                            </div>
+                        </div>
+
                         <!-- Links -->
                         <div class="d-flex gap-2 mt-auto">
                             <a th:if="${corp.blogLink}" th:href="${corp.blogLink}" target="_blank" 
