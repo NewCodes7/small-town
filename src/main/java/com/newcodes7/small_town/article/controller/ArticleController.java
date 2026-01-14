@@ -196,8 +196,8 @@ public class ArticleController {
             );
         }
 
-        log.info("필터 조건: keyword='{}', regions={}, {}개의 글 조회",
-                 keyword, regions, articles.getTotalElements());
+        log.info("필터 조건: keyword='{}', regions={}, 조회된 글 {}개 / 전체 {}개",
+                 keyword, regions, articles.getContent().size(), articles.getTotalElements());
 
         // 회사 목록 가져오기 (모든 회사 포함)
         Page<CorporationResponseDto> corporations = corporationService.getCorporationsWithFilters(null, null, null, PageRequest.of(0, 50));

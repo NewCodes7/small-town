@@ -84,11 +84,8 @@ public class CorporationSpecification {
                 query.distinct(true);
             }
 
-            // EntityGraph 대신 Fetch Join 사용 (N+1 문제 해결)
-            // count 쿼리가 아닐 때만 fetch join 적용
-            if (query.getResultType() != Long.class && query.getResultType() != long.class) {
-                root.fetch("corporationIndustries", JoinType.LEFT).fetch("industry", JoinType.LEFT);
-            }
+            // corporationIndustries FETCH JOIN 제거 - OOM 방지
+            // 페이지네이션과 컬렉션 FETCH JOIN 조합 시 전체 데이터가 메모리에 로드됨
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };

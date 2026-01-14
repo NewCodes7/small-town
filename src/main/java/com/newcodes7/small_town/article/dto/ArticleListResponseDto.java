@@ -113,9 +113,7 @@ public class ArticleListResponseDto implements ArticleResponseDto {
             article.getPublishedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : null;
         this.corporation = new CorporationDto(article.getCorporation());
         this.category = article.getCategory() != null ? new CategoryDto(article.getCategory()) : null;
-        this.tags = article.getArticleTags().stream()
-            .map(articleTag -> new TagDto(articleTag.getTag()))
-            .collect(Collectors.toList());
+        this.tags = List.of();  // 태그 미사용 - OOM 방지를 위해 비활성화
         this.bm25Score = bm25Score;
         this.vectorScore = vectorScore;
         this.rrfScore = rrfScore;

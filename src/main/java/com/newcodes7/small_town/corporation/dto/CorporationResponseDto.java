@@ -93,11 +93,7 @@ public class CorporationResponseDto {
         dto.setUpdatedAt(corporation.getUpdatedAt());
         dto.setLastFullCrawledAt(corporation.getLastFullCrawledAt());
         dto.setLastFullCrawlStatus(corporation.getLastFullCrawlStatus());
-        dto.setIndustries(
-            corporation.getCorporationIndustries().stream()
-                .map(ci -> ci.getIndustry().getName())
-                .collect(Collectors.toList())
-        );
+        dto.setIndustries(List.of());  // OOM 방지를 위해 비활성화
         return dto;
     }
 
@@ -121,11 +117,7 @@ public class CorporationResponseDto {
         dto.setUpdatedAt(corporation.getUpdatedAt());
         dto.setLastFullCrawledAt(corporation.getLastFullCrawledAt());
         dto.setLastFullCrawlStatus(corporation.getLastFullCrawlStatus());
-        dto.setIndustries(
-            corporation.getCorporationIndustries().stream()
-                .map(ci -> ci.getIndustry().getName())
-                .collect(Collectors.toList())
-        );
+        dto.setIndustries(List.of());  // OOM 방지를 위해 비활성화
         return dto;
     }
 }

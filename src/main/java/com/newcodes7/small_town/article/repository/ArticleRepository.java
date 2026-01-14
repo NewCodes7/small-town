@@ -17,16 +17,12 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     
     @Query("SELECT a FROM Article a " +
            "JOIN FETCH a.corporation c " +
-           "LEFT JOIN FETCH a.articleTags at " +
-           "LEFT JOIN FETCH at.tag " +
            "WHERE a.deletedAt IS NULL " +
            "ORDER BY a.publishedAt DESC, a.createdAt DESC")
     Page<Article> findAllActiveArticlesWithDetails(Pageable pageable);
     
     @Query("SELECT a FROM Article a " +
            "JOIN FETCH a.corporation c " +
-           "LEFT JOIN FETCH a.articleTags at " +
-           "LEFT JOIN FETCH at.tag " +
            "WHERE a.deletedAt IS NULL " +
            "ORDER BY " +
            "(COALESCE(a.viewCount, 0) * 0.6 + " +
@@ -36,8 +32,6 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     
     @Query("SELECT a FROM Article a " +
            "JOIN FETCH a.corporation c " +
-           "LEFT JOIN FETCH a.articleTags at " +
-           "LEFT JOIN FETCH at.tag " +
            "WHERE a.deletedAt IS NULL " +
            "AND (LOWER(a.title) LIKE :keyword OR LOWER(a.translatedTitle) LIKE :keyword) " +
            "ORDER BY a.publishedAt DESC, a.createdAt DESC")
@@ -46,8 +40,6 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query("SELECT a FROM Article a " +
            "JOIN FETCH a.corporation c " +
            "LEFT JOIN FETCH a.category cat " +
-           "LEFT JOIN FETCH a.articleTags at " +
-           "LEFT JOIN FETCH at.tag " +
            "WHERE a.deletedAt IS NULL " +
            "AND (:keyword IS NULL OR LOWER(a.title) LIKE :keyword OR LOWER(a.translatedTitle) LIKE :keyword) " +
            "AND (:domesticTypes IS NULL OR c.isDomestic IN :domesticTypes) " +
@@ -75,8 +67,6 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query("SELECT a FROM Article a " +
            "JOIN FETCH a.corporation c " +
            "LEFT JOIN FETCH a.category cat " +
-           "LEFT JOIN FETCH a.articleTags at " +
-           "LEFT JOIN FETCH at.tag " +
            "WHERE a.deletedAt IS NULL " +
            "AND (:keyword IS NULL OR LOWER(a.title) LIKE :keyword OR LOWER(a.translatedTitle) LIKE :keyword " +
            "     OR a.id IN :termBasedArticleIds) " +
@@ -106,8 +96,6 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query("SELECT a FROM Article a " +
            "JOIN FETCH a.corporation c " +
            "LEFT JOIN FETCH a.category cat " +
-           "LEFT JOIN FETCH a.articleTags at " +
-           "LEFT JOIN FETCH at.tag " +
            "WHERE a.deletedAt IS NULL " +
            "AND (:keyword IS NULL OR LOWER(a.title) LIKE :keyword OR LOWER(a.translatedTitle) LIKE :keyword) " +
            "AND (:domesticTypes IS NULL OR c.isDomestic IN :domesticTypes) " +
@@ -119,8 +107,6 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query("SELECT a FROM Article a " +
            "JOIN FETCH a.corporation c " +
            "LEFT JOIN FETCH a.category cat " +
-           "LEFT JOIN FETCH a.articleTags at " +
-           "LEFT JOIN FETCH at.tag " +
            "WHERE a.deletedAt IS NULL " +
            "AND (:keyword IS NULL OR LOWER(a.title) LIKE :keyword OR LOWER(a.translatedTitle) LIKE :keyword " +
            "     OR a.id IN :termBasedArticleIds) " +
