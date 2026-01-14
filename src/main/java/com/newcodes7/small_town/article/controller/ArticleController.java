@@ -1105,12 +1105,12 @@ public class ArticleController {
      */
     @GetMapping({"", "/"})
     public String newHome(Model model, @AuthenticationPrincipal UserDetails userDetails, HttpServletRequest request) {
-        // 최신 블로그 글 40개 조회 (좋아요 상태는 별도 API로 조회)
+        // 최신 블로그 글 50개 조회 (좋아요 상태는 별도 API로 조회)
         Page<ArticleResponseDto> allArticles = articleService.getArticlesWithFilters(
             null,  // keyword
             null,  // regions
             0,     // page
-            40,    // size - 여유있게 가져옴
+            50,    // size - 여유있게 가져옴
             "latest",  // sort
             "list",    // view
             null   // category
