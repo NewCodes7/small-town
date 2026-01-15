@@ -3,7 +3,7 @@ package com.newcodes7.small_town.term.service;
 import com.newcodes7.small_town.term.dto.StackExchangeTagDto;
 import com.newcodes7.small_town.article.repository.TermRepository;
 import com.newcodes7.small_town.article.repository.UserDictionaryRepository;
-import com.newcodes7.small_town.article.service.DeeplService;
+import com.newcodes7.small_town.crawler.integration.deepl.DeeplService;
 import com.newcodes7.small_town.article.service.TermSynonymService;
 import com.newcodes7.small_town.global.entity.Term;
 import com.newcodes7.small_town.global.entity.UserDictionary;

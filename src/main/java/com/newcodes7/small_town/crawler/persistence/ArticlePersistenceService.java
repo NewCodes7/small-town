@@ -2,6 +2,7 @@ package com.newcodes7.small_town.crawler.persistence;
 
 import com.newcodes7.small_town.crawler.crawler.BlogCrawler;
 import com.newcodes7.small_town.crawler.integration.openai.OpenaiService;
+import com.newcodes7.small_town.crawler.integration.deepl.DeeplService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -34,6 +35,7 @@ public class ArticlePersistenceService {
     private final CrawlerArticleRepository crawlerArticleRepository;
     private final CategoryRepository categoryRepository;
     private final OpenaiService openaiService;
+    private final DeeplService deeplService;
 
     /**
      * 개별 Article 저장 및 AI 분석
@@ -261,6 +263,7 @@ public class ArticlePersistenceService {
     /**
      * 필요한 경우 제목을 번역합니다.
      * 해외 기업의 영어 제목만 한국어로 번역합니다.
+     * DeepL API를 사용합니다.
      */
     private void translateTitleIfNeeded(Article article, Corporation corporation) {
         try {
@@ -269,22 +272,23 @@ public class ArticlePersistenceService {
                 String title = article.getTitle();
 
                 // 제목에 한국어가 포함되어 있지 않으면 번역
-                if (title != null && !openaiService.containsKorean(title)) {
-                    log.debug("영어 제목 번역 시도 - 기업: {}, 제목: {}", corporation.getName(), title);
+                if (title != null && !deeplService.containsKorean(title)) {
+                    log.debug("영어 제목 번역 시도 (DeepL) - 기업: {}, 제목: {}", corporation.getName(), title);
 
-                    String translatedTitle = openaiService.translateTitle(title, corporation.getName());
+                    String translatedTitle = deeplService.translateTitle(title);
 
-                    if (translatedTitle != null && !translatedTitle.trim().isEmpty()) {
+                    if (translatedTitle != null && !translatedTitle.trim().isEmpty()
+                            && deeplService.containsKorean(translatedTitle)) {
                         article.setTranslatedTitle(translatedTitle);
                         crawlerArticleRepository.save(article);
 
-                        log.info("제목 번역 완료 - 기업: {}, 원본: '{}' → 번역: '{}'",
+                        log.info("제목 번역 완료 (DeepL) - 기업: {}, 원본: '{}' → 번역: '{}'",
                             corporation.getName(), title, translatedTitle);
                     }
                 }
             }
         } catch (Exception e) {
-            log.warn("제목 번역 중 오류 발생 - 기업: {}, 제목: {}, 오류: {}",
+            log.warn("제목 번역 중 오류 발생 (DeepL) - 기업: {}, 제목: {}, 오류: {}",
                 corporation.getName(), article.getTitle(), e.getMessage());
             // 번역 실패는 크롤링을 중단시키지 않음
         }

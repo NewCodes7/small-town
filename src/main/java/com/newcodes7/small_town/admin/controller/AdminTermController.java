@@ -23,7 +23,7 @@ import com.newcodes7.small_town.article.repository.ArticleTermRepository;
 import com.newcodes7.small_town.article.repository.TermRepository;
 import com.newcodes7.small_town.article.repository.UserDictionaryRepository;
 import com.newcodes7.small_town.article.service.ArticleTermService;
-import com.newcodes7.small_town.article.service.DeeplService;
+import com.newcodes7.small_town.crawler.integration.deepl.DeeplService;
 import com.newcodes7.small_town.article.service.TermSynonymService;
 import com.newcodes7.small_town.term.service.TechTermService;
 import com.newcodes7.small_town.term.service.StackExchangeApiService;

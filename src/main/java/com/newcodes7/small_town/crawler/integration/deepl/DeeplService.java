@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.service;
+package com.newcodes7.small_town.crawler.integration.deepl;
 
 import java.util.ArrayList;
 import java.util.HashMap;

@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.article.service.DeeplService;
+import com.newcodes7.small_town.crawler.integration.deepl.DeeplService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Video;
 import com.newcodes7.small_town.video.repository.VideoRepository;
