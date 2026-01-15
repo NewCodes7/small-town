@@ -1,6 +1,7 @@
 package com.newcodes7.small_town.crawler.persistence;
 
 import com.newcodes7.small_town.crawler.crawler.VideoCrawler;
+import com.newcodes7.small_town.crawler.integration.deepl.DeeplService;
 import com.newcodes7.small_town.crawler.integration.openai.OpenaiService;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -34,6 +35,7 @@ public class VideoPersistenceService {
     private final CrawlerVideoRepository crawlerVideoRepository;
     private final CategoryRepository categoryRepository;
     private final OpenaiService openaiService;
+    private final DeeplService deeplService;
 
     /**
      * Video 저장 (이미지 업로드, 제목 번역, AI 분석 포함)
@@ -280,6 +282,7 @@ public class VideoPersistenceService {
 
     /**
      * 해외 기업의 경우 영어 제목을 한국어로 자동 번역
+     * DeepL API를 사용합니다.
      *
      * @param video 비디오
      * @param corporation 기업
@@ -290,31 +293,31 @@ public class VideoPersistenceService {
             (video.getTranslatedTitle() == null || video.getTranslatedTitle().trim().isEmpty())) {
 
             try {
+                String title = video.getTitle();
+
                 // 원본 제목에 한국어가 포함되어 있으면 번역 스킵
-                if (openaiService.containsKorean(video.getTitle())) {
-                    log.debug("원본 제목에 한국어 포함, 번역 스킵: {}", video.getTitle());
+                if (title == null || deeplService.containsKorean(title)) {
+                    log.debug("원본 제목에 한국어 포함, 번역 스킵: {}", title);
                     return;
                 }
 
-                // OpenAI로 제목 번역
-                String translatedTitle = openaiService.translateTitle(
-                    video.getTitle(),
-                    corporation.getName()
-                );
+                log.debug("영어 비디오 제목 번역 시도 (DeepL) - 기업: {}, 제목: {}", corporation.getName(), title);
+
+                // DeepL로 제목 번역
+                String translatedTitle = deeplService.translateTitle(title);
 
                 // 번역 결과에 한국어가 포함되어 있는지 확인
-                if (!openaiService.containsKorean(translatedTitle)) {
-                    log.warn("번역된 제목에 한국어가 포함되어 있지 않음, 번역 스킵: {} -> {}",
-                            video.getTitle(), translatedTitle);
-                    return;
-                }
+                if (translatedTitle != null && !translatedTitle.trim().isEmpty()
+                        && deeplService.containsKorean(translatedTitle)) {
+                    video.setTranslatedTitle(translatedTitle);
+                    crawlerVideoRepository.save(video);
 
-                video.setTranslatedTitle(translatedTitle);
-                log.info("비디오 제목 자동 번역 완료 - 원문: '{}', 번역: '{}'",
-                         video.getTitle(), translatedTitle);
+                    log.info("비디오 제목 번역 완료 (DeepL) - 기업: {}, 원본: '{}' → 번역: '{}'",
+                            corporation.getName(), title, translatedTitle);
+                }
             } catch (Exception e) {
-                log.warn("비디오 제목 자동 번역 실패 - 제목: '{}', 오류: {}",
-                         video.getTitle(), e.getMessage());
+                log.warn("비디오 제목 번역 중 오류 발생 (DeepL) - 기업: {}, 제목: {}, 오류: {}",
+                        corporation.getName(), video.getTitle(), e.getMessage());
                 // 번역 실패 시에도 비디오는 저장되도록 예외를 던지지 않음
             }
         }
