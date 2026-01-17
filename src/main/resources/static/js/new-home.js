@@ -326,6 +326,7 @@ function initSearchAutocomplete() {
     let lastInputValue = '';
     let programmaticChange = false;
     let isAuthenticated = false;
+    let autocompleteAbortController = null;  // 이전 요청 취소용
 
     // 로그인 상태 확인
     fetch('/api/user-info', { credentials: 'include' })
@@ -358,7 +359,7 @@ function initSearchAutocomplete() {
 
         autocompleteDebounce = setTimeout(() => {
             fetchAutocompleteSuggestions(query);
-        }, 50);
+        }, 100);
     });
 
     // 키보드 방향키 이벤트
@@ -525,13 +526,23 @@ function initSearchAutocomplete() {
     }
 
     function fetchAutocompleteSuggestions(query) {
-        fetch(`/api/autocomplete?q=${encodeURIComponent(query)}`)
+        // 이전 요청 취소 (HTTP/2 연결 과부하 방지)
+        if (autocompleteAbortController) {
+            autocompleteAbortController.abort();
+        }
+        autocompleteAbortController = new AbortController();
+
+        fetch(`/api/autocomplete?q=${encodeURIComponent(query)}`, {
+            signal: autocompleteAbortController.signal
+        })
             .then(response => response.json())
             .then(data => {
                 suggestions = data.slice(0, 6);
                 displayAutocompleteSuggestions(query, suggestions);
             })
             .catch(error => {
+                // AbortError는 의도적 취소이므로 무시
+                if (error.name === 'AbortError') return;
                 console.error('자동완성 조회 오류:', error);
             });
     }
