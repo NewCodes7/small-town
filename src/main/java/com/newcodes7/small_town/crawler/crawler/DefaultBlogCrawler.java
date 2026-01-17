@@ -380,7 +380,8 @@ public class DefaultBlogCrawler implements BlogCrawler {
             || publishFormat.equals("MMMM dd, yyyy")
             || publishFormat.equals("MMM dd, yyyy")) {
             publishedAt = parseEnglishDateFormat(dateText);
-        } else if (publishFormat.trim().equals("dd MMM yyyy")) {
+        } else if (publishFormat.trim().equals("dd MMM yyyy")
+            || publishFormat.trim().equals("d MMM yyyy")) {
             publishedAt = parseDayMonthYearFormat(dateText);
         } else if (publishFormat.trim().equals("dd MMM")) {
             publishedAt = parseShortEnglishDateFormat(dateText);
