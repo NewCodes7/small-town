@@ -13,7 +13,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -77,6 +79,8 @@ import java.util.stream.Collectors;
 public class ArticleController {
 
     private final ArticleService articleService;
+    @Qualifier("autocompleteExecutor")
+    private final ExecutorService autocompleteExecutor;
     private final LikeService likeService;
     private final UserLikeService userLikeService;
     private final ViewService viewService;
@@ -690,7 +694,7 @@ public class ArticleController {
         // ===== 병렬 검색 (CompletableFuture 사용) =====
         long parallelStartTime = System.currentTimeMillis();
 
-        // 1. Corporation 검색 (비동기)
+        // 1. Corporation 검색 (비동기) - 전용 executor 사용으로 cold start 방지
         CompletableFuture<List<Object>> corporationFuture = CompletableFuture.supplyAsync(() -> {
             long corpStartTime = System.currentTimeMillis();
             List<Object> corpResults = new ArrayList<>();
@@ -735,12 +739,12 @@ public class ArticleController {
             long corpTime = System.currentTimeMillis() - corpStartTime;
             log.debug("[자동완성] Corporation 검색: {}ms", corpTime);
             return corpResults;
-        }).exceptionally(ex -> {
+        }, autocompleteExecutor).exceptionally(ex -> {
             log.error("[자동완성] Corporation 검색 실패", ex);
             return new ArrayList<>();
         });
 
-        // 2. Theme 검색 (비동기)
+        // 2. Theme 검색 (비동기) - 전용 executor 사용으로 cold start 방지
         CompletableFuture<List<Object>> themeFuture = CompletableFuture.supplyAsync(() -> {
             long themeStartTime = System.currentTimeMillis();
             List<Object> themeResults = new ArrayList<>();
@@ -757,12 +761,12 @@ public class ArticleController {
             long themeTime = System.currentTimeMillis() - themeStartTime;
             log.debug("[자동완성] Theme 검색: {}ms", themeTime);
             return themeResults;
-        }).exceptionally(ex -> {
+        }, autocompleteExecutor).exceptionally(ex -> {
             log.error("[자동완성] Theme 검색 실패", ex);
             return new ArrayList<>();
         });
 
-        // 3. Term 검색 (비동기, Covering Index 최적화)
+        // 3. Term 검색 (비동기, Covering Index 최적화) - 전용 executor 사용으로 cold start 방지
         CompletableFuture<List<Object>> termFuture = CompletableFuture.supplyAsync(() -> {
             long termStartTime = System.currentTimeMillis();
             List<Object> termResults = new ArrayList<>();
@@ -796,7 +800,7 @@ public class ArticleController {
             long termTime = System.currentTimeMillis() - termStartTime;
             log.debug("[자동완성] Term 검색: {}ms", termTime);
             return termResults;
-        }).exceptionally(ex -> {
+        }, autocompleteExecutor).exceptionally(ex -> {
             log.error("[자동완성] Term 검색 실패", ex);
             return new ArrayList<>();
         });

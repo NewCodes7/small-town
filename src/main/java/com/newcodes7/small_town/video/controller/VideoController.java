@@ -7,9 +7,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
-import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
@@ -50,6 +51,8 @@ import lombok.extern.slf4j.Slf4j;
 public class VideoController {
 
     private final VideoService videoService;
+    @Qualifier("autocompleteExecutor")
+    private final ExecutorService autocompleteExecutor;
     private final VideoViewService videoViewService;
     private final com.newcodes7.small_town.video.service.VideoLikeService videoLikeService;
     private final CorporationService corporationService;
@@ -313,7 +316,7 @@ public class VideoController {
         String decomposedQuery = KoreanCharacterUtil.decomposeHangul(trimmedQuery);
 
         // ===== 병렬 검색 (CompletableFuture 사용) =====
-        // 1. Corporation 검색 (비동기)
+        // 1. Corporation 검색 (비동기) - 전용 executor 사용으로 cold start 방지
         CompletableFuture<List<Object>> corporationFuture = CompletableFuture.supplyAsync(() -> {
             List<Object> corpResults = new ArrayList<>();
 
@@ -358,12 +361,12 @@ public class VideoController {
             }
 
             return corpResults;
-        }).exceptionally(ex -> {
+        }, autocompleteExecutor).exceptionally(ex -> {
             log.error("[비디오 자동완성] Corporation 검색 실패", ex);
             return new ArrayList<>();
         });
 
-        // 2. Term 검색 (비동기, 최적화 버전 사용)
+        // 2. Term 검색 (비동기, 최적화 버전 사용) - 전용 executor 사용으로 cold start 방지
         CompletableFuture<List<Object>> termFuture = CompletableFuture.supplyAsync(() -> {
             List<Object> termResults = new ArrayList<>();
 
@@ -394,7 +397,7 @@ public class VideoController {
             }
 
             return termResults;
-        }).exceptionally(ex -> {
+        }, autocompleteExecutor).exceptionally(ex -> {
             log.error("[비디오 자동완성] Term 검색 실패", ex);
             return new ArrayList<>();
         });
