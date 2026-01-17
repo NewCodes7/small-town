@@ -77,7 +77,6 @@ public class CorporationApiController {
 
         Map<String, Object> response = new HashMap<>();
         response.put("incremented", incremented);
-        response.put("viewCount", viewCount);
         response.put("authenticated", userDetails != null);
 
         return ResponseEntity.ok(response);
