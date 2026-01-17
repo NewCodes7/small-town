@@ -1,3 +1,28 @@
+// 아티클 링크 클릭 시 조회수 증가 후 외부 링크 열기
+function openArticleLink(element) {
+    const articleId = element.getAttribute('data-article-id');
+    const articleLink = element.getAttribute('data-article-link');
+
+    // 조회수 증가 API 호출 (비동기, 결과 대기 안 함)
+    if (articleId) {
+        fetch(`/api/articles/${articleId}/view`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'same-origin',
+            redirect: 'manual'
+        }).catch(error => {
+            console.log('조회수 증가 요청 실패:', error);
+        });
+    }
+
+    // 외부 링크 열기
+    if (articleLink) {
+        window.open(articleLink, '_blank');
+    }
+}
+
 // Open video modal
 function openVideoModal(element) {
     const videoId = element.getAttribute('data-video-id');

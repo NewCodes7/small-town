@@ -97,8 +97,11 @@
 
                 <div class="blog-grid">
                     <!-- Blog Cards - Dynamic -->
-                    <div th:each="article : ${articles}" class="blog-card">
-                        <a th:href="${article.link}" target="_blank" style="text-decoration: none; color: inherit;">
+                    <div th:each="article : ${articles}"
+                         class="blog-card"
+                         th:attr="data-article-id=${article.id}, data-article-link=${article.link}"
+                         style="cursor: pointer;">
+                        <div onclick="openArticleLink(this.parentElement)" style="text-decoration: none; color: inherit;">
                             <div th:if="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}"
                                  class="blog-card-thumbnail"
                                  th:style="'background-image: url(' + ${article.thumbnailImage} + '); background-size: cover; background-position: center;'">
@@ -110,7 +113,7 @@
                                     <div class="thumbnail-pattern"></div>
                                 </div>
                             </div>
-                        </a>
+                        </div>
                         <div class="blog-card-content">
                             <div class="blog-card-company">
                                 <a th:href="@{/corporations/{id}(id=${article.corporation.id})}"
@@ -123,9 +126,9 @@
                                     <span class="blog-card-company-name" th:text="${article.corporation.name}">Corporation</span>
                                 </a>
                             </div>
-                            <a th:href="${article.link}" target="_blank" class="blog-card-title-link">
+                            <span onclick="openArticleLink(this.closest('.blog-card'))" class="blog-card-title-link" style="cursor: pointer;">
                                 <h3 class="blog-card-title" th:text="${article.translatedTitle != null ? article.translatedTitle : article.title}">Article Title</h3>
-                            </a>
+                            </span>
                             <div class="blog-card-meta">
                                 <span class="blog-card-date">
                                     <i class="far fa-clock"></i>
