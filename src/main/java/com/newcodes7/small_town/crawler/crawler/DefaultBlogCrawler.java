@@ -346,9 +346,16 @@ public class DefaultBlogCrawler implements BlogCrawler {
      * 발행일 파싱
      */
     private LocalDateTime parsePublishedDate(Element element) {
-        Element publishElement = element.selectFirst(parsingSelector.getPublish());
+        // publish 셀렉터가 NONE이면 현재 시각 반환
+        String publishSelector = parsingSelector.getPublish();
+        if (publishSelector == null || "NONE".equalsIgnoreCase(publishSelector.trim())) {
+            log.debug("publish 셀렉터가 NONE - 현재 시각으로 설정");
+            return LocalDateTime.now();
+        }
+
+        Element publishElement = element.selectFirst(publishSelector);
         if (publishElement == null) {
-            throw new IllegalStateException("발행일 요소를 찾을 수 없습니다. 셀렉터: " + parsingSelector.getPublish());
+            throw new IllegalStateException("발행일 요소를 찾을 수 없습니다. 셀렉터: " + publishSelector);
         }
 
         String dateText = publishElement.text().trim();
