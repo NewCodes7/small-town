@@ -303,7 +303,7 @@
 </head>
 <body>
     <div layout:fragment="content">
-        <div class="theme-detail-container">
+        <div class="theme-detail-container" th:attr="data-theme-id=${theme.id}">
             <!-- Theme Header -->
             <div class="theme-header">
                 <h1 class="theme-title" th:text="${theme.name}">테마 제목</h1>
@@ -401,6 +401,11 @@
                 <p>이 테마에는 아직 추가된 글이나 영상이 없습니다.</p>
             </div>
         </div>
+    </div>
+
+    <!-- 테마 조회수 증가 스크립트 -->
+    <div layout:fragment="scripts">
+        <script th:src="@{/js/themeView.js}"></script>
     </div>
 
     <script th:inline="javascript">
