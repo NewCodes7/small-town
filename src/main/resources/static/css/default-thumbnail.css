@@ -19,7 +19,7 @@
     font-size: 2.5rem;
     color: #03C75A;
     opacity: 0.35;
-    z-index: 1;
+    z-index: 0;
 }
 
 .thumbnail-pattern {
