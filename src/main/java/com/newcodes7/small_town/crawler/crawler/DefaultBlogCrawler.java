@@ -402,14 +402,32 @@ public class DefaultBlogCrawler implements BlogCrawler {
                 return LocalDateTime.now();
             }
 
-            // 날짜 텍스트 추출 및 파싱 (기존 로직 재사용)
+            // 날짜 텍스트 추출 (텍스트 또는 속성에서)
             String dateText = publishElement.text().trim();
+
+            // 텍스트가 비어있으면 content, datetime 속성 확인 (meta 태그 등)
+            if (dateText.isEmpty()) {
+                // meta 태그: <meta property="article:published_time" content="2021-11-09T01:00:00+00:00">
+                dateText = publishElement.attr("content");
+            }
+            if (dateText.isEmpty()) {
+                // time 태그: <time datetime="2021-11-09T01:00:00+00:00">
+                dateText = publishElement.attr("datetime");
+            }
+
             if (dateText.isEmpty()) {
                 log.warn("INNER 타입 날짜 텍스트가 비어있음 - URL: {}", articleUrl);
                 return LocalDateTime.now();
             }
 
-            LocalDateTime publishedAt = parseDateTextWithFormat(dateText, publishElement);
+            // ISO8601 형식 자동 감지 (content/datetime 속성에서 가져온 경우)
+            LocalDateTime publishedAt;
+            if (dateText.contains("T") && (dateText.contains("+") || dateText.contains("Z") || dateText.matches(".*\\d{2}:\\d{2}:\\d{2}.*"))) {
+                // ISO8601 형식으로 보이면 직접 파싱
+                publishedAt = parseISO8601String(dateText);
+            } else {
+                publishedAt = parseDateTextWithFormat(dateText, publishElement);
+            }
 
             // 미래 날짜일 시 현재 시각으로 설정
             if (publishedAt.isAfter(LocalDateTime.now())) {
@@ -434,6 +452,30 @@ public class DefaultBlogCrawler implements BlogCrawler {
             } catch (Exception e) {
                 log.warn("목록 페이지 복귀 실패: {}", e.getMessage());
             }
+        }
+    }
+
+    /**
+     * ISO8601 형식 문자열 파싱 (예: 2021-11-09T01:00:00+00:00, 2021-11-09T01:00:00Z)
+     */
+    private LocalDateTime parseISO8601String(String dateText) {
+        try {
+            // 다양한 ISO8601 형식 처리
+            if (dateText.endsWith("Z")) {
+                // UTC 시간 (Z suffix)
+                java.time.Instant instant = java.time.Instant.parse(dateText);
+                return LocalDateTime.ofInstant(instant, java.time.ZoneId.of("Asia/Seoul"));
+            } else if (dateText.contains("+") || dateText.matches(".*-\\d{2}:\\d{2}$")) {
+                // 타임존 offset 포함 (예: +00:00, +09:00, -05:00)
+                java.time.OffsetDateTime odt = java.time.OffsetDateTime.parse(dateText);
+                return odt.atZoneSameInstant(java.time.ZoneId.of("Asia/Seoul")).toLocalDateTime();
+            } else {
+                // 타임존 없는 경우
+                return LocalDateTime.parse(dateText, java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            }
+        } catch (Exception e) {
+            log.warn("ISO8601 문자열 파싱 실패: {} - {}", dateText, e.getMessage());
+            return LocalDateTime.now();
         }
     }
 
