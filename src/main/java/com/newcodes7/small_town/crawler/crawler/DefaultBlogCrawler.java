@@ -1086,9 +1086,12 @@ public class DefaultBlogCrawler implements BlogCrawler {
                 // 스크롤 시뮬레이션
                 performScrollSimulation(driver);
 
-                // 페이지에서 article 파싱
+                // 페이지에서 article 파싱 (INNER 타입이면 WebDriver 전달)
                 String pageSource = driver.getPageSource();
-                List<Article> pageArticles = parseArticlesFromPage(pageSource, corporation);
+                String publishType = parsingSelector.getPublishType();
+                List<Article> pageArticles = "INNER".equalsIgnoreCase(publishType)
+                        ? parseArticlesFromPage(pageSource, corporation, driver)
+                        : parseArticlesFromPage(pageSource, corporation);
                 log.debug("발견된 article 요소 수: {}", pageArticles.size());
 
                 if (pageArticles.isEmpty()) {
@@ -1181,9 +1184,12 @@ public class DefaultBlogCrawler implements BlogCrawler {
             // 스크롤 시뮬레이션
             performScrollSimulation(driver);
 
-            // 페이지에서 article 파싱
+            // 페이지에서 article 파싱 (INNER 타입이면 WebDriver 전달)
             String pageSource = driver.getPageSource();
-            List<Article> pageArticles = parseArticlesFromPage(pageSource, corporation);
+            String publishType = parsingSelector.getPublishType();
+            List<Article> pageArticles = "INNER".equalsIgnoreCase(publishType)
+                    ? parseArticlesFromPage(pageSource, corporation, driver)
+                    : parseArticlesFromPage(pageSource, corporation);
             log.debug("발견된 article 요소 수: {}", pageArticles.size());
 
             if (pageArticles.isEmpty()) {
