@@ -33,6 +33,18 @@ public interface TermRepository extends JpaRepository<Term, Long> {
      */
     boolean existsByTermAndTermType(String term, String termType);
 
+    /**
+     * term 문자열로 LIKE 검색 (대소문자 무시)
+     * 유의어 관리 UI에서 Term 검색 시 사용
+     * findAll() 후 필터링 대신 DB에서 직접 검색하여 성능 최적화
+     *
+     * @param query 검색어
+     * @param limit 최대 결과 수
+     * @return 매칭되는 Term 목록
+     */
+    @Query("SELECT t FROM Term t WHERE LOWER(t.term) LIKE LOWER(CONCAT('%', :query, '%')) ORDER BY t.term LIMIT :limit")
+    List<Term> searchByTermContaining(@Param("query") String query, @Param("limit") int limit);
+
     // ===== 벡터 유사도 검색 =====
 
     /**

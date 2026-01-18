@@ -50,23 +50,74 @@ if (currentTab === 'synonyms') {
     loadSynonyms();
 }
 
-// Term 검색 함수
+// ========== Debounce 유틸리티 ==========
+const searchDebounceTimers = {};
+
+function debounce(func, wait, key) {
+    return function(...args) {
+        if (searchDebounceTimers[key]) {
+            clearTimeout(searchDebounceTimers[key]);
+        }
+        searchDebounceTimers[key] = setTimeout(() => {
+            func.apply(this, args);
+        }, wait);
+    };
+}
+
+// Term 검색 함수 (AbortController로 중복 요청 취소)
+const searchAbortControllers = {};
+
 function searchTerms(query, selectId) {
-    if (query.length < 1) {
+    if (query.length < 2) {
+        // 2글자 미만이면 검색하지 않음
+        const select = document.getElementById(selectId);
+        if (select) {
+            select.innerHTML = '<option value="">2글자 이상 입력하세요</option>';
+        }
         return;
     }
 
-    fetch(`/admin/terms/search?q=${encodeURIComponent(query)}`)
+    // 이전 요청 취소
+    if (searchAbortControllers[selectId]) {
+        searchAbortControllers[selectId].abort();
+    }
+    searchAbortControllers[selectId] = new AbortController();
+
+    fetch(`/admin/terms/search?q=${encodeURIComponent(query)}`, {
+        signal: searchAbortControllers[selectId].signal
+    })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
                 const select = document.getElementById(selectId);
-                select.innerHTML = data.terms.map(term =>
-                    `<option value="${term.id}">${term.term} (${term.termType})</option>`
-                ).join('');
+                if (data.terms.length === 0) {
+                    select.innerHTML = '<option value="">검색 결과가 없습니다</option>';
+                } else {
+                    select.innerHTML = data.terms.map(term =>
+                        `<option value="${term.id}">${term.term} (${term.termType})</option>`
+                    ).join('');
+                }
             }
         })
-        .catch(error => console.error('Error:', error));
+        .catch(error => {
+            if (error.name !== 'AbortError') {
+                console.error('Error:', error);
+            }
+        });
+}
+
+// Debounced 검색 함수 (300ms 대기)
+const debouncedSearchTerms = {};
+
+function createDebouncedSearch(selectId) {
+    if (!debouncedSearchTerms[selectId]) {
+        debouncedSearchTerms[selectId] = debounce(
+            (query) => searchTerms(query, selectId),
+            300,
+            selectId
+        );
+    }
+    return debouncedSearchTerms[selectId];
 }
 
 // Term 검색 입력 이벤트 (추가 모달)
@@ -75,13 +126,13 @@ const term2Search = document.getElementById('term2Search');
 
 if (term1Search) {
     term1Search.addEventListener('input', function() {
-        searchTerms(this.value, 'term1Select');
+        createDebouncedSearch('term1Select')(this.value);
     });
 }
 
 if (term2Search) {
     term2Search.addEventListener('input', function() {
-        searchTerms(this.value, 'term2Select');
+        createDebouncedSearch('term2Select')(this.value);
     });
 }
 
@@ -91,13 +142,13 @@ const editTerm2Search = document.getElementById('editTerm2Search');
 
 if (editTerm1Search) {
     editTerm1Search.addEventListener('input', function() {
-        searchTerms(this.value, 'editTerm1Select');
+        createDebouncedSearch('editTerm1Select')(this.value);
     });
 }
 
 if (editTerm2Search) {
     editTerm2Search.addEventListener('input', function() {
-        searchTerms(this.value, 'editTerm2Select');
+        createDebouncedSearch('editTerm2Select')(this.value);
     });
 }
 
@@ -269,55 +320,80 @@ document.addEventListener('click', function(e) {
 let currentEditTermId = null;
 let currentEditTermName = null;
 
-// Term 통계 탭일 때 유의어 로드
+// 유의어 데이터 캐시 (한 번 로드 후 재사용)
+let synonymsCache = null;
+let synonymsCachePromise = null;
+
+// 유의어 데이터 로드 (캐싱)
+function loadSynonymsCache(forceReload = false) {
+    if (synonymsCache && !forceReload) {
+        return Promise.resolve(synonymsCache);
+    }
+
+    // 이미 로딩 중이면 기존 Promise 반환 (중복 요청 방지)
+    if (synonymsCachePromise && !forceReload) {
+        return synonymsCachePromise;
+    }
+
+    synonymsCachePromise = fetch('/admin/term-synonyms')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                synonymsCache = data.synonyms;
+                return synonymsCache;
+            }
+            throw new Error('Failed to load synonyms');
+        })
+        .finally(() => {
+            synonymsCachePromise = null;
+        });
+
+    return synonymsCachePromise;
+}
+
+// 캐시 무효화
+function invalidateSynonymsCache() {
+    synonymsCache = null;
+}
+
+// Term 통계 탭일 때 유의어 로드 (한 번만 API 호출)
 if (currentTab === 'stats') {
-    // 페이지 로드 후 모든 synonym-cell에 대해 유의어 로드
-    document.querySelectorAll('.synonym-cell').forEach(cell => {
-        const termId = parseInt(cell.dataset.termId);
-        console.log('[Init] Loading synonyms for cell with termId:', termId);
-        loadSynonymsForCell(termId, cell);
+    loadSynonymsCache().then(synonyms => {
+        document.querySelectorAll('.synonym-cell').forEach(cell => {
+            const termId = parseInt(cell.dataset.termId);
+            renderSynonymsForCell(termId, cell, synonyms);
+        });
+    }).catch(error => {
+        console.error('[Init] Failed to load synonyms:', error);
+        document.querySelectorAll('.synonym-cell').forEach(cell => {
+            cell.innerHTML = '<small class="text-danger">오류</small>';
+        });
     });
 }
 
-// 각 셀에 대해 유의어 로드
+// 셀에 유의어 렌더링 (캐시된 데이터 사용)
+function renderSynonymsForCell(termId, cell, synonyms) {
+    const filtered = synonyms.filter(syn => syn.term1Id == termId || syn.term2Id == termId);
+
+    if (filtered.length === 0) {
+        cell.innerHTML = '<small class="text-muted">-</small>';
+    } else {
+        const synonymTerms = filtered.map(syn => {
+            const synonymTerm = syn.term1Id == termId ? syn.term2 : syn.term1;
+            return `<span class="badge bg-secondary me-1">${synonymTerm}</span>`;
+        }).join('');
+        cell.innerHTML = synonymTerms;
+    }
+}
+
+// 각 셀에 대해 유의어 로드 (캐시 사용)
 function loadSynonymsForCell(termId, cell) {
-    console.log('[loadSynonymsForCell] Loading synonyms for termId:', termId);
-
-    fetch(`/admin/term-synonyms`)
-        .then(response => response.json())
-        .then(data => {
-            console.log('[loadSynonymsForCell] API Response:', data);
-
-            if (data.success) {
-                // 현재 termId와 관련된 유의어 필터링
-                const synonyms = data.synonyms.filter(syn => {
-                    const matches = syn.term1Id == termId || syn.term2Id == termId;
-                    if (matches) {
-                        console.log('[loadSynonymsForCell] Found synonym for termId', termId, ':', syn);
-                    }
-                    return matches;
-                });
-
-                console.log('[loadSynonymsForCell] Filtered synonyms for termId', termId, ':', synonyms);
-
-                if (synonyms.length === 0) {
-                    cell.innerHTML = '<small class="text-muted">-</small>';
-                } else {
-                    const synonymTerms = synonyms.map(syn => {
-                        const synonymTerm = syn.term1Id == termId ? syn.term2 : syn.term1;
-                        return `<span class="badge bg-secondary me-1">${synonymTerm}</span>`;
-                    }).join('');
-                    cell.innerHTML = synonymTerms;
-                }
-            } else {
-                console.error('[loadSynonymsForCell] API returned success:false');
-                cell.innerHTML = '<small class="text-danger">로드 실패</small>';
-            }
-        })
-        .catch(error => {
-            console.error('[loadSynonymsForCell] Error:', error);
-            cell.innerHTML = '<small class="text-danger">오류</small>';
-        });
+    loadSynonymsCache().then(synonyms => {
+        renderSynonymsForCell(termId, cell, synonyms);
+    }).catch(error => {
+        console.error('[loadSynonymsForCell] Error:', error);
+        cell.innerHTML = '<small class="text-danger">오류</small>';
+    });
 }
 
 // 유의어 편집 버튼 클릭
@@ -341,38 +417,33 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// 기존 유의어 로드
-function loadExistingSynonyms(termId) {
-    fetch(`/admin/term-synonyms`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const synonyms = data.synonyms.filter(syn =>
-                    syn.term1Id == termId || syn.term2Id == termId
-                );
+// 기존 유의어 로드 (캐시 사용)
+function loadExistingSynonyms(termId, forceReload = false) {
+    loadSynonymsCache(forceReload).then(synonyms => {
+        const filtered = synonyms.filter(syn =>
+            syn.term1Id == termId || syn.term2Id == termId
+        );
 
-                const container = document.getElementById('existingSynonymsList');
-                if (synonyms.length === 0) {
-                    container.innerHTML = '<small class="text-muted">등록된 유의어가 없습니다.</small>';
-                } else {
-                    container.innerHTML = synonyms.map(syn => {
-                        const synonymTerm = syn.term1Id == termId ? syn.term2 : syn.term1;
-                        return `
-                            <span class="badge bg-primary me-2 mb-2">
-                                ${synonymTerm}
-                                <button class="btn-close btn-close-white btn-sm ms-2"
-                                        onclick="deleteSynonymFromModal(${syn.id})" style="font-size: 0.6rem;"></button>
-                            </span>
-                        `;
-                    }).join('');
-                }
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            document.getElementById('existingSynonymsList').innerHTML =
-                '<small class="text-danger">로드 중 오류가 발생했습니다.</small>';
-        });
+        const container = document.getElementById('existingSynonymsList');
+        if (filtered.length === 0) {
+            container.innerHTML = '<small class="text-muted">등록된 유의어가 없습니다.</small>';
+        } else {
+            container.innerHTML = filtered.map(syn => {
+                const synonymTerm = syn.term1Id == termId ? syn.term2 : syn.term1;
+                return `
+                    <span class="badge bg-primary me-2 mb-2">
+                        ${synonymTerm}
+                        <button class="btn-close btn-close-white btn-sm ms-2"
+                                onclick="deleteSynonymFromModal(${syn.id})" style="font-size: 0.6rem;"></button>
+                    </span>
+                `;
+            }).join('');
+        }
+    }).catch(error => {
+        console.error('Error:', error);
+        document.getElementById('existingSynonymsList').innerHTML =
+            '<small class="text-danger">로드 중 오류가 발생했습니다.</small>';
+    });
 }
 
 // 모달에서 유의어 삭제
@@ -384,7 +455,9 @@ window.deleteSynonymFromModal = function(synonymId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                loadExistingSynonyms(currentEditTermId);
+                // 캐시 무효화 후 다시 로드
+                invalidateSynonymsCache();
+                loadExistingSynonyms(currentEditTermId, true);
                 // 테이블도 업데이트
                 const cell = document.querySelector(`.synonym-cell[data-term-id="${currentEditTermId}"]`);
                 if (cell) {
@@ -427,7 +500,9 @@ if (addNewSynonymBtn) {
             if (data.success) {
                 alert(data.message);
                 document.getElementById('newSynonymInput').value = '';
-                loadExistingSynonyms(currentEditTermId);
+                // 캐시 무효화 후 다시 로드
+                invalidateSynonymsCache();
+                loadExistingSynonyms(currentEditTermId, true);
 
                 // 테이블도 업데이트
                 const cell = document.querySelector(`.synonym-cell[data-term-id="${currentEditTermId}"]`);

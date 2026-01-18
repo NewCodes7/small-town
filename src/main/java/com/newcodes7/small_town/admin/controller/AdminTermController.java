@@ -538,6 +538,7 @@ public class AdminTermController {
 
     /**
      * Term 검색 API (유의어 관리 UI용)
+     * 최적화: findAll() 후 메모리 필터링 대신 DB에서 LIKE 검색
      */
     @GetMapping("/terms/search")
     @ResponseBody
@@ -545,10 +546,16 @@ public class AdminTermController {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            List<com.newcodes7.small_town.global.entity.Term> terms = termRepository.findAll().stream()
-                .filter(term -> term.getTerm().toLowerCase().contains(q.toLowerCase()))
-                .limit(20)
-                .toList();
+            // 검색어가 너무 짧으면 빈 결과 반환 (DB 부하 방지)
+            if (q == null || q.trim().length() < 2) {
+                response.put("success", true);
+                response.put("terms", new ArrayList<>());
+                return ResponseEntity.ok(response);
+            }
+
+            // DB에서 직접 LIKE 검색 (최대 20개)
+            List<com.newcodes7.small_town.global.entity.Term> terms =
+                termRepository.searchByTermContaining(q.trim(), 20);
 
             // DTO로 변환
             List<Map<String, Object>> termDataList = new ArrayList<>();
