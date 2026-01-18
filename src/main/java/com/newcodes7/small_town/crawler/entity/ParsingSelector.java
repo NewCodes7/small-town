@@ -42,6 +42,12 @@ public class ParsingSelector {
     @Column(name = "publish_format")
     private String publishFormat;
 
+    @Column(name = "publish_type")
+    private String publishType; // "OUTER" (목록에서 추출), "INNER" (개별 글 접속해서 추출)
+
+    @Column(name = "inner_publish_selector")
+    private String innerPublishSelector; // INNER 타입일 때 개별 글 페이지에서 날짜를 추출할 셀렉터
+
     @Column(name = "pagination_type")
     private String paginationType; // "NONE", "URL_PARAMETER", "NEXT_BUTTON", "INFINITE_SCROLL"
 
@@ -63,6 +69,8 @@ public class ParsingSelector {
             .thumbnail("img[src]")
             .publish("time, [datetime], [class*='date'], [class*='time']")
             .publishFormat("yyyy-MM-dd")
+            .publishType("OUTER")
+            .innerPublishSelector(null)
             .paginationType("NONE")
             .pageUrlPattern(null)
             .nextPageSelector(null)

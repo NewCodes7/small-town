@@ -100,7 +100,14 @@ public class DefaultBlogCrawler implements BlogCrawler {
 
             // 페이지에서 article 파싱
             String pageSource = driver.getPageSource();
-            articles = parseArticlesFromPage(pageSource, corporation);
+
+            // INNER 타입일 경우 WebDriver 전달 (개별 글 접속 필요)
+            String publishType = parsingSelector.getPublishType();
+            if ("INNER".equalsIgnoreCase(publishType)) {
+                articles = parseArticlesFromPage(pageSource, corporation, driver);
+            } else {
+                articles = parseArticlesFromPage(pageSource, corporation);
+            }
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -154,6 +161,13 @@ public class DefaultBlogCrawler implements BlogCrawler {
      * 페이지 소스에서 Article 목록 파싱
      */
     private List<Article> parseArticlesFromPage(String pageSource, Corporation corporation) {
+        return parseArticlesFromPage(pageSource, corporation, null);
+    }
+
+    /**
+     * 페이지 소스에서 Article 목록 파싱 (WebDriver 전달 가능)
+     */
+    private List<Article> parseArticlesFromPage(String pageSource, Corporation corporation, WebDriver driver) {
         List<Article> articles = new ArrayList<>();
         Document doc = Jsoup.parse(pageSource);
 
@@ -161,7 +175,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
         Elements articleElements = doc.select(parsingSelector.getArticle());
         for (Element element : articleElements) {
             try {
-                Article article = parseArticle(element, corporation);
+                Article article = parseArticle(element, corporation, driver);
                 if (article != null) {
                     articles.add(article);
                 }
@@ -178,7 +192,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
     /**
      * HTML 요소에서 Article 파싱
      */
-    private Article parseArticle(Element element, Corporation corporation) {
+    private Article parseArticle(Element element, Corporation corporation, WebDriver driver) {
         try {
             String title = parseTitle(element);
             if (title == null) return null;
@@ -187,7 +201,18 @@ public class DefaultBlogCrawler implements BlogCrawler {
             if (link == null) return null;
 
             String thumbnailImage = parseThumbnailImage(element, corporation);
-            LocalDateTime publishedAt = parsePublishedDate(element);
+
+            // publishType에 따라 날짜 추출 방식 결정
+            LocalDateTime publishedAt;
+            String publishType = parsingSelector.getPublishType();
+
+            if ("INNER".equalsIgnoreCase(publishType) && driver != null && link != null) {
+                // INNER 타입: 개별 글 페이지에 접속해서 날짜 추출
+                publishedAt = parsePublishedDateFromInnerPage(link, driver);
+            } else {
+                // OUTER 타입 (기본): 목록 페이지에서 날짜 추출
+                publishedAt = parsePublishedDate(element);
+            }
 
             return Article.builder()
                     .corporation(corporation)
@@ -340,6 +365,114 @@ public class DefaultBlogCrawler implements BlogCrawler {
 
         // 일반적인 경우: src 속성
         return imgElement.attr("src");
+    }
+
+    /**
+     * INNER 타입: 개별 글 페이지에 접속해서 발행일 파싱
+     */
+    private LocalDateTime parsePublishedDateFromInnerPage(String articleUrl, WebDriver driver) {
+        String currentUrl = driver.getCurrentUrl(); // 현재 URL 저장 (나중에 돌아가기 위해)
+
+        try {
+            log.debug("INNER 타입 날짜 추출 시작: {}", articleUrl);
+
+            // 개별 글 페이지로 이동
+            driver.get(articleUrl);
+            Thread.sleep(2000); // 페이지 로딩 대기
+
+            // 페이지 소스 파싱
+            String pageSource = driver.getPageSource();
+            Document doc = Jsoup.parse(pageSource);
+
+            // innerPublishSelector로 날짜 요소 찾기
+            String innerSelector = parsingSelector.getInnerPublishSelector();
+            if (innerSelector == null || innerSelector.trim().isEmpty()) {
+                // innerPublishSelector가 없으면 기본 publish 셀렉터 사용
+                innerSelector = parsingSelector.getPublish();
+            }
+
+            if (innerSelector == null || "NONE".equalsIgnoreCase(innerSelector.trim())) {
+                log.debug("INNER 타입 - 셀렉터가 NONE이므로 현재 시각 반환");
+                return LocalDateTime.now();
+            }
+
+            Element publishElement = doc.selectFirst(innerSelector);
+            if (publishElement == null) {
+                log.warn("INNER 타입 날짜 요소를 찾을 수 없음 - URL: {}, 셀렉터: {}", articleUrl, innerSelector);
+                return LocalDateTime.now();
+            }
+
+            // 날짜 텍스트 추출 및 파싱 (기존 로직 재사용)
+            String dateText = publishElement.text().trim();
+            if (dateText.isEmpty()) {
+                log.warn("INNER 타입 날짜 텍스트가 비어있음 - URL: {}", articleUrl);
+                return LocalDateTime.now();
+            }
+
+            LocalDateTime publishedAt = parseDateTextWithFormat(dateText, publishElement);
+
+            // 미래 날짜일 시 현재 시각으로 설정
+            if (publishedAt.isAfter(LocalDateTime.now())) {
+                publishedAt = LocalDateTime.now();
+            }
+
+            log.debug("INNER 타입 날짜 추출 완료: {} -> {}", articleUrl, publishedAt);
+            return publishedAt;
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("INNER 타입 날짜 추출 중 인터럽트 - URL: {}", articleUrl);
+            return LocalDateTime.now();
+        } catch (Exception e) {
+            log.warn("INNER 타입 날짜 추출 실패 - URL: {}, 오류: {}", articleUrl, e.getMessage());
+            return LocalDateTime.now();
+        } finally {
+            // 원래 목록 페이지로 돌아가기
+            try {
+                driver.get(currentUrl);
+                Thread.sleep(1000);
+            } catch (Exception e) {
+                log.warn("목록 페이지 복귀 실패: {}", e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * 날짜 텍스트를 publishFormat에 따라 파싱 (INNER 타입에서 사용)
+     */
+    private LocalDateTime parseDateTextWithFormat(String dateText, Element publishElement) {
+        String publishFormat = parsingSelector.getPublishFormat();
+        if (publishFormat == null) {
+            return LocalDateTime.now();
+        }
+
+        if (publishFormat.equals("yyyy.MM.dd")
+            || publishFormat.equals("yyyy.M.dd")
+            || publishFormat.equals("yyyy-MM-dd")) {
+            return parseKoreanDateFormat(dateText);
+        } else if (publishFormat.equals("yy.MM.dd")
+            || publishFormat.equals("yy.M.dd")) {
+            return parseShortYearKoreanDateFormat(dateText);
+        } else if (publishFormat.equals("yyyy년 MM월 dd일")
+            || publishFormat.equals("yyyy년 M월 d일")) {
+            return parseKoreanYearMonthDayFormat(dateText);
+        } else if (publishFormat.equals("ISO8601")) {
+            return parseISO8601Format(publishElement);
+        } else if (publishFormat.equals("MMM d, yyyy")
+            || publishFormat.equals("MMMM d, yyyy")
+            || publishFormat.equals("MMMM dd, yyyy")
+            || publishFormat.equals("MMM dd, yyyy")) {
+            return parseEnglishDateFormat(dateText);
+        } else if (publishFormat.trim().equals("dd MMM yyyy")
+            || publishFormat.trim().equals("d MMM yyyy")) {
+            return parseDayMonthYearFormat(dateText);
+        } else if (publishFormat.trim().equals("dd MMM")) {
+            return parseShortEnglishDateFormat(dateText);
+        } else if (publishFormat.trim().equals("MMM dd") || publishFormat.trim().equals("MMM d")) {
+            return parseMonthDayFormat(dateText);
+        } else {
+            return parseDateText(dateText, publishFormat);
+        }
     }
 
     /**
@@ -1176,10 +1309,14 @@ public class DefaultBlogCrawler implements BlogCrawler {
         String pageSource = driver.getPageSource();
         Document doc = Jsoup.parse(pageSource);
 
+        // INNER 타입 여부 확인
+        String publishType = parsingSelector.getPublishType();
+        WebDriver driverForParsing = "INNER".equalsIgnoreCase(publishType) ? driver : null;
+
         Elements articleElements = doc.select(parsingSelector.getArticle());
         for (Element element : articleElements) {
             try {
-                Article article = parseArticle(element, corporation);
+                Article article = parseArticle(element, corporation, driverForParsing);
                 if (article != null && article.getLink() != null && !collectedLinks.contains(article.getLink())) {
                     collectedLinks.add(article.getLink());
                     newArticles.add(article);

@@ -237,9 +237,35 @@
                                     <span class="input-group-text" style="background: var(--secondary-green); border: 2px solid var(--border-light); color: var(--primary-green-dark);">
                                         <i class="fas fa-blog"></i>
                                     </span>
-                                    <input class="form-control" id="publishFormat" th:field="*{publishFormat}" 
+                                    <input class="form-control" id="publishFormat" th:field="*{publishFormat}"
                                            placeholder="publishFormat" style="border-left: none;">
                                 </div>
+                            </div>
+
+                            <div class="col-md-4 mb-4">
+                                <label for="publishType" class="form-label fw-bold">publishType (날짜 추출 위치)</label>
+                                <div class="input-group">
+                                    <span class="input-group-text" style="background: var(--secondary-green); border: 2px solid var(--border-light); color: var(--primary-green-dark);">
+                                        <i class="fas fa-calendar-alt"></i>
+                                    </span>
+                                    <select class="form-control" id="publishType" th:field="*{publishType}" style="border-left: none;">
+                                        <option value="OUTER">OUTER (목록 페이지에서 추출)</option>
+                                        <option value="INNER">INNER (개별 글 페이지에서 추출)</option>
+                                    </select>
+                                </div>
+                                <small class="text-muted">INNER 선택 시 각 글에 접속하여 날짜를 추출합니다 (느림)</small>
+                            </div>
+
+                            <div class="col-md-4 mb-4">
+                                <label for="innerPublishSelector" class="form-label fw-bold">innerPublishSelector</label>
+                                <div class="input-group">
+                                    <span class="input-group-text" style="background: var(--secondary-green); border: 2px solid var(--border-light); color: var(--primary-green-dark);">
+                                        <i class="fas fa-code"></i>
+                                    </span>
+                                    <input class="form-control" id="innerPublishSelector" th:field="*{innerPublishSelector}"
+                                           placeholder="예: .post-date, time[datetime]" style="border-left: none;">
+                                </div>
+                                <small class="text-muted">INNER 타입일 때 개별 글 페이지에서 날짜를 추출할 셀렉터 (비워두면 publish 셀렉터 사용)</small>
                             </div>
                         </div>
                     </div>

@@ -29,6 +29,8 @@ public class CorporationUpdateDto {
     private String thumbnail;
     private String publish;
     private String publishFormat;
+    private String publishType; // OUTER (목록에서 추출) 또는 INNER (개별 글 접속해서 추출)
+    private String innerPublishSelector; // INNER 타입일 때 개별 글 페이지에서 날짜를 추출할 셀렉터
 
     // 페이지네이션 설정
     private String paginationType;

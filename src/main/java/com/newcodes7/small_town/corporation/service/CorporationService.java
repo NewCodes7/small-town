@@ -139,6 +139,8 @@ public class CorporationService {
                 .thumbnail(dto.getThumbnail())
                 .publish(dto.getPublish())
                 .publishFormat(dto.getPublishFormat())
+                .publishType(dto.getPublishType() != null ? dto.getPublishType() : "OUTER")
+                .innerPublishSelector(dto.getInnerPublishSelector())
                 .paginationType(dto.getPaginationType())
                 .pageUrlPattern(dto.getPageUrlPattern())
                 .nextPageSelector(dto.getNextPageSelector())
@@ -161,10 +163,10 @@ public class CorporationService {
                 savedCorporation.getCorporationIndustries().add(corporationIndustry);
             }
         }
-        
+
         return CorporationResponseDto.from(savedCorporation);
     }
-    
+
     @Transactional
     @CacheEvict(value = "corporationArticles", allEntries = true)
     @CachePreload
@@ -253,6 +255,8 @@ public class CorporationService {
         parsingSelector.setThumbnail(dto.getThumbnail());
         parsingSelector.setPublish(dto.getPublish());
         parsingSelector.setPublishFormat(dto.getPublishFormat());
+        parsingSelector.setPublishType(dto.getPublishType() != null ? dto.getPublishType() : "OUTER");
+        parsingSelector.setInnerPublishSelector(dto.getInnerPublishSelector());
         parsingSelector.setPaginationType(dto.getPaginationType());
         parsingSelector.setPageUrlPattern(dto.getPageUrlPattern());
         parsingSelector.setNextPageSelector(dto.getNextPageSelector());
@@ -354,6 +358,8 @@ public class CorporationService {
                 .thumbnail(dto.getThumbnail())
                 .publish(dto.getPublish())
                 .publishFormat(dto.getPublishFormat())
+                .publishType(dto.getPublishType() != null ? dto.getPublishType() : "OUTER")
+                .innerPublishSelector(dto.getInnerPublishSelector())
                 .paginationType(dto.getPaginationType())
                 .pageUrlPattern(dto.getPageUrlPattern())
                 .nextPageSelector(dto.getNextPageSelector())
@@ -521,6 +527,8 @@ public class CorporationService {
         parsingSelector.setThumbnail(dto.getThumbnail());
         parsingSelector.setPublish(dto.getPublish());
         parsingSelector.setPublishFormat(dto.getPublishFormat());
+        parsingSelector.setPublishType(dto.getPublishType() != null ? dto.getPublishType() : "OUTER");
+        parsingSelector.setInnerPublishSelector(dto.getInnerPublishSelector());
         parsingSelector.setPaginationType(dto.getPaginationType());
         parsingSelector.setPageUrlPattern(dto.getPageUrlPattern());
         parsingSelector.setNextPageSelector(dto.getNextPageSelector());

@@ -32,6 +32,8 @@ public class CorporationResponseDto {
     private String thumbnail;
     private String publish;
     private String publishFormat;
+    private String publishType;
+    private String innerPublishSelector;
     private String paginationType;
     private String pageUrlPattern;
     private String nextPageSelector;
@@ -84,6 +86,8 @@ public class CorporationResponseDto {
         dto.setThumbnail(parsingSelector.getThumbnail());
         dto.setPublish(parsingSelector.getPublish());
         dto.setPublishFormat(parsingSelector.getPublishFormat());
+        dto.setPublishType(parsingSelector.getPublishType());
+        dto.setInnerPublishSelector(parsingSelector.getInnerPublishSelector());
         dto.setPaginationType(parsingSelector.getPaginationType());
         dto.setPageUrlPattern(parsingSelector.getPageUrlPattern());
         dto.setNextPageSelector(parsingSelector.getNextPageSelector());

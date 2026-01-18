@@ -141,6 +141,8 @@ public class AdminCorporationController {
             updateDto.setThumbnail(corporation.getThumbnail());
             updateDto.setPublish(corporation.getPublish());
             updateDto.setPublishFormat(corporation.getPublishFormat());
+            updateDto.setPublishType(corporation.getPublishType());
+            updateDto.setInnerPublishSelector(corporation.getInnerPublishSelector());
             updateDto.setPaginationType(corporation.getPaginationType());
             updateDto.setPageUrlPattern(corporation.getPageUrlPattern());
             updateDto.setNextPageSelector(corporation.getNextPageSelector());
