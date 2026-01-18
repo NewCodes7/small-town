@@ -77,67 +77,42 @@
                         <!-- 페이지네이션 -->
                         <nav th:if="${corporations.totalPages > 1}">
                             <ul class="pagination justify-content-center">
-                                <!-- 첫 페이지로 -->
-                                <li class="page-item" th:classappend="${corporations.first} ? 'disabled'">
-                                    <a class="page-link" th:href="@{/admin/articles(page=0, tab='corporations', search=${search})}">
-                                        <i class="fas fa-angle-double-left"></i>
-                                    </a>
-                                </li>
-
                                 <!-- 이전 페이지 -->
-                                <li class="page-item" th:classappend="${corporations.first} ? 'disabled'">
+                                <li class="page-item" th:class="${corporations.first} ? 'page-item disabled' : 'page-item'">
                                     <a class="page-link"
                                        th:href="@{/admin/articles(page=${corporations.number - 1}, tab='corporations', search=${search})}">
-                                        <i class="fas fa-angle-left"></i>
+                                        <i class="fas fa-chevron-left me-1"></i>이전
                                     </a>
                                 </li>
 
                                 <!-- 페이지 번호들 (최대 5개만 표시) -->
-                                <th:block th:with="
-                                    startPage=${corporations.number > 2 ? corporations.number - 2 : 0},
-                                    endPage=${corporations.number + 2 < corporations.totalPages - 1 ? corporations.number + 2 : corporations.totalPages - 1}
-                                ">
-                                    <!-- 첫 페이지가 범위에 없으면 표시 -->
-                                    <li class="page-item" th:if="${startPage > 0}">
-                                        <a class="page-link" th:href="@{/admin/articles(page=0, tab='corporations', search=${search})}">1</a>
-                                    </li>
-                                    <li class="page-item disabled" th:if="${startPage > 1}">
-                                        <span class="page-link">...</span>
-                                    </li>
-
-                                    <!-- 현재 페이지 주변의 페이지들 -->
-                                    <li class="page-item"
-                                        th:each="page : ${#numbers.sequence(startPage, endPage)}"
-                                        th:classappend="${page == corporations.number} ? 'active'">
-                                        <a class="page-link"
-                                           th:href="@{/admin/articles(page=${page}, tab='corporations', search=${search})}"
-                                           th:text="${page + 1}"></a>
-                                    </li>
-
-                                    <!-- 마지막 페이지가 범위에 없으면 표시 -->
-                                    <li class="page-item disabled" th:if="${endPage < corporations.totalPages - 2}">
-                                        <span class="page-link">...</span>
-                                    </li>
-                                    <li class="page-item" th:if="${endPage < corporations.totalPages - 1}">
-                                        <a class="page-link"
-                                           th:href="@{/admin/articles(page=${corporations.totalPages - 1}, tab='corporations', search=${search})}"
-                                           th:text="${corporations.totalPages}"></a>
-                                    </li>
+                                <th:block th:with="totalPages=${corporations.totalPages}, currentPage=${corporations.number}">
+                                    <th:block th:with="
+                                        startPage=${totalPages <= 5 ? 0 :
+                                                   (currentPage <= 2 ? 0 :
+                                                       (currentPage >= totalPages - 3 ? totalPages - 5 :
+                                                           currentPage - 2))},
+                                        endPage=${totalPages <= 1 ? 0 :
+                                                 (totalPages <= 5 ? totalPages - 1 :
+                                                     (currentPage <= 2 ? 4 :
+                                                         (currentPage >= totalPages - 3 ? totalPages - 1 :
+                                                             currentPage + 2)))}
+                                    ">
+                                        <li class="page-item"
+                                            th:each="pageNum : ${#numbers.sequence(startPage, endPage)}"
+                                            th:class="${pageNum == currentPage} ? 'page-item active' : 'page-item'">
+                                            <a class="page-link"
+                                               th:href="@{/admin/articles(page=${pageNum}, tab='corporations', search=${search})}"
+                                               th:text="${pageNum + 1}"></a>
+                                        </li>
+                                    </th:block>
                                 </th:block>
 
                                 <!-- 다음 페이지 -->
-                                <li class="page-item" th:classappend="${corporations.last} ? 'disabled'">
+                                <li class="page-item" th:class="${corporations.last} ? 'page-item disabled' : 'page-item'">
                                     <a class="page-link"
                                        th:href="@{/admin/articles(page=${corporations.number + 1}, tab='corporations', search=${search})}">
-                                        <i class="fas fa-angle-right"></i>
-                                    </a>
-                                </li>
-
-                                <!-- 마지막 페이지로 -->
-                                <li class="page-item" th:classappend="${corporations.last} ? 'disabled'">
-                                    <a class="page-link"
-                                       th:href="@{/admin/articles(page=${corporations.totalPages - 1}, tab='corporations', search=${search})}">
-                                        <i class="fas fa-angle-double-right"></i>
+                                        다음<i class="fas fa-chevron-right ms-1"></i>
                                     </a>
                                 </li>
                             </ul>

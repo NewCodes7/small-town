@@ -266,14 +266,26 @@
                     </a>
                 </li>
 
-                <!-- Page Numbers -->
-                <li class="page-item"
-                    th:each="pageNum : ${#numbers.sequence(0, T(java.lang.Math).min(totalPages - 1, 4))}"
-                    th:class="${pageNum == currentPage} ? 'page-item active' : 'page-item'">
-                    <a class="page-link"
-                       th:href="@{/corporations(page=${pageNum}, search=${currentSearch}, filter=${currentFilter}, industries=${selectedIndustries}, sort=${currentSort})}"
-                       th:text="${pageNum + 1}">1</a>
-                </li>
+                <!-- Page Numbers (최대 5개, 현재 페이지 중심) -->
+                <th:block th:with="
+                    startPage=${totalPages <= 5 ? 0 :
+                               (currentPage <= 2 ? 0 :
+                                   (currentPage >= totalPages - 3 ? totalPages - 5 :
+                                       currentPage - 2))},
+                    endPage=${totalPages <= 1 ? 0 :
+                             (totalPages <= 5 ? totalPages - 1 :
+                                 (currentPage <= 2 ? 4 :
+                                     (currentPage >= totalPages - 3 ? totalPages - 1 :
+                                         currentPage + 2)))}
+                ">
+                    <li class="page-item"
+                        th:each="pageNum : ${#numbers.sequence(startPage, endPage)}"
+                        th:class="${pageNum == currentPage} ? 'page-item active' : 'page-item'">
+                        <a class="page-link"
+                           th:href="@{/corporations(page=${pageNum}, search=${currentSearch}, filter=${currentFilter}, industries=${selectedIndustries}, sort=${currentSort})}"
+                           th:text="${pageNum + 1}">1</a>
+                    </li>
+                </th:block>
 
                 <!-- Next Button -->
                 <li class="page-item" th:class="${!hasNext} ? 'page-item disabled' : 'page-item'">
