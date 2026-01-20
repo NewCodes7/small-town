@@ -1,6 +1,7 @@
 package com.newcodes7.small_town.crawler.controller;
 
 import com.newcodes7.small_town.crawler.dto.CrawlResult;
+import com.newcodes7.small_town.crawler.integration.analytics.GoogleAnalyticsService;
 import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
 import com.newcodes7.small_town.crawler.service.CrawlingService;
 import com.newcodes7.small_town.crawler.integration.translation.TitleTranslationService;
@@ -22,6 +23,7 @@ public class CrawlingScheduler {
     private final CrawlingService crawlingService;
     private final TitleTranslationService titleTranslationService;
     private final ArticlePersistenceService articlePersistenceService;
+    private final GoogleAnalyticsService googleAnalyticsService;
 
     /**
      * 블로그 크롤링 스케줄러
@@ -167,6 +169,28 @@ public class CrawlingScheduler {
 
         } catch (Exception e) {
             log.error("스케줄된 번역 및 AI 분석 작업 중 오류 발생", e);
+        }
+    }
+
+    /**
+     * Google Analytics 조회수 동기화 스케줄러
+     * 매일 새벽 3시에 실행 (어제 하루 조회수를 기존 조회수에 추가)
+     */
+    @Scheduled(cron = "${crawler.schedule.ga-sync.cron:0 0 3 * * ?}", zone = "Asia/Seoul")
+    public void scheduledGoogleAnalyticsSync() {
+        log.info("스케줄된 GA 조회수 동기화 작업 시작");
+
+        try {
+            if (!googleAnalyticsService.isEnabled()) {
+                log.info("Google Analytics가 비활성화되어 있어 동기화를 건너뜁니다.");
+                return;
+            }
+
+            int syncCount = googleAnalyticsService.syncDailyViewCounts();
+            log.info("스케줄된 GA 조회수 동기화 작업 완료 - 동기화된 기업: {}개", syncCount);
+
+        } catch (Exception e) {
+            log.error("스케줄된 GA 조회수 동기화 작업 중 오류 발생", e);
         }
     }
 }

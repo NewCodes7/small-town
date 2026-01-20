@@ -32,6 +32,8 @@ import com.newcodes7.small_town.corporation.dto.CorporationUpdateDto;
 import com.newcodes7.small_town.corporation.exception.CorporationException;
 import com.newcodes7.small_town.corporation.repository.IndustryRepository;
 import com.newcodes7.small_town.corporation.service.CorporationService;
+import com.newcodes7.small_town.crawler.repository.CrawlerCorporationRepository;
+import com.newcodes7.small_town.global.entity.Corporation;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +51,7 @@ public class AdminCorporationController {
     private final CorporationService corporationService;
     private final IndustryRepository industryRepository;
     private final AdminIndustryService adminIndustryService;
+    private final CrawlerCorporationRepository crawlerCorporationRepository;
 
     // ========== Corporation 관리 ==========
 
@@ -239,6 +242,42 @@ public class AdminCorporationController {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
         }
         return "redirect:/admin/corporations/" + id + "/edit";
+    }
+
+    /**
+     * 기업의 전체 크롤링 상태 리셋 (lastFullCrawledAt을 null로 설정)
+     */
+    @PostMapping("/corporations/{id}/reset-full-crawl")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> resetFullCrawlStatus(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            Corporation corporation = crawlerCorporationRepository.findByIdAndNotDeleted(id);
+            if (corporation == null) {
+                response.put("success", false);
+                response.put("message", "기업을 찾을 수 없습니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            corporation.setLastFullCrawledAt(null);
+            corporation.setLastFullCrawlStatus(null);
+            crawlerCorporationRepository.save(corporation);
+
+            response.put("success", true);
+            response.put("message", String.format("'%s' 기업의 전체 크롤링 상태가 리셋되었습니다.", corporation.getName()));
+            response.put("corporationName", corporation.getName());
+
+            log.info("전체 크롤링 상태 리셋 완료 - 기업: {} (ID: {})", corporation.getName(), id);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("전체 크롤링 상태 리셋 실패 - ID: {}, 오류: {}", id, e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "리셋 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
     }
 
     // ========== Industry 관리 ==========
