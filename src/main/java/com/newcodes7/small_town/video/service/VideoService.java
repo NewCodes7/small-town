@@ -137,12 +137,22 @@ public class VideoService {
             .count();
 
         // 2. 비디오 조회 (페이징 없이 모두 가져옴)
-        // Native Query는 null 전달 (이미 상위에서 변환됨)
+        // Native Query용으로 List를 콤마 구분 문자열로 변환
+        String termBasedVideoIdsStr = termBasedVideoIds != null && !termBasedVideoIds.isEmpty()
+            ? termBasedVideoIds.stream().map(String::valueOf).collect(Collectors.joining(","))
+            : null;
+        String domesticTypesStr = domesticTypes != null && !domesticTypes.isEmpty()
+            ? domesticTypes.stream().map(String::valueOf).collect(Collectors.joining(","))
+            : null;
+        String categoryStr = category != null && !category.isEmpty()
+            ? String.join(",", category)
+            : null;
+
         List<Video> videos = videoRepository.findTop3VideosGroupedByCorporation(
             keyword,
-            termBasedVideoIds,
-            domesticTypes,
-            category,
+            termBasedVideoIdsStr,
+            domesticTypesStr,
+            categoryStr,
             0,
             Integer.MAX_VALUE
         );

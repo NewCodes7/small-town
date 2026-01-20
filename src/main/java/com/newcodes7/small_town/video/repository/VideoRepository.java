@@ -106,9 +106,9 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
            "    WHERE v.deleted_at IS NULL " +
            "    AND (:keyword IS NULL OR :keyword = '' OR v.title ILIKE CONCAT('%', :keyword, '%') " +
            "         OR v.translated_title ILIKE CONCAT('%', :keyword, '%') " +
-           "         OR (COALESCE(array_length(CAST(:termBasedVideoIds AS bigint[]), 1), 0) > 0 AND v.id = ANY(CAST(:termBasedVideoIds AS bigint[])))) " +
-           "    AND (COALESCE(array_length(CAST(:domesticTypes AS integer[]), 1), 0) = 0 OR c.is_domestic = ANY(CAST(:domesticTypes AS integer[]))) " +
-           "    AND (COALESCE(array_length(CAST(:category AS text[]), 1), 0) = 0 OR cat.name = ANY(CAST(:category AS text[]))) " +
+           "         OR (:termBasedVideoIds IS NOT NULL AND v.id IN (SELECT unnest(CAST(string_to_array(:termBasedVideoIds, ',') AS bigint[]))))) " +
+           "    AND (:domesticTypes IS NULL OR c.is_domestic IN (SELECT unnest(CAST(string_to_array(:domesticTypes, ',') AS integer[])))) " +
+           "    AND (:category IS NULL OR cat.name IN (SELECT unnest(string_to_array(:category, ',')))) " +
            "), " +
            "latest_corps AS ( " +
            "    SELECT corporation_id, MAX(published_at) as latest_published_at " +
@@ -124,9 +124,9 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
            "ORDER BY lc.latest_published_at DESC, fv.published_at DESC",
            nativeQuery = true)
     List<Video> findTop3VideosGroupedByCorporation(@Param("keyword") String keyword,
-                                                   @Param("termBasedVideoIds") List<Long> termBasedVideoIds,
-                                                   @Param("domesticTypes") List<Integer> domesticTypes,
-                                                   @Param("category") List<String> category,
+                                                   @Param("termBasedVideoIds") String termBasedVideoIds,
+                                                   @Param("domesticTypes") String domesticTypes,
+                                                   @Param("category") String category,
                                                    @Param("offset") int offset,
                                                    @Param("limit") int limit);
 
