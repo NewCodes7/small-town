@@ -23,8 +23,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +50,9 @@ public class GoogleAnalyticsService {
     @Value("${google.analytics.credentials-path:}")
     private String credentialsPath;
 
+    @Value("${google.analytics.credentials-json:}")
+    private String credentialsJson;
+
     private BetaAnalyticsDataClient analyticsDataClient;
     private boolean initialized = false;
 
@@ -58,15 +64,14 @@ public class GoogleAnalyticsService {
 
     @PostConstruct
     public void init() {
-        if (credentialsPath == null || credentialsPath.trim().isEmpty()) {
-            log.warn("Google Analytics credentials path가 설정되지 않았습니다. GA 동기화가 비활성화됩니다.");
+        InputStream credentialsStream = getCredentialsInputStream();
+        if (credentialsStream == null) {
+            log.warn("Google Analytics credentials가 설정되지 않았습니다. GA 동기화가 비활성화됩니다.");
             return;
         }
 
         try {
-            GoogleCredentials credentials = ServiceAccountCredentials.fromStream(
-                new FileInputStream(credentialsPath)
-            );
+            GoogleCredentials credentials = ServiceAccountCredentials.fromStream(credentialsStream);
 
             BetaAnalyticsDataSettings settings = BetaAnalyticsDataSettings.newBuilder()
                 .setCredentialsProvider(FixedCredentialsProvider.create(credentials))
@@ -78,6 +83,26 @@ public class GoogleAnalyticsService {
         } catch (IOException e) {
             log.error("Google Analytics 클라이언트 초기화 실패: {}", e.getMessage(), e);
         }
+    }
+
+    private InputStream getCredentialsInputStream() {
+        // 1. JSON 환경 변수 우선 확인
+        if (credentialsJson != null && !credentialsJson.trim().isEmpty()) {
+            log.info("GA credentials를 환경 변수(GA_CREDENTIALS_JSON)에서 로드합니다.");
+            return new ByteArrayInputStream(credentialsJson.getBytes(StandardCharsets.UTF_8));
+        }
+
+        // 2. 파일 경로로 fallback
+        if (credentialsPath != null && !credentialsPath.trim().isEmpty()) {
+            try {
+                log.info("GA credentials를 파일 경로({})에서 로드합니다.", credentialsPath);
+                return new FileInputStream(credentialsPath);
+            } catch (IOException e) {
+                log.error("GA credentials 파일을 읽을 수 없습니다: {}", e.getMessage());
+            }
+        }
+
+        return null;
     }
 
     /**
