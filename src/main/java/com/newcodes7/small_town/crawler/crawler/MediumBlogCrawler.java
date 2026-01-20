@@ -166,7 +166,7 @@ public class MediumBlogCrawler implements BlogCrawler {
     @Override
     public void processImageUpload(Article article, Corporation corporation) {
         String originalImageUrl = article.getThumbnailImage();
-        
+
         if (originalImageUrl != null && !originalImageUrl.isEmpty() && originalImageUrl.startsWith("http")) {
             try {
                 String s3ImageUrl = s3ImageService.uploadImageFromUrl(originalImageUrl, corporation.getName());
@@ -177,6 +177,88 @@ public class MediumBlogCrawler implements BlogCrawler {
                 // S3 업로드 실패 시 원본 URL 그대로 유지
             }
         }
+    }
+
+    /**
+     * 모든 페이지 크롤링 (Admin 전용)
+     * Medium 무한 스크롤 방식으로 전체 글 수집
+     */
+    @Override
+    public List<Article> crawlAllPages(WebDriver driver, Corporation corporation) throws CrawlerException {
+        java.util.Set<String> collectedPostIds = new java.util.HashSet<>();
+        List<Article> allArticles = new ArrayList<>();
+
+        try {
+            // Bot 감지 우회 설정
+            setupAntiDetection(driver);
+
+            driver.get(corporation.getBlogLink());
+            Thread.sleep(3000); // 초기 페이지 로딩 대기
+
+            // 인간처럼 페이지 행동 시뮬레이션
+            simulateHumanBehavior(driver);
+
+            JavascriptExecutor js = (JavascriptExecutor) driver;
+            int maxScrollAttempts = 100; // 최대 스크롤 횟수
+            int noNewArticlesCount = 0;  // 새 article이 없는 연속 횟수
+            int scrollCount = 0;
+
+            log.info("Medium 무한스크롤 크롤링 시작 - 기업: {}", corporation.getName());
+
+            while (scrollCount < maxScrollAttempts) {
+                // APOLLO_STATE에서 현재까지 로드된 글 수집
+                int beforeCount = collectedPostIds.size();
+
+                String apolloStateJson = (String) js.executeScript(
+                    "return JSON.stringify(window.__APOLLO_STATE__ || {});"
+                );
+
+                if (apolloStateJson != null && !apolloStateJson.equals("{}")) {
+                    List<Article> newArticles = parseArticlesFromApolloStateWithDedup(
+                        apolloStateJson, corporation, collectedPostIds
+                    );
+                    allArticles.addAll(newArticles);
+                }
+
+                int afterCount = collectedPostIds.size();
+
+                // 새로운 article이 추가되었는지 확인
+                if (afterCount == beforeCount) {
+                    noNewArticlesCount++;
+                    log.debug("스크롤 {}: 새로운 article 없음 ({}/3)", scrollCount + 1, noNewArticlesCount);
+                    if (noNewArticlesCount >= 3) {
+                        log.info("연속 3번 새 article 없음 - 크롤링 종료");
+                        break;
+                    }
+                } else {
+                    int newCount = afterCount - beforeCount;
+                    noNewArticlesCount = 0;
+                    log.info("스크롤 {}: 새로운 article {}개 발견 (총 {}개)", scrollCount + 1, newCount, afterCount);
+                }
+
+                // 페이지 끝까지 스크롤
+                js.executeScript("window.scrollTo(0, document.body.scrollHeight)");
+                Thread.sleep(2000 + random.nextInt(1000)); // 새 콘텐츠 로딩 대기
+
+                scrollCount++;
+            }
+
+            if (scrollCount >= maxScrollAttempts) {
+                log.warn("최대 스크롤 횟수 {}회 도달 - 크롤링 종료", maxScrollAttempts);
+            }
+
+            log.info("Medium 무한스크롤 크롤링 완료 - 기업: {}, 총 스크롤: {}회, 총 글: {}개",
+                    corporation.getName(), scrollCount, allArticles.size());
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw CrawlerTimeoutException.pageLoadTimeout(corporation.getBlogLink(), 10);
+        } catch (Exception e) {
+            log.error("Medium 무한스크롤 크롤링 중 오류 - 기업: {}", corporation.getName(), e);
+            throw new CrawlerException("CRAWLER_ERROR", "Error during Medium infinite scroll crawling", e) {};
+        }
+
+        return allArticles;
     }
 
     /**
