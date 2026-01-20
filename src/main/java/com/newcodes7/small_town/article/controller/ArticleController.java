@@ -755,24 +755,11 @@ public class ArticleController {
 
             // 한글 검색 패턴 생성 (예: "프롲" → ["프롲", "프로ㅈ"])
             List<String> searchPatterns = KoreanCharacterUtil.generateSearchPatterns(trimmedQuery);
-
-            // Term 검색용 파라미터 (종성 처리)
-            String termQuery1;
-            String termQuery2;
-
-            if (searchPatterns.size() == 2) {
-                // 종성이 있는 경우: 원본, 자모분해 패턴
-                termQuery1 = searchPatterns.get(0).toLowerCase() + "%";
-                termQuery2 = decomposedQuery.toLowerCase() + "%";
-            } else {
-                // 종성이 없는 경우: 원본, 자모분해 패턴
-                termQuery1 = trimmedQuery + "%";
-                termQuery2 = decomposedQuery.toLowerCase() + "%";
-            }
-
+            
             // Term 검색 (최대 4개)
+            String termQuery = decomposedQuery.toLowerCase() + "%";
             List<TermAutocompleteDto> termDtos = termAutocompleteRepository.findAutocompleteTerms(
-                termQuery1, termQuery2, 4);
+                termQuery, 4);
 
             for (TermAutocompleteDto termDto : termDtos) {
                 // Just the term string

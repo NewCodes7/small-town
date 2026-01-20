@@ -108,38 +108,11 @@ public interface VideoTermRepository extends JpaRepository<VideoTerm, Long> {
     @Query("SELECT vt.term.term as term, " +
            "SUM(vt.frequency) as totalFrequency " +
            "FROM VideoTerm vt " +
-           "WHERE LOWER(vt.term.term) LIKE LOWER(CONCAT(COALESCE(:query, ''), '%')) " +
-           "OR LOWER(vt.term.decomposedTerm) LIKE LOWER(CONCAT(COALESCE(:query, ''), '%')) " +
+           "WHERE LOWER(vt.term.decomposedTerm) LIKE LOWER(CONCAT(COALESCE(:query, ''), '%')) " +
            "OR LOWER(vt.term.chosung) LIKE LOWER(CONCAT(COALESCE(:query, ''), '%')) " +
            "GROUP BY vt.term.term " +
            "ORDER BY SUM(vt.frequency) DESC")
     List<AutocompleteSuggestion> findAutocompleteTerms(@Param("query") String query, Pageable pageable);
-
-    /**
-     * 자동완성을 위한 Term 검색 (여러 패턴 지원, 빈도수 순)
-     * 여러 검색 패턴으로 term, 자모 분리된 term, 초성을 검색
-     * 예: "프롲" 입력 시 ["프롲", "프로ㅈ"] 두 패턴으로 검색
-     *
-     * @deprecated Use {@link #findAutocompleteTermsOptimizedRaw} instead for better performance
-     */
-    @Deprecated
-    @Query("SELECT vt.term.term as term, " +
-           "SUM(vt.frequency) as totalFrequency " +
-           "FROM VideoTerm vt " +
-           "WHERE " +
-           "(LOWER(vt.term.term) LIKE LOWER(CONCAT(COALESCE(:query1, ''), '%')) " +
-           "OR LOWER(vt.term.decomposedTerm) LIKE LOWER(CONCAT(COALESCE(:query1, ''), '%')) " +
-           "OR LOWER(vt.term.chosung) LIKE LOWER(CONCAT(COALESCE(:query1, ''), '%'))) " +
-           "OR " +
-           "(LOWER(vt.term.term) LIKE LOWER(CONCAT(COALESCE(:query2, ''), '%')) " +
-           "OR LOWER(vt.term.decomposedTerm) LIKE LOWER(CONCAT(COALESCE(:query2, ''), '%')) " +
-           "OR LOWER(vt.term.chosung) LIKE LOWER(CONCAT(COALESCE(:query2, ''), '%'))) " +
-           "GROUP BY vt.term.term " +
-           "ORDER BY SUM(vt.frequency) DESC")
-    List<AutocompleteSuggestion> findAutocompleteTermsWithPatterns(
-        @Param("query1") String query1,
-        @Param("query2") String query2,
-        Pageable pageable);
 
     /**
      * Term 자동완성 검색 (비정규화 컬럼 사용, 최적화 버전)
@@ -154,29 +127,16 @@ public interface VideoTermRepository extends JpaRepository<VideoTerm, Long> {
         SELECT DISTINCT term, total_frequency
         FROM (
             SELECT term, total_frequency FROM term
-            WHERE LOWER(term) LIKE :query1 AND total_frequency > 0
+            WHERE LOWER(decomposed_term) LIKE :query AND total_frequency > 0
             UNION ALL
             SELECT term, total_frequency FROM term
-            WHERE LOWER(decomposed_term) LIKE :query1 AND total_frequency > 0
-            UNION ALL
-            SELECT term, total_frequency FROM term
-            WHERE LOWER(chosung) LIKE :query1 AND total_frequency > 0
-            UNION ALL
-            SELECT term, total_frequency FROM term
-            WHERE LOWER(term) LIKE :query2 AND total_frequency > 0
-            UNION ALL
-            SELECT term, total_frequency FROM term
-            WHERE LOWER(decomposed_term) LIKE :query2 AND total_frequency > 0
-            UNION ALL
-            SELECT term, total_frequency FROM term
-            WHERE LOWER(chosung) LIKE :query2 AND total_frequency > 0
+            WHERE LOWER(chosung) LIKE :query AND total_frequency > 0
         ) AS combined
         ORDER BY total_frequency DESC
         LIMIT :limit
         """, nativeQuery = true)
     List<Object[]> findAutocompleteTermsOptimizedRaw(
-        @Param("query1") String query1,
-        @Param("query2") String query2,
+        @Param("query") String query,
         @Param("limit") int limit);
 
     /**

@@ -29,27 +29,14 @@ public class TermAutocompleteRepository {
      *
      * 성능: 92ms → 1-2ms (JPA 우회) → 0.3ms (UNION ALL + Covering Index)
      *
-     * @param query1 첫 번째 검색 패턴 (예: "쿠버%") - 이미 소문자 변환 및 % 포함되어 전달됨
-     * @param query2 두 번째 검색 패턴 (예: "ㅋㅂ%") - 이미 소문자 변환 및 % 포함되어 전달됨
+     * @param query 검색 패턴 (예: "ㅋㅂ%") - 이미 소문자 변환 및 % 포함되어 전달됨
      * @param limit 결과 개수 제한
      * @return Term 자동완성 결과 리스트
      */
-    public List<TermAutocompleteDto> findAutocompleteTerms(String query1, String query2, int limit) {
+    public List<TermAutocompleteDto> findAutocompleteTerms(String query, int limit) {
         String sql = """
             SELECT DISTINCT term, total_frequency
             FROM (
-                SELECT term, total_frequency FROM term
-                WHERE LOWER(term) LIKE ? AND total_frequency > 0
-                UNION ALL
-                SELECT term, total_frequency FROM term
-                WHERE LOWER(decomposed_term) LIKE ? AND total_frequency > 0
-                UNION ALL
-                SELECT term, total_frequency FROM term
-                WHERE LOWER(chosung) LIKE ? AND total_frequency > 0
-                UNION ALL
-                SELECT term, total_frequency FROM term
-                WHERE LOWER(term) LIKE ? AND total_frequency > 0
-                UNION ALL
                 SELECT term, total_frequency FROM term
                 WHERE LOWER(decomposed_term) LIKE ? AND total_frequency > 0
                 UNION ALL
@@ -66,8 +53,7 @@ public class TermAutocompleteRepository {
                 rs.getString("term"),
                 rs.getLong("total_frequency")
             ),
-            query1, query1, query1,  // 첫 번째 패턴 (3번)
-            query2, query2, query2,  // 두 번째 패턴 (3번)
+            query, query,
             limit
         );
     }
