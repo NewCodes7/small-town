@@ -1115,12 +1115,12 @@ public class ArticleController {
         }
         List<ArticleResponseDto> latestArticles = new ArrayList<>(uniqueArticles.values());
 
-        // 최신 영상 40개 조회 (중복 제거를 위해 더 많이 가져옴, 좋아요 상태는 별도 API로 조회)
+        // 최신 영상 50개 조회 (중복 제거를 위해 더 많이 가져옴, 좋아요 상태는 별도 API로 조회)
         Page<com.newcodes7.small_town.video.dto.VideoResponseDto> allVideos = videoService.getVideosWithFilters(
             null,  // keyword
             null,  // regions
             0,     // page
-            40,    // size - 여유있게 가져옴
+            50,    // size - 여유있게 가져옴
             "latest",  // sort
             "list",    // view
             null   // category
