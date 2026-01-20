@@ -45,6 +45,8 @@ public class GoogleAnalyticsService {
     private final CorporationRepository corporationRepository;
 
     @Value("${google.analytics.property-id}")
+    private String rawPropertyId;
+
     private String propertyId;
 
     @Value("${google.analytics.credentials-path:}")
@@ -64,6 +66,13 @@ public class GoogleAnalyticsService {
 
     @PostConstruct
     public void init() {
+        // Property ID 형식 보정: "499066527" -> "properties/499066527"
+        if (rawPropertyId != null && !rawPropertyId.startsWith("properties/")) {
+            propertyId = "properties/" + rawPropertyId;
+        } else {
+            propertyId = rawPropertyId;
+        }
+
         InputStream credentialsStream = getCredentialsInputStream();
         if (credentialsStream == null) {
             log.warn("Google Analytics credentials가 설정되지 않았습니다. GA 동기화가 비활성화됩니다.");
