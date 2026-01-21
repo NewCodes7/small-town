@@ -55,4 +55,7 @@ public interface LikeLogRepository extends JpaRepository<LikeLog, Long> {
     // IP 주소로 좋아요한 article ID 목록 조회 (배치)
     @Query("SELECT ll.article.id FROM LikeLog ll WHERE ll.ipAddress = :ipAddress AND ll.article.id IN :articleIds AND ll.user IS NULL AND ll.deletedAt IS NULL")
     java.util.List<Long> findLikedArticleIdsByIpAddressAndArticleIds(@Param("ipAddress") String ipAddress, @Param("articleIds") java.util.List<Long> articleIds);
+
+    // 특정 아티클의 모든 좋아요 삭제
+    void deleteByArticleId(Long articleId);
 }

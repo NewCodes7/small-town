@@ -26,4 +26,14 @@ public interface CrawlerCorporationRepository extends JpaRepository<Corporation,
 
     @Query("SELECT c FROM Corporation c WHERE c.blogLink IS NOT NULL AND c.blogLink != '' AND c.deletedAt IS NULL ORDER BY c.id DESC")
     List<Corporation> findAllWithBlogLinkOrderByIdDesc();
+
+    /**
+     * Medium 기반 블로그를 가진 기업들 조회
+     * (medium.com, netflixtechblog.com, yogiyo.co.kr, gccompany.co.kr, techblog.lotteon.com)
+     */
+    @Query("SELECT c FROM Corporation c WHERE c.deletedAt IS NULL AND c.blogLink IS NOT NULL AND " +
+           "(c.blogLink LIKE '%medium.com%' OR c.blogLink LIKE '%netflixtechblog.com%' OR " +
+           "c.blogLink LIKE '%yogiyo.co.kr%' OR c.blogLink LIKE '%gccompany.co.kr%' OR " +
+           "c.blogLink LIKE '%techblog.lotteon.com%')")
+    List<Corporation> findMediumCorporations();
 }

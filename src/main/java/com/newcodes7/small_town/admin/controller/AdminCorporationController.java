@@ -1,8 +1,12 @@
 package com.newcodes7.small_town.admin.controller;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -10,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -32,8 +37,18 @@ import com.newcodes7.small_town.corporation.dto.CorporationUpdateDto;
 import com.newcodes7.small_town.corporation.exception.CorporationException;
 import com.newcodes7.small_town.corporation.repository.IndustryRepository;
 import com.newcodes7.small_town.corporation.service.CorporationService;
+import com.newcodes7.small_town.article.repository.ArticleChunkRepository;
+import com.newcodes7.small_town.article.repository.ArticleTermRepository;
+import com.newcodes7.small_town.article.repository.LikeLogRepository;
+import com.newcodes7.small_town.article.repository.LikeRepository;
+import com.newcodes7.small_town.article.repository.ViewLogRepository;
+import com.newcodes7.small_town.crawler.repository.ArticleSummaryRepository;
+import com.newcodes7.small_town.crawler.repository.ArticleTagRepository;
+import com.newcodes7.small_town.crawler.repository.CrawlerArticleRepository;
 import com.newcodes7.small_town.crawler.repository.CrawlerCorporationRepository;
+import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.theme.repository.ThemeArticleRepository;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -52,6 +67,17 @@ public class AdminCorporationController {
     private final IndustryRepository industryRepository;
     private final AdminIndustryService adminIndustryService;
     private final CrawlerCorporationRepository crawlerCorporationRepository;
+    private final CrawlerArticleRepository crawlerArticleRepository;
+
+    // Article 삭제 시 연관 데이터 삭제를 위한 Repository들
+    private final ArticleTermRepository articleTermRepository;
+    private final ArticleChunkRepository articleChunkRepository;
+    private final ArticleTagRepository articleTagRepository;
+    private final ArticleSummaryRepository articleSummaryRepository;
+    private final ThemeArticleRepository themeArticleRepository;
+    private final LikeLogRepository likeLogRepository;
+    private final LikeRepository likeRepository;
+    private final ViewLogRepository viewLogRepository;
 
     // ========== Corporation 관리 ==========
 
@@ -400,5 +426,155 @@ public class AdminCorporationController {
             response.put("message", "Industry 수정 중 오류가 발생했습니다: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
+    }
+
+    // ========== Medium 중복 글 관리 ==========
+
+    /**
+     * Medium 기업들의 중복 글 삭제 API
+     * 제목 또는 링크가 같은 글 중 하나를 삭제합니다.
+     * 삭제 우선순위: 썸네일 없는 글 > 조회수 적은 글
+     */
+    @PostMapping("/corporations/medium/remove-duplicates")
+    @ResponseBody
+    @Transactional
+    public ResponseEntity<Map<String, Object>> removeMediumDuplicates() {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            List<Corporation> mediumCorporations = crawlerCorporationRepository.findMediumCorporations();
+
+            if (mediumCorporations.isEmpty()) {
+                response.put("success", true);
+                response.put("message", "Medium 기반 기업이 없습니다.");
+                response.put("deletedCount", 0);
+                return ResponseEntity.ok(response);
+            }
+
+            int totalDeletedCount = 0;
+            List<Map<String, Object>> deletedArticles = new ArrayList<>();
+
+            for (Corporation corporation : mediumCorporations) {
+                List<Article> duplicates = crawlerArticleRepository.findDuplicateArticlesByCorporation(corporation.getId());
+
+                if (duplicates.isEmpty()) {
+                    continue;
+                }
+
+                // 제목별, 링크별로 그룹화하여 중복 쌍 찾기
+                Map<String, List<Article>> titleGroups = new HashMap<>();
+                Map<String, List<Article>> linkGroups = new HashMap<>();
+
+                for (Article article : duplicates) {
+                    // 제목으로 그룹화
+                    titleGroups.computeIfAbsent(article.getTitle(), k -> new ArrayList<>()).add(article);
+                    // 링크로 그룹화
+                    linkGroups.computeIfAbsent(article.getLink(), k -> new ArrayList<>()).add(article);
+                }
+
+                // 이미 삭제된 글 ID 추적
+                Set<Long> deletedIds = new HashSet<>();
+
+                // 제목 중복 처리
+                for (List<Article> group : titleGroups.values()) {
+                    if (group.size() > 1) {
+                        totalDeletedCount += processAndDeleteDuplicates(group, deletedIds, deletedArticles, "title");
+                    }
+                }
+
+                // 링크 중복 처리
+                for (List<Article> group : linkGroups.values()) {
+                    if (group.size() > 1) {
+                        totalDeletedCount += processAndDeleteDuplicates(group, deletedIds, deletedArticles, "link");
+                    }
+                }
+            }
+
+            response.put("success", true);
+            response.put("message", String.format("Medium 기업들의 중복 글 %d개가 삭제되었습니다.", totalDeletedCount));
+            response.put("deletedCount", totalDeletedCount);
+            response.put("deletedArticles", deletedArticles);
+            response.put("corporationsChecked", mediumCorporations.size());
+
+            log.info("Medium 중복 글 삭제 완료 - 검사 기업: {}개, 삭제 글: {}개",
+                    mediumCorporations.size(), totalDeletedCount);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Medium 중복 글 삭제 중 오류 발생", e);
+            response.put("success", false);
+            response.put("message", "중복 글 삭제 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 중복 글 그룹에서 삭제할 글을 선택하여 soft delete
+     * 삭제 우선순위: 썸네일 없는 글 > 조회수 적은 글
+     */
+    private int processAndDeleteDuplicates(List<Article> group, Set<Long> deletedIds,
+                                            List<Map<String, Object>> deletedArticles, String duplicateType) {
+        int deletedCount = 0;
+
+        // 이미 삭제된 글 제외
+        List<Article> activeArticles = group.stream()
+                .filter(a -> !deletedIds.contains(a.getId()))
+                .toList();
+
+        if (activeArticles.size() <= 1) {
+            return 0;
+        }
+
+        // 정렬: 썸네일 있는 것 먼저, 조회수 높은 것 먼저 (유지할 글이 앞으로)
+        List<Article> sorted = new ArrayList<>(activeArticles);
+        sorted.sort((a, b) -> {
+            // 썸네일 있는 것 우선 (유지)
+            boolean aHasThumbnail = a.getThumbnailImage() != null && !a.getThumbnailImage().isEmpty();
+            boolean bHasThumbnail = b.getThumbnailImage() != null && !b.getThumbnailImage().isEmpty();
+            if (aHasThumbnail != bHasThumbnail) {
+                return aHasThumbnail ? -1 : 1;
+            }
+            // 조회수 높은 것 우선 (유지)
+            return Integer.compare(b.getViewCount(), a.getViewCount());
+        });
+
+        // 첫 번째(유지할 글)를 제외하고 나머지 삭제
+        for (int i = 1; i < sorted.size(); i++) {
+            Article toDelete = sorted.get(i);
+            Long articleId = toDelete.getId();
+
+            // 연관 데이터 먼저 삭제 (FK 제약 해결)
+            articleTermRepository.deleteByArticleId(articleId);
+            articleChunkRepository.deleteByArticleId(articleId);
+            articleTagRepository.deleteByArticleId(articleId);
+            articleSummaryRepository.deleteByArticleId(articleId);
+            themeArticleRepository.deleteByArticleId(articleId);
+            likeLogRepository.deleteByArticleId(articleId);
+            likeRepository.deleteByArticleId(articleId);
+            viewLogRepository.deleteByArticleId(articleId);
+
+            // Hard delete
+            crawlerArticleRepository.delete(toDelete);
+            deletedIds.add(articleId);
+
+            // 삭제 정보 기록
+            Map<String, Object> info = new HashMap<>();
+            info.put("id", toDelete.getId());
+            info.put("title", toDelete.getTitle());
+            info.put("link", toDelete.getLink());
+            info.put("corporationName", toDelete.getCorporation().getName());
+            info.put("duplicateType", duplicateType);
+            info.put("hasThumbnail", toDelete.getThumbnailImage() != null && !toDelete.getThumbnailImage().isEmpty());
+            info.put("viewCount", toDelete.getViewCount());
+            deletedArticles.add(info);
+
+            deletedCount++;
+
+            log.debug("중복 글 삭제 - ID: {}, 제목: {}, 중복 유형: {}",
+                    toDelete.getId(), toDelete.getTitle(), duplicateType);
+        }
+
+        return deletedCount;
     }
 }

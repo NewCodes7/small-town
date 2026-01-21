@@ -29,4 +29,7 @@ public interface ViewLogRepository extends JpaRepository<ViewLog, Long> {
     // 전체 조회수 카운트 (중복 제거하지 않음 - 실제 조회 기록)
     @Query("SELECT COUNT(vl) FROM ViewLog vl WHERE vl.article.id = :articleId")
     long countByArticleId(@Param("articleId") Long articleId);
+
+    // 특정 아티클의 모든 조회 로그 삭제
+    void deleteByArticleId(Long articleId);
 }

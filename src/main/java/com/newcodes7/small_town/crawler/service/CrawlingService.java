@@ -338,9 +338,12 @@ public class CrawlingService {
         List<Article> blogArticles = blogCrawler.crawlWithRobotsCheck(driver, corporation, robotsTxtService);
         crawledArticles.addAll(blogArticles);
 
-        // 중복 제거 및 저장
+        // 중복 제거 및 저장 (link 또는 title이 같으면 중복)
         for (Article article : blogArticles) {
-            if (!crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(article.getLink()).isPresent()) {
+            boolean isDuplicateByLink = crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(article.getLink()).isPresent();
+            boolean isDuplicateByTitle = crawlerArticleRepository.existsByTitleAndCorporationIdAndDeletedAtIsNull(article.getTitle(), corporation.getId());
+
+            if (!isDuplicateByLink && !isDuplicateByTitle) {
                 // Article 저장 및 AI 분석
                 articlePersistenceService.saveArticleWithAnalysis(article, corporation, blogCrawler);
 
@@ -572,9 +575,12 @@ public class CrawlingService {
             List<Article> articles = crawler.crawlAllPages(driver, corporation);
             List<Article> newArticles = new ArrayList<>();
 
-            // 중복 체크 및 저장 (캐시 작업 없이)
+            // 중복 체크 및 저장 (link 또는 title이 같으면 중복, 캐시 작업 없이)
             for (Article article : articles) {
-                if (!crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(article.getLink()).isPresent()) {
+                boolean isDuplicateByLink = crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(article.getLink()).isPresent();
+                boolean isDuplicateByTitle = crawlerArticleRepository.existsByTitleAndCorporationIdAndDeletedAtIsNull(article.getTitle(), corporation.getId());
+
+                if (!isDuplicateByLink && !isDuplicateByTitle) {
                     // Article 저장 및 AI 분석 (캐시 작업 없음)
                     articlePersistenceService.saveArticleWithAnalysisNoCache(article, corporation, crawler);
 
@@ -676,9 +682,12 @@ public class CrawlingService {
                 List<Article> articles = crawler.crawlAllPages(driver, corporation);
                 List<Article> newArticles = new ArrayList<>();
 
-                // 중복 체크 및 저장
+                // 중복 체크 및 저장 (link 또는 title이 같으면 중복)
                 for (Article article : articles) {
-                    if (!crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(article.getLink()).isPresent()) {
+                    boolean isDuplicateByLink = crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(article.getLink()).isPresent();
+                    boolean isDuplicateByTitle = crawlerArticleRepository.existsByTitleAndCorporationIdAndDeletedAtIsNull(article.getTitle(), corporation.getId());
+
+                    if (!isDuplicateByLink && !isDuplicateByTitle) {
                         articlePersistenceService.saveArticleWithAnalysisNoCache(article, corporation, crawler);
                         newArticles.add(article);
                     }

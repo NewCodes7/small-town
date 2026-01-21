@@ -35,4 +35,9 @@ public interface LikeRepository extends JpaRepository<Like, Long> {
         @Param("ipAddress") String ipAddress,
         @Param("articleIds") java.util.List<Long> articleIds
     );
+
+    // 특정 아티클의 모든 좋아요 삭제
+    @Modifying
+    @Query("DELETE FROM Like l WHERE l.article.id = :articleId")
+    void deleteByArticleId(@Param("articleId") Long articleId);
 }

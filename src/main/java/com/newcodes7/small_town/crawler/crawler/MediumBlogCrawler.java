@@ -226,8 +226,9 @@ public class MediumBlogCrawler implements BlogCrawler {
                 if (afterCount == beforeCount) {
                     noNewArticlesCount++;
                     log.debug("스크롤 {}: 새로운 article 없음 ({}/3)", scrollCount + 1, noNewArticlesCount);
-                    if (noNewArticlesCount >= 3) {
-                        log.info("연속 3번 새 article 없음 - 크롤링 종료");
+                    // 처음 10번 스크롤은 무조건 시도, 이후부터는 연속 3번 새 article 없으면 종료
+                    if (scrollCount >= 10 && noNewArticlesCount >= 3) {
+                        log.info("연속 3번 새 article 없음 (10회 스크롤 이후) - 크롤링 종료");
                         break;
                     }
                 } else {

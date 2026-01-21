@@ -40,4 +40,7 @@ public interface ThemeArticleRepository extends JpaRepository<ThemeArticle, Long
 
     // 특정 테마의 모든 아티클 삭제
     void deleteByThemeId(Long themeId);
+
+    // 특정 아티클과 연관된 모든 테마 연결 삭제
+    void deleteByArticleId(Long articleId);
 }
