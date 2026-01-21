@@ -160,6 +160,7 @@ public class AdminCorporationController {
             updateDto.setAlternateName(corporation.getAlternateName());
             updateDto.setHomeLink(corporation.getHomeLink());
             updateDto.setBlogLink(corporation.getBlogLink());
+            updateDto.setBlogType(corporation.getBlogType());
             updateDto.setCrewLink(corporation.getCrewLink());
             updateDto.setLogoUrl(corporation.getLogoUrl());
             updateDto.setYoutubeUrl(corporation.getYoutubeUrl());
@@ -178,12 +179,14 @@ public class AdminCorporationController {
             updateDto.setMaxPages(corporation.getMaxPages());
             updateDto.setEffectiveLogoUrl(corporation.getEffectiveLogoUrl());
 
-            // 업종 ID 리스트 설정 (업종 이름 -> 업종 ID로 변환)
-            List<Integer> industryIds = industryRepository.findAll().stream()
-                .filter(industry -> corporation.getIndustries().contains(industry.getName()))
-                .map(industry -> industry.getId())
-                .collect(java.util.stream.Collectors.toList());
-            updateDto.setIndustryIds(industryIds);
+            // 업종 ID 리스트 설정 (Corporation 엔티티에서 직접 가져오기)
+            Corporation corpEntity = crawlerCorporationRepository.findByIdAndNotDeleted(id);
+            if (corpEntity != null && corpEntity.getCorporationIndustries() != null) {
+                List<Integer> industryIds = corpEntity.getCorporationIndustries().stream()
+                    .map(ci -> ci.getIndustry().getId())
+                    .collect(java.util.stream.Collectors.toList());
+                updateDto.setIndustryIds(industryIds);
+            }
 
             model.addAttribute("corporation", updateDto);
             model.addAttribute("corporationId", id);
