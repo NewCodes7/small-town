@@ -24,11 +24,11 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 public class RestApiExceptionHandler {
 
     @ExceptionHandler(NoResourceFoundException.class)
-    public ResponseEntity<ErrorResponse> handleNoResourceFoundException(NoResourceFoundException e, WebRequest request) {
+    public ResponseEntity<ErrorResponse> handleNoResourceFoundException(NoResourceFoundException e, WebRequest request) throws NoResourceFoundException {
         String path = ((ServletWebRequest) request).getRequest().getRequestURI();
 
         if (!isApiRequest(path, request)) {
-            return null; // 다른 핸들러에서 처리
+            throw e; // GlobalExceptionHandler에서 처리하도록 예외를 다시 던짐
         }
 
         log.warn("404 Error - 리소스를 찾을 수 없음: {}", path);
@@ -45,12 +45,12 @@ public class RestApiExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGeneralException(Exception e, WebRequest request) {
+    public ResponseEntity<ErrorResponse> handleGeneralException(Exception e, WebRequest request) throws Exception {
         String path = ((ServletWebRequest) request).getRequest().getRequestURI();
 
         // API 요청이 아니면 GlobalExceptionHandler에서 처리
         if (!isApiRequest(path, request)) {
-            return null; // 다른 핸들러에서 처리
+            throw e; // GlobalExceptionHandler에서 처리하도록 예외를 다시 던짐
         }
 
         log.error("예상치 못한 오류 발생: {} at {}", e.getMessage(), path, e);
@@ -73,11 +73,11 @@ public class RestApiExceptionHandler {
     }
 
     @ExceptionHandler(ArticleException.class)
-    public ResponseEntity<ErrorResponse> handleArticleException(ArticleException e, WebRequest request) {
+    public ResponseEntity<ErrorResponse> handleArticleException(ArticleException e, WebRequest request) throws ArticleException {
         String path = ((ServletWebRequest) request).getRequest().getRequestURI();
 
         if (!isApiRequest(path, request)) {
-            return null; // 다른 핸들러에서 처리
+            throw e; // GlobalExceptionHandler에서 처리하도록 예외를 다시 던짐
         }
 
         log.warn("Article 예외 발생: {} at {}", e.getMessage(), path);
@@ -95,11 +95,11 @@ public class RestApiExceptionHandler {
     }
 
     @ExceptionHandler(CrawlerException.class)
-    public ResponseEntity<ErrorResponse> handleCrawlerException(CrawlerException e, WebRequest request) {
+    public ResponseEntity<ErrorResponse> handleCrawlerException(CrawlerException e, WebRequest request) throws CrawlerException {
         String path = ((ServletWebRequest) request).getRequest().getRequestURI();
 
         if (!isApiRequest(path, request)) {
-            return null; // 다른 핸들러에서 처리
+            throw e; // GlobalExceptionHandler에서 처리하도록 예외를 다시 던짐
         }
 
         log.warn("Crawler 예외 발생: {} at {}", e.getMessage(), path);
@@ -117,11 +117,11 @@ public class RestApiExceptionHandler {
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException e, WebRequest request) {
+    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException e, WebRequest request) throws IllegalArgumentException {
         String path = ((ServletWebRequest) request).getRequest().getRequestURI();
 
         if (!isApiRequest(path, request)) {
-            return null; // 다른 핸들러에서 처리
+            throw e; // GlobalExceptionHandler에서 처리하도록 예외를 다시 던짐
         }
 
         log.warn("잘못된 인자: {} at {}", e.getMessage(), path);
