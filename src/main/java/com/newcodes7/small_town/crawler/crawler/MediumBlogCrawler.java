@@ -22,6 +22,7 @@ import com.newcodes7.small_town.crawler.exception.CrawlerException;
 import com.newcodes7.small_town.crawler.exception.CrawlerTimeoutException;
 import com.newcodes7.small_town.crawler.integration.storage.S3ImageService;
 import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.BlogType;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.util.TimeUtil;
 
@@ -38,15 +39,29 @@ public class MediumBlogCrawler implements BlogCrawler {
     
     private final ObjectMapper objectMapper = new ObjectMapper();
     
+    /**
+     * URL 기반 판단 (하위 호환성 유지)
+     * @deprecated canHandle(Corporation corporation)을 사용하세요
+     */
+    @Deprecated
     @Override
     public boolean canHandle(String blogUrl) {
-        return blogUrl != null 
-                && (blogUrl.contains("medium.com") 
-                    || blogUrl.contains("netflixtechblog.com") 
+        return blogUrl != null
+                && (blogUrl.contains("medium.com")
+                    || blogUrl.contains("netflixtechblog.com")
                     || blogUrl.contains("yogiyo.co.kr")
                     || blogUrl.contains("gccompany.co.kr")
                     || blogUrl.contains("techblog.lotteon.com")
                 );
+    }
+
+    /**
+     * Corporation의 blogType 필드를 기반으로 판단
+     * blogType이 MEDIUM이면 이 크롤러를 사용
+     */
+    @Override
+    public boolean canHandle(Corporation corporation) {
+        return corporation != null && corporation.getBlogType() == BlogType.MEDIUM;
     }
     
     @Override

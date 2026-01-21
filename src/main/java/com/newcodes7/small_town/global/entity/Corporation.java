@@ -20,6 +20,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import com.newcodes7.small_town.global.entity.BlogType;
+
 @Entity
 @Getter
 @Setter
@@ -57,7 +59,12 @@ public class Corporation {
     
     @Column(name = "blog_link")
     private String blogLink;
-    
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "blog_type", length = 20)
+    @Builder.Default
+    private BlogType blogType = BlogType.DEFAULT;
+
     @Column(name = "crew_link")
     private String crewLink;
     

@@ -18,6 +18,7 @@ public class CorporationUpdateDto {
 
     private String homeLink;
     private String blogLink;
+    private String blogType; // DEFAULT, MEDIUM
     private String crewLink;
     private String logoUrl;
     private String effectiveLogoUrl; // 읽기 전용 필드 (폼에서 표시용)

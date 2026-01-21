@@ -10,7 +10,21 @@ import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 
 public interface BlogCrawler {
+    /**
+     * URL 기반으로 해당 크롤러가 처리 가능한지 판단 (하위 호환성)
+     * @deprecated canHandle(Corporation corporation)을 사용하세요
+     */
+    @Deprecated
     boolean canHandle(String blogUrl);
+
+    /**
+     * Corporation의 blogType 필드를 기반으로 해당 크롤러가 처리 가능한지 판단
+     * 기본 구현은 기존 canHandle(String blogUrl)을 호출
+     */
+    default boolean canHandle(Corporation corporation) {
+        return canHandle(corporation.getBlogLink());
+    }
+
     List<Article> crawl(WebDriver driver, Corporation corporation) throws CrawlerException;
     String getProviderName();
 

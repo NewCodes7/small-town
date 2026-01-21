@@ -28,6 +28,7 @@ import com.newcodes7.small_town.crawler.entity.ParsingSelector;
 import com.newcodes7.small_town.crawler.repository.ParsingSelectorRepository;
 import com.newcodes7.small_town.crawler.integration.youtube.YouTubeService;
 import com.newcodes7.small_town.global.cache.NginxCachePurgeService;
+import com.newcodes7.small_town.global.entity.BlogType;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.util.KoreanCharacterUtil;
 
@@ -122,6 +123,7 @@ public class CorporationService {
                 .isDomestic(dto.getIsDomestic())
                 .homeLink(dto.getHomeLink())
                 .blogLink(dto.getBlogLink())
+                .blogType(parseBlogType(dto.getBlogType()))
                 .crewLink(dto.getCrewLink())
                 .logoUrl(dto.getLogoUrl())
                 .youtubeUrl(dto.getYoutubeUrl())
@@ -208,6 +210,7 @@ public class CorporationService {
 
         corporation.setHomeLink(dto.getHomeLink());
         corporation.setBlogLink(dto.getBlogLink());
+        corporation.setBlogType(parseBlogType(dto.getBlogType()));
         corporation.setCrewLink(dto.getCrewLink());
         corporation.setLogoUrl(dto.getLogoUrl());
 
@@ -341,6 +344,7 @@ public class CorporationService {
                 .isDomestic(dto.getIsDomestic())
                 .homeLink(dto.getHomeLink())
                 .blogLink(dto.getBlogLink())
+                .blogType(parseBlogType(dto.getBlogType()))
                 .crewLink(dto.getCrewLink())
                 .logoUrl(dto.getLogoUrl())
                 .youtubeUrl(dto.getYoutubeUrl())
@@ -450,6 +454,7 @@ public class CorporationService {
         // 기본 정보 업데이트
         if (dto.getHomeLink() != null) corporation.setHomeLink(dto.getHomeLink());
         if (dto.getBlogLink() != null) corporation.setBlogLink(dto.getBlogLink());
+        if (dto.getBlogType() != null) corporation.setBlogType(parseBlogType(dto.getBlogType()));
         if (dto.getCrewLink() != null) corporation.setCrewLink(dto.getCrewLink());
         if (dto.getLogoUrl() != null) corporation.setLogoUrl(dto.getLogoUrl());
 
@@ -619,6 +624,21 @@ public class CorporationService {
         } catch (Exception e) {
             log.error("Corporation 캐시 purge 실패 - ID: {}, 오류: {}", corporationId, e.getMessage(), e);
             // 캐시 purge 실패는 비즈니스 로직을 실패시키지 않음
+        }
+    }
+
+    /**
+     * String을 BlogType enum으로 변환
+     */
+    private BlogType parseBlogType(String blogType) {
+        if (blogType == null || blogType.isEmpty()) {
+            return BlogType.DEFAULT;
+        }
+        try {
+            return BlogType.valueOf(blogType);
+        } catch (IllegalArgumentException e) {
+            log.warn("알 수 없는 blogType: {}, 기본값(DEFAULT) 사용", blogType);
+            return BlogType.DEFAULT;
         }
     }
 }

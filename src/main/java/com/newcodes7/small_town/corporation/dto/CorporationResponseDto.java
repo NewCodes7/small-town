@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.newcodes7.small_town.crawler.entity.ParsingSelector;
+import com.newcodes7.small_town.global.entity.BlogType;
 import com.newcodes7.small_town.global.entity.Corporation;
 
 import lombok.Data;
@@ -16,6 +17,7 @@ public class CorporationResponseDto {
     private String alternateName;
     private String homeLink;
     private String blogLink;
+    private String blogType;
     private String crewLink;
     private String logoUrl;
     private String logoFilename;
@@ -63,7 +65,27 @@ public class CorporationResponseDto {
         }
         return logoUrl; // 기존 URL 방식 fallback
     }
-    
+
+    /**
+     * Medium 블로그인지 판단합니다.
+     * blogType이 MEDIUM이거나, blogLink에 Medium 관련 URL이 포함되어 있으면 true
+     */
+    public boolean isMediumBlog() {
+        // blogType이 MEDIUM이면 true
+        if ("MEDIUM".equals(blogType)) {
+            return true;
+        }
+        // blogLink에 Medium 관련 URL이 포함되어 있으면 true
+        if (blogLink != null) {
+            return blogLink.contains("medium.com")
+                    || blogLink.contains("netflixtechblog.com")
+                    || blogLink.contains("yogiyo.co.kr")
+                    || blogLink.contains("gccompany.co.kr")
+                    || blogLink.contains("techblog.lotteon.com");
+        }
+        return false;
+    }
+
     public static CorporationResponseDto from(Corporation corporation, ParsingSelector parsingSelector) {
         CorporationResponseDto dto = new CorporationResponseDto();
         dto.setId(corporation.getId());
@@ -71,6 +93,7 @@ public class CorporationResponseDto {
         dto.setAlternateName(corporation.getAlternateName());
         dto.setHomeLink(corporation.getHomeLink());
         dto.setBlogLink(corporation.getBlogLink());
+        dto.setBlogType(corporation.getBlogType() != null ? corporation.getBlogType().name() : BlogType.DEFAULT.name());
         dto.setCrewLink(corporation.getCrewLink());
         dto.setLogoUrl(corporation.getLogoUrl());
         dto.setLogoFilename(corporation.getLogoFilename());
@@ -108,6 +131,7 @@ public class CorporationResponseDto {
         dto.setAlternateName(corporation.getAlternateName());
         dto.setHomeLink(corporation.getHomeLink());
         dto.setBlogLink(corporation.getBlogLink());
+        dto.setBlogType(corporation.getBlogType() != null ? corporation.getBlogType().name() : BlogType.DEFAULT.name());
         dto.setCrewLink(corporation.getCrewLink());
         dto.setLogoUrl(corporation.getLogoUrl());
         dto.setLogoFilename(corporation.getLogoFilename());

@@ -25,6 +25,7 @@ public class CorporationCreateDto {
     private Integer isDomestic;
     private String homeLink;
     private String blogLink;
+    private String blogType; // DEFAULT, MEDIUM
     private String crewLink;
     private String logoUrl;
     private String youtubeUrl;

@@ -53,6 +53,7 @@ public class DefaultBlogCrawler implements BlogCrawler {
     private ParsingSelector parsingSelector;
     private final Random random = new Random();
 
+    @Deprecated
     @Override
     public boolean canHandle(String blogUrl) {
         // 다른 크롤러가 처리하지 못하는 모든 블로그를 처리

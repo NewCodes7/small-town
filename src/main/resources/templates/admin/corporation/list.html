@@ -55,6 +55,9 @@
                                 </li>
                             </ul>
                         </div>
+                        <button type="button" class="btn btn-warning me-2" id="remove-medium-duplicates-btn">
+                            <i class="fas fa-clone me-2"></i>Medium 중복 삭제
+                        </button>
                         <button type="button" class="btn btn-success me-2" id="crawl-all-btn">
                             <i class="fas fa-sync-alt me-2"></i>전체 크롤링
                         </button>
@@ -78,7 +81,12 @@
                                 <i th:unless="${corp.effectiveLogoUrl}" class="fas fa-building fa-lg" style="color: var(--primary-green);"></i>
                             </div>
                             <div class="flex-grow-1">
-                                <h5 class="mb-1 fw-bold" style="color: var(--text-dark);" th:text="${corp.name}">Company Name</h5>
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <h5 class="mb-0 fw-bold" style="color: var(--text-dark);" th:text="${corp.name}">Company Name</h5>
+                                    <span th:if="${corp.mediumBlog}" class="badge" style="background: #00ab6c; color: white; font-size: 10px; padding: 3px 6px;">
+                                        <i class="fab fa-medium me-1"></i>Medium
+                                    </span>
+                                </div>
                                 <small class="text-muted">
                                     <i class="fas fa-calendar me-1"></i>
                                     <span th:text="${#temporals.format(corp.createdAt, 'yyyy-MM-dd')}">2024-01-01</span>
@@ -226,6 +234,56 @@
     <!-- JavaScript for crawling and GA sync -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Medium 중복 삭제 버튼 이벤트 리스너
+            const removeDuplicatesBtn = document.getElementById('remove-medium-duplicates-btn');
+            if (removeDuplicatesBtn) {
+                removeDuplicatesBtn.addEventListener('click', function() {
+                    if (!confirm('Medium 기반 기업들의 중복 글을 검사하고 삭제하시겠습니까?\n\n제목 또는 링크가 같은 글 중 하나를 삭제합니다.\n(썸네일 없는 글 우선, 조회수 적은 글 우선 삭제)')) {
+                        return;
+                    }
+
+                    const originalContent = this.innerHTML;
+                    this.disabled = true;
+                    this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>검사 중...';
+
+                    fetch('/admin/corporations/medium/remove-duplicates', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        this.disabled = false;
+                        this.innerHTML = originalContent;
+
+                        if (data.success) {
+                            let message = `중복 글 삭제 완료!\n\n검사 기업: ${data.corporationsChecked}개\n삭제된 글: ${data.deletedCount}개`;
+                            if (data.deletedArticles && data.deletedArticles.length > 0) {
+                                message += '\n\n삭제된 글 목록:';
+                                data.deletedArticles.slice(0, 10).forEach(article => {
+                                    message += `\n- [${article.corporationName}] ${article.title.substring(0, 30)}...`;
+                                });
+                                if (data.deletedArticles.length > 10) {
+                                    message += `\n... 외 ${data.deletedArticles.length - 10}개`;
+                                }
+                            }
+                            alert(message);
+                            if (data.deletedCount > 0) {
+                                window.location.reload();
+                            }
+                        } else {
+                            alert(`중복 삭제 실패\n\n${data.message}`);
+                        }
+                    })
+                    .catch(error => {
+                        this.disabled = false;
+                        this.innerHTML = originalContent;
+                        alert(`중복 삭제 실패\n\n오류: ${error.message}`);
+                    });
+                });
+            }
+
             // GA 전체 기간 동기화 버튼 이벤트 리스너
             const syncGaAllBtn = document.getElementById('sync-ga-all-btn');
             if (syncGaAllBtn) {

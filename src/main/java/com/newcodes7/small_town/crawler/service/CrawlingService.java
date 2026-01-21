@@ -323,7 +323,7 @@ public class CrawlingService {
         List<Article> crawledArticles = new ArrayList<>();
         List<Article> newArticles = new ArrayList<>();
 
-        BlogCrawler blogCrawler = selectCrawler(corporation.getBlogLink());
+        BlogCrawler blogCrawler = selectCrawler(corporation);
         log.info("블로그 크롤링 시작 - 기업: {}, 크롤러: {}", corporation.getName(), blogCrawler.getProviderName());
 
         // robots.txt 확인 및 크롤링 실행
@@ -387,17 +387,17 @@ public class CrawlingService {
     }
 
     /**
-     * 블로그 URL에 따라 적절한 크롤러 선택
+     * Corporation의 blogType에 따라 적절한 크롤러 선택
      */
-    private BlogCrawler selectCrawler(String blogUrl) {
+    private BlogCrawler selectCrawler(Corporation corporation) {
         List<BlogCrawler> crawlers = applicationContext.getBeansOfType(BlogCrawler.class)
                 .values()
                 .stream()
                 .toList();
 
-        // 특화된 크롤러 우선 선택
+        // 특화된 크롤러 우선 선택 (blogType 기반)
         for (BlogCrawler crawler : crawlers) {
-            if (!crawler.getProviderName().equals("Default") && crawler.canHandle(blogUrl)) {
+            if (!crawler.getProviderName().equals("Default") && crawler.canHandle(corporation)) {
                 return crawler;
             }
         }
@@ -406,7 +406,7 @@ public class CrawlingService {
         return crawlers.stream()
                 .filter(crawler -> crawler.getProviderName().equals("Default"))
                 .findFirst()
-                .orElseThrow(() -> new CrawlerNotFoundException(blogUrl));
+                .orElseThrow(() -> new CrawlerNotFoundException(corporation.getBlogLink()));
     }
 
     /**
@@ -566,7 +566,7 @@ public class CrawlingService {
         WebDriver driver = null;
         try {
             driver = webDriverConfig.createWebDriver();
-            BlogCrawler crawler = selectCrawler(corporation.getBlogLink());
+            BlogCrawler crawler = selectCrawler(corporation);
 
             log.info("Admin 전체 페이지 크롤링 - 기업: {}, 크롤러: {}",
                     corporation.getName(), crawler.getProviderName());
@@ -676,7 +676,7 @@ public class CrawlingService {
                 log.info("전체 페이지 크롤링 시작 - 기업: {} (ID: {})", corporation.getName(), corporation.getId());
 
                 driver = webDriverConfig.createWebDriver();
-                BlogCrawler crawler = selectCrawler(corporation.getBlogLink());
+                BlogCrawler crawler = selectCrawler(corporation);
 
                 // crawlAllPages 호출
                 List<Article> articles = crawler.crawlAllPages(driver, corporation);
