@@ -38,6 +38,9 @@ public class TermAutocompleteRepository {
             SELECT DISTINCT term, total_frequency
             FROM (
                 SELECT term, total_frequency FROM term
+                WHERE LOWER(term) LIKE ? AND total_frequency > 0
+                UNION ALL
+                SELECT term, total_frequency FROM term
                 WHERE LOWER(decomposed_term) LIKE ? AND total_frequency > 0
                 UNION ALL
                 SELECT term, total_frequency FROM term
