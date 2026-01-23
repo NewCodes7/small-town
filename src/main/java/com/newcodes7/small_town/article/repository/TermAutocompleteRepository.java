@@ -56,7 +56,7 @@ public class TermAutocompleteRepository {
                 rs.getString("term"),
                 rs.getLong("total_frequency")
             ),
-            query, query,
+            query, query, query,
             limit
         );
     }
