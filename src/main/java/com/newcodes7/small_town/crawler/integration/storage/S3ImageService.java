@@ -14,6 +14,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -52,10 +53,9 @@ public class S3ImageService {
             }
 
             // 외부 URL에서 이미지 다운로드
-            URL url = new URL(imageUrl);
-            // url에 공백 포함된 경우 때문에 인코딩 처리해야 함
-            URI uri = new URI(url.getProtocol(), url.getUserInfo(), url.getHost(), url.getPort(), url.getPath(), url.getQuery(), url.getRef());
-            url = uri.toURL();
+            // path의 한글/공백은 인코딩하되, query 파라미터는 그대로 보존
+            // (AWS S3 presigned URL 등 이미 인코딩된 쿼리가 이중 인코딩되는 것 방지)
+            URL url = encodeUrlPathOnly(imageUrl);
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
             connection.setConnectTimeout(10000); // 10초
@@ -138,8 +138,8 @@ public class S3ImageService {
             }
             return imageUrl; // 업로드 실패 시 원본 URL 반환
         } catch (URISyntaxException e) {
-            log.error("잘못된 URL 형식: {}", imageUrl, e);
-            return imageUrl; // 잘못된 URL 형식 시 원본 URL 반환
+            log.error("URL 인코딩 실패: {}", imageUrl, e);
+            return imageUrl; // URL 인코딩 실패 시 원본 URL 반환
         }
     }
 
@@ -503,6 +503,59 @@ public class S3ImageService {
                 datePrefix,
                 uuid,
                 fileExtension);
+    }
+
+    /**
+     * URL의 path와 query를 적절히 인코딩합니다.
+     * - path: 항상 인코딩 (한글, 공백 등)
+     * - query: non-ASCII 문자가 있으면 인코딩, 이미 인코딩된 경우(%XX) 그대로 유지
+     *
+     * @param imageUrl 원본 이미지 URL
+     * @return 인코딩된 URL
+     * @throws MalformedURLException URL 형식이 잘못된 경우
+     * @throws URISyntaxException URI 생성 실패 시
+     */
+    private URL encodeUrlPathOnly(String imageUrl) throws MalformedURLException, URISyntaxException {
+        URL tempUrl = new URL(imageUrl);
+        String query = tempUrl.getQuery();
+        String fragment = tempUrl.getRef();
+
+        // query에 non-ASCII(한글 등)가 있으면 URI 생성자로 인코딩
+        // 이미 인코딩된 경우(ASCII만 있는 경우)는 그대로 유지
+        boolean shouldEncodeQuery = query != null && containsNonAscii(query);
+        boolean shouldEncodeFragment = fragment != null && containsNonAscii(fragment);
+
+        URI uri = new URI(
+                tempUrl.getProtocol(),
+                tempUrl.getAuthority(),
+                tempUrl.getPath(),
+                shouldEncodeQuery ? query : null,
+                shouldEncodeFragment ? fragment : null
+        );
+
+        String encodedUrl = uri.toASCIIString();
+
+        // 인코딩하지 않은 query/fragment는 원본 그대로 붙임
+        if (!shouldEncodeQuery && query != null) {
+            encodedUrl += "?" + query;
+        }
+        if (!shouldEncodeFragment && fragment != null) {
+            encodedUrl += "#" + fragment;
+        }
+
+        return new URL(encodedUrl);
+    }
+
+    /**
+     * 문자열에 non-ASCII 문자(한글 등)가 포함되어 있는지 확인합니다.
+     */
+    private boolean containsNonAscii(String str) {
+        for (int i = 0; i < str.length(); i++) {
+            if (str.charAt(i) > 127) {
+                return true;
+            }
+        }
+        return false;
     }
 
 }
