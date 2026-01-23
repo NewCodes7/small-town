@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.newcodes7.small_town.admin.service.AdminArticleListService;
 import com.newcodes7.small_town.article.repository.ArticleChunkRepository;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.embedding.repository.ClovaArticleChunkRepository;
 import com.newcodes7.small_town.article.service.ArticleTermService;
 import com.newcodes7.small_town.article.service.RelatedContentKeywordService;
 import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
@@ -53,6 +54,7 @@ public class AdminArticleController {
     private final RelatedContentKeywordService relatedContentKeywordService;
     private final ArticleChunkRepository articleChunkRepository;
     private final ArticleTermService articleTermService;
+    private final ClovaArticleChunkRepository clovaArticleChunkRepository;
 
     /**
      * 글 목록 페이지
@@ -540,6 +542,10 @@ public class AdminArticleController {
                 chunkDataList.add(chunkData);
             }
 
+            // Clova 임베딩 정보 추가
+            boolean hasClovaEmbedding = clovaArticleChunkRepository.existsByArticleId(articleId);
+            long clovaChunkCount = clovaArticleChunkRepository.countByArticleId(articleId);
+
             response.put("success", true);
             response.put("articleId", articleId);
             response.put("articleTitle", article.getTitle());
@@ -548,6 +554,8 @@ public class AdminArticleController {
             response.put("chunksWithoutEmbedding", totalChunks - chunksWithEmbedding);
             response.put("embeddingCoverage", totalChunks > 0 ? (double) chunksWithEmbedding / totalChunks * 100 : 0);
             response.put("chunks", chunkDataList);
+            response.put("hasClovaEmbedding", hasClovaEmbedding);
+            response.put("clovaChunkCount", clovaChunkCount);
 
             return ResponseEntity.ok(response);
 

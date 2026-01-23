@@ -1,0 +1,128 @@
+package com.newcodes7.small_town.embedding.repository;
+
+import java.util.List;
+
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import com.newcodes7.small_town.embedding.entity.ClovaArticleChunk;
+
+@Repository
+public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleChunk, Long> {
+
+    /**
+     * 특정 Article의 모든 청크 조회
+     */
+    List<ClovaArticleChunk> findByArticleIdOrderByChunkIndexAsc(Long articleId);
+
+    /**
+     * 특정 Article의 청크 삭제
+     */
+    void deleteByArticleId(Long articleId);
+
+    /**
+     * 특정 Article의 청크 존재 여부 확인
+     */
+    boolean existsByArticleId(Long articleId);
+
+    /**
+     * 특정 Article의 청크 수
+     */
+    long countByArticleId(Long articleId);
+
+    /**
+     * 임베딩이 있는 청크가 있는 Article ID 목록
+     */
+    @Query("SELECT DISTINCT c.article.id FROM ClovaArticleChunk c WHERE c.embedding IS NOT NULL")
+    List<Long> findArticleIdsWithEmbedding();
+
+    /**
+     * 벡터 유사도 검색 - 청크 단위 (MAX 방식)
+     * 유사도가 높은 청크를 찾아서 해당 Article ID와 유사도를 반환
+     *
+     * @param queryEmbedding 검색 쿼리의 임베딩 벡터 (PostgreSQL 배열 포맷)
+     * @param threshold 최소 유사도 임계값
+     * @param limit 최대 결과 수
+     * @return Article ID와 최고 유사도를 담은 결과
+     * @deprecated 단일 청크만 유사해도 높은 점수를 받는 문제가 있음. findArticleIdsByTopKAvgSimilarity 사용 권장
+     */
+    @Deprecated
+    @Query(value = "SELECT " +
+           "cac.article_id, " +
+           "MAX(1 - (cac.embedding <=> CAST(:queryEmbedding AS vector))) as max_similarity " +
+           "FROM clova_article_chunk cac " +
+           "JOIN article a ON cac.article_id = a.id " +
+           "WHERE a.deleted_at IS NULL " +
+           "AND cac.embedding IS NOT NULL " +
+           "AND 1 - (cac.embedding <=> CAST(:queryEmbedding AS vector)) >= :threshold " +
+           "GROUP BY cac.article_id " +
+           "ORDER BY max_similarity DESC " +
+           "LIMIT :limit",
+           nativeQuery = true)
+    List<Object[]> findArticleIdsBySimilarity(
+            @Param("queryEmbedding") String queryEmbedding,
+            @Param("threshold") double threshold,
+            @Param("limit") int limit
+    );
+
+    /**
+     * 벡터 유사도 검색 - 상위 K개 청크 평균 방식
+     * 단일 청크만 유사한 경우 낮은 점수를 받아, 주제 전체가 관련있는 글이 상위에 노출됨
+     *
+     * @param queryEmbedding 검색 쿼리의 임베딩 벡터 (PostgreSQL 배열 포맷)
+     * @param threshold 최소 유사도 임계값
+     * @param topK 평균 계산에 사용할 상위 청크 수
+     * @param limit 최대 결과 수
+     * @return Article ID와 상위 K개 청크 평균 유사도를 담은 결과
+     */
+    @Query(value = "SELECT article_id, AVG(similarity) as avg_similarity " +
+           "FROM (" +
+           "  SELECT " +
+           "    cac.article_id, " +
+           "    (1 - (cac.embedding <=> CAST(:queryEmbedding AS vector))) as similarity, " +
+           "    ROW_NUMBER() OVER (PARTITION BY cac.article_id ORDER BY cac.embedding <=> CAST(:queryEmbedding AS vector)) as rn " +
+           "  FROM clova_article_chunk cac " +
+           "  JOIN article a ON cac.article_id = a.id " +
+           "  WHERE a.deleted_at IS NULL " +
+           "  AND cac.embedding IS NOT NULL " +
+           ") ranked " +
+           "WHERE rn <= :topK " +
+           "AND similarity >= :threshold " +
+           "GROUP BY article_id " +
+           "ORDER BY avg_similarity DESC " +
+           "LIMIT :limit",
+           nativeQuery = true)
+    List<Object[]> findArticleIdsByTopKAvgSimilarity(
+            @Param("queryEmbedding") String queryEmbedding,
+            @Param("threshold") double threshold,
+            @Param("topK") int topK,
+            @Param("limit") int limit
+    );
+
+    /**
+     * 임베딩이 없는 청크 조회
+     */
+    @Query("SELECT c FROM ClovaArticleChunk c WHERE c.embedding IS NULL")
+    List<ClovaArticleChunk> findChunksWithoutEmbedding(Pageable pageable);
+
+    /**
+     * 전체 청크 수
+     */
+    @Query("SELECT COUNT(c) FROM ClovaArticleChunk c")
+    long countAllChunks();
+
+    /**
+     * 임베딩이 있는 청크 수
+     */
+    @Query("SELECT COUNT(c) FROM ClovaArticleChunk c WHERE c.embedding IS NOT NULL")
+    long countChunksWithEmbedding();
+
+    /**
+     * 임베딩이 있는 Article 수 (중복 제외)
+     */
+    @Query("SELECT COUNT(DISTINCT c.article.id) FROM ClovaArticleChunk c WHERE c.embedding IS NOT NULL")
+    long countArticlesWithEmbedding();
+}

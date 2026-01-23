@@ -221,7 +221,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "JOIN FETCH a.corporation c " +
            "LEFT JOIN FETCH a.category " +
            "WHERE a.deletedAt IS NULL " +
-           "ORDER BY a.publishedAt DESC")
+           "ORDER BY a.id DESC")
     Page<Article> findByDeletedAtIsNull(Pageable pageable);
 
     // 해외 기업의 번역되지 않은 글들 조회 (한국어가 포함되지 않은 제목)
@@ -609,4 +609,25 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     List<Article> findByGeneratedTitleIsNullAndContentIsNotNullAndCorporationIdAndDeletedAtIsNull(
             @Param("corporationId") Long corporationId,
             Pageable pageable);
+
+    // ===== Clova Embedding 관련 쿼리 =====
+
+    /**
+     * content가 있고 Clova 청크 임베딩이 없는 Article 조회 (ID 내림차순)
+     * Native Query로 clova_article_chunk 테이블과 조인하여 효율적으로 조회
+     *
+     * @param limit 최대 조회 수
+     * @return Article ID 리스트 (ID 내림차순)
+     */
+    @Query(value = "SELECT a.id FROM article a " +
+           "WHERE a.deleted_at IS NULL " +
+           "AND a.content IS NOT NULL " +
+           "AND NOT EXISTS (" +
+           "    SELECT 1 FROM clova_article_chunk cac " +
+           "    WHERE cac.article_id = a.id AND cac.embedding IS NOT NULL" +
+           ") " +
+           "ORDER BY a.id DESC " +
+           "LIMIT :limit",
+           nativeQuery = true)
+    List<Long> findArticleIdsWithoutClovaEmbedding(@Param("limit") int limit);
 }

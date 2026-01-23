@@ -5,6 +5,7 @@ import com.newcodes7.small_town.article.repository.ArticleTermRepository;
 import com.newcodes7.small_town.article.repository.ArticleChunkRepository;
 import com.newcodes7.small_town.article.repository.CorporationRepository;
 import com.newcodes7.small_town.article.repository.TermRepository;
+import com.newcodes7.small_town.embedding.service.ClovaSearchService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.entity.Term;
@@ -64,6 +65,15 @@ public class ArticleService {
     private final SemanticTermExpansionService semanticExpansionService;
     private final LikeService likeService;
     private final UserLikeService userLikeService;
+    private final ClovaSearchService clovaSearchService;
+
+    // RRF 상수
+    private static final int RRF_K = 60;  // RRF 상수 (일반적으로 60 사용)
+
+    // RRF 가중치 (각 검색 방법의 기여도)
+    private static final double RRF_WEIGHT_BM25 = 1.0;    // BM25: 기본 가중치
+    private static final double RRF_WEIGHT_ILIKE = 0.3;   // ILIKE: 낮은 가중치 (폴백용)
+    private static final double RRF_WEIGHT_VECTOR = 1.0;  // Vector: 기본 가중치
 
     public ArticleService(ArticleRepository articleRepository,
                          @Qualifier("articleCorporationRepository") CorporationRepository corporationRepository,
@@ -75,7 +85,8 @@ public class ArticleService {
                          ArticleEmbeddingService embeddingService,
                          SemanticTermExpansionService semanticExpansionService,
                          LikeService likeService,
-                         UserLikeService userLikeService) {
+                         UserLikeService userLikeService,
+                         ClovaSearchService clovaSearchService) {
         this.articleRepository = articleRepository;
         this.corporationRepository = corporationRepository;
         this.articleTermRepository = articleTermRepository;
@@ -87,6 +98,7 @@ public class ArticleService {
         this.semanticExpansionService = semanticExpansionService;
         this.likeService = likeService;
         this.userLikeService = userLikeService;
+        this.clovaSearchService = clovaSearchService;
     }
 
     @Cacheable(value = "corporationArticles",
@@ -544,24 +556,26 @@ public class ArticleService {
     }
 
     /**
-     * Hybrid 검색 + Binary Boost 스코어링
-     * BM25 (키워드 정확도) + ILIKE (폴백) → Binary Boost로 통합
+     * Hybrid 검색 + RRF (Reciprocal Rank Fusion) 스코어링
+     * BM25 (키워드 정확도) + ILIKE (폴백) + Clova Vector (의미 검색) → RRF로 통합
      *
-     * 스코어링 방식:
-     * - BM25 매칭: BM25 스코어 사용 (정교한 relevance 점수)
-     * - BM25 + ILIKE 매칭: BM25 스코어 + 5.0 보너스 (제목에 정확히 포함)
-     * - ILIKE만 매칭: 1.0 고정 점수 (BM25가 놓친 고유명사 등)
+     * RRF 스코어링 방식:
+     * - RRF_score(d) = Σ (1 / (k + rank_i(d))) for each ranking list
+     * - k = 60 (standard value)
      *
-     * NOTE: Vector Search는 비활성화되어 있습니다.
+     * 검색 방법:
+     * - BM25: ArticleTerm 기반 키워드 검색 (정확도 높음)
+     * - ILIKE: 제목 직접 매칭 (고유명사 폴백)
+     * - Clova Vector: 의미적 유사도 검색 (시맨틱 검색)
      *
      * @param keyword 검색 키워드
      * @param regions 지역 필터 (domestic, overseas)
      * @param category 카테고리 필터
      * @param page 페이지 번호
      * @param size 페이지 크기
-     * @param sort 정렬 방식 (relevance: 최종 스코어순, latest: 최신순, oldest: 오래된순)
+     * @param sort 정렬 방식 (relevance: RRF 스코어순, latest: 최신순, oldest: 오래된순)
      * @param ipAddress 사용자 IP 주소 (좋아요 상태 조회용)
-     * @return 검색 결과 (Binary Boost 스코어 기반 정렬, 좋아요 상태 포함)
+     * @return 검색 결과 (RRF 스코어 기반 정렬, 좋아요 상태 포함)
      */
     @Transactional(readOnly = true, noRollbackFor = {Exception.class, RuntimeException.class})
     public Page<ArticleSearchResultDto> searchArticlesHybrid(
@@ -578,12 +592,10 @@ public class ArticleService {
             return Page.empty();
         }
 
-        // 1. BM25 검색 (ArticleTerm 기반 키워드 검색 - 정확도 높음)
-        // 발행일 정보도 함께 가져옴
+        // 1. BM25 검색 (ArticleTerm 기반 키워드 검색)
         Map<Long, Double> bm25Results = new HashMap<>();
         Map<Long, LocalDateTime> publishedAtMap = new HashMap<>();
 
-        // BM25 검색 실행 및 발행일 추출
         List<Object[]> bm25RawResults = performBM25SearchRaw(keyword, regions, category);
         for (Object[] row : bm25RawResults) {
             Long articleId = ((Number) row[0]).longValue();
@@ -602,16 +614,12 @@ public class ArticleService {
         Map<Long, Double> ilikeResults = new HashMap<>();
         List<Object[]> ilikeRawResults = performILIKESearchRaw(keyword, regions, category);
         if (ilikeRawResults != null && !ilikeRawResults.isEmpty()) {
-            // ILIKE 결과 처리: ID, published_at 추출
             for (Object[] row : ilikeRawResults) {
                 Long articleId = ((Number) row[0]).longValue();
                 java.sql.Timestamp timestamp = row.length > 1 ? (java.sql.Timestamp) row[1] : null;
                 LocalDateTime publishedAt = timestamp != null ? timestamp.toLocalDateTime() : null;
 
-                // ILIKE 결과는 모두 동일한 스코어 부여
                 ilikeResults.put(articleId, 1.0);
-
-                // published_at 정보도 publishedAtMap에 추가
                 if (publishedAt != null && !publishedAtMap.containsKey(articleId)) {
                     publishedAtMap.put(articleId, publishedAt);
                 }
@@ -619,52 +627,50 @@ public class ArticleService {
             log.info("ILIKE 검색 결과: {}개", ilikeResults.size());
         }
 
-        // 3. Binary Boost 방식으로 최종 점수 계산
-        // BM25 스코어를 기본으로, ILIKE 매칭 시 보너스 추가
-        Map<Long, Double> finalScores = new HashMap<>();
-
-        // BM25 스코어 복사
-        finalScores.putAll(bm25Results);
-
-        // ILIKE 매칭 시 보너스 추가
-        final double ILIKE_BOOST = 5.0;  // BM25 평균 스코어를 고려한 보너스 (튜닝 가능)
-        final double ILIKE_ONLY_SCORE = 1.0;  // ILIKE만 매칭된 경우 낮은 고정 점수
-
-        for (Long articleId : ilikeResults.keySet()) {
-            finalScores.merge(articleId, ILIKE_ONLY_SCORE,
-                (bm25Score, ilikeScore) -> bm25Score + ILIKE_BOOST);
+        // 3. Clova Vector 검색 (의미적 유사도)
+        Map<Long, Double> vectorResultsTemp = new HashMap<>();
+        try {
+            vectorResultsTemp = clovaSearchService.searchByKeyword(keyword);
+            log.info("Clova Vector 검색 결과: {}개", vectorResultsTemp.size());
+        } catch (Exception e) {
+            log.warn("Clova Vector 검색 실패 (스킵): {}", e.getMessage());
         }
+        final Map<Long, Double> vectorResults = vectorResultsTemp;
 
-        if (finalScores.isEmpty()) {
+        // 4. RRF (Reciprocal Rank Fusion) 계산
+        Map<Long, Double> rrfScores = calculateRRFScores(bm25Results, ilikeResults, vectorResults);
+
+        if (rrfScores.isEmpty()) {
             log.warn("모든 검색 방법에서 결과가 없습니다: '{}'", keyword);
             return Page.empty();
         }
 
-        log.info("Binary Boost 완료 - BM25: {}개, ILIKE: {}개, 최종: {}개",
-            bm25Results.size(), ilikeResults.size(), finalScores.size());
+        log.info("RRF 완료 - BM25: {}개, ILIKE: {}개, Vector: {}개, 최종: {}개",
+            bm25Results.size(), ilikeResults.size(), vectorResults.size(), rrfScores.size());
 
-        // ILIKE만 발견한 Article 로깅 (분석용 - ILIKE 필요성 검증)
-        Set<Long> ilikeOnly = new HashSet<>(ilikeResults.keySet());
-        ilikeOnly.removeAll(bm25Results.keySet());
-        if (!ilikeOnly.isEmpty()) {
-            log.info("ILIKE만 발견한 Article: {}개 (키워드: '{}')", ilikeOnly.size(), keyword);
+        // 벡터만 발견한 Article 로깅 (분석용)
+        Set<Long> vectorOnly = new HashSet<>(vectorResults.keySet());
+        vectorOnly.removeAll(bm25Results.keySet());
+        vectorOnly.removeAll(ilikeResults.keySet());
+        if (!vectorOnly.isEmpty()) {
+            log.info("Vector만 발견한 Article: {}개 (키워드: '{}')", vectorOnly.size(), keyword);
         }
 
-        // 4. 최종 점수로 정렬 (메모리에서, ID + 점수만 사용)
-        List<Map.Entry<Long, Double>> sortedByScore = finalScores.entrySet().stream()
+        // 5. RRF 점수로 정렬
+        List<Map.Entry<Long, Double>> sortedByRRF = rrfScores.entrySet().stream()
                 .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
                 .toList();
 
-        // 5. 페이징 계산
+        // 6. 페이징 계산
         int offset = page * size;
-        int totalResults = sortedByScore.size();
+        int totalResults = sortedByRRF.size();
 
-        // 6. sort 파라미터에 따른 처리
+        // 7. sort 파라미터에 따른 처리
         List<Long> pageArticleIds;
 
         if ("latest".equals(sort) || "oldest".equals(sort)) {
-            // 최신순/오래된순: publishedAtMap을 사용하여 메모리에서 정렬 후 10개만 조회
-            List<Map.Entry<Long, Double>> sortedByDate = sortedByScore.stream()
+            // 최신순/오래된순
+            List<Map.Entry<Long, Double>> sortedByDate = sortedByRRF.stream()
                     .sorted((e1, e2) -> {
                         LocalDateTime date1 = publishedAtMap.getOrDefault(e1.getKey(), LocalDateTime.MIN);
                         LocalDateTime date2 = publishedAtMap.getOrDefault(e2.getKey(), LocalDateTime.MIN);
@@ -676,83 +682,142 @@ public class ArticleService {
                 return Page.empty(PageRequest.of(page, size));
             }
 
-            // 페이지에 해당하는 10개만 추출
             pageArticleIds = sortedByDate.stream()
                     .skip(offset)
                     .limit(size)
                     .map(Map.Entry::getKey)
                     .collect(Collectors.toList());
 
-            // 10개만 조회
-            List<Article> pageArticles = articleRepository.findAllById(pageArticleIds);
-
-            // 좋아요 상태 batch 조회 (N+1 방지)
-            Map<Long, Boolean> likeStatusMap = getLikeStatusMap(pageArticleIds, username, ipAddress);
-
-            // Article ID 순서를 정렬된 순서대로 재정렬
-            Map<Long, Article> articleMap = pageArticles.stream()
-                    .collect(Collectors.toMap(Article::getId, a -> a));
-
-            List<Article> sortedArticles = pageArticleIds.stream()
-                    .map(articleMap::get)
-                    .filter(a -> a != null)
-                    .collect(Collectors.toList());
-
-            // DTO 생성 (좋아요 상태 포함)
-            List<ArticleSearchResultDto> results = sortedArticles.stream()
-                    .map(article -> {
-                        Long articleId = article.getId();
-                        Double bm25Score = bm25Results.get(articleId);
-                        Double ilikeScore = ilikeResults.get(articleId);
-                        Double finalScore = finalScores.get(articleId);
-                        Boolean isLiked = likeStatusMap.getOrDefault(articleId, false);
-                        return new ArticleSearchResultDto(article, false, bm25Score, null, finalScore, ilikeScore, null, isLiked);
-                    })
-                    .collect(Collectors.toList());
-
-            return new PageImpl<>(results, PageRequest.of(page, size), totalResults);
-
         } else {
-            // 적합도순 (기본값): 최종 점수 순위대로 상위 N개만 조회
+            // 적합도순 (RRF 스코어순)
             if (offset >= totalResults) {
                 return Page.empty(PageRequest.of(page, size));
             }
 
-            pageArticleIds = sortedByScore.stream()
+            pageArticleIds = sortedByRRF.stream()
                     .skip(offset)
                     .limit(size)
                     .map(Map.Entry::getKey)
                     .collect(Collectors.toList());
-
-            // 상위 N개만 Article 조회
-            List<Article> pageArticles = articleRepository.findAllById(pageArticleIds);
-
-            // 좋아요 상태 batch 조회 (N+1 방지)
-            Map<Long, Boolean> likeStatusMap = getLikeStatusMap(pageArticleIds, username, ipAddress);
-
-            // Article ID 순서를 최종 점수 순서대로 재정렬
-            Map<Long, Article> articleMap = pageArticles.stream()
-                    .collect(Collectors.toMap(Article::getId, a -> a));
-
-            List<Article> sortedArticles = pageArticleIds.stream()
-                    .map(articleMap::get)
-                    .filter(a -> a != null)
-                    .collect(Collectors.toList());
-
-            // DTO 생성 (좋아요 상태 포함)
-            List<ArticleSearchResultDto> results = sortedArticles.stream()
-                    .map(article -> {
-                        Long articleId = article.getId();
-                        Double bm25Score = bm25Results.get(articleId);
-                        Double ilikeScore = ilikeResults.get(articleId);
-                        Double finalScore = finalScores.get(articleId);
-                        Boolean isLiked = likeStatusMap.getOrDefault(articleId, false);
-                        return new ArticleSearchResultDto(article, false, bm25Score, null, finalScore, ilikeScore, null, isLiked);
-                    })
-                    .collect(Collectors.toList());
-
-            return new PageImpl<>(results, PageRequest.of(page, size), totalResults);
         }
+
+        // 8. Article 조회
+        List<Article> pageArticles = articleRepository.findAllById(pageArticleIds);
+
+        // 9. 좋아요 상태 batch 조회 (N+1 방지)
+        Map<Long, Boolean> likeStatusMap = getLikeStatusMap(pageArticleIds, username, ipAddress);
+
+        // 10. Article ID 순서대로 재정렬
+        Map<Long, Article> articleMap = pageArticles.stream()
+                .collect(Collectors.toMap(Article::getId, a -> a));
+
+        List<Article> sortedArticles = pageArticleIds.stream()
+                .map(articleMap::get)
+                .filter(a -> a != null)
+                .collect(Collectors.toList());
+
+        // 11. DTO 생성 (모든 스코어 포함)
+        List<ArticleSearchResultDto> results = sortedArticles.stream()
+                .map(article -> {
+                    Long articleId = article.getId();
+                    Double bm25Score = bm25Results.get(articleId);
+                    Double ilikeScore = ilikeResults.get(articleId);
+                    Double vectorScore = vectorResults.get(articleId);
+                    Double rrfScore = rrfScores.get(articleId);
+                    Boolean isLiked = likeStatusMap.getOrDefault(articleId, false);
+                    boolean foundByVector = vectorScore != null && bm25Score == null && ilikeScore == null;
+                    return new ArticleSearchResultDto(article, foundByVector, bm25Score, vectorScore, rrfScore, ilikeScore, null, isLiked);
+                })
+                .collect(Collectors.toList());
+
+        return new PageImpl<>(results, PageRequest.of(page, size), totalResults);
+    }
+
+    /**
+     * RRF (Reciprocal Rank Fusion) 스코어 계산
+     * 각 검색 방법의 순위를 기반으로 최종 스코어 계산
+     *
+     * RRF_score(d) = Σ (weight_i * 1 / (k + rank_i(d))) for each ranking list
+     * k = 60 (standard value)
+     *
+     * 가중치:
+     * - BM25: 1.0 (주 검색)
+     * - ILIKE: 0.3 (폴백용, 낮은 기여)
+     * - Vector: 1.0 (의미 검색)
+     *
+     * @param bm25Results BM25 검색 결과 (ID -> 스코어)
+     * @param ilikeResults ILIKE 검색 결과 (ID -> 스코어)
+     * @param vectorResults Vector 검색 결과 (ID -> 유사도)
+     * @return RRF 스코어 맵 (ID -> RRF 스코어)
+     */
+    private Map<Long, Double> calculateRRFScores(
+            Map<Long, Double> bm25Results,
+            Map<Long, Double> ilikeResults,
+            Map<Long, Double> vectorResults) {
+
+        Map<Long, Double> rrfScores = new HashMap<>();
+
+        // 1. BM25 순위 계산 (스코어 내림차순)
+        Map<Long, Integer> bm25Ranks = calculateRanks(bm25Results);
+
+        // 2. ILIKE 순위 계산 (모두 동일 순위 1)
+        Map<Long, Integer> ilikeRanks = new HashMap<>();
+        int ilikeRank = 1;
+        for (Long articleId : ilikeResults.keySet()) {
+            ilikeRanks.put(articleId, ilikeRank++);
+        }
+
+        // 3. Vector 순위 계산 (유사도 내림차순)
+        Map<Long, Integer> vectorRanks = calculateRanks(vectorResults);
+
+        // 4. 모든 Article ID 수집
+        Set<Long> allArticleIds = new HashSet<>();
+        allArticleIds.addAll(bm25Results.keySet());
+        allArticleIds.addAll(ilikeResults.keySet());
+        allArticleIds.addAll(vectorResults.keySet());
+
+        // 5. RRF 스코어 계산 (가중치 적용)
+        for (Long articleId : allArticleIds) {
+            double rrfScore = 0.0;
+
+            // BM25 기여 (가중치: 1.0)
+            if (bm25Ranks.containsKey(articleId)) {
+                rrfScore += RRF_WEIGHT_BM25 / (RRF_K + bm25Ranks.get(articleId));
+            }
+
+            // ILIKE 기여 (가중치: 0.3 - 낮은 비중)
+            if (ilikeRanks.containsKey(articleId)) {
+                rrfScore += RRF_WEIGHT_ILIKE / (RRF_K + ilikeRanks.get(articleId));
+            }
+
+            // Vector 기여 (가중치: 1.0)
+            if (vectorRanks.containsKey(articleId)) {
+                rrfScore += RRF_WEIGHT_VECTOR / (RRF_K + vectorRanks.get(articleId));
+            }
+
+            rrfScores.put(articleId, rrfScore);
+        }
+
+        return rrfScores;
+    }
+
+    /**
+     * 스코어 맵을 순위 맵으로 변환
+     * 스코어 내림차순으로 순위 부여 (1부터 시작)
+     */
+    private Map<Long, Integer> calculateRanks(Map<Long, Double> scoreMap) {
+        Map<Long, Integer> ranks = new HashMap<>();
+
+        List<Map.Entry<Long, Double>> sortedEntries = scoreMap.entrySet().stream()
+                .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
+                .toList();
+
+        int rank = 1;
+        for (Map.Entry<Long, Double> entry : sortedEntries) {
+            ranks.put(entry.getKey(), rank++);
+        }
+
+        return ranks;
     }
 
     /**
