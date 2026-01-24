@@ -494,6 +494,27 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     );
 
     /**
+     * 특정 Article ID들에 대한 BM25 점수 계산
+     * Vector로만 검색된 article들의 BM25 score를 채우기 위해 사용
+     * 검색 쿼리에 매칭되지 않는 article은 결과에 포함되지 않음 (BM25 점수 = 0으로 처리)
+     *
+     * @param searchQuery BM25 검색 쿼리
+     * @param articleIds BM25 점수를 계산할 Article ID 목록
+     * @return Article ID와 BM25 점수를 담은 결과
+     */
+    @Query(value = "SELECT asi.id, " +
+           "paradedb.score(asi.id) as bm25_score " +
+           "FROM article_search_index asi " +
+           "WHERE asi @@@ paradedb.parse(:searchQuery) " +
+           "AND asi.id IN (:articleIds) " +
+           "ORDER BY bm25_score DESC",
+           nativeQuery = true)
+    List<Object[]> computeBM25ScoreForArticleIds(
+            @Param("searchQuery") String searchQuery,
+            @Param("articleIds") List<Long> articleIds
+    );
+
+    /**
      * BM25 검색용 Materialized View 갱신
      * 크롤링 후 또는 ArticleTerm 업데이트 후 호출
      */

@@ -125,4 +125,35 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
      */
     @Query("SELECT COUNT(DISTINCT c.article.id) FROM ClovaArticleChunk c WHERE c.embedding IS NOT NULL")
     long countArticlesWithEmbedding();
+
+    /**
+     * 특정 Article ID들에 대한 벡터 유사도 계산 - 상위 K개 청크 평균 방식
+     * BM25로만 검색된 article들의 vector score를 계산하기 위해 사용
+     *
+     * @param queryEmbedding 검색 쿼리의 임베딩 벡터 (PostgreSQL 배열 포맷)
+     * @param articleIds 유사도를 계산할 Article ID 목록
+     * @param topK 평균 계산에 사용할 상위 청크 수
+     * @return Article ID와 상위 K개 청크 평균 유사도를 담은 결과
+     */
+    @Query(value = "SELECT article_id, AVG(similarity) as avg_similarity " +
+           "FROM (" +
+           "  SELECT " +
+           "    cac.article_id, " +
+           "    (1 - (cac.embedding <=> CAST(:queryEmbedding AS vector))) as similarity, " +
+           "    ROW_NUMBER() OVER (PARTITION BY cac.article_id ORDER BY cac.embedding <=> CAST(:queryEmbedding AS vector)) as rn " +
+           "  FROM clova_article_chunk cac " +
+           "  JOIN article a ON cac.article_id = a.id " +
+           "  WHERE a.deleted_at IS NULL " +
+           "  AND cac.embedding IS NOT NULL " +
+           "  AND cac.article_id IN (:articleIds) " +
+           ") ranked " +
+           "WHERE rn <= :topK " +
+           "GROUP BY article_id " +
+           "ORDER BY avg_similarity DESC",
+           nativeQuery = true)
+    List<Object[]> computeSimilarityForArticleIds(
+            @Param("queryEmbedding") String queryEmbedding,
+            @Param("articleIds") List<Long> articleIds,
+            @Param("topK") int topK
+    );
 }

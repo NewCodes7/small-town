@@ -27,7 +27,7 @@ public class ClovaSearchService {
     private static final double DEFAULT_SIMILARITY_THRESHOLD = 0.5;
 
     // 최대 결과 수
-    private static final int DEFAULT_MAX_RESULTS = 50;
+    private static final int DEFAULT_MAX_RESULTS = 100;
 
     // 평균 계산에 사용할 상위 청크 수
     private static final int DEFAULT_TOP_K = 3;
@@ -98,6 +98,98 @@ public class ClovaSearchService {
      */
     public Map<Long, Double> searchByKeyword(String keyword) {
         return searchByKeyword(keyword, DEFAULT_SIMILARITY_THRESHOLD, DEFAULT_MAX_RESULTS);
+    }
+
+    /**
+     * 특정 Article ID들에 대한 vector similarity 계산
+     * BM25로만 검색된 article들의 vector score를 채우기 위해 사용
+     *
+     * @param keyword 검색 키워드
+     * @param articleIds vector similarity를 계산할 Article ID 목록
+     * @return Article ID -> 유사도 스코어 맵
+     */
+    public Map<Long, Double> computeSimilarityForArticles(String keyword, List<Long> articleIds) {
+        if (keyword == null || keyword.trim().isEmpty() || articleIds == null || articleIds.isEmpty()) {
+            return Map.of();
+        }
+
+        try {
+            // 1. 키워드 임베딩 생성
+            ModelEmbeddingResult embResult = clovaEmbeddingService.generateEmbedding(keyword, null);
+
+            if (!embResult.isSuccess() || embResult.getEmbedding() == null) {
+                log.warn("Clova 키워드 임베딩 생성 실패: {}", embResult.getErrorMessage());
+                return Map.of();
+            }
+
+            float[] queryEmbedding = embResult.getEmbedding();
+
+            // 2. PostgreSQL vector 포맷으로 변환
+            String vectorString = formatVectorForPostgres(queryEmbedding);
+
+            // 3. 특정 Article들에 대한 유사도 계산
+            List<Object[]> results = clovaChunkRepository.computeSimilarityForArticleIds(
+                    vectorString, articleIds, DEFAULT_TOP_K);
+
+            // 4. Article ID와 유사도 스코어 맵으로 변환
+            Map<Long, Double> scoreMap = new HashMap<>();
+            for (Object[] row : results) {
+                Long articleId = ((Number) row[0]).longValue();
+                Double similarity = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
+                if (similarity != null) {
+                    scoreMap.put(articleId, similarity);
+                }
+            }
+
+            log.debug("Clova 특정 Article 유사도 계산 완료 - 키워드: '{}', 요청: {}개, 계산됨: {}개",
+                    keyword, articleIds.size(), scoreMap.size());
+            return scoreMap;
+
+        } catch (Exception e) {
+            log.error("Clova 특정 Article 유사도 계산 실패: {}", e.getMessage(), e);
+            return Map.of();
+        }
+    }
+
+    /**
+     * 캐시된 쿼리 임베딩을 사용하여 특정 Article ID들에 대한 vector similarity 계산
+     * searchArticlesHybrid에서 이미 생성된 임베딩을 재사용하여 API 호출 절감
+     *
+     * @param queryEmbedding 이미 생성된 쿼리 임베딩
+     * @param articleIds vector similarity를 계산할 Article ID 목록
+     * @return Article ID -> 유사도 스코어 맵
+     */
+    public Map<Long, Double> computeSimilarityForArticlesWithEmbedding(float[] queryEmbedding, List<Long> articleIds) {
+        if (queryEmbedding == null || articleIds == null || articleIds.isEmpty()) {
+            return Map.of();
+        }
+
+        try {
+            // PostgreSQL vector 포맷으로 변환
+            String vectorString = formatVectorForPostgres(queryEmbedding);
+
+            // 특정 Article들에 대한 유사도 계산
+            List<Object[]> results = clovaChunkRepository.computeSimilarityForArticleIds(
+                    vectorString, articleIds, DEFAULT_TOP_K);
+
+            // Article ID와 유사도 스코어 맵으로 변환
+            Map<Long, Double> scoreMap = new HashMap<>();
+            for (Object[] row : results) {
+                Long articleId = ((Number) row[0]).longValue();
+                Double similarity = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
+                if (similarity != null) {
+                    scoreMap.put(articleId, similarity);
+                }
+            }
+
+            log.debug("Clova 특정 Article 유사도 계산 완료 (캐시된 임베딩) - 요청: {}개, 계산됨: {}개",
+                    articleIds.size(), scoreMap.size());
+            return scoreMap;
+
+        } catch (Exception e) {
+            log.error("Clova 특정 Article 유사도 계산 실패: {}", e.getMessage(), e);
+            return Map.of();
+        }
     }
 
     /**

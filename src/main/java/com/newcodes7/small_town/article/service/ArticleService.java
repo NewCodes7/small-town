@@ -568,6 +568,10 @@ public class ArticleService {
      * - ILIKE: 제목 직접 매칭 (고유명사 폴백)
      * - Clova Vector: 의미적 유사도 검색 (시맨틱 검색)
      *
+     * 모든 검색 결과는 BM25와 Vector 점수를 모두 가짐:
+     * - BM25로만 검색된 article: Vector 점수 추가 계산
+     * - Vector로만 검색된 article: BM25 점수 추가 계산
+     *
      * @param keyword 검색 키워드
      * @param regions 지역 필터 (domestic, overseas)
      * @param category 카테고리 필터
@@ -592,11 +596,18 @@ public class ArticleService {
             return Page.empty();
         }
 
-        // 1. BM25 검색 (ArticleTerm 기반 키워드 검색)
+        // 1. BM25 검색 쿼리 생성 (나중에 Vector-only article들의 BM25 점수 계산에 재사용)
+        String bm25SearchQuery = buildBM25SearchQuery(keyword);
+        if (bm25SearchQuery == null || bm25SearchQuery.isEmpty()) {
+            log.warn("BM25 검색 쿼리 생성 실패: '{}'", keyword);
+            return Page.empty();
+        }
+
+        // 2. BM25 검색 (ArticleTerm 기반 키워드 검색)
         Map<Long, Double> bm25Results = new HashMap<>();
         Map<Long, LocalDateTime> publishedAtMap = new HashMap<>();
 
-        List<Object[]> bm25RawResults = performBM25SearchRaw(keyword, regions, category);
+        List<Object[]> bm25RawResults = executeBM25Search(bm25SearchQuery, regions, category);
         for (Object[] row : bm25RawResults) {
             Long articleId = ((Number) row[0]).longValue();
             Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
@@ -610,7 +621,7 @@ public class ArticleService {
         }
         log.info("BM25 검색 결과: {}개", bm25Results.size());
 
-        // 2. ILIKE 폴백 (고유명사 등 BM25가 놓칠 수 있는 경우)
+        // 3. ILIKE 폴백 (고유명사 등 BM25가 놓칠 수 있는 경우)
         Map<Long, Double> ilikeResults = new HashMap<>();
         List<Object[]> ilikeRawResults = performILIKESearchRaw(keyword, regions, category);
         if (ilikeRawResults != null && !ilikeRawResults.isEmpty()) {
@@ -627,45 +638,110 @@ public class ArticleService {
             log.info("ILIKE 검색 결과: {}개", ilikeResults.size());
         }
 
-        // 3. Clova Vector 검색 (의미적 유사도)
-        Map<Long, Double> vectorResultsTemp = new HashMap<>();
+        // 4. Clova Vector 검색 (의미적 유사도)
+        Map<Long, Double> vectorResults = new HashMap<>();
         try {
-            vectorResultsTemp = clovaSearchService.searchByKeyword(keyword);
-            log.info("Clova Vector 검색 결과: {}개", vectorResultsTemp.size());
+            vectorResults = clovaSearchService.searchByKeyword(keyword);
+            log.info("Clova Vector 검색 결과: {}개", vectorResults.size());
         } catch (Exception e) {
             log.warn("Clova Vector 검색 실패 (스킵): {}", e.getMessage());
         }
-        final Map<Long, Double> vectorResults = vectorResultsTemp;
 
-        // 4. RRF (Reciprocal Rank Fusion) 계산
-        Map<Long, Double> rrfScores = calculateRRFScores(bm25Results, ilikeResults, vectorResults);
+        // 5. RRF 계산용 원본 결과 저장 (추가 계산 전)
+        // RRF는 원래 검색 결과의 순위를 기반으로 계산해야 함
+        final Map<Long, Double> originalBm25Results = new HashMap<>(bm25Results);
+        final Map<Long, Double> originalVectorResults = new HashMap<>(vectorResults);
+
+        // 6. 누락된 점수 계산 (합집합 보완) - DTO 표시용
+        // 6-1. BM25에만 있는 article들의 Vector 점수 계산
+        Set<Long> bm25OnlyIds = new HashSet<>(bm25Results.keySet());
+        bm25OnlyIds.addAll(ilikeResults.keySet());  // ILIKE 결과도 포함 (키워드 검색 결과)
+        bm25OnlyIds.removeAll(vectorResults.keySet());
+
+        if (!bm25OnlyIds.isEmpty()) {
+            try {
+                Map<Long, Double> additionalVectorScores = clovaSearchService.computeSimilarityForArticles(
+                        keyword, new ArrayList<>(bm25OnlyIds));
+                vectorResults.putAll(additionalVectorScores);
+                log.info("BM25-only article들의 Vector 점수 추가 계산: {}개 중 {}개 계산됨",
+                        bm25OnlyIds.size(), additionalVectorScores.size());
+            } catch (Exception e) {
+                log.warn("BM25-only article Vector 점수 계산 실패 (스킵): {}", e.getMessage());
+            }
+        }
+
+        // 6-2. Vector에만 있는 article들의 BM25 점수 계산
+        Set<Long> vectorOnlyIds = new HashSet<>(originalVectorResults.keySet());
+        vectorOnlyIds.removeAll(originalBm25Results.keySet());
+        vectorOnlyIds.removeAll(ilikeResults.keySet());
+
+        if (!vectorOnlyIds.isEmpty()) {
+            try {
+                List<Object[]> additionalBm25Results = articleRepository.computeBM25ScoreForArticleIds(
+                        bm25SearchQuery, new ArrayList<>(vectorOnlyIds));
+                for (Object[] row : additionalBm25Results) {
+                    Long articleId = ((Number) row[0]).longValue();
+                    Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : 0.0;
+                    bm25Results.put(articleId, score);
+                }
+                // Vector에만 있고 BM25에 매칭되지 않는 article들은 BM25 점수 0
+                for (Long articleId : vectorOnlyIds) {
+                    if (!bm25Results.containsKey(articleId)) {
+                        bm25Results.put(articleId, 0.0);
+                    }
+                }
+                log.info("Vector-only article들의 BM25 점수 추가 계산: {}개 요청, {}개 매칭됨",
+                        vectorOnlyIds.size(), additionalBm25Results.size());
+            } catch (Exception e) {
+                log.warn("Vector-only article BM25 점수 계산 실패 (스킵): {}", e.getMessage());
+                // 실패 시 0으로 설정
+                for (Long articleId : vectorOnlyIds) {
+                    bm25Results.put(articleId, 0.0);
+                }
+            }
+        }
+
+        // 7. RRF (Reciprocal Rank Fusion) 계산 - 원본 검색 결과 기반
+        // 추가 계산된 점수는 RRF에 영향 주지 않음 (DTO 표시용)
+        Map<Long, Double> rrfScores = calculateRRFScores(originalBm25Results, ilikeResults, originalVectorResults);
 
         if (rrfScores.isEmpty()) {
             log.warn("모든 검색 방법에서 결과가 없습니다: '{}'", keyword);
             return Page.empty();
         }
 
-        log.info("RRF 완료 - BM25: {}개, ILIKE: {}개, Vector: {}개, 최종: {}개",
-            bm25Results.size(), ilikeResults.size(), vectorResults.size(), rrfScores.size());
+        log.info("RRF 완료 - BM25(원본): {}개, ILIKE: {}개, Vector(원본): {}개, 최종: {}개",
+            originalBm25Results.size(), ilikeResults.size(), originalVectorResults.size(), rrfScores.size());
 
-        // 벡터만 발견한 Article 로깅 (분석용)
-        Set<Long> vectorOnly = new HashSet<>(vectorResults.keySet());
-        vectorOnly.removeAll(bm25Results.keySet());
-        vectorOnly.removeAll(ilikeResults.keySet());
-        if (!vectorOnly.isEmpty()) {
-            log.info("Vector만 발견한 Article: {}개 (키워드: '{}')", vectorOnly.size(), keyword);
-        }
+        // 8. 전체 RRF 결과의 article을 조회하여 유효한 것만 필터링
+        // (Materialized View 동기화 지연, soft delete 등으로 일부 article이 없을 수 있음)
+        List<Long> allRrfIds = new ArrayList<>(rrfScores.keySet());
+        List<Article> allArticles = articleRepository.findAllById(allRrfIds);
 
-        // 5. RRF 점수로 정렬
+        // 유효한 article만 Map으로 저장 (deleted_at 체크 포함)
+        Map<Long, Article> validArticleMap = allArticles.stream()
+                .filter(a -> a.getDeletedAt() == null)
+                .collect(Collectors.toMap(Article::getId, a -> a));
+
+        Set<Long> validArticleIds = validArticleMap.keySet();
+
+        log.debug("RRF 결과 {}개 중 유효한 article: {}개", rrfScores.size(), validArticleIds.size());
+
+        // 9. 유효한 article만 포함하여 RRF 점수로 정렬
         List<Map.Entry<Long, Double>> sortedByRRF = rrfScores.entrySet().stream()
+                .filter(e -> validArticleIds.contains(e.getKey()))
                 .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
                 .toList();
 
-        // 6. 페이징 계산
+        // 10. 페이징 계산 (유효한 article 기준)
         int offset = page * size;
         int totalResults = sortedByRRF.size();
 
-        // 7. sort 파라미터에 따른 처리
+        if (offset >= totalResults) {
+            return Page.empty(PageRequest.of(page, size));
+        }
+
+        // 11. sort 파라미터에 따른 처리
         List<Long> pageArticleIds;
 
         if ("latest".equals(sort) || "oldest".equals(sort)) {
@@ -678,10 +754,6 @@ public class ArticleService {
                     })
                     .toList();
 
-            if (offset >= totalResults) {
-                return Page.empty(PageRequest.of(page, size));
-            }
-
             pageArticleIds = sortedByDate.stream()
                     .skip(offset)
                     .limit(size)
@@ -690,10 +762,6 @@ public class ArticleService {
 
         } else {
             // 적합도순 (RRF 스코어순)
-            if (offset >= totalResults) {
-                return Page.empty(PageRequest.of(page, size));
-            }
-
             pageArticleIds = sortedByRRF.stream()
                     .skip(offset)
                     .limit(size)
@@ -701,36 +769,166 @@ public class ArticleService {
                     .collect(Collectors.toList());
         }
 
-        // 8. Article 조회
-        List<Article> pageArticles = articleRepository.findAllById(pageArticleIds);
-
-        // 9. 좋아요 상태 batch 조회 (N+1 방지)
+        // 12. 좋아요 상태 batch 조회 (N+1 방지)
         Map<Long, Boolean> likeStatusMap = getLikeStatusMap(pageArticleIds, username, ipAddress);
 
-        // 10. Article ID 순서대로 재정렬
-        Map<Long, Article> articleMap = pageArticles.stream()
-                .collect(Collectors.toMap(Article::getId, a -> a));
-
+        // 13. Article ID 순서대로 정렬 (이미 validArticleMap에 있으므로 재조회 불필요)
         List<Article> sortedArticles = pageArticleIds.stream()
-                .map(articleMap::get)
+                .map(validArticleMap::get)
                 .filter(a -> a != null)
                 .collect(Collectors.toList());
 
-        // 11. DTO 생성 (모든 스코어 포함)
+        // 14. DTO 생성 (모든 스코어 포함 - 이제 모든 article이 BM25, Vector 점수를 가짐)
+        final Map<Long, Double> finalVectorResults = vectorResults;
         List<ArticleSearchResultDto> results = sortedArticles.stream()
                 .map(article -> {
                     Long articleId = article.getId();
                     Double bm25Score = bm25Results.get(articleId);
                     Double ilikeScore = ilikeResults.get(articleId);
-                    Double vectorScore = vectorResults.get(articleId);
+                    Double vectorScore = finalVectorResults.get(articleId);
                     Double rrfScore = rrfScores.get(articleId);
                     Boolean isLiked = likeStatusMap.getOrDefault(articleId, false);
-                    boolean foundByVector = vectorScore != null && bm25Score == null && ilikeScore == null;
+                    // foundByVector: 원래 Vector 검색에서만 발견되었던 article (BM25/ILIKE에서는 발견 못함)
+                    boolean foundByVector = vectorOnlyIds.contains(articleId);
                     return new ArticleSearchResultDto(article, foundByVector, bm25Score, vectorScore, rrfScore, ilikeScore, null, isLiked);
                 })
                 .collect(Collectors.toList());
 
         return new PageImpl<>(results, PageRequest.of(page, size), totalResults);
+    }
+
+    /**
+     * BM25 검색 쿼리 문자열 생성
+     * 검색어를 의미적으로 확장하여 BM25 쿼리 문자열 반환
+     *
+     * @param keyword 검색 키워드
+     * @return BM25 쿼리 문자열
+     */
+    private String buildBM25SearchQuery(String keyword) {
+        try {
+            // 1. 검색어를 의미적으로 확장 (직접 매칭 + 유의어 + 임베딩 유사어)
+            Map<String, Double> expandedTerms = semanticExpansionService.expandSearchTerms(keyword);
+
+            if (expandedTerms.isEmpty()) {
+                log.warn("검색어 '{}' 확장 결과가 비어있습니다.", keyword);
+                return null;
+            }
+
+            // 2. 직접 매칭 Term과 확장 Term 분리
+            List<String> directMatchTerms = new ArrayList<>();
+            Map<String, Double> expandedOnlyTerms = new LinkedHashMap<>();
+
+            for (Map.Entry<String, Double> entry : expandedTerms.entrySet()) {
+                if (entry.getValue() == 1.0) {
+                    directMatchTerms.add(entry.getKey());
+                } else {
+                    expandedOnlyTerms.put(entry.getKey(), entry.getValue());
+                }
+            }
+
+            // 3. 가중치 기반 BM25 쿼리 생성
+            StringBuilder queryBuilder = new StringBuilder();
+
+            // 3-1. 모든 직접 매칭 Term이 포함된 경우 (AND 절, 최고 우선순위)
+            if (directMatchTerms.size() >= 2) {
+                String andBoost = "3.0";
+
+                queryBuilder.append("(");
+                for (int i = 0; i < directMatchTerms.size(); i++) {
+                    if (i > 0) queryBuilder.append(" AND ");
+                    queryBuilder.append("title:").append(quoteTerm(directMatchTerms.get(i)));
+                }
+                queryBuilder.append(")^").append(andBoost);
+
+                queryBuilder.append(" OR (");
+                for (int i = 0; i < directMatchTerms.size(); i++) {
+                    if (i > 0) queryBuilder.append(" AND ");
+                    queryBuilder.append("translated_title:").append(quoteTerm(directMatchTerms.get(i)));
+                }
+                queryBuilder.append(")^").append(andBoost);
+
+                queryBuilder.append(" OR (");
+                for (int i = 0; i < directMatchTerms.size(); i++) {
+                    if (i > 0) queryBuilder.append(" AND ");
+                    queryBuilder.append("search_terms:").append(quoteTerm(directMatchTerms.get(i)));
+                }
+                queryBuilder.append(")^").append(andBoost);
+            }
+
+            // 3-2. 개별 직접 매칭 Term (OR 절, 중간 우선순위)
+            for (String term : directMatchTerms) {
+                if (queryBuilder.length() > 0) {
+                    queryBuilder.append(" OR ");
+                }
+
+                String boostValue = "2.0";
+                String quotedTerm = quoteTerm(term);
+                queryBuilder.append(String.format(
+                    "(title:%s^%s OR translated_title:%s^%s OR search_terms:%s^%s)",
+                    quotedTerm, boostValue, quotedTerm, boostValue, quotedTerm, boostValue
+                ));
+            }
+
+            // 3-3. 유의어 및 임베딩 유사어 (OR 절, 낮은 우선순위)
+            for (Map.Entry<String, Double> entry : expandedOnlyTerms.entrySet()) {
+                String term = entry.getKey();
+                Double weight = entry.getValue();
+
+                if (queryBuilder.length() > 0) {
+                    queryBuilder.append(" OR ");
+                }
+
+                String boostValue = String.format("%.1f", weight * 2.0);
+                String quotedTerm = quoteTerm(term);
+
+                queryBuilder.append(String.format(
+                    "(title:%s^%s OR translated_title:%s^%s OR search_terms:%s^%s)",
+                    quotedTerm, boostValue, quotedTerm, boostValue, quotedTerm, boostValue
+                ));
+            }
+
+            log.debug("BM25 검색 쿼리 생성 완료 - 직접 Term: {}, 확장 Term: {}", directMatchTerms, expandedOnlyTerms.keySet());
+            return queryBuilder.toString();
+
+        } catch (Exception e) {
+            log.error("BM25 검색 쿼리 생성 실패: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * 생성된 BM25 쿼리로 검색 실행
+     *
+     * @param searchQuery BM25 검색 쿼리
+     * @param regions 지역 필터
+     * @param category 카테고리 필터
+     * @return 검색 결과 (id, score, published_at)
+     */
+    private List<Object[]> executeBM25Search(String searchQuery, List<String> regions, List<String> category) {
+        try {
+            List<Integer> domesticTypes = convertRegionsToTypes(regions);
+            List<String> safeCategory = (category != null && !category.isEmpty()) ? category : null;
+
+            List<Object[]> results;
+            boolean hasDomesticTypes = domesticTypes != null && !domesticTypes.isEmpty();
+            boolean hasCategory = safeCategory != null && !safeCategory.isEmpty();
+
+            if (hasDomesticTypes && hasCategory) {
+                results = articleRepository.searchByBM25WithBothFilters(searchQuery, domesticTypes, safeCategory, 100);
+            } else if (hasDomesticTypes) {
+                results = articleRepository.searchByBM25WithDomesticTypes(searchQuery, domesticTypes, 100);
+            } else if (hasCategory) {
+                results = articleRepository.searchByBM25WithCategory(searchQuery, safeCategory, 100);
+            } else {
+                results = articleRepository.searchByBM25(searchQuery, 100);
+            }
+
+            return results;
+
+        } catch (Exception e) {
+            log.error("BM25 검색 실행 실패: {}", e.getMessage(), e);
+            return Collections.emptyList();
+        }
     }
 
     /**
@@ -865,119 +1063,14 @@ public class ArticleService {
      * latest/oldest 정렬 시 published_at 정보가 필요할 때 사용
      */
     private List<Object[]> performBM25SearchRaw(String keyword, List<String> regions, List<String> category) {
-        try {
-            // 1. 검색어를 의미적으로 확장 (직접 매칭 + 유의어 + 임베딩 유사어)
-            Map<String, Double> expandedTerms = semanticExpansionService.expandSearchTerms(keyword);
-
-            if (expandedTerms.isEmpty()) {
-                log.warn("검색어 '{}' 확장 결과가 비어있습니다.", keyword);
-                return Collections.emptyList();
-            }
-
-            // 2. 직접 매칭 Term과 확장 Term 분리
-            List<String> directMatchTerms = new ArrayList<>();
-            Map<String, Double> expandedOnlyTerms = new LinkedHashMap<>();
-
-            for (Map.Entry<String, Double> entry : expandedTerms.entrySet()) {
-                if (entry.getValue() == 1.0) {
-                    directMatchTerms.add(entry.getKey());
-                } else {
-                    expandedOnlyTerms.put(entry.getKey(), entry.getValue());
-                }
-            }
-
-            // 3. 가중치 기반 BM25 쿼리 생성
-            StringBuilder queryBuilder = new StringBuilder();
-
-            // 3-1. 모든 직접 매칭 Term이 포함된 경우 (AND 절, 최고 우선순위)
-            if (directMatchTerms.size() >= 2) {
-                String andBoost = "3.0";
-
-                queryBuilder.append("(");
-                for (int i = 0; i < directMatchTerms.size(); i++) {
-                    if (i > 0) queryBuilder.append(" AND ");
-                    queryBuilder.append("title:").append(quoteTerm(directMatchTerms.get(i)));
-                }
-                queryBuilder.append(")^").append(andBoost);
-
-                queryBuilder.append(" OR (");
-                for (int i = 0; i < directMatchTerms.size(); i++) {
-                    if (i > 0) queryBuilder.append(" AND ");
-                    queryBuilder.append("translated_title:").append(quoteTerm(directMatchTerms.get(i)));
-                }
-                queryBuilder.append(")^").append(andBoost);
-
-                queryBuilder.append(" OR (");
-                for (int i = 0; i < directMatchTerms.size(); i++) {
-                    if (i > 0) queryBuilder.append(" AND ");
-                    queryBuilder.append("search_terms:").append(quoteTerm(directMatchTerms.get(i)));
-                }
-                queryBuilder.append(")^").append(andBoost);
-
-                log.debug("AND 절 생성 - 직접 매칭 Term: {}", directMatchTerms);
-            }
-
-            // 3-2. 개별 직접 매칭 Term (OR 절, 중간 우선순위)
-            for (String term : directMatchTerms) {
-                if (queryBuilder.length() > 0) {
-                    queryBuilder.append(" OR ");
-                }
-
-                String boostValue = "2.0";
-                String quotedTerm = quoteTerm(term);
-                queryBuilder.append(String.format(
-                    "(title:%s^%s OR translated_title:%s^%s OR search_terms:%s^%s)",
-                    quotedTerm, boostValue, quotedTerm, boostValue, quotedTerm, boostValue
-                ));
-            }
-
-            // 3-3. 유의어 및 임베딩 유사어 (OR 절, 낮은 우선순위)
-            for (Map.Entry<String, Double> entry : expandedOnlyTerms.entrySet()) {
-                String term = entry.getKey();
-                Double weight = entry.getValue();
-
-                if (queryBuilder.length() > 0) {
-                    queryBuilder.append(" OR ");
-                }
-
-                String boostValue = String.format("%.1f", weight * 2.0);
-                String quotedTerm = quoteTerm(term);
-
-                queryBuilder.append(String.format(
-                    "(title:%s^%s OR translated_title:%s^%s OR search_terms:%s^%s)",
-                    quotedTerm, boostValue, quotedTerm, boostValue, quotedTerm, boostValue
-                ));
-            }
-
-            String searchQuery = queryBuilder.toString();
-            log.debug("BM25 검색 쿼리 생성 - 직접 Term: {}, 확장 Term: {}", directMatchTerms, expandedOnlyTerms.keySet());
-
-            // 4. 지역 필터 변환
-            List<Integer> domesticTypes = convertRegionsToTypes(regions);
-            List<String> safeCategory = (category != null && !category.isEmpty()) ? category : null;
-
-            // 5. BM25 검색 실행 (필터 조합에 따라 적절한 쿼리 호출)
-            List<Object[]> results;
-            boolean hasDomesticTypes = domesticTypes != null && !domesticTypes.isEmpty();
-            boolean hasCategory = safeCategory != null && !safeCategory.isEmpty();
-
-            if (hasDomesticTypes && hasCategory) {
-                results = articleRepository.searchByBM25WithBothFilters(searchQuery, domesticTypes, safeCategory, 100);
-            } else if (hasDomesticTypes) {
-                results = articleRepository.searchByBM25WithDomesticTypes(searchQuery, domesticTypes, 100);
-            } else if (hasCategory) {
-                results = articleRepository.searchByBM25WithCategory(searchQuery, safeCategory, 100);
-            } else {
-                results = articleRepository.searchByBM25(searchQuery, 100);
-            }
-
-            log.info("BM25 raw 검색 완료 - 키워드: '{}', 결과 수: {}", keyword, results.size());
-            return results;
-
-        } catch (Exception e) {
-            log.error("BM25 raw 검색 실패: {}", e.getMessage(), e);
+        String searchQuery = buildBM25SearchQuery(keyword);
+        if (searchQuery == null || searchQuery.isEmpty()) {
             return Collections.emptyList();
         }
+
+        List<Object[]> results = executeBM25Search(searchQuery, regions, category);
+        log.info("BM25 raw 검색 완료 - 키워드: '{}', 결과 수: {}", keyword, results.size());
+        return results;
     }
 
     /**
@@ -985,139 +1078,23 @@ public class ArticleService {
      * 의미적 Term 확장 + Boost 가중치 적용
      */
     private Map<Long, Double> performBM25SearchWithScores(String keyword, List<String> regions, List<String> category) {
-        try {
-            // 1. 검색어를 의미적으로 확장 (직접 매칭 + 유의어 + 임베딩 유사어)
-            Map<String, Double> expandedTerms = semanticExpansionService.expandSearchTerms(keyword);
-
-            if (expandedTerms.isEmpty()) {
-                log.warn("검색어 '{}' 확장 결과가 비어있습니다.", keyword);
-                return Collections.emptyMap();
-            }
-
-            // 2. 직접 매칭 Term과 확장 Term 분리
-            List<String> directMatchTerms = new ArrayList<>();
-            Map<String, Double> expandedOnlyTerms = new LinkedHashMap<>();
-
-            for (Map.Entry<String, Double> entry : expandedTerms.entrySet()) {
-                if (entry.getValue() == 1.0) {
-                    directMatchTerms.add(entry.getKey());
-                } else {
-                    expandedOnlyTerms.put(entry.getKey(), entry.getValue());
-                }
-            }
-
-            // 3. 가중치 기반 BM25 쿼리 생성
-            StringBuilder queryBuilder = new StringBuilder();
-
-            // 3-1. 모든 직접 매칭 Term이 포함된 경우 (AND 절, 최고 우선순위)
-            if (directMatchTerms.size() >= 2) {
-                // 각 필드별로 AND 절 생성
-                String andBoost = "3.0";  // 모든 키워드 포함 시 3.0x 부스트
-
-                // title에 모든 키워드 포함
-                queryBuilder.append("(");
-                for (int i = 0; i < directMatchTerms.size(); i++) {
-                    if (i > 0) queryBuilder.append(" AND ");
-                    queryBuilder.append("title:").append(quoteTerm(directMatchTerms.get(i)));
-                }
-                queryBuilder.append(")^").append(andBoost);
-
-                // translated_title에 모든 키워드 포함
-                queryBuilder.append(" OR (");
-                for (int i = 0; i < directMatchTerms.size(); i++) {
-                    if (i > 0) queryBuilder.append(" AND ");
-                    queryBuilder.append("translated_title:").append(quoteTerm(directMatchTerms.get(i)));
-                }
-                queryBuilder.append(")^").append(andBoost);
-
-                // search_terms에 모든 키워드 포함
-                queryBuilder.append(" OR (");
-                for (int i = 0; i < directMatchTerms.size(); i++) {
-                    if (i > 0) queryBuilder.append(" AND ");
-                    queryBuilder.append("search_terms:").append(quoteTerm(directMatchTerms.get(i)));
-                }
-                queryBuilder.append(")^").append(andBoost);
-
-                log.debug("AND 절 생성 - 직접 매칭 Term: {}", directMatchTerms);
-            }
-
-            // 3-2. 개별 직접 매칭 Term (OR 절, 중간 우선순위)
-            for (String term : directMatchTerms) {
-                if (queryBuilder.length() > 0) {
-                    queryBuilder.append(" OR ");
-                }
-
-                String boostValue = "2.0";  // 단일 키워드 매칭 시 2.0x 부스트
-                String quotedTerm = quoteTerm(term);
-                queryBuilder.append(String.format(
-                    "(title:%s^%s OR translated_title:%s^%s OR search_terms:%s^%s)",
-                    quotedTerm, boostValue, quotedTerm, boostValue, quotedTerm, boostValue
-                ));
-            }
-
-            // 3-3. 유의어 및 임베딩 유사어 (OR 절, 낮은 우선순위)
-            for (Map.Entry<String, Double> entry : expandedOnlyTerms.entrySet()) {
-                String term = entry.getKey();
-                Double weight = entry.getValue();
-
-                if (queryBuilder.length() > 0) {
-                    queryBuilder.append(" OR ");
-                }
-
-                // boost 값 = weight * 2.0 (유의어: 1.6, 임베딩 유사어: 1.0)
-                String boostValue = String.format("%.1f", weight * 2.0);
-                String quotedTerm = quoteTerm(term);
-
-                queryBuilder.append(String.format(
-                    "(title:%s^%s OR translated_title:%s^%s OR search_terms:%s^%s)",
-                    quotedTerm, boostValue, quotedTerm, boostValue, quotedTerm, boostValue
-                ));
-            }
-
-            String searchQuery = queryBuilder.toString();
-            log.debug("BM25 검색 쿼리 생성 - 직접 Term: {}, 확장 Term: {}", directMatchTerms, expandedOnlyTerms.keySet());
-            log.debug("BM25 검색 쿼리: {}", searchQuery);
-
-            // 3. 지역 필터 변환
-            List<Integer> domesticTypes = convertRegionsToTypes(regions);
-            List<String> safeCategory = (category != null && !category.isEmpty()) ? category : null;
-
-            // 4. BM25 검색 실행 (필터 조합에 따라 적절한 쿼리 호출)
-            List<Object[]> results;
-            boolean hasDomesticTypes = domesticTypes != null && !domesticTypes.isEmpty();
-            boolean hasCategory = safeCategory != null && !safeCategory.isEmpty();
-
-            if (hasDomesticTypes && hasCategory) {
-                // 두 필터 모두 사용
-                results = articleRepository.searchByBM25WithBothFilters(searchQuery, domesticTypes, safeCategory, 100);
-            } else if (hasDomesticTypes) {
-                // domesticTypes만 사용
-                results = articleRepository.searchByBM25WithDomesticTypes(searchQuery, domesticTypes, 100);
-            } else if (hasCategory) {
-                // category만 사용
-                results = articleRepository.searchByBM25WithCategory(searchQuery, safeCategory, 100);
-            } else {
-                // 필터 없음
-                results = articleRepository.searchByBM25(searchQuery, 100);
-            }
-
-            // 5. ID, 스코어, 발행일 추출
-            Map<Long, Double> scoreMap = new HashMap<>();
-            for (Object[] row : results) {
-                Long articleId = ((Number) row[0]).longValue();
-                Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
-                scoreMap.put(articleId, score);
-            }
-
-            log.info("BM25 검색 완료 - 키워드: '{}', 확장된 Term 수: {}, 결과 수: {}",
-                    keyword, expandedTerms.size(), scoreMap.size());
-
-            return scoreMap;
-
-        } catch (Exception e) {
-            log.error("BM25 검색 실패: {}", e.getMessage(), e);
+        String searchQuery = buildBM25SearchQuery(keyword);
+        if (searchQuery == null || searchQuery.isEmpty()) {
             return Collections.emptyMap();
         }
+
+        List<Object[]> results = executeBM25Search(searchQuery, regions, category);
+
+        // ID, 스코어 추출
+        Map<Long, Double> scoreMap = new HashMap<>();
+        for (Object[] row : results) {
+            Long articleId = ((Number) row[0]).longValue();
+            Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
+            scoreMap.put(articleId, score);
+        }
+
+        log.info("BM25 검색 완료 - 키워드: '{}', 결과 수: {}", keyword, scoreMap.size());
+        return scoreMap;
     }
 
     /**
