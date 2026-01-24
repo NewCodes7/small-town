@@ -450,6 +450,29 @@ public class CrawlingService {
     }
 
     /**
+     * 본문만 추출하여 저장 (Term 분석 생략, 성능 최적화용)
+     */
+    private void extractContentOnly(Article article, WebDriver driver) {
+        try {
+            String content = articleContentExtractionService.extractContent(article, driver);
+
+            if (content == null || content.trim().isEmpty()) {
+                log.warn("Content 추출 건너뜀 - 본문이 비어있음: {}", article.getTitle());
+                return;
+            }
+
+            log.info("본문 추출 성공 - Article: {}, 본문 길이: {}자", article.getTitle(), content.length());
+
+            articleContentExtractionService.updateArticleContent(article.getId(), content);
+            log.info("Article 본문 DB 저장 완료 - Article: {}", article.getTitle());
+
+        } catch (Exception e) {
+            log.error("Content 추출 및 저장 중 오류 발생 - Article: {}, 오류: {}",
+                    article.getTitle(), e.getMessage(), e);
+        }
+    }
+
+    /**
      * 본문에서 Term을 추출하여 저장
      */
     private void extractAndSaveTerms(Article article, BlogCrawler crawler, WebDriver driver) {
@@ -584,7 +607,8 @@ public class CrawlingService {
                     // Article 저장 및 AI 분석 (캐시 작업 없음)
                     articlePersistenceService.saveArticleWithAnalysisNoCache(article, corporation, crawler);
 
-                    // 전체 페이지 크롤링 시에는 Term 분석 생략 (성능 최적화)
+                    // Content 추출 및 저장 (Term 분석은 생략)
+                    extractContentOnly(article, driver);
 
                     newArticles.add(article);
                 }
@@ -689,6 +713,10 @@ public class CrawlingService {
 
                     if (!isDuplicateByLink && !isDuplicateByTitle) {
                         articlePersistenceService.saveArticleWithAnalysisNoCache(article, corporation, crawler);
+
+                        // Content 추출 및 저장 (Term 분석은 생략)
+                        extractContentOnly(article, driver);
+
                         newArticles.add(article);
                     }
                 }
