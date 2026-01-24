@@ -305,6 +305,86 @@ public class ClovaEmbeddingBatchService {
     }
 
     /**
+     * 모든 Article의 Clova 청크 임베딩 생성을 위한 전체 개수 조회
+     *
+     * @return 임베딩이 없는 Article 개수
+     */
+    @Transactional(readOnly = true)
+    public long countArticlesWithoutClovaEmbedding() {
+        return articleRepository.countArticlesWithoutClovaEmbedding();
+    }
+
+    /**
+     * 지정된 범위의 Article ID 조회 (10개씩 배치 처리용)
+     *
+     * @param offset 시작 위치
+     * @param limit 조회할 개수
+     * @return Article ID 리스트
+     */
+    @Transactional(readOnly = true)
+    public List<Long> findArticleIdsWithoutClovaEmbedding(int offset, int limit) {
+        return articleRepository.findArticleIdsWithoutClovaEmbeddingPaged(offset, limit);
+    }
+
+    /**
+     * 10개 단위 배치 처리 (별도 트랜잭션)
+     * 컨트롤러에서 호출 시 각 호출마다 새 트랜잭션이 생성됨
+     *
+     * @param articleIds 처리할 Article ID 리스트
+     * @return 처리 결과
+     */
+    @Transactional
+    public Map<String, Object> processEmbeddingBatch(List<Long> articleIds) {
+        int successCount = 0;
+        int failureCount = 0;
+        int totalChunks = 0;
+        List<Map<String, Object>> results = new ArrayList<>();
+
+        List<Article> articles = articleRepository.findAllById(articleIds);
+
+        for (Article article : articles) {
+            try {
+                int chunksGenerated = generateClovaChunkEmbeddingsForArticle(article);
+
+                Map<String, Object> result = new HashMap<>();
+                result.put("articleId", article.getId());
+                result.put("title", article.getTitle());
+                result.put("chunksGenerated", chunksGenerated);
+
+                if (chunksGenerated > 0) {
+                    successCount++;
+                    totalChunks += chunksGenerated;
+                    result.put("success", true);
+                } else {
+                    failureCount++;
+                    result.put("success", false);
+                }
+
+                results.add(result);
+
+                // Rate limit 대응
+                Thread.sleep(RATE_LIMIT_DELAY_MS);
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            } catch (Exception e) {
+                failureCount++;
+                log.error("Article {} 처리 실패: {}", article.getId(), e.getMessage());
+            }
+        }
+
+        Map<String, Object> summary = new HashMap<>();
+        summary.put("processedCount", articles.size());
+        summary.put("successCount", successCount);
+        summary.put("failureCount", failureCount);
+        summary.put("totalChunks", totalChunks);
+        summary.put("results", results);
+
+        return summary;
+    }
+
+    /**
      * Clova 임베딩 통계 조회
      */
     public Map<String, Object> getClovaEmbeddingStats() {

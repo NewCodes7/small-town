@@ -651,4 +651,36 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "LIMIT :limit",
            nativeQuery = true)
     List<Long> findArticleIdsWithoutClovaEmbedding(@Param("limit") int limit);
+
+    /**
+     * content가 있고 Clova 청크 임베딩이 없는 Article 개수 조회
+     */
+    @Query(value = "SELECT COUNT(*) FROM article a " +
+           "WHERE a.deleted_at IS NULL " +
+           "AND a.content IS NOT NULL " +
+           "AND NOT EXISTS (" +
+           "    SELECT 1 FROM clova_article_chunk cac " +
+           "    WHERE cac.article_id = a.id AND cac.embedding IS NOT NULL" +
+           ")",
+           nativeQuery = true)
+    long countArticlesWithoutClovaEmbedding();
+
+    /**
+     * content가 있고 Clova 청크 임베딩이 없는 Article ID 조회 (페이징)
+     *
+     * @param offset 시작 위치
+     * @param limit 조회할 개수
+     * @return Article ID 리스트 (ID 내림차순)
+     */
+    @Query(value = "SELECT a.id FROM article a " +
+           "WHERE a.deleted_at IS NULL " +
+           "AND a.content IS NOT NULL " +
+           "AND NOT EXISTS (" +
+           "    SELECT 1 FROM clova_article_chunk cac " +
+           "    WHERE cac.article_id = a.id AND cac.embedding IS NOT NULL" +
+           ") " +
+           "ORDER BY a.id DESC " +
+           "OFFSET :offset LIMIT :limit",
+           nativeQuery = true)
+    List<Long> findArticleIdsWithoutClovaEmbeddingPaged(@Param("offset") int offset, @Param("limit") int limit);
 }

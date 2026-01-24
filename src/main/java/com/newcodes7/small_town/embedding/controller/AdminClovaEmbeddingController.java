@@ -39,6 +39,101 @@ public class AdminClovaEmbeddingController {
     private final ClovaEmbeddingBatchService clovaEmbeddingBatchService;
 
     /**
+     * 모든 Article에 대해 Clova 임베딩 연속 생성 (10개씩 트랜잭션 분리)
+     *
+     * content가 있고 Clova 임베딩이 없는 모든 Article을 처리
+     * 10개씩 배치로 나눠서 각각 별도 트랜잭션으로 처리 (중간 실패 시에도 이전 배치는 저장됨)
+     *
+     * Example: POST /admin/clova/articles/generate-all-embeddings
+     */
+    @PostMapping("/articles/generate-all-embeddings")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> generateAllClovaEmbeddings() {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // 전체 개수 조회
+            long totalCount = clovaEmbeddingBatchService.countArticlesWithoutClovaEmbedding();
+
+            if (totalCount == 0) {
+                response.put("success", true);
+                response.put("message", "처리할 Article이 없습니다. 모든 Article에 Clova 임베딩이 생성되었거나 content가 없습니다.");
+                response.put("totalArticles", 0);
+                return ResponseEntity.ok(response);
+            }
+
+            log.info("전체 Clova 임베딩 생성 시작 - 총 {}개 Article", totalCount);
+
+            int batchSize = 10;
+            int offset = 0;
+            int totalSuccess = 0;
+            int totalFailure = 0;
+            int totalChunks = 0;
+            int batchNumber = 0;
+
+            // 10개씩 배치 처리
+            while (true) {
+                // 다음 배치 조회 (매번 새로 조회 - 이전 배치에서 처리된 것은 제외됨)
+                List<Long> articleIds = clovaEmbeddingBatchService.findArticleIdsWithoutClovaEmbedding(0, batchSize);
+
+                if (articleIds.isEmpty()) {
+                    log.info("더 이상 처리할 Article이 없습니다");
+                    break;
+                }
+
+                batchNumber++;
+                log.info("배치 {} 처리 시작 - {}개 Article (ID: {}~{})",
+                        batchNumber, articleIds.size(),
+                        articleIds.get(articleIds.size() - 1),
+                        articleIds.get(0));
+
+                // 10개씩 별도 트랜잭션으로 처리
+                Map<String, Object> batchResult = clovaEmbeddingBatchService.processEmbeddingBatch(articleIds);
+
+                int successCount = (int) batchResult.get("successCount");
+                int failureCount = (int) batchResult.get("failureCount");
+                int chunksGenerated = (int) batchResult.get("totalChunks");
+
+                totalSuccess += successCount;
+                totalFailure += failureCount;
+                totalChunks += chunksGenerated;
+
+                log.info("배치 {} 완료 - 성공: {}, 실패: {}, 청크: {} (누적: 성공 {}, 청크 {})",
+                        batchNumber, successCount, failureCount, chunksGenerated,
+                        totalSuccess, totalChunks);
+
+                // 진행 상황 체크 (무한 루프 방지)
+                if (successCount == 0 && failureCount == 0) {
+                    log.warn("배치 처리 결과가 없습니다. 루프 종료");
+                    break;
+                }
+            }
+
+            response.put("success", true);
+            response.put("totalBatches", batchNumber);
+            response.put("totalArticlesProcessed", totalSuccess + totalFailure);
+            response.put("successArticles", totalSuccess);
+            response.put("failureArticles", totalFailure);
+            response.put("totalChunksGenerated", totalChunks);
+            response.put("message", String.format(
+                    "전체 Clova 임베딩 생성 완료: %d개 배치, 성공 %d/%d Articles, %d 청크",
+                    batchNumber, totalSuccess, totalSuccess + totalFailure, totalChunks
+            ));
+
+            log.info("전체 Clova 임베딩 생성 완료 - 배치: {}, 성공: {}/{}, 청크: {}",
+                    batchNumber, totalSuccess, totalSuccess + totalFailure, totalChunks);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("전체 Clova 임베딩 생성 중 오류 발생", e);
+            response.put("success", false);
+            response.put("message", "전체 처리 중 오류 발생: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
      * Clova 청크 임베딩 배치 생성
      *
      * content가 있고 Clova 임베딩이 없는 Article을 ID 내림차순으로 처리
