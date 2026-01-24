@@ -636,6 +636,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     /**
      * content가 있고 Clova 청크 임베딩이 없는 Article 조회 (ID 내림차순)
      * Native Query로 clova_article_chunk 테이블과 조인하여 효율적으로 조회
+     * 빈 문자열 content도 제외 (무한 루프 방지)
      *
      * @param limit 최대 조회 수
      * @return Article ID 리스트 (ID 내림차순)
@@ -643,6 +644,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query(value = "SELECT a.id FROM article a " +
            "WHERE a.deleted_at IS NULL " +
            "AND a.content IS NOT NULL " +
+           "AND TRIM(a.content) != '' " +
            "AND NOT EXISTS (" +
            "    SELECT 1 FROM clova_article_chunk cac " +
            "    WHERE cac.article_id = a.id AND cac.embedding IS NOT NULL" +
@@ -654,10 +656,12 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
 
     /**
      * content가 있고 Clova 청크 임베딩이 없는 Article 개수 조회
+     * 빈 문자열 content도 제외
      */
     @Query(value = "SELECT COUNT(*) FROM article a " +
            "WHERE a.deleted_at IS NULL " +
            "AND a.content IS NOT NULL " +
+           "AND TRIM(a.content) != '' " +
            "AND NOT EXISTS (" +
            "    SELECT 1 FROM clova_article_chunk cac " +
            "    WHERE cac.article_id = a.id AND cac.embedding IS NOT NULL" +
@@ -667,6 +671,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
 
     /**
      * content가 있고 Clova 청크 임베딩이 없는 Article ID 조회 (페이징)
+     * 빈 문자열 content도 제외 (무한 루프 방지)
      *
      * @param offset 시작 위치
      * @param limit 조회할 개수
@@ -675,6 +680,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query(value = "SELECT a.id FROM article a " +
            "WHERE a.deleted_at IS NULL " +
            "AND a.content IS NOT NULL " +
+           "AND TRIM(a.content) != '' " +
            "AND NOT EXISTS (" +
            "    SELECT 1 FROM clova_article_chunk cac " +
            "    WHERE cac.article_id = a.id AND cac.embedding IS NOT NULL" +
