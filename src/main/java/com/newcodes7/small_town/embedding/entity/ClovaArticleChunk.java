@@ -6,7 +6,7 @@ import org.hibernate.annotations.Type;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-import com.newcodes7.small_town.global.config.VectorType;
+import com.newcodes7.small_town.global.config.HalfVectorType;
 import com.newcodes7.small_town.global.entity.Article;
 
 import jakarta.persistence.Column;
@@ -31,7 +31,8 @@ import lombok.Setter;
  * Naver Clova Embedding을 사용한 Article 청크
  * 차원: 1024 (Clova Embedding v2)
  *
- * Clova Segmentation API로 분할된 문단 단위 저장
+ * halfvec (16비트 반정밀도) 사용으로 저장 공간 50% 절감
+ * pgvector 0.7.0+ 필요
  */
 @Entity
 @Getter
@@ -70,10 +71,11 @@ public class ClovaArticleChunk {
     private String content;
 
     /**
-     * Clova Embedding v2 벡터 (1024 차원)
+     * Clova Embedding v2 반정밀도 벡터 (1024 차원)
+     * halfvec 타입으로 저장 공간 50% 절감
      */
-    @Type(VectorType.class)
-    @Column(columnDefinition = "vector(1024)")
+    @Type(HalfVectorType.class)
+    @Column(name = "embedding", columnDefinition = "halfvec(1024)")
     private float[] embedding;
 
     /**

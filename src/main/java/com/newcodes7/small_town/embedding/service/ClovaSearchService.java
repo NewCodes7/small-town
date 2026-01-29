@@ -14,6 +14,9 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * Clova Embedding 기반 벡터 검색 서비스
+ *
+ * halfvec (16비트 반정밀도) 사용으로 저장 공간 50% 절감
+ * pgvector 0.7.0+ 필요
  */
 @Service
 @RequiredArgsConstructor
@@ -60,10 +63,10 @@ public class ClovaSearchService {
             log.debug("Clova 키워드 임베딩 생성 완료 - 차원: {}, 토큰: {}",
                     queryEmbedding.length, embResult.getTokenUsage());
 
-            // 2. PostgreSQL vector 포맷으로 변환
+            // 2. PostgreSQL halfvec 포맷으로 변환
             String vectorString = formatVectorForPostgres(queryEmbedding);
 
-            // 3. 상위 K개 청크 평균 유사도 검색
+            // 3. 상위 K개 청크 평균 유사도 검색 (halfvec)
             List<Object[]> results = clovaChunkRepository.findArticleIdsByTopKAvgSimilarity(
                     vectorString, threshold, topK, maxResults);
 
@@ -77,7 +80,7 @@ public class ClovaSearchService {
                 }
             }
 
-            log.info("Clova 벡터 검색 완료 - 키워드: '{}', topK: {}, 결과 수: {}", keyword, topK, scoreMap.size());
+            log.info("Clova 벡터 검색 완료 (halfvec) - 키워드: '{}', topK: {}, 결과 수: {}", keyword, topK, scoreMap.size());
             return scoreMap;
 
         } catch (Exception e) {
@@ -124,10 +127,10 @@ public class ClovaSearchService {
 
             float[] queryEmbedding = embResult.getEmbedding();
 
-            // 2. PostgreSQL vector 포맷으로 변환
+            // 2. PostgreSQL halfvec 포맷으로 변환
             String vectorString = formatVectorForPostgres(queryEmbedding);
 
-            // 3. 특정 Article들에 대한 유사도 계산
+            // 3. 특정 Article들에 대한 유사도 계산 (halfvec)
             List<Object[]> results = clovaChunkRepository.computeSimilarityForArticleIds(
                     vectorString, articleIds, DEFAULT_TOP_K);
 
@@ -165,10 +168,10 @@ public class ClovaSearchService {
         }
 
         try {
-            // PostgreSQL vector 포맷으로 변환
+            // PostgreSQL halfvec 포맷으로 변환
             String vectorString = formatVectorForPostgres(queryEmbedding);
 
-            // 특정 Article들에 대한 유사도 계산
+            // 특정 Article들에 대한 유사도 계산 (halfvec)
             List<Object[]> results = clovaChunkRepository.computeSimilarityForArticleIds(
                     vectorString, articleIds, DEFAULT_TOP_K);
 
@@ -193,7 +196,7 @@ public class ClovaSearchService {
     }
 
     /**
-     * float[] 임베딩을 PostgreSQL vector 포맷으로 변환
+     * float[] 임베딩을 PostgreSQL halfvec 포맷으로 변환
      * 형식: [0.1,0.2,0.3,...,0.9]
      */
     private String formatVectorForPostgres(float[] embedding) {
