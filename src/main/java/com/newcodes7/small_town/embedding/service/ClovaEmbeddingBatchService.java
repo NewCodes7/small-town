@@ -2,6 +2,7 @@ package com.newcodes7.small_town.embedding.service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +16,7 @@ import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.embedding.dto.ModelEmbeddingResult;
 import com.newcodes7.small_town.embedding.entity.ClovaArticleChunk;
 import com.newcodes7.small_town.embedding.repository.ClovaArticleChunkRepository;
+import com.newcodes7.small_town.global.config.BitVectorType;
 import com.newcodes7.small_town.global.entity.Article;
 
 import lombok.RequiredArgsConstructor;
@@ -113,7 +115,10 @@ public class ClovaEmbeddingBatchService {
                         .build();
 
                 if (embResult.isSuccess()) {
-                    chunk.setEmbedding(embResult.getEmbedding());
+                    float[] embedding = embResult.getEmbedding();
+                    chunk.setEmbedding(embedding);
+                    // Binary Quantization (양수→1, 음수→0)
+                    chunk.setEmbeddingBinary(BitVectorType.fromFloatArray(embedding));
                     chunk.setEmbeddingGeneratedAt(LocalDateTime.now());
                     chunk.setTokenCount(embResult.getTokenUsage());
                     successCount++;

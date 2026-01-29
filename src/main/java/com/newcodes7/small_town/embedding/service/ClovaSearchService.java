@@ -15,8 +15,9 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Clova Embedding 기반 벡터 검색 서비스
  *
- * halfvec (16비트 반정밀도) 사용으로 저장 공간 50% 절감
- * pgvector 0.7.0+ 필요
+ * 2단계 검색 지원:
+ * - Stage 1: Binary HNSW (빠른 후보 필터링)
+ * - Stage 2: halfvec Reranking (정밀 유사도 계산)
  */
 @Service
 @RequiredArgsConstructor
@@ -35,9 +36,18 @@ public class ClovaSearchService {
     // 평균 계산에 사용할 상위 청크 수
     private static final int DEFAULT_TOP_K = 3;
 
+    // Binary HNSW 후보 수 (Stage 1)
+    private static final int DEFAULT_CANDIDATE_LIMIT = 500;
+
+    // 2단계 검색 사용 여부 (Binary HNSW 인덱스 생성 후 true로 변경)
+    private static final boolean USE_TWO_STAGE_SEARCH = true;
+
     /**
-     * 키워드를 임베딩하여 유사한 Article 검색 (상위 K개 청크 평균 방식)
-     * 단일 청크만 유사한 경우 낮은 점수를 받아, 주제 전체가 관련있는 글이 상위에 노출됨
+     * 키워드를 임베딩하여 유사한 Article 검색
+     *
+     * USE_TWO_STAGE_SEARCH가 true이면 2단계 검색 사용:
+     * - Stage 1: Binary HNSW로 빠른 후보 필터링
+     * - Stage 2: halfvec으로 정밀 Reranking
      *
      * @param keyword 검색 키워드
      * @param threshold 유사도 임계값 (0.0 ~ 1.0)
@@ -63,30 +73,79 @@ public class ClovaSearchService {
             log.debug("Clova 키워드 임베딩 생성 완료 - 차원: {}, 토큰: {}",
                     queryEmbedding.length, embResult.getTokenUsage());
 
-            // 2. PostgreSQL halfvec 포맷으로 변환
-            String vectorString = formatVectorForPostgres(queryEmbedding);
-
-            // 3. 상위 K개 청크 평균 유사도 검색 (halfvec)
-            List<Object[]> results = clovaChunkRepository.findArticleIdsByTopKAvgSimilarity(
-                    vectorString, threshold, topK, maxResults);
-
-            // 4. Article ID와 유사도 스코어 맵으로 변환
-            Map<Long, Double> scoreMap = new HashMap<>();
-            for (Object[] row : results) {
-                Long articleId = ((Number) row[0]).longValue();
-                Double similarity = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
-                if (similarity != null) {
-                    scoreMap.put(articleId, similarity);
-                }
+            // 2단계 검색 또는 기존 검색 선택
+            if (USE_TWO_STAGE_SEARCH) {
+                return searchTwoStage(queryEmbedding, threshold, topK, maxResults);
+            } else {
+                return searchDirectHalfvec(queryEmbedding, threshold, topK, maxResults);
             }
-
-            log.info("Clova 벡터 검색 완료 (halfvec) - 키워드: '{}', topK: {}, 결과 수: {}", keyword, topK, scoreMap.size());
-            return scoreMap;
 
         } catch (Exception e) {
             log.error("Clova 벡터 검색 실패: {}", e.getMessage(), e);
             return Map.of();
         }
+    }
+
+    /**
+     * 기존 방식: halfvec 직접 검색
+     */
+    private Map<Long, Double> searchDirectHalfvec(float[] queryEmbedding, double threshold, int topK, int maxResults) {
+        String vectorString = formatVectorForPostgres(queryEmbedding);
+
+        List<Object[]> results = clovaChunkRepository.findArticleIdsByTopKAvgSimilarity(
+                vectorString, threshold, topK, maxResults);
+
+        Map<Long, Double> scoreMap = new HashMap<>();
+        for (Object[] row : results) {
+            Long articleId = ((Number) row[0]).longValue();
+            Double similarity = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
+            if (similarity != null) {
+                scoreMap.put(articleId, similarity);
+            }
+        }
+
+        log.info("Clova 벡터 검색 완료 (halfvec 직접) - 결과 수: {}", scoreMap.size());
+        return scoreMap;
+    }
+
+    /**
+     * 2단계 검색: Binary HNSW → halfvec Reranking
+     */
+    private Map<Long, Double> searchTwoStage(float[] queryEmbedding, double threshold, int topK, int maxResults) {
+        long startTime = System.currentTimeMillis();
+
+        // Stage 1: Binary HNSW로 후보 필터링
+        String binaryString = toBinaryString(queryEmbedding);
+        List<Long> candidateChunkIds = clovaChunkRepository.findCandidateChunkIdsByBinaryHnsw(
+                binaryString, DEFAULT_CANDIDATE_LIMIT);
+
+        long stage1Time = System.currentTimeMillis() - startTime;
+
+        if (candidateChunkIds.isEmpty()) {
+            log.info("Clova 2단계 검색 - Stage 1 결과 없음");
+            return Map.of();
+        }
+
+        // Stage 2: halfvec으로 정밀 Reranking
+        String vectorString = formatVectorForPostgres(queryEmbedding);
+        List<Object[]> results = clovaChunkRepository.rerankByHalfvec(
+                vectorString, candidateChunkIds, topK, threshold, maxResults);
+
+        long totalTime = System.currentTimeMillis() - startTime;
+
+        Map<Long, Double> scoreMap = new HashMap<>();
+        for (Object[] row : results) {
+            Long articleId = ((Number) row[0]).longValue();
+            Double similarity = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
+            if (similarity != null) {
+                scoreMap.put(articleId, similarity);
+            }
+        }
+
+        log.info("Clova 2단계 검색 완료 - Stage1: {}ms (후보 {}개), 총: {}ms, 결과: {}개",
+                stage1Time, candidateChunkIds.size(), totalTime, scoreMap.size());
+
+        return scoreMap;
     }
 
     /**
@@ -206,6 +265,18 @@ public class ClovaSearchService {
             sb.append(embedding[i]);
         }
         sb.append("]");
+        return sb.toString();
+    }
+
+    /**
+     * float[] 임베딩을 Binary String으로 변환 (Binary Quantization)
+     * 양수 → 1, 음수 → 0
+     */
+    private String toBinaryString(float[] embedding) {
+        StringBuilder sb = new StringBuilder(embedding.length);
+        for (float val : embedding) {
+            sb.append(val >= 0 ? '1' : '0');
+        }
         return sb.toString();
     }
 }

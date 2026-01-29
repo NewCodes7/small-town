@@ -1,11 +1,13 @@
 package com.newcodes7.small_town.embedding.entity;
 
 import java.time.LocalDateTime;
+import java.util.BitSet;
 
 import org.hibernate.annotations.Type;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import com.newcodes7.small_town.global.config.BitVectorType;
 import com.newcodes7.small_town.global.config.HalfVectorType;
 import com.newcodes7.small_town.global.entity.Article;
 
@@ -31,8 +33,10 @@ import lombok.Setter;
  * Naver Clova Embedding을 사용한 Article 청크
  * 차원: 1024 (Clova Embedding v2)
  *
- * halfvec (16비트 반정밀도) 사용으로 저장 공간 50% 절감
- * pgvector 0.7.0+ 필요
+ * - halfvec (16비트 반정밀도): 정밀 검색용
+ * - bit (binary quantization): HNSW 빠른 검색용
+ *
+ * 2단계 검색: Binary HNSW → halfvec Reranking
  */
 @Entity
 @Getter
@@ -73,10 +77,20 @@ public class ClovaArticleChunk {
     /**
      * Clova Embedding v2 반정밀도 벡터 (1024 차원)
      * halfvec 타입으로 저장 공간 50% 절감
+     * Stage 2 Reranking에 사용
      */
     @Type(HalfVectorType.class)
     @Column(name = "embedding", columnDefinition = "halfvec(1024)")
     private float[] embedding;
+
+    /**
+     * Binary Quantized 벡터 (1024 bits = 128 bytes)
+     * 양수 → 1, 음수 → 0으로 변환
+     * Stage 1 HNSW 빠른 검색에 사용
+     */
+    @Type(BitVectorType.class)
+    @Column(name = "embedding_binary", columnDefinition = "bit(1024)")
+    private BitSet embeddingBinary;
 
     /**
      * 임베딩 생성 시간
