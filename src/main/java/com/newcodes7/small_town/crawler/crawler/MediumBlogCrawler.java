@@ -294,11 +294,17 @@ public class MediumBlogCrawler implements BlogCrawler {
         try {
             log.debug("본문 추출 시작: {}", articleUrl);
 
+            // Bot 감지 우회 설정
+            setupAntiDetection(driver);
+
             // article 페이지로 이동
             driver.get(articleUrl);
 
-            // 페이지 로딩 대기 (2초)
-            Thread.sleep(2000);
+            // Cloudflare 챌린지 대기 및 통과
+            waitForCloudflareChallenge(driver, articleUrl);
+
+            // 인간처럼 페이지 행동 시뮬레이션
+            simulateHumanBehavior(driver);
 
             // HTML 소스 가져오기
             String pageSource = driver.getPageSource();
@@ -312,6 +318,13 @@ public class MediumBlogCrawler implements BlogCrawler {
             }
 
             String content = body.text();
+
+            // Cloudflare 챌린지 페이지인지 최종 확인
+            if (isCloudflareChallengePage(content)) {
+                log.warn("본문 추출 실패: Cloudflare 챌린지 통과 실패 - {}", articleUrl);
+                return "";
+            }
+
             log.debug("본문 추출 완료: {} (길이: {}자)", articleUrl, content.length());
 
             return content;
@@ -324,6 +337,52 @@ public class MediumBlogCrawler implements BlogCrawler {
             log.error("본문 추출 실패: {} - {}", articleUrl, e.getMessage(), e);
             return "";
         }
+    }
+
+    /**
+     * Cloudflare 챌린지 페이지 대기 및 통과
+     * 최대 15초까지 대기하며 챌린지가 자동 해결되기를 기다림
+     */
+    private void waitForCloudflareChallenge(WebDriver driver, String url) throws InterruptedException {
+        int maxWaitSeconds = 15;
+        int waitedSeconds = 0;
+        int checkIntervalMs = 1000;
+
+        while (waitedSeconds < maxWaitSeconds) {
+            String pageSource = driver.getPageSource();
+
+            // Cloudflare 챌린지 페이지가 아니면 통과
+            if (!isCloudflareChallengePage(pageSource)) {
+                if (waitedSeconds > 0) {
+                    log.info("Cloudflare 챌린지 통과 완료 ({}초 소요): {}", waitedSeconds, url);
+                }
+                return;
+            }
+
+            log.debug("Cloudflare 챌린지 대기 중... ({}초/{}초): {}", waitedSeconds, maxWaitSeconds, url);
+            Thread.sleep(checkIntervalMs);
+            waitedSeconds++;
+        }
+
+        log.warn("Cloudflare 챌린지 대기 시간 초과 ({}초): {}", maxWaitSeconds, url);
+    }
+
+    /**
+     * Cloudflare 챌린지 페이지인지 확인
+     */
+    private boolean isCloudflareChallengePage(String pageContent) {
+        if (pageContent == null) return false;
+
+        // Cloudflare 챌린지 페이지의 특징적인 문구들
+        return pageContent.contains("사람인지 확인")
+                || pageContent.contains("보안을 검토")
+                || pageContent.contains("확인 성공")
+                || pageContent.contains("응답을 기다리는 중")
+                || pageContent.contains("Checking your browser")
+                || pageContent.contains("Just a moment")
+                || pageContent.contains("Verify you are human")
+                || pageContent.contains("cf-browser-verification")
+                || pageContent.contains("cf_chl_opt");
     }
 
     /**
