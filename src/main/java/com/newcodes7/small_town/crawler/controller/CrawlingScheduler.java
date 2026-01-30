@@ -1,16 +1,24 @@
 package com.newcodes7.small_town.crawler.controller;
 
+import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.crawler.config.WebDriverConfig;
+import com.newcodes7.small_town.crawler.crawler.MediumBlogCrawler;
 import com.newcodes7.small_town.crawler.dto.CrawlResult;
 import com.newcodes7.small_town.crawler.integration.analytics.GoogleAnalyticsService;
 import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
 import com.newcodes7.small_town.crawler.service.CrawlingService;
 import com.newcodes7.small_town.crawler.integration.translation.TitleTranslationService;
+import com.newcodes7.small_town.global.entity.Article;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.openqa.selenium.WebDriver;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -24,6 +32,13 @@ public class CrawlingScheduler {
     private final TitleTranslationService titleTranslationService;
     private final ArticlePersistenceService articlePersistenceService;
     private final GoogleAnalyticsService googleAnalyticsService;
+    private final ArticleRepository articleRepository;
+    private final WebDriverConfig webDriverConfig;
+    private final MediumBlogCrawler mediumBlogCrawler;
+
+    private static final int MAX_CONTENT_LENGTH = 200;
+    private static final int BATCH_SIZE = 20;
+    private static final long RATE_LIMIT_DELAY_MS = 1000;
 
     /**
      * 블로그 크롤링 스케줄러
@@ -107,7 +122,7 @@ public class CrawlingScheduler {
      * 전체 페이지 크롤링 스케줄러
      * 매 시간 30분에 실행 (ID 내림차순, lastFullCrawledAt이 null인 경우에만)
      */
-    @Scheduled(cron = "${crawler.schedule.fullpage.cron:0 30 * * * ?}", zone = "Asia/Seoul")
+    // @Scheduled(cron = "${crawler.schedule.fullpage.cron:0 30 * * * ?}", zone = "Asia/Seoul")
     public void scheduledFullPageCrawling() {
         log.info("스케줄된 전체 페이지 크롤링 작업 시작");
 
@@ -192,5 +207,91 @@ public class CrawlingScheduler {
         } catch (Exception e) {
             log.error("스케줄된 GA 조회수 동기화 작업 중 오류 발생", e);
         }
+    }
+
+    /**
+     * Medium 블로그 본문 크롤링 스케줄러
+     * 매 정각 30분에 실행
+     * Medium 타입 기업의 본문이 200자 이하인 Article 대상
+     */
+    @Scheduled(cron = "${crawler.schedule.medium-content.cron:0 30 * * * ?}", zone = "Asia/Seoul")
+    public void scheduledMediumContentCrawling() {
+        log.info("스케줄된 Medium 본문 크롤링 작업 시작");
+
+        int successCount = 0;
+        int failureCount = 0;
+        WebDriver driver = null;
+
+        try {
+            // 본문이 짧은 Medium Article 조회
+            List<Article> articles = articleRepository.findMediumArticlesWithShortContent(
+                    MAX_CONTENT_LENGTH,
+                    PageRequest.of(0, BATCH_SIZE)
+            );
+
+            if (articles.isEmpty()) {
+                log.info("본문 크롤링 대상 Medium Article이 없습니다.");
+                return;
+            }
+
+            log.info("Medium 본문 크롤링 대상: {}개 Article", articles.size());
+
+            // WebDriver 생성 (배치 전체에서 재사용)
+            driver = webDriverConfig.createWebDriver();
+
+            for (Article article : articles) {
+                try {
+                    String content = mediumBlogCrawler.extractArticleContent(article.getLink(), driver);
+
+                    if (content != null && !content.isBlank() && content.length() > MAX_CONTENT_LENGTH) {
+                        // 본문 업데이트 (독립 트랜잭션)
+                        updateArticleContent(article.getId(), content);
+                        successCount++;
+                        log.debug("Article {} 본문 추출 완료 ({}자)", article.getId(), content.length());
+                    } else {
+                        failureCount++;
+                        log.warn("Article {} 본문 추출 실패 또는 여전히 짧음 ({}자)",
+                                article.getId(), content != null ? content.length() : 0);
+                    }
+
+                    // Rate limiting
+                    Thread.sleep(RATE_LIMIT_DELAY_MS);
+
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    log.error("Medium 본문 크롤링 중단됨");
+                    break;
+                } catch (Exception e) {
+                    failureCount++;
+                    log.error("Article {} 본문 추출 실패: {}", article.getId(), e.getMessage());
+                }
+            }
+
+            log.info("스케줄된 Medium 본문 크롤링 작업 완료 - 성공: {}개, 실패: {}개", successCount, failureCount);
+
+        } catch (Exception e) {
+            log.error("스케줄된 Medium 본문 크롤링 작업 중 오류 발생", e);
+        } finally {
+            if (driver != null) {
+                try {
+                    webDriverConfig.forceCloseWebDriver(driver);
+                } catch (Exception e) {
+                    log.warn("WebDriver 종료 중 오류 발생 (무시)", e);
+                }
+            }
+        }
+    }
+
+    /**
+     * Article의 content를 업데이트합니다.
+     * 독립 트랜잭션으로 실행되어 개별 실패가 전체에 영향을 주지 않습니다.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void updateArticleContent(Long articleId, String content) {
+        Article article = articleRepository.findById(articleId)
+                .orElseThrow(() -> new IllegalArgumentException("Article not found: " + articleId));
+        article.setContent(content);
+        articleRepository.save(article);
+        log.debug("Article {} content 업데이트 완료", articleId);
     }
 }

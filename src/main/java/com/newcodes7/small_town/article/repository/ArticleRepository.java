@@ -689,4 +689,34 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "OFFSET :offset LIMIT :limit",
            nativeQuery = true)
     List<Long> findArticleIdsWithoutClovaEmbeddingPaged(@Param("offset") int offset, @Param("limit") int limit);
+
+    // ===== Medium Content 백필 관련 쿼리 =====
+
+    /**
+     * Medium 타입 기업의 본문이 짧은 Article 조회
+     * content가 null이거나 200자 이하인 Article 대상
+     *
+     * @param maxContentLength 최대 본문 길이 (기본 200)
+     * @param pageable 페이징 정보
+     * @return Medium 타입 기업의 본문이 짧은 Article 리스트
+     */
+    @Query("SELECT a FROM Article a " +
+           "JOIN FETCH a.corporation c " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND c.blogType = com.newcodes7.small_town.global.entity.BlogType.MEDIUM " +
+           "AND (a.content IS NULL OR LENGTH(a.content) <= :maxContentLength) " +
+           "ORDER BY a.id DESC")
+    List<Article> findMediumArticlesWithShortContent(
+            @Param("maxContentLength") int maxContentLength,
+            Pageable pageable);
+
+    /**
+     * Medium 타입 기업의 본문이 짧은 Article 개수 조회
+     */
+    @Query("SELECT COUNT(a) FROM Article a " +
+           "JOIN a.corporation c " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND c.blogType = com.newcodes7.small_town.global.entity.BlogType.MEDIUM " +
+           "AND (a.content IS NULL OR LENGTH(a.content) <= :maxContentLength)")
+    long countMediumArticlesWithShortContent(@Param("maxContentLength") int maxContentLength);
 }
