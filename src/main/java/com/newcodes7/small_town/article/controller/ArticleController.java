@@ -416,24 +416,38 @@ public class ArticleController {
         return "about";
     }
 
-    @GetMapping("/articles/{id}")
+    @GetMapping("/articles/{id:\\d+}")
     public String articleDetailRedirect(@PathVariable Long id) {
+        // /articles/123 -> /articles/123-slug 리다이렉트
         Article article = articleRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Article not found"));
 
         String slug = generateSlug(article);
         String encodedSlug = URLEncoder.encode(slug, StandardCharsets.UTF_8);
-        return "redirect:/articles/" + id + "/" + encodedSlug;
+        return "redirect:/articles/" + id + "-" + encodedSlug;
     }
 
-    @GetMapping("/articles/{id}/{slug}")
-    public String articleDetail(@PathVariable Long id, @PathVariable String slug, Model model) {
+    @GetMapping("/articles/{id:\\d+}/{slug}")
+    public String articleDetailOldFormat(@PathVariable Long id, @PathVariable String slug) {
+        // 기존 /articles/123/slug 형식 -> 새 형식으로 리다이렉트
         Article article = articleRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Article not found"));
 
-        // Article DTO 생성
-        ArticleListResponseDto articleDto = new ArticleListResponseDto(article);
+        String newSlug = generateSlug(article);
+        String encodedSlug = URLEncoder.encode(newSlug, StandardCharsets.UTF_8);
+        return "redirect:/articles/" + id + "-" + encodedSlug;
+    }
 
+    @GetMapping("/articles/{idSlug:\\d+-.*}")
+    public String articleDetail(@PathVariable String idSlug, Model model) {
+        // /articles/123-slug 형식
+        int dashIndex = idSlug.indexOf('-');
+        Long id = Long.parseLong(idSlug.substring(0, dashIndex));
+
+        Article article = articleRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Article not found"));
+
+        ArticleListResponseDto articleDto = new ArticleListResponseDto(article);
         model.addAttribute("article", articleDto);
 
         return "article-detail";

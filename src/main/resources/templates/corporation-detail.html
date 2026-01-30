@@ -118,11 +118,13 @@
             <!-- 블로그 글 목록 -->
             <div class="articles-container">
                 <div class="article-card" th:each="article : ${articles.content}"
-                     th:attr="data-article-id=${article.id}, data-article-link=${article.link}">
+                     th:attr="data-article-id=${article.id}, data-detail-url=${article.detailUrl}"
+                     onclick="window.location.href=this.getAttribute('data-detail-url')"
+                     style="cursor: pointer;">
                     <!-- Article Content (Left Side) -->
                     <div class="article-content">
                         <!-- Admin Buttons (only shown via JavaScript for admin users) -->
-                        <div class="admin-buttons-container d-none">
+                        <div class="admin-buttons-container d-none" onclick="event.stopPropagation()">
                             <button class="admin-delete-btn" title="글 삭제" th:attr="data-article-id=${article.id}">
                                 <i class="fas fa-trash"></i>
                             </button>
@@ -134,12 +136,7 @@
 
                         <!-- Title -->
                         <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
-                            <span class="text-decoration-none title-link article-title-clickable"
-                                  th:attr="data-article-id=${article.id}, data-article-link=${article.link}"
-                                  onclick="openArticleLink(this)"
-                                  style="color: inherit; cursor: pointer;">
-                               <span th:text="${article.translatedTitle != null && !article.translatedTitle.isEmpty() ? article.translatedTitle : article.title}">Article Title</span>
-                            </span>
+                            <span class="title-link" th:text="${article.translatedTitle != null && !article.translatedTitle.isEmpty() ? article.translatedTitle : article.title}">Article Title</span>
                         </h5>
 
                         <!-- Stats -->
@@ -149,7 +146,7 @@
                                        th:attr="data-date=${article.publishedAt}"
                                        th:title="${article.publishedAt}"
                                        th:text="${article.publishedAt}">2024-01-01</small>
-                                <button class="like-button" th:attr="data-article-id=${article.id}, data-liked=${article.isLiked != null and article.isLiked}">
+                                <button class="like-button" th:attr="data-article-id=${article.id}, data-liked=${article.isLiked != null and article.isLiked}" onclick="event.stopPropagation()">
                                     <i class="fas fa-heart like-icon"></i>
                                 </button>
                             </div>
@@ -333,91 +330,14 @@
     <div layout:fragment="scripts">
         <script th:src="@{/js/corporationDetail.js}"></script>
         <script th:src="@{/js/visitedHistory.js}"></script>
-        <script>
-            // Open article link with view count increment
-            function openArticleLink(element) {
-                const articleId = element.getAttribute('data-article-id');
-                const articleLink = element.getAttribute('data-article-link');
-
-                // Increment view count
-                if (articleId) {
-                    fetch(`/api/articles/${articleId}/view`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        credentials: 'same-origin',
-                        redirect: 'manual'
-                    }).catch(error => {
-                        console.log('조회수 증가 요청 실패:', error);
-                    });
-                }
-
-                // Open article link in new tab
-                if (articleLink) {
-                    window.open(articleLink, '_blank');
-                }
-            }
-
-            // Bind click events to article cards
-            function bindArticleCardEvents() {
-                document.querySelectorAll('.article-card').forEach(card => {
-                    card.addEventListener('click', (e) => {
-                        // 관리자 버튼이나 좋아요 버튼을 클릭한 경우는 기본 동작 허용
-                        if (e.target.closest('.admin-delete-btn') ||
-                            e.target.closest('.admin-edit-btn') ||
-                            e.target.closest('.like-button')) {
-                            return; // 기본 동작 허용
-                        }
-
-                        // 이미 클릭 가능한 요소인 경우 중복 방지
-                        if (e.target.closest('.article-title-clickable')) {
-                            return; // 이미 자체 클릭 핸들러가 있음
-                        }
-
-                        e.preventDefault();
-
-                        // 카드에서 article 정보 가져오기
-                        const articleId = card.getAttribute('data-article-id');
-                        const articleLink = card.getAttribute('data-article-link');
-
-                        if (articleId && articleLink) {
-                            // 조회수 증가
-                            fetch(`/api/articles/${articleId}/view`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                },
-                                credentials: 'same-origin',
-                                redirect: 'manual'
-                            }).catch(error => {
-                                console.log('조회수 증가 요청 실패:', error);
-                            });
-
-                            // 외부 링크로 이동
-                            window.open(articleLink, '_blank');
-                        }
-                    });
-
-                    // 카드에 cursor: pointer 설정
-                    card.style.cursor = 'pointer';
-                });
-            }
-
-            // 페이지 로드 시 이벤트 바인딩
-            document.addEventListener('DOMContentLoaded', function() {
-                bindArticleCardEvents();
-            });
-        </script>
         <style>
-            /* Article title clickable styles */
-            .article-title-clickable {
+            /* Article title hover styles */
+            .title-link {
                 transition: color 0.2s ease;
             }
 
-            .article-title-clickable:hover {
+            .article-card:hover .title-link {
                 color: var(--primary-green) !important;
-                text-decoration: underline !important;
             }
         </style>
     </div>

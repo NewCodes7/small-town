@@ -1,4 +1,11 @@
-// 아티클 링크 클릭 시 조회수 증가 후 외부 링크 열기
+// 아티클 상세 페이지로 이동 (조회수 증가는 상세 페이지에서 처리)
+function goToArticleDetail(articleId) {
+    if (articleId) {
+        window.location.href = `/articles/${articleId}`;
+    }
+}
+
+// 아티클 링크 클릭 시 조회수 증가 후 외부 링크 열기 (레거시 호환용)
 function openArticleLink(element) {
     const articleId = element.getAttribute('data-article-id');
     const articleLink = element.getAttribute('data-article-link');

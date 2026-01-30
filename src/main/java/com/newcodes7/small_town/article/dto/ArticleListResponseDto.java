@@ -1,5 +1,7 @@
 package com.newcodes7.small_town.article.dto;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -16,6 +18,7 @@ public class ArticleListResponseDto implements ArticleResponseDto {
     private final String translatedTitle;
     private final String summary;
     private final String link;
+    private final String detailUrl;
     private final Integer viewCount;
     private final Integer likeCount;
     private final String thumbnailImage;
@@ -105,6 +108,7 @@ public class ArticleListResponseDto implements ArticleResponseDto {
         this.translatedTitle = article.getTranslatedTitle();
         this.summary = article.getSummary();
         this.link = article.getLink();
+        this.detailUrl = generateDetailUrl(article);
         this.viewCount = article.getViewCount();
         this.likeCount = article.getLikeCount();
         this.thumbnailImage = article.getThumbnailImage();
@@ -120,5 +124,35 @@ public class ArticleListResponseDto implements ArticleResponseDto {
         this.ilikeScore = ilikeScore;
         this.timeDecayScore = timeDecayScore;
         this.isLiked = isLiked;
+    }
+
+    /**
+     * 상세 페이지 URL 생성 (/articles/{id}-{slug})
+     */
+    private String generateDetailUrl(Article article) {
+        String slug = generateSlug(article);
+        String encodedSlug = URLEncoder.encode(slug, StandardCharsets.UTF_8);
+        return "/articles/" + article.getId() + "-" + encodedSlug;
+    }
+
+    /**
+     * SEO 친화적인 slug 생성
+     */
+    private String generateSlug(Article article) {
+        String title = article.getTranslatedTitle() != null ?
+            article.getTranslatedTitle() : article.getTitle();
+
+        String slug = title.toLowerCase()
+            .replaceAll("[^a-z0-9가-힣\\s-]", "")
+            .replaceAll("\\s+", "-")
+            .replaceAll("-+", "-")
+            .replaceAll("^-|-$", "");
+
+        if (slug.length() > 100) {
+            slug = slug.substring(0, 100);
+            slug = slug.replaceAll("-$", "");
+        }
+
+        return slug;
     }
 }

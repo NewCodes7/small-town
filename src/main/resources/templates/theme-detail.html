@@ -312,11 +312,13 @@
 
             <!-- Content Grid -->
             <div th:if="${theme.contents != null and !theme.contents.isEmpty()}" class="content-grid">
-                <div th:each="content : ${theme.contents}" class="content-card">
+                <div th:each="content : ${theme.contents}" class="content-card"
+                     th:attr="data-detail-url=${content.contentType == 'article' ? content.article.detailUrl : 'https://www.youtube.com/watch?v=' + content.video.videoId},
+                              data-content-type=${content.contentType}"
+                     th:onclick="${content.contentType == 'article'} ? 'window.location.href=this.getAttribute(\'data-detail-url\')' : 'window.open(this.getAttribute(\'data-detail-url\'), \'_blank\')'"
+                     style="cursor: pointer;">
                     <!-- Thumbnail -->
-                    <a th:href="${content.contentType == 'article' ? '/articles/' + content.article.id : 'https://www.youtube.com/watch?v=' + content.video.videoId}"
-                       th:target="${content.contentType == 'article' ? '_self' : '_blank'}"
-                       style="text-decoration: none; color: inherit;">
+                    <div>
                         <!-- Article with thumbnail -->
                         <div th:if="${content.contentType == 'article' and content.article.thumbnailImage != null and !content.article.thumbnailImage.isEmpty()}"
                              class="content-thumbnail"
@@ -343,7 +345,7 @@
                                 <div class="thumbnail-pattern"></div>
                             </div>
                         </div>
-                    </a>
+                    </div>
 
                     <!-- Content Body -->
                     <div class="content-body">
@@ -362,16 +364,12 @@
                         </div>
 
                         <!-- Title -->
-                        <a th:href="${content.contentType == 'article' ? '/articles/' + content.article.id : 'https://www.youtube.com/watch?v=' + content.video.videoId}"
-                           th:target="${content.contentType == 'article' ? '_self' : '_blank'}"
-                           class="content-title-link">
-                            <h3 class="content-title"
-                                th:text="${content.contentType == 'article'
-                                          ? (content.article.translatedTitle != null ? content.article.translatedTitle : content.article.title)
-                                          : (content.video.translatedTitle != null ? content.video.translatedTitle : content.video.title)}">
-                                컨텐츠 제목
-                            </h3>
-                        </a>
+                        <h3 class="content-title"
+                            th:text="${content.contentType == 'article'
+                                      ? (content.article.translatedTitle != null ? content.article.translatedTitle : content.article.title)
+                                      : (content.video.translatedTitle != null ? content.video.translatedTitle : content.video.title)}">
+                            컨텐츠 제목
+                        </h3>
 
                         <!-- Meta -->
                         <div class="content-meta">

@@ -9,6 +9,14 @@
         <meta name="keywords" content="홈, 최신 기술, IT 뉴스, 개발자 커뮤니티, 기술 아티클, NewCodes">
         <meta name="robots" content="index, follow">
     </th:block>
+    <!-- 소셜 공유 설정 -->
+    <meta property="og:image" content="https://d1g8228yawhpnq.cloudfront.net/newcodes.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="NewCodes" />
+    <meta property="og:description" content="모든 기술 블로그를 한 곳에서 만나보세요!" />
+    
     <link rel="stylesheet" type="text/css" th:href="@{/css/home.css}">
     <link rel="stylesheet" type="text/css" th:href="@{/css/new-home.css}">
     <link rel="stylesheet" type="text/css" th:href="@{/css/default-thumbnail.css}">
@@ -99,19 +107,18 @@
                     <!-- Blog Cards - Dynamic -->
                     <div th:each="article : ${articles}"
                          class="blog-card"
-                         th:attr="data-article-id=${article.id}, data-article-link=${article.link}"
+                         th:attr="data-detail-url=${article.detailUrl}"
+                         onclick="window.location.href=this.getAttribute('data-detail-url')"
                          style="cursor: pointer;">
-                        <div onclick="openArticleLink(this.parentElement)" style="text-decoration: none; color: inherit;">
-                            <div th:if="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}"
-                                 class="blog-card-thumbnail"
-                                 th:style="'background-image: url(' + ${article.thumbnailImage} + '); background-size: cover; background-position: center;'">
-                            </div>
-                            <div th:unless="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}"
-                                 class="blog-card-thumbnail default-thumbnail">
-                                <div class="default-thumbnail-content">
-                                    <i class="fas fa-code"></i>
-                                    <div class="thumbnail-pattern"></div>
-                                </div>
+                        <div th:if="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}"
+                             class="blog-card-thumbnail"
+                             th:style="'background-image: url(' + ${article.thumbnailImage} + '); background-size: cover; background-position: center;'">
+                        </div>
+                        <div th:unless="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}"
+                             class="blog-card-thumbnail default-thumbnail">
+                            <div class="default-thumbnail-content">
+                                <i class="fas fa-code"></i>
+                                <div class="thumbnail-pattern"></div>
                             </div>
                         </div>
                         <div class="blog-card-content">
@@ -126,9 +133,7 @@
                                     <span class="blog-card-company-name" th:text="${article.corporation.name}">Corporation</span>
                                 </a>
                             </div>
-                            <span onclick="openArticleLink(this.closest('.blog-card'))" class="blog-card-title-link" style="cursor: pointer;">
-                                <h3 class="blog-card-title" th:text="${article.translatedTitle != null ? article.translatedTitle : article.title}">Article Title</h3>
-                            </span>
+                            <h3 class="blog-card-title" th:text="${article.translatedTitle != null ? article.translatedTitle : article.title}">Article Title</h3>
                             <div class="blog-card-meta">
                                 <span class="blog-card-date">
                                     <i class="far fa-clock"></i>
