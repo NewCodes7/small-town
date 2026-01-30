@@ -93,10 +93,11 @@ The system maintains separate entity hierarchies for different concerns:
 #### 2. Crawler Plugin System
 - `BlogCrawler` interface with implementations:
   - `DefaultBlogCrawler` - Generic blog crawler with configurable selectors
-  - `MediumBlogCrawler` - Medium-specific crawler with custom parsing
+  - `MediumBlogCrawler` - Medium-specific crawler with full page pagination and deduplication
   - `TistoryCrawler` - Tistory platform crawler
-- Crawlers are selected based on `canHandle(blogUrl)` method
+- Crawlers are selected based on `canHandle(blogUrl)` method or `blogType` field
 - Uses Spring ApplicationContext to discover crawler implementations dynamically
+- **Full content crawling**: Extracts article body content during crawl (not just metadata)
 - **Success rate**: 93% across 30+ different blog platforms
 
 #### 3. Concurrent Crawling
@@ -119,10 +120,11 @@ The system maintains separate entity hierarchies for different concerns:
 - Handles cases where BM25 tokenization fails
 
 **Layer 3: Vector Semantic Search**
-- pgvector extension with 1536-dim embeddings
+- pgvector extension with binary vectors (optimized from 1536-dim float)
 - OpenAI text-embedding-3-small model
 - Cosine similarity threshold: 0.7
-- IVFFlat index for fast approximate search
+- **HNSW index** for fast approximate search (upgraded from IVFFlat)
+- Uses `halfvec` type for memory-efficient storage
 
 **Hybrid Strategy** in `ArticleService.searchArticlesHybrid()`:
 1. Run all three searches in parallel
@@ -248,6 +250,13 @@ cloud.aws.credentials.secret-key=${AWS_SECRET_KEY}
 s3.bucket.name=${S3_BUCKET_NAME}
 cloudfront.domain=${CLOUDFRONT_DOMAIN}
 s3.upload.enabled=true  # Set to false for local dev
+```
+
+**Google Analytics** (Corporation view tracking):
+```properties
+# GA4 credentials for syncing corporation view counts
+google.analytics.property-id=${GA_PROPERTY_ID}
+google.analytics.credentials-json=${GA_CREDENTIALS_JSON}
 ```
 
 **Monitoring (Prometheus + Actuator)**:
@@ -383,10 +392,15 @@ public double computeCosineSimilarity(float[] vec1, float[] vec2)
 - Monthly incremental (500 articles): ~$0.006
 - Annual total: ~$0.20 (negligible)
 
+**Batch Processing**:
+- Admin API endpoint for bulk embedding generation
+- Filters out articles with empty content automatically
+- Supports incremental embedding for new articles only
+
 **Performance**:
-- Embedding dimension: 1536
-- Storage per article: ~6KB
-- pgvector IVFFlat index: ~10-50ms query time
+- Embedding dimension: 1536 → binary (1536 bits)
+- Storage per article: ~192 bytes (binary) vs ~6KB (float)
+- pgvector HNSW index: ~5-20ms query time (faster than IVFFlat)
 
 #### DeepL (Translation & Synonym Recommendation)
 
@@ -518,12 +532,14 @@ public void refreshBM25SearchIndex() {
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
 
-ALTER TABLE article ADD COLUMN embedding vector(1536);
+-- Binary vector for fast search (converted from 1536-dim float)
+ALTER TABLE article ADD COLUMN binary_embedding bit(1536);
 ALTER TABLE article ADD COLUMN embedding_generated_at TIMESTAMP;
 
-CREATE INDEX article_embedding_idx ON article
-USING ivfflat (embedding vector_cosine_ops)
-WITH (lists = 100);
+-- HNSW index for faster approximate nearest neighbor search
+CREATE INDEX article_binary_embedding_hnsw_idx ON article
+USING hnsw (binary_embedding bit_hamming_ops)
+WITH (m = 16, ef_construction = 64);
 ```
 
 **Search Query**:
@@ -551,8 +567,9 @@ List<Article> findByVectorSimilarity(
 
 **Parameters**:
 - **Threshold**: 0.7 (strong semantic similarity)
-- **Index**: IVFFlat (fast build, ~95% recall)
-- **Dimension**: 1536 (OpenAI text-embedding-3-small)
+- **Index**: HNSW (better recall and query performance than IVFFlat)
+- **Dimension**: 1536 → binary (bit) for memory efficiency
+- **Storage**: Uses `halfvec` for reduced memory footprint
 
 **Use Cases**:
 - Find semantically similar articles beyond keyword matching
@@ -592,6 +609,19 @@ public Page<ArticleSearchResultDto> searchArticlesHybrid(String keyword, ...) {
 - **Precision**: BM25 provides high-quality ranking
 - **Discovery**: Vector search finds related content users wouldn't search for
 - **Transparency**: `foundByVector` flag shows why article matched
+
+#### Search Autocomplete
+
+**Features**:
+- Real-time term suggestions as user types
+- **Bilingual support**: Korean and English terms
+- Optimized query performance (removed unnecessary lookups)
+- Empty query handling to prevent errors
+
+**Implementation**:
+- Term-based autocomplete using indexed terms
+- Prefix matching for fast suggestions
+- Deduplication of similar terms
 
 ### Term Synonym System
 
@@ -1096,6 +1126,10 @@ LIMIT 20;
 - `embedding_generation_total`: Number of embeddings generated
 - `term_extraction_duration_seconds`: Term extraction performance
 
+**Blue-Green Deployment**:
+- Prometheus configured with separate targets for blue and green deployments
+- Enables zero-downtime deployments with metrics continuity
+
 ### Health Checks
 
 **Default Health Indicators**:
@@ -1152,7 +1186,7 @@ LIMIT 20;
 ### Performance Optimization Opportunities
 
 **1. Database**
-- Consider HNSW index for vector search (better recall than IVFFlat)
+- ~~Consider HNSW index for vector search~~ ✅ Implemented with binary vectors
 - Partition large tables (article, search_log) by date
 - Add partial indexes for common filters
 
@@ -1168,7 +1202,7 @@ LIMIT 20;
 
 **4. Search**
 - Implement query result cache with warming
-- Add search autocomplete with prefix matching
+- ~~Add search autocomplete with prefix matching~~ ✅ Implemented with bilingual support
 - Consider Elasticsearch for more advanced features
 
 ## Contributors
@@ -1179,9 +1213,19 @@ For questions or contributions, please refer to the project's GitHub repository.
 
 ---
 
-**Last Updated**: 2026-01-15
+**Last Updated**: 2026-01-30
 **Claude Code Version**: Latest
-**Document Version**: 2.1
+**Document Version**: 2.2
+
+### Changelog (v2.2)
+- **Vector Search Optimization**: Upgraded from IVFFlat to HNSW index with binary vectors
+- **halfvec Support**: Using pgvector's halfvec type for memory-efficient embedding storage
+- **Full Content Crawling**: Article body content now extracted during initial crawl
+- **Medium Blog Improvements**: Full page pagination and duplicate article removal
+- **Search Autocomplete**: Added bilingual (Korean/English) autocomplete support
+- **Google Analytics Integration**: Corporation view count sync with GA4
+- **Prometheus Blue-Green**: Separate monitoring targets for blue/green deployments
+- **Selenium Update**: Version upgraded for chromedriver compatibility
 
 ### Changelog (v2.1)
 - Added Theme module documentation (fully implemented)
