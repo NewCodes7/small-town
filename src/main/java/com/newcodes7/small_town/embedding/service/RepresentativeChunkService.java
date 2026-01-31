@@ -19,6 +19,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.transaction.annotation.Propagation;
 
 /**
  * 대표 Chunk 선정 서비스
@@ -34,6 +35,7 @@ public class RepresentativeChunkService {
     private final EntityManager entityManager;
 
     private static final int TOP_TERMS_COUNT = 10;
+    private static final int BATCH_SIZE = 10;
 
     /**
      * 특정 Article의 대표 Chunk 선정
@@ -210,10 +212,10 @@ public class RepresentativeChunkService {
 
     /**
      * 대표 Chunk가 없는 모든 Article에 대해 대표 선정 (배치)
+     * 10개씩 묶어서 별도 트랜잭션으로 저장
      *
      * @return 처리 결과
      */
-    @Transactional
     public BatchResult selectRepresentativeChunksForAll() {
         log.info("Starting batch representative chunk selection...");
         long startTime = System.currentTimeMillis();
@@ -223,23 +225,17 @@ public class RepresentativeChunkService {
 
         BatchResult result = new BatchResult();
 
-        for (Long articleId : articleIds) {
-            try {
-                Long chunkId = selectRepresentativeChunk(articleId);
-                if (chunkId != null) {
-                    result.incrementSuccess();
-                } else {
-                    result.incrementSkipped();
-                }
-            } catch (Exception e) {
-                log.error("Failed to select representative chunk for article {}: {}",
-                        articleId, e.getMessage());
-                result.incrementFailed();
-            }
+        // 10개씩 묶어서 처리
+        for (int i = 0; i < articleIds.size(); i += BATCH_SIZE) {
+            int endIndex = Math.min(i + BATCH_SIZE, articleIds.size());
+            List<Long> batchIds = articleIds.subList(i, endIndex);
 
-            if ((result.getTotal()) % 100 == 0) {
-                log.info("Progress: {}/{} articles processed", result.getTotal(), articleIds.size());
-            }
+            BatchResult batchResult = processBatch(batchIds);
+            result.merge(batchResult);
+
+            log.info("Progress: {}/{} articles processed (batch {}/{})",
+                    result.getTotal(), articleIds.size(),
+                    (i / BATCH_SIZE) + 1, (int) Math.ceil((double) articleIds.size() / BATCH_SIZE));
         }
 
         result.setProcessingTimeMs(System.currentTimeMillis() - startTime);
@@ -251,16 +247,10 @@ public class RepresentativeChunkService {
     }
 
     /**
-     * 모든 Article의 대표 Chunk 재선정 (강제)
+     * 10개씩 묶어서 별도 트랜잭션으로 처리
      */
-    @Transactional
-    public BatchResult reselectAllRepresentativeChunks() {
-        log.info("Starting force re-selection of all representative chunks...");
-        long startTime = System.currentTimeMillis();
-
-        List<Long> articleIds = chunkRepository.findArticleIdsWithEmbedding();
-        log.info("Found {} articles with embeddings", articleIds.size());
-
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public BatchResult processBatch(List<Long> articleIds) {
         BatchResult result = new BatchResult();
 
         for (Long articleId : articleIds) {
@@ -276,10 +266,35 @@ public class RepresentativeChunkService {
                         articleId, e.getMessage());
                 result.incrementFailed();
             }
+        }
 
-            if ((result.getTotal()) % 100 == 0) {
-                log.info("Progress: {}/{} articles processed", result.getTotal(), articleIds.size());
-            }
+        return result;
+    }
+
+    /**
+     * 모든 Article의 대표 Chunk 재선정 (강제)
+     * 10개씩 묶어서 별도 트랜잭션으로 저장
+     */
+    public BatchResult reselectAllRepresentativeChunks() {
+        log.info("Starting force re-selection of all representative chunks...");
+        long startTime = System.currentTimeMillis();
+
+        List<Long> articleIds = chunkRepository.findArticleIdsWithEmbedding();
+        log.info("Found {} articles with embeddings", articleIds.size());
+
+        BatchResult result = new BatchResult();
+
+        // 10개씩 묶어서 처리
+        for (int i = 0; i < articleIds.size(); i += BATCH_SIZE) {
+            int endIndex = Math.min(i + BATCH_SIZE, articleIds.size());
+            List<Long> batchIds = articleIds.subList(i, endIndex);
+
+            BatchResult batchResult = processBatch(batchIds);
+            result.merge(batchResult);
+
+            log.info("Progress: {}/{} articles processed (batch {}/{})",
+                    result.getTotal(), articleIds.size(),
+                    (i / BATCH_SIZE) + 1, (int) Math.ceil((double) articleIds.size() / BATCH_SIZE));
         }
 
         result.setProcessingTimeMs(System.currentTimeMillis() - startTime);
@@ -308,5 +323,11 @@ public class RepresentativeChunkService {
         public int getTotal() { return success + skipped + failed; }
         public long getProcessingTimeMs() { return processingTimeMs; }
         public void setProcessingTimeMs(long ms) { this.processingTimeMs = ms; }
+
+        public void merge(BatchResult other) {
+            this.success += other.success;
+            this.skipped += other.skipped;
+            this.failed += other.failed;
+        }
     }
 }
