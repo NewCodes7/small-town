@@ -271,6 +271,7 @@ public class RepresentativeChunkService {
      *
      * @return 처리 결과
      */
+    @Transactional
     public BatchResult selectRepresentativeChunksForAll() {
         log.info("Starting batch representative chunk selection...");
         long startTime = System.currentTimeMillis();
@@ -330,6 +331,7 @@ public class RepresentativeChunkService {
      * 모든 Article의 대표 Chunk 재선정 (강제)
      * 10개씩 묶어서 별도 트랜잭션으로 저장
      */
+    @Transactional
     public BatchResult reselectAllRepresentativeChunks() {
         log.info("Starting force re-selection of all representative chunks...");
         long startTime = System.currentTimeMillis();
