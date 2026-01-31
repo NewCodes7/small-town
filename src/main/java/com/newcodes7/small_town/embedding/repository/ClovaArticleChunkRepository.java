@@ -206,4 +206,78 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
      */
     @Query("SELECT COUNT(c) FROM ClovaArticleChunk c WHERE c.embeddingBinary IS NOT NULL")
     long countChunksWithBinaryEmbedding();
+
+    // ==================== 대표 Chunk 관련 ====================
+
+    /**
+     * 특정 Article의 대표 Chunk 조회
+     */
+    @Query("SELECT c FROM ClovaArticleChunk c WHERE c.article.id = :articleId AND c.isRepresentative = true")
+    ClovaArticleChunk findRepresentativeByArticleId(@Param("articleId") Long articleId);
+
+    /**
+     * 대표 Chunk가 있는 Article ID 목록
+     */
+    @Query("SELECT DISTINCT c.article.id FROM ClovaArticleChunk c WHERE c.isRepresentative = true AND c.embedding IS NOT NULL")
+    List<Long> findArticleIdsWithRepresentativeChunk();
+
+    /**
+     * 대표 Chunk가 없는 Article ID 목록 (청크는 있지만 대표가 선정되지 않은 것)
+     */
+    @Query(value = """
+            SELECT DISTINCT cac.article_id
+            FROM clova_article_chunk cac
+            WHERE cac.embedding IS NOT NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM clova_article_chunk cac2
+                  WHERE cac2.article_id = cac.article_id
+                    AND cac2.is_representative = true
+              )
+            """, nativeQuery = true)
+    List<Long> findArticleIdsWithoutRepresentativeChunk();
+
+    /**
+     * 대표 Chunk 기반 관련 글 검색 (2단계: Binary HNSW → halfvec Reranking)
+     *
+     * @param articleId 현재 Article ID (제외)
+     * @param queryEmbedding 현재 Article 대표 chunk의 embedding
+     * @param limit 결과 수
+     * @return Article ID와 유사도
+     */
+    @Query(value = """
+            SELECT cac.article_id, (1 - (cac.embedding <=> CAST(:queryEmbedding AS halfvec))) as similarity
+            FROM clova_article_chunk cac
+            JOIN article a ON cac.article_id = a.id
+            WHERE cac.is_representative = true
+              AND cac.embedding IS NOT NULL
+              AND a.deleted_at IS NULL
+              AND cac.article_id != :articleId
+            ORDER BY cac.embedding <=> CAST(:queryEmbedding AS halfvec)
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> findRelatedArticlesByRepresentativeChunk(
+            @Param("articleId") Long articleId,
+            @Param("queryEmbedding") String queryEmbedding,
+            @Param("limit") int limit
+    );
+
+    /**
+     * 대표 Chunk 플래그 초기화 (특정 Article)
+     */
+    @Query("UPDATE ClovaArticleChunk c SET c.isRepresentative = false WHERE c.article.id = :articleId")
+    @org.springframework.data.jpa.repository.Modifying
+    void resetRepresentativeFlag(@Param("articleId") Long articleId);
+
+    /**
+     * 대표 Chunk 설정
+     */
+    @Query("UPDATE ClovaArticleChunk c SET c.isRepresentative = true WHERE c.id = :chunkId")
+    @org.springframework.data.jpa.repository.Modifying
+    void setRepresentativeFlag(@Param("chunkId") Long chunkId);
+
+    /**
+     * 대표 Chunk 수 조회
+     */
+    @Query("SELECT COUNT(c) FROM ClovaArticleChunk c WHERE c.isRepresentative = true")
+    long countRepresentativeChunks();
 }

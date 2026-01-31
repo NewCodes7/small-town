@@ -23,6 +23,8 @@ import com.newcodes7.small_town.article.service.ArticleEmbeddingService;
 import com.newcodes7.small_town.article.service.TermEmbeddingService;
 import com.newcodes7.small_town.crawler.dto.ArticleSummaryResponse;
 import com.newcodes7.small_town.crawler.integration.openai.OpenaiService;
+import com.newcodes7.small_town.embedding.repository.ClovaArticleChunkRepository;
+import com.newcodes7.small_town.embedding.service.RepresentativeChunkService;
 import com.newcodes7.small_town.global.entity.Article;
 
 import lombok.RequiredArgsConstructor;
@@ -39,10 +41,12 @@ public class AdminEmbeddingController {
 
     private final ArticleRepository articleRepository;
     private final ArticleChunkRepository articleChunkRepository;
+    private final ClovaArticleChunkRepository clovaArticleChunkRepository;
     private final EmbeddingBatchService embeddingBatchService;
     private final TermEmbeddingService termEmbeddingService;
     private final OpenaiService openaiService;
     private final ArticleEmbeddingService articleEmbeddingService;
+    private final RepresentativeChunkService representativeChunkService;
 
     /**
      * 단일 Article의 청크 임베딩 생성
@@ -693,6 +697,156 @@ public class AdminEmbeddingController {
             log.error("배치 제목 생성 중 오류 발생", e);
             response.put("success", false);
             response.put("message", "배치 처리 중 오류 발생: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    // ===== 대표 Chunk 선정 관련 API =====
+
+    /**
+     * 단일 Article의 대표 Chunk 선정
+     */
+    @GetMapping("/articles/{id}/select-representative-chunk")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> selectRepresentativeChunk(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            log.info("Article {} 대표 Chunk 선정 요청", id);
+
+            Long chunkId = representativeChunkService.selectRepresentativeChunk(id);
+
+            if (chunkId != null) {
+                response.put("success", true);
+                response.put("articleId", id);
+                response.put("representativeChunkId", chunkId);
+                response.put("message", "대표 Chunk 선정 완료");
+                return ResponseEntity.ok(response);
+            } else {
+                response.put("success", false);
+                response.put("message", "대표 Chunk를 선정할 수 없습니다 (청크가 없거나 임베딩이 없음)");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+        } catch (Exception e) {
+            log.error("Article {} 대표 Chunk 선정 실패", id, e);
+            response.put("success", false);
+            response.put("message", "대표 Chunk 선정 중 오류 발생: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 대표 Chunk가 없는 모든 Article에 대해 배치 선정
+     *
+     * 대표 Chunk가 아직 선정되지 않은 Article들만 처리
+     */
+    @org.springframework.web.bind.annotation.GetMapping("/articles/select-representative-chunks-batch")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> selectRepresentativeChunksBatch() {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            log.info("대표 Chunk 배치 선정 요청 (미선정 Article만)");
+
+            RepresentativeChunkService.BatchResult result =
+                representativeChunkService.selectRepresentativeChunksForAll();
+
+            response.put("success", true);
+            response.put("successCount", result.getSuccess());
+            response.put("skippedCount", result.getSkipped());
+            response.put("failedCount", result.getFailed());
+            response.put("totalProcessed", result.getTotal());
+            response.put("processingTimeMs", result.getProcessingTimeMs());
+            response.put("message", String.format(
+                "대표 Chunk 선정 완료: 성공=%d, 스킵=%d, 실패=%d, 소요시간=%dms",
+                result.getSuccess(), result.getSkipped(), result.getFailed(), result.getProcessingTimeMs()));
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("대표 Chunk 배치 선정 중 오류 발생", e);
+            response.put("success", false);
+            response.put("message", "배치 처리 중 오류 발생: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 모든 Article의 대표 Chunk 강제 재선정
+     *
+     * 이미 대표 Chunk가 있는 Article도 다시 선정
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/articles/reselect-representative-chunks-all")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> reselectAllRepresentativeChunks() {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            log.info("대표 Chunk 전체 강제 재선정 요청");
+
+            RepresentativeChunkService.BatchResult result =
+                representativeChunkService.reselectAllRepresentativeChunks();
+
+            response.put("success", true);
+            response.put("successCount", result.getSuccess());
+            response.put("skippedCount", result.getSkipped());
+            response.put("failedCount", result.getFailed());
+            response.put("totalProcessed", result.getTotal());
+            response.put("processingTimeMs", result.getProcessingTimeMs());
+            response.put("message", String.format(
+                "대표 Chunk 재선정 완료: 성공=%d, 스킵=%d, 실패=%d, 소요시간=%dms",
+                result.getSuccess(), result.getSkipped(), result.getFailed(), result.getProcessingTimeMs()));
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("대표 Chunk 전체 재선정 중 오류 발생", e);
+            response.put("success", false);
+            response.put("message", "재선정 처리 중 오류 발생: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 대표 Chunk 통계 조회
+     */
+    @GetMapping("/articles/representative-chunk-stats")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getRepresentativeChunkStats() {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // 전체 Article 수 (청크가 있는)
+            long totalArticlesWithChunks = clovaArticleChunkRepository.findArticleIdsWithEmbedding().size();
+
+            // 대표 Chunk가 선정된 Article 수
+            long articlesWithRepresentative = clovaArticleChunkRepository.findArticleIdsWithRepresentativeChunk().size();
+
+            // 대표 Chunk가 없는 Article 수
+            long articlesWithoutRepresentative = clovaArticleChunkRepository.findArticleIdsWithoutRepresentativeChunk().size();
+
+            // 전체 대표 Chunk 수
+            long totalRepresentativeChunks = clovaArticleChunkRepository.countRepresentativeChunks();
+
+            // 커버리지 계산
+            double coverage = totalArticlesWithChunks > 0
+                ? (double) articlesWithRepresentative / totalArticlesWithChunks * 100
+                : 0.0;
+
+            response.put("success", true);
+            response.put("totalArticlesWithChunks", totalArticlesWithChunks);
+            response.put("articlesWithRepresentative", articlesWithRepresentative);
+            response.put("articlesWithoutRepresentative", articlesWithoutRepresentative);
+            response.put("totalRepresentativeChunks", totalRepresentativeChunks);
+            response.put("coverage", String.format("%.2f%%", coverage));
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("대표 Chunk 통계 조회 중 오류 발생", e);
+            response.put("success", false);
+            response.put("message", "통계 조회 중 오류 발생: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
     }

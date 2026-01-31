@@ -17,6 +17,7 @@
     <style>
         :root {
             --primary-green: #03C75A;
+            --primary-green-dark: #02B350;
             --secondary-green: #E8F7EF;
             --text-dark: #1F2937;
             --text-light: #6B7280;
@@ -25,127 +26,127 @@
         }
 
         .article-detail-container {
-            max-width: 1200px;
+            max-width: 900px;
             margin: 0 auto;
-            padding: 40px 20px;
+            padding: 32px 20px 60px;
         }
 
-        .article-detail-content {
-            display: grid;
-            grid-template-columns: 1fr 400px;
-            gap: 40px;
+        /* Main Article Card */
+        .article-detail-card {
             background: white;
-            border-radius: 16px;
+            border-radius: 20px;
             overflow: hidden;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-        }
-
-        .article-detail-main {
-            padding: 40px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+            margin-bottom: 48px;
         }
 
         .article-detail-thumbnail {
             width: 100%;
-            aspect-ratio: 16 / 9;
+            aspect-ratio: 10 / 4;
             background: linear-gradient(135deg, var(--secondary-green) 0%, #F0F8F0 100%);
-            border-radius: 12px;
-            overflow: hidden;
-            margin-bottom: 32px;
             display: flex;
             align-items: center;
             justify-content: center;
+            overflow: hidden;
         }
 
         .article-detail-thumbnail img {
-            width: 100%;
             height: 100%;
             object-fit: cover;
         }
 
         .article-detail-thumbnail-placeholder {
-            font-size: 5rem;
+            font-size: 4rem;
             color: var(--primary-green);
-            opacity: 0.3;
+            opacity: 0.25;
+        }
+
+        .article-detail-body {
+            padding: 28px;
         }
 
         .article-detail-header {
-            margin-bottom: 32px;
+            margin-bottom: 24px;
         }
 
         .article-detail-title {
-            font-size: 2rem;
+            font-size: 1.6rem;
             font-weight: 800;
             color: var(--text-dark);
             line-height: 1.4;
-            margin-bottom: 20px;
+            margin: 0 0 18px 0;
+            word-break: keep-all;
         }
 
         .article-detail-meta {
             display: flex;
             align-items: center;
-            gap: 20px;
+            gap: 12px;
             flex-wrap: wrap;
         }
 
         .article-detail-company {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             text-decoration: none;
             color: inherit;
-            transition: opacity 0.2s ease;
+            transition: all 0.2s ease;
+            padding: 5px 10px 5px 5px;
+            background: var(--bg-light);
+            border-radius: 20px;
         }
 
         .article-detail-company:hover {
-            opacity: 0.7;
+            background: var(--secondary-green);
+            transform: translateY(-1px);
         }
 
         .article-detail-company-logo {
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
             object-fit: contain;
             background: white;
-            border: 1px solid var(--border-light);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
         .article-detail-company-name {
-            font-size: 1.1rem;
+            font-size: 0.9rem;
             font-weight: 600;
             color: var(--primary-green);
         }
 
         .article-detail-category {
-            padding: 8px 16px;
+            padding: 5px 12px;
             background: var(--secondary-green);
             color: var(--primary-green);
-            border-radius: 20px;
-            font-size: 0.9rem;
+            border-radius: 14px;
+            font-size: 0.8rem;
             font-weight: 600;
         }
 
         .article-detail-date {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 5px;
             color: var(--text-light);
-            font-size: 1rem;
+            font-size: 0.85rem;
         }
 
         .article-detail-actions {
             display: flex;
-            gap: 16px;
-            margin-top: 32px;
+            gap: 10px;
         }
 
         .article-detail-link-btn {
             flex: 1;
-            padding: 16px 32px;
+            padding: 14px 28px;
             background: var(--primary-green);
             color: white;
             border: none;
             border-radius: 12px;
-            font-size: 1.1rem;
+            font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
@@ -153,22 +154,23 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 10px;
+            gap: 8px;
         }
 
         .article-detail-link-btn:hover {
-            background: #02B350;
+            background: var(--primary-green-dark);
             transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(3, 199, 90, 0.3);
+            box-shadow: 0 8px 20px rgba(3, 199, 90, 0.35);
+            color: white;
         }
 
         .article-detail-like-btn {
-            padding: 16px 24px;
-            background: transparent;
+            padding: 14px 20px;
+            background: white;
             color: var(--text-light);
             border: 2px solid var(--border-light);
             border-radius: 12px;
-            font-size: 1.3rem;
+            font-size: 1.2rem;
             cursor: pointer;
             transition: all 0.2s ease;
             display: flex;
@@ -177,110 +179,370 @@
         }
 
         .article-detail-like-btn:hover {
-            background: rgba(239, 68, 68, 0.1);
-            border-color: #ef4444;
-            color: #ef4444;
+            background: #FEF2F2;
+            border-color: #FCA5A5;
+            color: #EF4444;
+            transform: translateY(-2px);
         }
 
         .article-detail-like-btn.liked {
-            color: #ef4444;
-            border-color: #ef4444;
+            background: #FEF2F2;
+            color: #EF4444;
+            border-color: #EF4444;
         }
 
-        .article-detail-sidebar {
-            background: var(--bg-light);
-            padding: 40px 24px;
-            border-left: 1px solid var(--border-light);
+        /* Related Articles Section */
+        .related-section {
+            margin-top: 48px;
         }
 
-        .article-detail-related-title {
+        .related-section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .related-section-title {
             font-size: 1.2rem;
             font-weight: 700;
             color: var(--text-dark);
-            margin-bottom: 24px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            margin: 0;
         }
 
-        .article-detail-related-icon {
+        .related-section-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--primary-green) 0%, #16a34a 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1rem;
+        }
+
+        .related-articles-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        /* Blog Card Style (same as new-home) */
+        .blog-card {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 2px solid var(--border-light);
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 12px rgba(3, 199, 90, 0.08);
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+        }
+
+        .blog-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(3, 199, 90, 0.15);
+            border-color: var(--primary-green);
+        }
+
+        .blog-card-thumbnail {
+            width: 100%;
+            height: 160px;
+            background: linear-gradient(135deg, var(--secondary-green) 0%, #F0F8F0 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .blog-card-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+        .blog-card:hover .blog-card-thumbnail img {
+            transform: scale(1.05);
+        }
+
+        .blog-card-content {
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .blog-card-company {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .blog-card-company-link {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+            color: inherit;
+            transition: opacity 0.2s ease;
+        }
+
+        .blog-card-company-link:hover {
+            opacity: 0.7;
+        }
+
+        .blog-card-company-logo {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            object-fit: contain;
+            background: white;
+            border: 1px solid var(--border-light);
+        }
+
+        .blog-card-company-name {
+            font-size: 0.8rem;
+            font-weight: 600;
             color: var(--primary-green);
         }
 
-        .article-detail-related-list {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .article-detail-related-card {
-            background: white;
-            border-radius: 12px;
-            padding: 16px;
-            border: 2px solid var(--border-light);
-            transition: all 0.2s ease;
-            cursor: pointer;
-            text-decoration: none;
-            color: inherit;
-        }
-
-        .article-detail-related-card:hover {
-            border-color: var(--primary-green);
-            transform: translateX(4px);
-        }
-
-        .article-detail-related-card-title {
-            font-size: 0.95rem;
-            font-weight: 600;
+        .blog-card-title {
+            font-size: 1.0rem;
+            font-weight: 700;
             color: var(--text-dark);
+            margin-bottom: 10px;
             line-height: 1.4;
-            margin-bottom: 8px;
             display: -webkit-box;
-            -webkit-line-clamp: 2;
+            -webkit-line-clamp: 3;
             -webkit-box-orient: vertical;
             overflow: hidden;
+            min-height: 3.8rem;
         }
 
-        .article-detail-related-card-company {
+        .blog-card:hover .blog-card-title {
+            color: var(--primary-green);
+        }
+
+        .blog-card-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
             font-size: 0.8rem;
             color: var(--text-light);
+            margin-top: auto;
+            padding-top: 10px;
+            border-top: 1px solid var(--border-light);
         }
 
-        .article-detail-related-placeholder {
-            text-align: center;
-            padding: 40px 20px;
+        .blog-card-date {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .blog-card-date i {
+            font-size: 0.75rem;
+        }
+
+        .like-button {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background: transparent;
+            border: none;
             color: var(--text-light);
+            cursor: pointer;
+            font-size: 0.8rem;
+            padding: 4px 8px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            margin-left: auto;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         }
 
-        .article-detail-related-placeholder i {
+        .like-button:hover {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+
+        .like-button.liked {
+            color: #ef4444;
+        }
+
+        .like-button.liked .like-icon {
+            color: #ef4444;
+        }
+
+        .like-icon {
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+        }
+
+        .like-button.liked .like-icon {
+            animation: heartBeat 0.3s ease;
+        }
+
+        .like-count {
+            font-weight: 600;
+        }
+
+        @keyframes heartBeat {
+            0%, 100% {
+                transform: scale(1);
+            }
+            25% {
+                transform: scale(1.3);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+            75% {
+                transform: scale(1.25);
+            }
+        }
+
+        /* Default Thumbnail */
+        .default-thumbnail {
+            background: linear-gradient(135deg, var(--secondary-green) 0%, #F0F8F0 100%);
+        }
+
+        .default-thumbnail-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+        }
+
+        .default-thumbnail-content i {
             font-size: 2.5rem;
+            color: var(--primary-green);
             opacity: 0.3;
+        }
+
+        /* Loading & Empty States */
+        .related-loading,
+        .related-empty {
+            text-align: center;
+            padding: 48px 24px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+            grid-column: 1 / -1;
+        }
+
+        .related-loading i,
+        .related-empty i {
+            font-size: 2.5rem;
+            color: var(--primary-green);
+            opacity: 0.4;
             margin-bottom: 16px;
             display: block;
         }
 
+        .related-loading p,
+        .related-empty p {
+            color: var(--text-light);
+            font-size: 0.95rem;
+            margin: 0;
+        }
+
         /* Responsive Design */
         @media (max-width: 768px) {
-            .article-detail-content {
-                grid-template-columns: 1fr;
+            .article-detail-container {
+                padding: 20px 16px 48px;
             }
 
-            .article-detail-main {
-                padding: 30px 20px;
+            .article-detail-card {
+                border-radius: 16px;
+                margin-bottom: 36px;
             }
 
-            .article-detail-sidebar {
-                border-left: none;
-                border-top: 1px solid var(--border-light);
-                padding: 30px 20px;
+            .article-detail-body {
+                padding: 24px 20px;
             }
 
             .article-detail-title {
-                font-size: 1.5rem;
+                font-size: 1.4rem;
+            }
+
+            .article-detail-meta {
+                gap: 10px;
             }
 
             .article-detail-actions {
                 flex-direction: column;
+            }
+
+            .article-detail-link-btn {
+                padding: 16px 24px;
+            }
+
+            .article-detail-like-btn {
+                padding: 14px;
+                justify-content: center;
+            }
+
+            .related-section {
+                margin-top: 36px;
+            }
+
+            .related-articles-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 16px;
+            }
+
+            .blog-card-thumbnail {
+                height: 140px;
+            }
+
+            .blog-card-content {
+                padding: 16px;
+            }
+
+            .blog-card-title {
+                font-size: 0.95rem;
+                min-height: 4em;
+            }
+        }
+
+        @media (max-width: 500px) {
+            .article-detail-title {
+                font-size: 1.25rem;
+            }
+
+            .article-detail-company {
+                padding: 4px 8px 4px 4px;
+            }
+
+            .article-detail-company-logo {
+                width: 20px;
+                height: 20px;
+            }
+
+            .article-detail-company-name {
+                font-size: 0.85rem;
+            }
+
+            .related-articles-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .blog-card-thumbnail {
+                height: 160px;
+            }
+
+            .blog-card-title {
+                -webkit-line-clamp: 2;
+                min-height: 2.8em;
             }
         }
     </style>
@@ -288,19 +550,19 @@
 <body>
     <div layout:fragment="content">
         <div class="article-detail-container">
-            <div class="article-detail-content">
-                <!-- Main Content -->
-                <div class="article-detail-main">
-                    <!-- Thumbnail -->
-                    <div class="article-detail-thumbnail">
-                        <img th:if="${article.thumbnailImage != null}"
-                             th:src="${article.thumbnailImage}"
-                             th:alt="${article.translatedTitle != null ? article.translatedTitle : article.title}">
-                        <i th:if="${article.thumbnailImage == null}" class="fas fa-code article-detail-thumbnail-placeholder"></i>
-                    </div>
+            <!-- Main Article Card -->
+            <article class="article-detail-card">
+                <!-- Thumbnail -->
+                <div class="article-detail-thumbnail">
+                    <img th:if="${article.thumbnailImage != null}"
+                         th:src="${article.thumbnailImage}"
+                         th:alt="${article.translatedTitle != null ? article.translatedTitle : article.title}">
+                    <i th:if="${article.thumbnailImage == null}" class="fas fa-code article-detail-thumbnail-placeholder"></i>
+                </div>
 
+                <div class="article-detail-body">
                     <!-- Header -->
-                    <div class="article-detail-header">
+                    <header class="article-detail-header">
                         <h1 class="article-detail-title" th:text="${article.translatedTitle != null ? article.translatedTitle : article.title}">
                             Article Title
                         </h1>
@@ -316,23 +578,19 @@
                                 <span class="article-detail-company-name" th:text="${article.corporation.name}">Company</span>
                             </a>
 
-                            <!-- Category -->
-                            <span class="article-detail-category" th:text="${article.category != null ? article.category.name : '기타'}">
-                                카테고리
-                            </span>
-
                             <!-- Date -->
                             <span class="article-detail-date">
                                 <i class="far fa-clock"></i>
-                                <span th:text="${#strings.replace(#strings.substring(article.publishedAt, 0, 10), '-', '.')}">2024.01.01</span>
+                                <span th:text="${#strings.replace(#strings.substring(article.publishedAt.toString(), 0, 10), '-', '.')}"></span>
                             </span>
                         </div>
-                    </div>
+                    </header>
 
                     <!-- Actions -->
                     <div class="article-detail-actions">
                         <a th:href="${article.link}"
                            target="_blank"
+                           rel="noopener noreferrer"
                            class="article-detail-link-btn">
                             <span>원문 읽기</span>
                             <i class="fas fa-external-link-alt"></i>
@@ -344,29 +602,31 @@
                         </button>
                     </div>
                 </div>
+            </article>
 
-                <!-- Sidebar - Related Articles -->
-                <div class="article-detail-sidebar">
-                    <h3 class="article-detail-related-title">
-                        <i class="fas fa-sparkles article-detail-related-icon"></i>
-                        연관 추천 글
-                    </h3>
+            <!-- Related Articles Section -->
+            <section class="related-section">
+                <header class="related-section-header">
+                    <div class="related-section-icon">
+                        <i class="fas fa-wand-magic-sparkles"></i>
+                    </div>
+                    <h2 class="related-section-title">연관 추천 글</h2>
+                </header>
 
-                    <div class="article-detail-related-list">
-                        <!-- Placeholder for now -->
-                        <div class="article-detail-related-placeholder">
-                            <i class="fas fa-magic"></i>
-                            <p>연관 추천 기능은<br>곧 제공될 예정입니다</p>
-                        </div>
+                <div id="related-articles-list" class="related-articles-grid">
+                    <!-- Loading state -->
+                    <div id="related-articles-loading" class="related-loading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>관련 글을 찾고 있습니다...</p>
                     </div>
                 </div>
-            </div>
+            </section>
         </div>
     </div>
 
     <div layout:fragment="scripts">
         <script th:inline="javascript">
-            // Toggle article like
+            // Toggle article like (main article)
             async function toggleArticleLike(button, event) {
                 event.preventDefault();
                 event.stopPropagation();
@@ -384,6 +644,42 @@
                     if (response.ok) {
                         const data = await response.json();
                         const likeIcon = button.querySelector('i');
+
+                        if (data.isLiked) {
+                            button.classList.add('liked');
+                            likeIcon.classList.remove('far');
+                            likeIcon.classList.add('fas');
+                        } else {
+                            button.classList.remove('liked');
+                            likeIcon.classList.remove('fas');
+                            likeIcon.classList.add('far');
+                        }
+                    } else if (response.status === 401) {
+                        alert('좋아요를 하려면 로그인이 필요합니다.');
+                    }
+                } catch (error) {
+                    console.error('좋아요 처리 실패:', error);
+                }
+            }
+
+            // Toggle related article like
+            async function toggleRelatedArticleLike(button, event) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const articleId = button.getAttribute('data-article-id');
+
+                try {
+                    const response = await fetch(`/api/articles/${articleId}/like`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const likeIcon = button.querySelector('.like-icon');
 
                         if (data.isLiked) {
                             button.classList.add('liked');
@@ -447,10 +743,94 @@
                 }
             }
 
+            // Escape HTML to prevent XSS
+            function escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            // Load related articles
+            async function loadRelatedArticles() {
+                const likeBtn = document.querySelector('.article-detail-like-btn');
+                if (!likeBtn) return;
+
+                const articleId = likeBtn.getAttribute('data-article-id');
+                const container = document.getElementById('related-articles-list');
+
+                try {
+                    const response = await fetch(`/api/articles/${articleId}/related?limit=3`);
+
+                    if (response.ok) {
+                        const data = await response.json();
+
+                        if (data.relatedArticles && data.relatedArticles.length > 0) {
+                            container.innerHTML = data.relatedArticles.map(article => `
+                                <div class="blog-card"
+                                     data-detail-url="${escapeHtml(article.detailUrl)}"
+                                     onclick="window.location.href=this.getAttribute('data-detail-url')"
+                                     style="cursor: pointer;">
+                                    <div class="blog-card-thumbnail" ${article.thumbnailImage ? `style="background-image: url('${escapeHtml(article.thumbnailImage)}'); background-size: cover; background-position: center;"` : ''}>
+                                        ${!article.thumbnailImage ? `
+                                            <div class="default-thumbnail-content">
+                                                <i class="fas fa-code"></i>
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                    <div class="blog-card-content">
+                                        <div class="blog-card-company">
+                                            <a href="/corporations/${article.corporation.id}"
+                                               class="blog-card-company-link"
+                                               onclick="event.stopPropagation()">
+                                                ${article.corporation.effectiveLogoUrl
+                                                    ? `<img src="${escapeHtml(article.corporation.effectiveLogoUrl)}" alt="${escapeHtml(article.corporation.name)}" class="blog-card-company-logo">`
+                                                    : ''
+                                                }
+                                                <span class="blog-card-company-name">${escapeHtml(article.corporation.name)}</span>
+                                            </a>
+                                        </div>
+                                        <h3 class="blog-card-title">${escapeHtml(article.translatedTitle || article.title)}</h3>
+                                        <div class="blog-card-meta">
+                                            <span class="blog-card-date">
+                                                <i class="far fa-clock"></i>
+                                                <span>${article.publishedAt ? article.publishedAt.substring(0, 10).replace(/-/g, '.') : ''}</span>
+                                            </span>
+                                            <button class="like-button ${article.isLiked ? 'liked' : ''}"
+                                                    data-article-id="${article.id}"
+                                                    onclick="event.stopPropagation(); toggleRelatedArticleLike(this, event)">
+                                                <i class="${article.isLiked ? 'fas' : 'far'} fa-heart like-icon"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('');
+                        } else {
+                            container.innerHTML = `
+                                <div class="related-empty">
+                                    <i class="fas fa-search"></i>
+                                    <p>관련 글이 없습니다</p>
+                                </div>
+                            `;
+                        }
+                    } else {
+                        throw new Error('API 호출 실패');
+                    }
+                } catch (error) {
+                    console.error('관련 글 로드 실패:', error);
+                    container.innerHTML = `
+                        <div class="related-empty">
+                            <i class="fas fa-exclamation-circle"></i>
+                            <p>관련 글을 불러오지 못했습니다</p>
+                        </div>
+                    `;
+                }
+            }
+
             // Page load
             document.addEventListener('DOMContentLoaded', function() {
                 loadArticleLikeStatus();
                 incrementViewCount();
+                loadRelatedArticles();
             });
         </script>
     </div>

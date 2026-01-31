@@ -107,4 +107,13 @@ public class ClovaArticleChunk {
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    /**
+     * 대표 Chunk 여부
+     * BM25 점수 기반으로 핵심 term이 가장 많이 등장하는 chunk에 true 설정
+     * 관련 글 추천 시 이 chunk의 embedding을 사용
+     */
+    @Column(name = "is_representative")
+    @Builder.Default
+    private Boolean isRepresentative = false;
 }

@@ -67,6 +67,8 @@ import com.newcodes7.small_town.global.service.SearchLogService;
 import com.newcodes7.small_town.global.repository.SearchLogRepository;
 import com.newcodes7.small_town.theme.entity.Theme;
 import com.newcodes7.small_town.theme.repository.ThemeRepository;
+import com.newcodes7.small_town.embedding.service.RelatedArticleService;
+import com.newcodes7.small_town.article.dto.RelatedArticleDto;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -106,6 +108,7 @@ public class ArticleController {
     private final ThemeRepository themeRepository;
     private final CorporationAutocompleteRepository corporationAutocompleteRepository;
     private final ThemeAutocompleteRepository themeAutocompleteRepository;
+    private final RelatedArticleService relatedArticleService;
 
     @GetMapping("/articles")
     public String home(
@@ -374,7 +377,30 @@ public class ArticleController {
         
         return ResponseEntity.ok(response);
     }
-    
+
+    /**
+     * 관련 글 추천 API
+     * 대표 Chunk의 embedding 유사도를 기반으로 관련 글 추천
+     *
+     * @param articleId Article ID
+     * @param limit 결과 수 (기본 3)
+     * @return 관련 글 목록
+     */
+    @GetMapping("/api/articles/{articleId}/related")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getRelatedArticles(
+            @PathVariable Long articleId,
+            @RequestParam(defaultValue = "3") Integer limit) {
+
+        List<RelatedArticleDto> relatedArticles = relatedArticleService.getRelatedArticles(articleId, limit);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("relatedArticles", relatedArticles);
+        response.put("count", relatedArticles.size());
+
+        return ResponseEntity.ok(response);
+    }
+
     // @GetMapping("/api/articles/{articleId}/view-status")
     // @ResponseBody
     // public ResponseEntity<Map<String, Object>> getViewStatus(@PathVariable Long articleId,

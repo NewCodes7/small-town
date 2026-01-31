@@ -719,4 +719,19 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "AND c.blogType = com.newcodes7.small_town.global.entity.BlogType.MEDIUM " +
            "AND (a.content IS NULL OR LENGTH(a.content) <= :maxContentLength)")
     long countMediumArticlesWithShortContent(@Param("maxContentLength") int maxContentLength);
+
+    // ===== 관련 글 추천 관련 쿼리 =====
+
+    /**
+     * ID 목록으로 Article 조회 (Corporation fetch join)
+     * 관련 글 추천에서 사용
+     *
+     * @param ids Article ID 목록
+     * @return Article 리스트 (Corporation 포함)
+     */
+    @Query("SELECT a FROM Article a " +
+           "JOIN FETCH a.corporation c " +
+           "WHERE a.id IN :ids " +
+           "AND a.deletedAt IS NULL")
+    List<Article> findByIdInWithCorporation(@Param("ids") List<Long> ids);
 }
