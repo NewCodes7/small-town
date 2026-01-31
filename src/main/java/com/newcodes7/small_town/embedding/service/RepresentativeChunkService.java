@@ -110,8 +110,12 @@ public class RepresentativeChunkService {
      */
     private Double getBm25ScoreForTerm(Long articleId, String term) {
         try {
-            // 특수문자 이스케이프
+            // 1. 특수문자 이스케이프
             String escapedTerm = escapeForBm25(term);
+            
+            // 2. 공백이 포함된 경우 큰따옴표로 감싸기 (Phrase Query 처리)
+            // ParadeDB/Lucene 파서가 "스프링 부트"와 같은 걸 하나의 검색어로 인식하게 함
+            String formattedTerm = escapedTerm.contains(" ") ? "\"" + escapedTerm + "\"" : escapedTerm;
 
             String sql = """
                 SELECT paradedb.score(id) as bm25_score
@@ -121,7 +125,8 @@ public class RepresentativeChunkService {
                 """;
 
             Query query = entityManager.createNativeQuery(sql);
-            query.setParameter("searchQuery", "search_terms:" + escapedTerm);
+            // 필드명과 검색어 결합
+            query.setParameter("searchQuery", "search_terms:" + formattedTerm);
             query.setParameter("articleId", articleId);
 
             @SuppressWarnings("unchecked")
