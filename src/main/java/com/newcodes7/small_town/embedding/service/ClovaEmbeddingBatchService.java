@@ -37,6 +37,7 @@ public class ClovaEmbeddingBatchService {
     private final ArticleRepository articleRepository;
     private final ClovaArticleChunkRepository clovaChunkRepository;
     private final NaverClovaEmbeddingService clovaEmbeddingService;
+    private final RepresentativeChunkService representativeChunkService;
 
     // API rate limit 대응을 위한 딜레이 (500ms)
     private static final long RATE_LIMIT_DELAY_MS = 500;
@@ -144,6 +145,18 @@ public class ClovaEmbeddingBatchService {
         // 3. 청크 저장
         if (!chunks.isEmpty()) {
             clovaChunkRepository.saveAll(chunks);
+        }
+
+        // 4. 대표 chunk 선정
+        if (successCount > 0) {
+            try {
+                Long representativeChunkId = representativeChunkService.selectRepresentativeChunk(article.getId());
+                if (representativeChunkId != null) {
+                    log.debug("Article {} - 대표 chunk 선정 완료: {}", article.getId(), representativeChunkId);
+                }
+            } catch (Exception e) {
+                log.warn("Article {} - 대표 chunk 선정 실패: {}", article.getId(), e.getMessage());
+            }
         }
 
         log.info("Article {} - Clova 임베딩 완료: {}/{}개 청크",
