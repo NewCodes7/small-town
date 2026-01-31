@@ -112,10 +112,21 @@ public class RepresentativeChunkService {
      */
     private Double getBm25ScoreForTerm(Long articleId, String term) {
         try {
-            // 1. 특수문자 이스케이프
+            // 1. 유효성 검사
+            if (!isValidSearchTerm(term)) {
+                log.debug("Skipping invalid term for BM25: '{}'", term);
+                return null;
+            }
+
+            // 2. 특수문자 이스케이프
             String escapedTerm = escapeForBm25(term);
-            
-            // 2. 공백이 포함된 경우 큰따옴표로 감싸기 (Phrase Query 처리)
+
+            // 이스케이프 후에도 유효한지 확인
+            if (escapedTerm.isEmpty() || escapedTerm.isBlank()) {
+                return null;
+            }
+
+            // 3. 공백이 포함된 경우 큰따옴표로 감싸기 (Phrase Query 처리)
             // ParadeDB/Lucene 파서가 "스프링 부트"와 같은 걸 하나의 검색어로 인식하게 함
             String formattedTerm = escapedTerm.contains(" ") ? "\"" + escapedTerm + "\"" : escapedTerm;
 
@@ -144,11 +155,55 @@ public class RepresentativeChunkService {
     }
 
     /**
+     * 검색어 유효성 검사
+     */
+    private boolean isValidSearchTerm(String term) {
+        if (term == null || term.isEmpty() || term.isBlank()) {
+            return false;
+        }
+        // 너무 긴 검색어 제외 (100자 초과)
+        if (term.length() > 100) {
+            return false;
+        }
+        // 숫자나 특수문자만으로 구성된 경우 제외
+        String alphanumericOnly = term.replaceAll("[^a-zA-Z가-힣0-9]", "");
+        if (alphanumericOnly.isEmpty()) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * BM25 쿼리용 특수문자 이스케이프
+     * Tantivy/ParadeDB 쿼리 파서에서 사용하는 특수문자들을 이스케이프
      */
     private String escapeForBm25(String term) {
-        // Tantivy/ParadeDB 특수문자 이스케이프
-        return term.replaceAll("([+\\-!(){}\\[\\]^\"~*?:\\\\/])", "\\\\$1");
+        if (term == null) {
+            return "";
+        }
+
+        // Tantivy/ParadeDB 특수문자 전체 이스케이프
+        // 포함: + - ! ( ) { } [ ] ^ " ~ * ? : \ / ' ` & | < > @
+        StringBuilder escaped = new StringBuilder();
+        for (char c : term.toCharArray()) {
+            if (isSpecialChar(c)) {
+                escaped.append('\\').append(c);
+            } else {
+                escaped.append(c);
+            }
+        }
+        return escaped.toString();
+    }
+
+    /**
+     * BM25 쿼리에서 이스케이프가 필요한 특수문자 여부
+     */
+    private boolean isSpecialChar(char c) {
+        return c == '+' || c == '-' || c == '!' || c == '(' || c == ')'
+            || c == '{' || c == '}' || c == '[' || c == ']' || c == '^'
+            || c == '"' || c == '~' || c == '*' || c == '?' || c == ':'
+            || c == '\\' || c == '/' || c == '\'' || c == '`' || c == '&'
+            || c == '|' || c == '<' || c == '>' || c == '@';
     }
 
     /**
