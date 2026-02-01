@@ -42,7 +42,7 @@ public class CrawlingScheduler {
     private final ClovaEmbeddingBatchService clovaEmbeddingBatchService;
 
     private static final int MAX_CONTENT_LENGTH = 200;
-    private static final int BATCH_SIZE = 20;
+    private static final int BATCH_SIZE = 200;
     private static final long RATE_LIMIT_DELAY_MS = 1000;
     private static final long MEDIUM_CRAWL_TIMEOUT_MS = 25 * 60 * 1000; // 25분
 
