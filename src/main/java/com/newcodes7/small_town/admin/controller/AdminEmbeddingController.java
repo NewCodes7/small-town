@@ -737,30 +737,35 @@ public class AdminEmbeddingController {
     }
 
     /**
-     * 대표 Chunk가 없는 모든 Article에 대해 배치 선정
+     * 대표 Chunk가 없는 Article에 대해 배치 선정
      *
      * 대표 Chunk가 아직 선정되지 않은 Article들만 처리
+     *
+     * @param limit 처리할 최대 Article 수 (기본값: 100, 0이면 전체)
      */
     @org.springframework.web.bind.annotation.GetMapping("/articles/select-representative-chunks-batch")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> selectRepresentativeChunksBatch() {
+    public ResponseEntity<Map<String, Object>> selectRepresentativeChunksBatch(
+            @RequestParam(required = false, defaultValue = "100") Integer limit) {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            log.info("대표 Chunk 배치 선정 요청 (미선정 Article만)");
+            log.info("대표 Chunk 배치 선정 요청 (미선정 Article만, limit={})", limit);
 
             RepresentativeChunkService.BatchResult result =
-                representativeChunkService.selectRepresentativeChunksForAll();
+                representativeChunkService.selectRepresentativeChunksForAll(limit);
 
             response.put("success", true);
             response.put("successCount", result.getSuccess());
             response.put("skippedCount", result.getSkipped());
             response.put("failedCount", result.getFailed());
             response.put("totalProcessed", result.getTotal());
+            response.put("remainingCount", result.getRemainingCount());
             response.put("processingTimeMs", result.getProcessingTimeMs());
             response.put("message", String.format(
-                "대표 Chunk 선정 완료: 성공=%d, 스킵=%d, 실패=%d, 소요시간=%dms",
-                result.getSuccess(), result.getSkipped(), result.getFailed(), result.getProcessingTimeMs()));
+                "대표 Chunk 선정 완료: 성공=%d, 스킵=%d, 실패=%d, 남은 Article=%d, 소요시간=%dms",
+                result.getSuccess(), result.getSkipped(), result.getFailed(),
+                result.getRemainingCount(), result.getProcessingTimeMs()));
 
             return ResponseEntity.ok(response);
 

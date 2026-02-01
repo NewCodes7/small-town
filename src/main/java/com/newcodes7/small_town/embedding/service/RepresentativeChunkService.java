@@ -273,13 +273,33 @@ public class RepresentativeChunkService {
      */
     @Transactional
     public BatchResult selectRepresentativeChunksForAll() {
-        log.info("Starting batch representative chunk selection...");
+        return selectRepresentativeChunksForAll(0); // 0 = no limit
+    }
+
+    /**
+     * 대표 Chunk가 없는 Article에 대해 대표 선정 (배치, limit 지정)
+     * 10개씩 묶어서 별도 트랜잭션으로 저장
+     *
+     * @param limit 처리할 최대 Article 수 (0이면 전체)
+     * @return 처리 결과
+     */
+    @Transactional
+    public BatchResult selectRepresentativeChunksForAll(int limit) {
+        log.info("Starting batch representative chunk selection (limit={})...", limit > 0 ? limit : "all");
         long startTime = System.currentTimeMillis();
 
-        List<Long> articleIds = chunkRepository.findArticleIdsWithoutRepresentativeChunk();
-        log.info("Found {} articles without representative chunk", articleIds.size());
+        List<Long> allArticleIds = chunkRepository.findArticleIdsWithoutRepresentativeChunk();
+
+        // limit 적용
+        List<Long> articleIds = (limit > 0 && limit < allArticleIds.size())
+                ? allArticleIds.subList(0, limit)
+                : allArticleIds;
+
+        log.info("Found {} articles without representative chunk, processing {} articles",
+                allArticleIds.size(), articleIds.size());
 
         BatchResult result = new BatchResult();
+        result.setRemainingCount(allArticleIds.size() - articleIds.size());
 
         // 10개씩 묶어서 처리
         for (int i = 0; i < articleIds.size(); i += BATCH_SIZE) {
@@ -296,8 +316,8 @@ public class RepresentativeChunkService {
 
         result.setProcessingTimeMs(System.currentTimeMillis() - startTime);
 
-        log.info("Batch representative chunk selection completed: success={}, skipped={}, failed={}, time={}ms",
-                result.getSuccess(), result.getSkipped(), result.getFailed(), result.getProcessingTimeMs());
+        log.info("Batch representative chunk selection completed: success={}, skipped={}, failed={}, remaining={}, time={}ms",
+                result.getSuccess(), result.getSkipped(), result.getFailed(), result.getRemainingCount(), result.getProcessingTimeMs());
 
         return result;
     }
@@ -369,6 +389,7 @@ public class RepresentativeChunkService {
         private int success = 0;
         private int skipped = 0;
         private int failed = 0;
+        private int remainingCount = 0;
         private long processingTimeMs = 0;
 
         public void incrementSuccess() { success++; }
@@ -378,6 +399,8 @@ public class RepresentativeChunkService {
         public int getSkipped() { return skipped; }
         public int getFailed() { return failed; }
         public int getTotal() { return success + skipped + failed; }
+        public int getRemainingCount() { return remainingCount; }
+        public void setRemainingCount(int count) { this.remainingCount = count; }
         public long getProcessingTimeMs() { return processingTimeMs; }
         public void setProcessingTimeMs(long ms) { this.processingTimeMs = ms; }
 
