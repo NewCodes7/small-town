@@ -720,6 +720,33 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "AND (a.content IS NULL OR LENGTH(a.content) <= :maxContentLength)")
     long countMediumArticlesWithShortContent(@Param("maxContentLength") int maxContentLength);
 
+    // ===== 전체 Content 백필 관련 쿼리 =====
+
+    /**
+     * 모든 블로그 타입의 본문이 짧은 Article 조회
+     * content가 null이거나 지정된 길이 이하인 Article 대상
+     *
+     * @param maxContentLength 최대 본문 길이 (기본 200)
+     * @param pageable 페이징 정보
+     * @return 본문이 짧은 Article 리스트 (Corporation 포함)
+     */
+    @Query("SELECT a FROM Article a " +
+           "JOIN FETCH a.corporation c " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND (a.content IS NULL OR LENGTH(a.content) <= :maxContentLength) " +
+           "ORDER BY a.id DESC")
+    List<Article> findArticlesWithShortContent(
+            @Param("maxContentLength") int maxContentLength,
+            Pageable pageable);
+
+    /**
+     * 모든 블로그 타입의 본문이 짧은 Article 개수 조회
+     */
+    @Query("SELECT COUNT(a) FROM Article a " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND (a.content IS NULL OR LENGTH(a.content) <= :maxContentLength)")
+    long countArticlesWithShortContent(@Param("maxContentLength") int maxContentLength);
+
     // ===== 관련 글 추천 관련 쿼리 =====
 
     /**

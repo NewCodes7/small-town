@@ -2,7 +2,9 @@ package com.newcodes7.small_town.crawler.controller;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.crawler.config.WebDriverConfig;
+import com.newcodes7.small_town.crawler.crawler.DefaultBlogCrawler;
 import com.newcodes7.small_town.crawler.crawler.MediumBlogCrawler;
+import com.newcodes7.small_town.global.entity.BlogType;
 import com.newcodes7.small_town.crawler.dto.CrawlResult;
 import com.newcodes7.small_town.crawler.integration.analytics.GoogleAnalyticsService;
 import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
@@ -36,6 +38,7 @@ public class CrawlingScheduler {
     private final ArticleRepository articleRepository;
     private final WebDriverConfig webDriverConfig;
     private final MediumBlogCrawler mediumBlogCrawler;
+    private final DefaultBlogCrawler defaultBlogCrawler;
     private final ClovaEmbeddingBatchService clovaEmbeddingBatchService;
 
     private static final int MAX_CONTENT_LENGTH = 200;
@@ -216,13 +219,13 @@ public class CrawlingScheduler {
     }
 
     /**
-     * Medium 블로그 본문 크롤링 스케줄러
+     * 본문 백필 크롤링 스케줄러
      * 매 정각 30분에 실행
-     * Medium 타입 기업의 본문이 200자 이하인 Article 대상
+     * 모든 블로그 타입의 본문이 200자 이하인 Article 대상
      */
     @Scheduled(cron = "${crawler.schedule.medium-content.cron:0 30 * * * ?}", zone = "Asia/Seoul")
-    public void scheduledMediumContentCrawling() {
-        log.info("스케줄된 Medium 본문 크롤링 작업 시작 (타임아웃: 25분)");
+    public void scheduledContentCrawling() {
+        log.info("스케줄된 본문 백필 크롤링 작업 시작 (타임아웃: 25분)");
 
         int successCount = 0;
         int failureCount = 0;
@@ -231,18 +234,18 @@ public class CrawlingScheduler {
         long startTime = System.currentTimeMillis();
 
         try {
-            // 본문이 짧은 Medium Article 조회
-            List<Article> articles = articleRepository.findMediumArticlesWithShortContent(
+            // 본문이 짧은 전체 Article 조회
+            List<Article> articles = articleRepository.findArticlesWithShortContent(
                     MAX_CONTENT_LENGTH,
                     PageRequest.of(0, BATCH_SIZE)
             );
 
             if (articles.isEmpty()) {
-                log.info("본문 크롤링 대상 Medium Article이 없습니다.");
+                log.info("본문 크롤링 대상 Article이 없습니다.");
                 return;
             }
 
-            log.info("Medium 본문 크롤링 대상: {}개 Article", articles.size());
+            log.info("본문 백필 크롤링 대상: {}개 Article", articles.size());
 
             // WebDriver 생성 (배치 전체에서 재사용)
             driver = webDriverConfig.createWebDriver();
@@ -258,17 +261,26 @@ public class CrawlingScheduler {
                 }
 
                 try {
-                    String content = mediumBlogCrawler.extractArticleContent(article.getLink(), driver);
+                    // BlogType에 따라 적절한 크롤러 선택
+                    BlogType blogType = article.getCorporation().getBlogType();
+                    String content;
+
+                    if (blogType == BlogType.MEDIUM) {
+                        content = mediumBlogCrawler.extractArticleContent(article.getLink(), driver);
+                    } else {
+                        content = defaultBlogCrawler.extractArticleContent(article.getLink(), driver);
+                    }
 
                     if (content != null && !content.isBlank() && content.length() > MAX_CONTENT_LENGTH) {
                         // 본문 업데이트 (독립 트랜잭션)
                         updateArticleContent(article.getId(), content);
                         successCount++;
-                        log.debug("Article {} 본문 추출 완료 ({}자)", article.getId(), content.length());
+                        log.debug("Article {} 본문 추출 완료 ({}자, 타입: {})",
+                                article.getId(), content.length(), blogType);
                     } else {
                         failureCount++;
-                        log.warn("Article {} 본문 추출 실패 또는 여전히 짧음 ({}자)",
-                                article.getId(), content != null ? content.length() : 0);
+                        log.warn("Article {} 본문 추출 실패 또는 여전히 짧음 ({}자, 타입: {})",
+                                article.getId(), content != null ? content.length() : 0, blogType);
                     }
 
                     // Rate limiting
@@ -276,7 +288,7 @@ public class CrawlingScheduler {
 
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    log.error("Medium 본문 크롤링 중단됨");
+                    log.error("본문 백필 크롤링 중단됨");
                     break;
                 } catch (Exception e) {
                     failureCount++;
@@ -285,11 +297,11 @@ public class CrawlingScheduler {
             }
 
             long totalElapsed = System.currentTimeMillis() - startTime;
-            log.info("스케줄된 Medium 본문 크롤링 작업 완료 - 성공: {}개, 실패: {}개, 타임아웃 스킵: {}개, 소요시간: {}분",
+            log.info("스케줄된 본문 백필 크롤링 작업 완료 - 성공: {}개, 실패: {}개, 타임아웃 스킵: {}개, 소요시간: {}분",
                     successCount, failureCount, skippedByTimeout, totalElapsed / 60000);
 
         } catch (Exception e) {
-            log.error("스케줄된 Medium 본문 크롤링 작업 중 오류 발생", e);
+            log.error("스케줄된 본문 백필 크롤링 작업 중 오류 발생", e);
         } finally {
             if (driver != null) {
                 try {
