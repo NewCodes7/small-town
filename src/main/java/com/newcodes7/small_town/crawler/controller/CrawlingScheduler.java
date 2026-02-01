@@ -41,6 +41,7 @@ public class CrawlingScheduler {
     private static final int MAX_CONTENT_LENGTH = 200;
     private static final int BATCH_SIZE = 20;
     private static final long RATE_LIMIT_DELAY_MS = 1000;
+    private static final long MEDIUM_CRAWL_TIMEOUT_MS = 25 * 60 * 1000; // 25분
 
     /**
      * 블로그 크롤링 스케줄러
@@ -221,11 +222,13 @@ public class CrawlingScheduler {
      */
     @Scheduled(cron = "${crawler.schedule.medium-content.cron:0 30 * * * ?}", zone = "Asia/Seoul")
     public void scheduledMediumContentCrawling() {
-        log.info("스케줄된 Medium 본문 크롤링 작업 시작");
+        log.info("스케줄된 Medium 본문 크롤링 작업 시작 (타임아웃: 25분)");
 
         int successCount = 0;
         int failureCount = 0;
+        int skippedByTimeout = 0;
         WebDriver driver = null;
+        long startTime = System.currentTimeMillis();
 
         try {
             // 본문이 짧은 Medium Article 조회
@@ -245,6 +248,15 @@ public class CrawlingScheduler {
             driver = webDriverConfig.createWebDriver();
 
             for (Article article : articles) {
+                // 25분 타임아웃 체크
+                long elapsedTime = System.currentTimeMillis() - startTime;
+                if (elapsedTime >= MEDIUM_CRAWL_TIMEOUT_MS) {
+                    skippedByTimeout = articles.size() - successCount - failureCount;
+                    log.warn("25분 타임아웃 도달 - 크롤링 종료 (경과: {}분, 남은 Article: {}개)",
+                            elapsedTime / 60000, skippedByTimeout);
+                    break;
+                }
+
                 try {
                     String content = mediumBlogCrawler.extractArticleContent(article.getLink(), driver);
 
@@ -272,7 +284,9 @@ public class CrawlingScheduler {
                 }
             }
 
-            log.info("스케줄된 Medium 본문 크롤링 작업 완료 - 성공: {}개, 실패: {}개", successCount, failureCount);
+            long totalElapsed = System.currentTimeMillis() - startTime;
+            log.info("스케줄된 Medium 본문 크롤링 작업 완료 - 성공: {}개, 실패: {}개, 타임아웃 스킵: {}개, 소요시간: {}분",
+                    successCount, failureCount, skippedByTimeout, totalElapsed / 60000);
 
         } catch (Exception e) {
             log.error("스케줄된 Medium 본문 크롤링 작업 중 오류 발생", e);
