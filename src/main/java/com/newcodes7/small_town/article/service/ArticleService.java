@@ -833,21 +833,8 @@ public class ArticleService {
             if (directMatchTerms.size() >= 2) {
                 String andBoost = "3.0";
 
+                // search_terms에 모든 키워드 포함
                 queryBuilder.append("(");
-                for (int i = 0; i < directMatchTerms.size(); i++) {
-                    if (i > 0) queryBuilder.append(" AND ");
-                    queryBuilder.append("title:").append(quoteTerm(directMatchTerms.get(i)));
-                }
-                queryBuilder.append(")^").append(andBoost);
-
-                queryBuilder.append(" OR (");
-                for (int i = 0; i < directMatchTerms.size(); i++) {
-                    if (i > 0) queryBuilder.append(" AND ");
-                    queryBuilder.append("translated_title:").append(quoteTerm(directMatchTerms.get(i)));
-                }
-                queryBuilder.append(")^").append(andBoost);
-
-                queryBuilder.append(" OR (");
                 for (int i = 0; i < directMatchTerms.size(); i++) {
                     if (i > 0) queryBuilder.append(" AND ");
                     queryBuilder.append("search_terms:").append(quoteTerm(directMatchTerms.get(i)));
@@ -864,8 +851,8 @@ public class ArticleService {
                 String boostValue = "2.0";
                 String quotedTerm = quoteTerm(term);
                 queryBuilder.append(String.format(
-                    "(title:%s^%s OR translated_title:%s^%s OR search_terms:%s^%s)",
-                    quotedTerm, boostValue, quotedTerm, boostValue, quotedTerm, boostValue
+                    "search_terms:%s^%s",
+                    quotedTerm, boostValue
                 ));
             }
 
@@ -882,8 +869,8 @@ public class ArticleService {
                 String quotedTerm = quoteTerm(term);
 
                 queryBuilder.append(String.format(
-                    "(title:%s^%s OR translated_title:%s^%s OR search_terms:%s^%s)",
-                    quotedTerm, boostValue, quotedTerm, boostValue, quotedTerm, boostValue
+                    "search_terms:%s^%s",
+                    quotedTerm, boostValue
                 ));
             }
 
@@ -1130,24 +1117,8 @@ public class ArticleService {
             if (directMatchTerms.size() >= 2) {
                 String andBoost = "3.0";  // 모든 키워드 포함 시 3.0x 부스트
 
-                // title에 모든 키워드 포함
-                queryBuilder.append("(");
-                for (int i = 0; i < directMatchTerms.size(); i++) {
-                    if (i > 0) queryBuilder.append(" AND ");
-                    queryBuilder.append("title:").append(quoteTerm(directMatchTerms.get(i)));
-                }
-                queryBuilder.append(")^").append(andBoost);
-
-                // translated_title에 모든 키워드 포함
-                queryBuilder.append(" OR (");
-                for (int i = 0; i < directMatchTerms.size(); i++) {
-                    if (i > 0) queryBuilder.append(" AND ");
-                    queryBuilder.append("translated_title:").append(quoteTerm(directMatchTerms.get(i)));
-                }
-                queryBuilder.append(")^").append(andBoost);
-
                 // search_terms에 모든 키워드 포함
-                queryBuilder.append(" OR (");
+                queryBuilder.append("(");
                 for (int i = 0; i < directMatchTerms.size(); i++) {
                     if (i > 0) queryBuilder.append(" AND ");
                     queryBuilder.append("search_terms:").append(quoteTerm(directMatchTerms.get(i)));
@@ -1166,8 +1137,8 @@ public class ArticleService {
                 String boostValue = "2.0";  // 단일 키워드 매칭 시 2.0x 부스트
                 String quotedTerm = quoteTerm(term);
                 queryBuilder.append(String.format(
-                    "(title:%s^%s OR translated_title:%s^%s OR search_terms:%s^%s)",
-                    quotedTerm, boostValue, quotedTerm, boostValue, quotedTerm, boostValue
+                    "search_terms:%s^%s",
+                    quotedTerm, boostValue
                 ));
             }
 
@@ -1185,8 +1156,8 @@ public class ArticleService {
                 String quotedTerm = quoteTerm(term);
 
                 queryBuilder.append(String.format(
-                    "(title:%s^%s OR translated_title:%s^%s OR search_terms:%s^%s)",
-                    quotedTerm, boostValue, quotedTerm, boostValue, quotedTerm, boostValue
+                    "search_terms:%s^%s",
+                    quotedTerm, boostValue
                 ));
             }
 
