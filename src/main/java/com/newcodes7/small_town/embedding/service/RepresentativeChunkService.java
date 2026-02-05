@@ -139,7 +139,7 @@ public class RepresentativeChunkService {
 
             Query query = entityManager.createNativeQuery(sql);
             // 필드명과 검색어 결합
-            query.setParameter("searchQuery", "search_terms:" + formattedTerm);
+            query.setParameter("searchQuery", "(title_terms:" + formattedTerm + " OR content_terms:" + formattedTerm + ")");
             query.setParameter("articleId", articleId);
 
             @SuppressWarnings("unchecked")

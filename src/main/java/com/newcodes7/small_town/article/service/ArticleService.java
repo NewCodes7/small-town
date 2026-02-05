@@ -837,7 +837,8 @@ public class ArticleService {
                 queryBuilder.append("(");
                 for (int i = 0; i < directMatchTerms.size(); i++) {
                     if (i > 0) queryBuilder.append(" AND ");
-                    queryBuilder.append("search_terms:").append(quoteTerm(directMatchTerms.get(i)));
+                    queryBuilder.append("(title_terms:").append(quoteTerm(directMatchTerms.get(i)))
+                                .append(" OR content_terms:").append(quoteTerm(directMatchTerms.get(i))).append(")");
                 }
                 queryBuilder.append(")^").append(andBoost);
             }
@@ -851,8 +852,8 @@ public class ArticleService {
                 String boostValue = "2.0";
                 String quotedTerm = quoteTerm(term);
                 queryBuilder.append(String.format(
-                    "search_terms:%s^%s",
-                    quotedTerm, boostValue
+                    "(title_terms:%s OR content_terms:%s)^%s",
+                    quotedTerm, quotedTerm, boostValue
                 ));
             }
 
@@ -869,8 +870,8 @@ public class ArticleService {
                 String quotedTerm = quoteTerm(term);
 
                 queryBuilder.append(String.format(
-                    "search_terms:%s^%s",
-                    quotedTerm, boostValue
+                    "(title_terms:%s OR content_terms:%s)^%s",
+                    quotedTerm, quotedTerm, boostValue
                 ));
             }
 
@@ -1117,11 +1118,12 @@ public class ArticleService {
             if (directMatchTerms.size() >= 2) {
                 String andBoost = "3.0";  // 모든 키워드 포함 시 3.0x 부스트
 
-                // search_terms에 모든 키워드 포함
+                // title_terms와 content_terms에 모든 키워드 포함
                 queryBuilder.append("(");
                 for (int i = 0; i < directMatchTerms.size(); i++) {
                     if (i > 0) queryBuilder.append(" AND ");
-                    queryBuilder.append("search_terms:").append(quoteTerm(directMatchTerms.get(i)));
+                    queryBuilder.append("(title_terms:").append(quoteTerm(directMatchTerms.get(i)))
+                                .append(" OR content_terms:").append(quoteTerm(directMatchTerms.get(i))).append(")");
                 }
                 queryBuilder.append(")^").append(andBoost);
 
@@ -1137,8 +1139,8 @@ public class ArticleService {
                 String boostValue = "2.0";  // 단일 키워드 매칭 시 2.0x 부스트
                 String quotedTerm = quoteTerm(term);
                 queryBuilder.append(String.format(
-                    "search_terms:%s^%s",
-                    quotedTerm, boostValue
+                    "(title_terms:%s OR content_terms:%s)^%s",
+                    quotedTerm, quotedTerm, boostValue
                 ));
             }
 
@@ -1156,8 +1158,8 @@ public class ArticleService {
                 String quotedTerm = quoteTerm(term);
 
                 queryBuilder.append(String.format(
-                    "search_terms:%s^%s",
-                    quotedTerm, boostValue
+                    "(title_terms:%s OR content_terms:%s)^%s",
+                    quotedTerm, quotedTerm, boostValue
                 ));
             }
 
