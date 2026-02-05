@@ -22,6 +22,7 @@ import com.newcodes7.small_town.global.entity.ArticleTerm;
 import com.newcodes7.small_town.global.entity.Stopword;
 import com.newcodes7.small_town.global.entity.Term;
 import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
+import com.newcodes7.small_town.global.service.UnifiedMorphemeAnalyzer;
 import com.newcodes7.small_town.global.util.KoreanCharacterUtil;
 import com.newcodes7.small_town.video.repository.VideoTermRepository;
 
@@ -39,7 +40,7 @@ public class ArticleTermService {
     private final TermRepository termRepository;
     private final TermSynonymRepository termSynonymRepository;
     private final StopwordRepository stopwordRepository;
-    private final MorphemeAnalyzer morphemeAnalyzer;
+    private final UnifiedMorphemeAnalyzer unifiedMorphemeAnalyzer;
 
     /**
      * 모든 article의 term을 추출하고 저장
@@ -156,7 +157,7 @@ public class ArticleTermService {
 
         if (!titleTexts.isEmpty()) {
             Map<String, MorphemeAnalyzer.TermInfo> titleTermMap =
-                morphemeAnalyzer.extractTermsFromMultipleTexts(titleTexts);
+                unifiedMorphemeAnalyzer.extractTermsFromMultipleTexts(titleTexts);
 
             for (MorphemeAnalyzer.TermInfo termInfo : titleTermMap.values()) {
                 String key = termInfo.getTerm() + ":" + termInfo.getTermType();
@@ -172,7 +173,7 @@ public class ArticleTermService {
             contentTexts.add(article.getContent());
 
             Map<String, MorphemeAnalyzer.TermInfo> contentTermMap =
-                morphemeAnalyzer.extractTermsFromMultipleTexts(contentTexts);
+                unifiedMorphemeAnalyzer.extractTermsFromMultipleTexts(contentTexts);
 
             for (MorphemeAnalyzer.TermInfo termInfo : contentTermMap.values()) {
                 String key = termInfo.getTerm() + ":" + termInfo.getTermType();
@@ -199,9 +200,24 @@ public class ArticleTermService {
             return 0;
         }
 
-        // 4. term 저장
+        // 4. 필터링: 최소 2회 반복, score 기준 상위 20개만 선택
+        final int MIN_FREQUENCY = 2;
+        final int MAX_TERMS_PER_ARTICLE = 20;
+
+        List<TermData> filteredTerms = termDataMap.values().stream()
+                .filter(td -> td.frequency >= MIN_FREQUENCY)
+                .sorted((a, b) -> Double.compare(b.frequency * b.weight, a.frequency * a.weight))
+                .limit(MAX_TERMS_PER_ARTICLE)
+                .toList();
+
+        if (filteredTerms.isEmpty()) {
+            log.info("Article ID {} - 필터링 후 저장할 term 없음 (최소 빈도: {})", article.getId(), MIN_FREQUENCY);
+            return 0;
+        }
+
+        // 5. term 저장
         List<ArticleTerm> articleTerms = new ArrayList<>();
-        for (TermData termData : termDataMap.values()) {
+        for (TermData termData : filteredTerms) {
             MorphemeAnalyzer.TermInfo termInfo = termData.termInfo;
             // 한글이 포함된 경우 자모 분리 및 초성 추출
             final String decomposed = KoreanCharacterUtil.containsHangul(termInfo.getTerm())
@@ -256,8 +272,9 @@ public class ArticleTermService {
 
         if (!articleTerms.isEmpty()) {
             articleTermRepository.saveAll(articleTerms);
-            log.info("Article ID {} term 저장 완료: {} terms (title 가중치: {}, content 가중치: {})",
-                article.getId(), articleTerms.size(), TITLE_WEIGHT, CONTENT_WEIGHT);
+            log.info("Article ID {} term 저장 완료: {} terms (전체: {}, 필터링 후: {}, 최소빈도: {}, 최대개수: {})",
+                article.getId(), articleTerms.size(), termDataMap.size(), filteredTerms.size(),
+                MIN_FREQUENCY, MAX_TERMS_PER_ARTICLE);
 
             // 저장된 각 term의 통계 갱신 (단일 article 처리 시에만)
             // 대량 처리 시에는 extractAndSaveAllArticleTerms에서 일괄 갱신
@@ -321,7 +338,7 @@ public class ArticleTermService {
         termRepository.delete(term);
 
         // 6. 불용어 캐시 갱신
-        morphemeAnalyzer.refreshStopwordCache();
+        unifiedMorphemeAnalyzer.refreshStopwordCache();
 
         log.info("Term 삭제 완료: {} ({}), TermSynonym {} 개, ArticleTerm {} 개, VideoTerm {} 개 삭제",
                 term.getTerm(), term.getTermType(), synonymCount, articleTermCount, videoTermCount);
@@ -347,7 +364,7 @@ public class ArticleTermService {
             stopwordRepository.save(stopword);
 
             // 불용어 캐시 갱신
-            morphemeAnalyzer.refreshStopwordCache();
+            unifiedMorphemeAnalyzer.refreshStopwordCache();
 
             log.info("불용어 등록: {} ({}), 사유: {}", termStr, termType, reason);
         }
