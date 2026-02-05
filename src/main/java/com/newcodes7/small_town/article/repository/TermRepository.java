@@ -133,7 +133,9 @@ public interface TermRepository extends JpaRepository<Term, Long> {
      *
      * @param termId 대상 Term ID
      * @return 업데이트된 행 수 (0 또는 1)
+     * @deprecated 성능상 {@link #updateTermStatisticsByIds(List)}를 사용 권장
      */
+    @Deprecated
     @Modifying
     @Query(value = """
         UPDATE term t
@@ -150,4 +152,58 @@ public interface TermRepository extends JpaRepository<Term, Long> {
         WHERE t.id = :termId
         """, nativeQuery = true)
     int updateTermStatistics(@Param("termId") Long termId);
+
+    /**
+     * 여러 Term의 total_frequency와 article_count를 한 번에 재계산하여 업데이트
+     * IN 절을 사용하여 N+1 문제 방지
+     *
+     * @param termIds 대상 Term ID 목록
+     * @return 업데이트된 행 수
+     */
+    @Modifying
+    @Query(value = """
+        UPDATE term t
+        SET total_frequency = COALESCE(stats.total_freq, 0),
+            article_count = COALESCE(stats.article_cnt, 0)
+        FROM (
+            SELECT
+                at.term_id,
+                SUM(at.frequency) as total_freq,
+                COUNT(DISTINCT at.article_id) as article_cnt
+            FROM article_term at
+            WHERE at.term_id IN (:termIds)
+            GROUP BY at.term_id
+        ) stats
+        WHERE t.id = stats.term_id
+        """, nativeQuery = true)
+    int updateTermStatisticsByIds(@Param("termIds") List<Long> termIds);
+
+    /**
+     * 특정 Article들과 관련된 Term의 통계를 한 번에 업데이트
+     * 여러 아티클 처리 후 관련 term만 선택적으로 업데이트할 때 사용
+     *
+     * @param articleIds 대상 Article ID 목록
+     * @return 업데이트된 행 수
+     */
+    @Modifying
+    @Query(value = """
+        UPDATE term t
+        SET total_frequency = COALESCE(stats.total_freq, 0),
+            article_count = COALESCE(stats.article_cnt, 0)
+        FROM (
+            SELECT
+                at.term_id,
+                SUM(at.frequency) as total_freq,
+                COUNT(DISTINCT at.article_id) as article_cnt
+            FROM article_term at
+            WHERE at.term_id IN (
+                SELECT DISTINCT at2.term_id
+                FROM article_term at2
+                WHERE at2.article_id IN (:articleIds)
+            )
+            GROUP BY at.term_id
+        ) stats
+        WHERE t.id = stats.term_id
+        """, nativeQuery = true)
+    int updateTermStatisticsByArticleIds(@Param("articleIds") List<Long> articleIds);
 }

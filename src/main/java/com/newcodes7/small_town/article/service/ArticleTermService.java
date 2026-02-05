@@ -415,6 +415,7 @@ public class ArticleTermService {
         long startTime = System.currentTimeMillis();
 
         ArticleTermExtractionResult result = new ArticleTermExtractionResult();
+        List<Long> processedArticleIds = new ArrayList<>();
 
         // 최신순으로 정렬하여 조회
         Pageable pageable = PageRequest.of(0, limit, Sort.by("publishedAt").descending());
@@ -431,9 +432,10 @@ public class ArticleTermService {
                     continue;
                 }
 
-                int termCount = extractAndSaveTermsForArticle(article);
+                int termCount = extractAndSaveTermsForArticleInternal(article);
                 result.incrementProcessedArticles();
                 result.addTermCount(termCount);
+                processedArticleIds.add(article.getId());
 
                 log.info("Article ID {} term 추출 완료: {} terms", article.getId(), termCount);
             } catch (Exception e) {
@@ -450,9 +452,11 @@ public class ArticleTermService {
                 result.getFailedArticles(), result.getTotalTerms(),
                 result.getProcessingTimeMs());
 
-        // Term 통계 갱신 (total_frequency, article_count)
-        if (result.getProcessedArticles() > 0) {
-            updateTermStatistics();
+        // Term 통계 갱신 (처리된 article들의 관련 term만 선택적 업데이트)
+        if (!processedArticleIds.isEmpty()) {
+            log.info("처리된 {} 개 article 관련 Term 통계 갱신 시작", processedArticleIds.size());
+            int updatedCount = termRepository.updateTermStatisticsByArticleIds(processedArticleIds);
+            log.info("Term 통계 갱신 완료: {} 개 term 업데이트", updatedCount);
         }
 
         return result;
@@ -526,6 +530,7 @@ public class ArticleTermService {
     /**
      * 특정 Article과 관련된 Term들의 통계만 갱신
      * 단일 article 처리 시 사용
+     * IN 절을 사용하여 한 번의 쿼리로 모든 관련 term 업데이트 (N+1 방지)
      */
     @Transactional
     public void updateTermStatisticsForArticle(Article article) {
@@ -536,13 +541,16 @@ public class ArticleTermService {
             return;
         }
 
-        log.debug("Article ID {} 관련 Term 통계 갱신 시작: {} 개 term", article.getId(), articleTerms.size());
+        // IN 절을 사용하여 한 번에 업데이트 (기존: N개 쿼리 → 개선: 1개 쿼리)
+        List<Long> termIds = articleTerms.stream()
+                .map(at -> at.getTerm().getId())
+                .toList();
 
-        for (ArticleTerm articleTerm : articleTerms) {
-            termRepository.updateTermStatistics(articleTerm.getTerm().getId());
-        }
+        log.debug("Article ID {} 관련 Term 통계 갱신 시작: {} 개 term", article.getId(), termIds.size());
 
-        log.debug("Article ID {} 관련 Term 통계 갱신 완료", article.getId());
+        int updatedCount = termRepository.updateTermStatisticsByIds(termIds);
+
+        log.debug("Article ID {} 관련 Term 통계 갱신 완료: {} 개 업데이트", article.getId(), updatedCount);
     }
 
     /**
