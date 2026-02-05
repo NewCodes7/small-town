@@ -28,7 +28,7 @@ import net.dankito.readability4j.Readability4J;
 public class ContentExtractor {
 
     private static final int PAGE_LOAD_WAIT_MS = 3000;
-    private static final double RELATED_CONTENT_THRESHOLD = 0.8; // 80% 지점
+    private static final double RELATED_CONTENT_THRESHOLD = 0.5; // 50% 지점
 
     private final RelatedContentKeywordService relatedContentKeywordService;
 
@@ -152,7 +152,7 @@ public class ContentExtractor {
 
     /**
      * 텍스트 끝부분에 있는 관련 글/추천 글 섹션을 제거합니다.
-     * 전체 텍스트의 80% 이상 지점에서 관련 키워드가 발견되면 해당 부분부터 끝까지 제거합니다.
+     * 전체 텍스트의 50% 이상 지점에서 관련 키워드가 발견되면 해당 부분부터 끝까지 제거합니다.
      *
      * @param content 원본 텍스트
      * @return 관련 글 섹션이 제거된 텍스트
@@ -170,10 +170,10 @@ public class ContentExtractor {
             return content;
         }
 
-        // 80% 지점 계산
+        // 50% 지점 계산
         int thresholdPosition = (int) (content.length() * RELATED_CONTENT_THRESHOLD);
 
-        // 80% 이후 지점에서 키워드 검색 (대소문자 구분 없이)
+        // 50% 이후 지점에서 키워드 검색 (대소문자 구분 없이)
         String lowerContent = content.toLowerCase();
         int earliestCutPosition = -1;
         String matchedKeyword = null;
