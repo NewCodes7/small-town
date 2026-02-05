@@ -142,6 +142,59 @@ public class AdminContentExtractionController {
     }
 
     /**
+     * Medium 타입 기업 Article의 본문을 배치로 추출
+     *
+     * Request Body:
+     * {
+     *   "limit": 50 (optional, default: 50)
+     * }
+     *
+     * @param request 배치 추출 옵션
+     * @return 비동기 처리 시작 응답
+     */
+    @PostMapping("/articles/extract-content-batch/medium")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> extractContentBatchForMedium(@RequestBody Map<String, Object> request) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            Integer limit = request.containsKey("limit")
+                ? ((Number) request.get("limit")).intValue()
+                : 50;
+
+            log.info("Medium 배치 본문 추출 요청 - limit: {}", limit);
+
+            // 비동기 실행 (백그라운드 스레드에서 실행)
+            final Integer finalLimit = limit;
+
+            new Thread(() -> {
+                try {
+                    contentExtractionService.extractContentBatchForMedium(finalLimit);
+                } catch (Exception e) {
+                    log.error("Medium 배치 본문 추출 백그라운드 실행 중 오류", e);
+                }
+            }).start();
+
+            // 즉시 응답 반환
+            response.put("success", true);
+            response.put("message", "Medium 배치 본문 추출이 백그라운드에서 시작되었습니다. 로그에서 진행 상황을 확인하세요.");
+            response.put("filters", Map.of(
+                "blogType", "MEDIUM",
+                "withoutContent", true,
+                "limit", limit
+            ));
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Medium 배치 본문 추출 요청 처리 중 오류", e);
+            response.put("success", false);
+            response.put("message", "Medium 배치 본문 추출 요청 처리 중 오류 발생: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
      * 본문 추출 통계 조회
      *
      * @return 전체/본문 있는/본문 없는 Article 수 및 커버리지
@@ -157,6 +210,9 @@ public class AdminContentExtractionController {
             long articlesWithContent = articleRepository.countArticlesWithContent();
             long articlesWithoutContent = articleRepository.countArticlesWithoutContent();
 
+            // Medium 통계 조회
+            long mediumArticlesWithoutContent = articleRepository.countMediumArticlesWithoutContent();
+
             // 커버리지 계산
             double contentCoverage = totalArticles > 0
                 ? (double) articlesWithContent / totalArticles * 100
@@ -167,6 +223,7 @@ public class AdminContentExtractionController {
             response.put("articlesWithContent", articlesWithContent);
             response.put("articlesWithoutContent", articlesWithoutContent);
             response.put("contentCoverage", String.format("%.2f%%", contentCoverage));
+            response.put("mediumArticlesWithoutContent", mediumArticlesWithoutContent);
 
             return ResponseEntity.ok(response);
 

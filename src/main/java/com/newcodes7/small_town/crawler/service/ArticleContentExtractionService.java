@@ -317,6 +317,127 @@ public class ArticleContentExtractionService {
     }
 
     /**
+     * Medium 타입 기업의 Article 본문을 배치로 추출하여 저장합니다.
+     *
+     * @param limit 최대 처리 개수 (기본: 50)
+     * @return 배치 처리 결과 통계
+     */
+    public Map<String, Object> extractContentBatchForMedium(Integer limit) {
+        int successCount = 0;
+        int failureCount = 0;
+        List<String> errors = new ArrayList<>();
+        WebDriver driver = null;
+
+        try {
+            // 기본값 설정
+            if (limit == null) {
+                limit = 50;
+            }
+
+            log.info("Medium 배치 본문 추출 시작 - limit: {}", limit);
+
+            // Medium Article 조회
+            Pageable pageable = PageRequest.of(0, limit);
+            List<Article> articles = articleRepository.findMediumArticlesWithoutContent(pageable);
+
+            if (articles.isEmpty()) {
+                log.info("Medium 배치 추출 대상 Article이 없습니다");
+                return Map.of(
+                    "totalArticles", 0,
+                    "successArticles", 0,
+                    "failureArticles", 0,
+                    "errors", errors
+                );
+            }
+
+            log.info("Medium 배치 추출 대상: {}개 Article", articles.size());
+
+            // WebDriver 생성 (배치 전체에서 재사용)
+            driver = webDriverConfig.createWebDriver();
+
+            // 각 Article 처리
+            for (Article article : articles) {
+                try {
+                    if (article.getLink() == null || article.getLink().isBlank()) {
+                        failureCount++;
+                        String errorMsg = "Article " + article.getId() + ": link가 비어있음";
+                        errors.add(errorMsg);
+                        log.warn(errorMsg);
+                        continue;
+                    }
+
+                    // 본문 추출
+                    String extractedContent = contentExtractor.extractCleanContent(article.getLink(), driver);
+
+                    if (extractedContent.isBlank()) {
+                        failureCount++;
+                        String errorMsg = "Article " + article.getId() + ": 본문 추출 실패 (빈 내용)";
+                        errors.add(errorMsg);
+                        log.warn(errorMsg);
+                    } else {
+                        // Article content 업데이트 (독립 트랜잭션)
+                        updateArticleContent(article.getId(), extractedContent);
+                        successCount++;
+                        log.debug("Article {} 본문 추출 완료 ({}자)", article.getId(), extractedContent.length());
+                    }
+
+                    // Rate limiting 딜레이
+                    Thread.sleep(RATE_LIMIT_DELAY_MS);
+
+                    // 진행 상황 로깅 (10개마다)
+                    int processed = successCount + failureCount;
+                    if (processed % 10 == 0) {
+                        log.info("Medium 본문 추출 진행: {}/{} Articles (성공: {}, 실패: {})",
+                                processed, articles.size(), successCount, failureCount);
+                    }
+
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    failureCount++;
+                    String errorMsg = "Article " + article.getId() + ": 중단됨";
+                    errors.add(errorMsg);
+                    log.error(errorMsg, e);
+                    break;
+
+                } catch (Exception e) {
+                    failureCount++;
+                    String errorMsg = "Article " + article.getId() + ": " + e.getMessage();
+                    errors.add(errorMsg);
+                    log.error("Article {} 본문 추출 실패", article.getId(), e);
+                }
+            }
+
+            log.info("Medium 배치 본문 추출 완료 - 성공: {}/{}", successCount, articles.size());
+
+            return Map.of(
+                "totalArticles", articles.size(),
+                "successArticles", successCount,
+                "failureArticles", failureCount,
+                "errors", errors
+            );
+
+        } catch (Exception e) {
+            log.error("Medium 배치 본문 추출 중 오류 발생", e);
+            return Map.of(
+                "totalArticles", 0,
+                "successArticles", successCount,
+                "failureArticles", failureCount,
+                "errors", errors,
+                "fatalError", e.getMessage()
+            );
+
+        } finally {
+            if (driver != null) {
+                try {
+                    webDriverConfig.forceCloseWebDriver(driver);
+                } catch (Exception e) {
+                    log.warn("WebDriver 종료 중 오류 발생 (무시)", e);
+                }
+            }
+        }
+    }
+
+    /**
      * Article의 content를 업데이트합니다.
      * 독립 트랜잭션으로 실행되어 개별 실패가 전체에 영향을 주지 않습니다.
      */
