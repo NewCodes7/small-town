@@ -736,6 +736,29 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     long countMediumArticlesWithoutContent();
 
     /**
+     * Medium 타입 기업의 모든 Article 조회 (content 유무 관계없이)
+     * 본문 재추출용
+     *
+     * @param pageable 페이징 정보
+     * @return Medium 타입 기업의 모든 Article 리스트
+     */
+    @Query("SELECT a FROM Article a " +
+           "JOIN FETCH a.corporation c " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND c.blogType = com.newcodes7.small_town.global.entity.BlogType.MEDIUM " +
+           "ORDER BY a.id DESC")
+    List<Article> findAllMediumArticles(Pageable pageable);
+
+    /**
+     * Medium 타입 기업의 전체 Article 개수 조회
+     */
+    @Query("SELECT COUNT(a) FROM Article a " +
+           "JOIN a.corporation c " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND c.blogType = com.newcodes7.small_town.global.entity.BlogType.MEDIUM")
+    long countAllMediumArticles();
+
+    /**
      * Medium 타입 기업의 본문이 짧은 Article 개수 조회
      */
     @Query("SELECT COUNT(a) FROM Article a " +

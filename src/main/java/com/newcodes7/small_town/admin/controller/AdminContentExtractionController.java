@@ -142,11 +142,12 @@ public class AdminContentExtractionController {
     }
 
     /**
-     * Medium 타입 기업 Article의 본문을 배치로 추출
+     * Medium 타입 기업의 모든 Article 본문을 배치로 추출
+     * 이미 content가 있는 Article도 다시 추출합니다.
      *
      * Request Body:
      * {
-     *   "limit": 50 (optional, default: 50)
+     *   "batchSize": 10 (optional, default: 10, 배치 단위 트랜잭션 크기)
      * }
      *
      * @param request 배치 추출 옵션
@@ -158,18 +159,21 @@ public class AdminContentExtractionController {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            Integer limit = request.containsKey("limit")
-                ? ((Number) request.get("limit")).intValue()
-                : 50;
+            Integer batchSize = request.containsKey("batchSize")
+                ? ((Number) request.get("batchSize")).intValue()
+                : 10;
 
-            log.info("Medium 배치 본문 추출 요청 - limit: {}", limit);
+            // 전체 Medium Article 개수 조회
+            long totalMediumArticles = articleRepository.countAllMediumArticles();
+
+            log.info("Medium 전체 본문 추출 요청 - 총 {}개, batchSize: {}", totalMediumArticles, batchSize);
 
             // 비동기 실행 (백그라운드 스레드에서 실행)
-            final Integer finalLimit = limit;
+            final Integer finalBatchSize = batchSize;
 
             new Thread(() -> {
                 try {
-                    contentExtractionService.extractContentBatchForMedium(finalLimit);
+                    contentExtractionService.extractContentBatchForMedium(finalBatchSize);
                 } catch (Exception e) {
                     log.error("Medium 배치 본문 추출 백그라운드 실행 중 오류", e);
                 }
@@ -177,11 +181,12 @@ public class AdminContentExtractionController {
 
             // 즉시 응답 반환
             response.put("success", true);
-            response.put("message", "Medium 배치 본문 추출이 백그라운드에서 시작되었습니다. 로그에서 진행 상황을 확인하세요.");
+            response.put("message", "Medium 전체 본문 추출이 백그라운드에서 시작되었습니다. 로그에서 진행 상황을 확인하세요.");
             response.put("filters", Map.of(
                 "blogType", "MEDIUM",
-                "withoutContent", true,
-                "limit", limit
+                "includeExisting", true,
+                "totalArticles", totalMediumArticles,
+                "batchSize", batchSize
             ));
 
             return ResponseEntity.ok(response);
