@@ -50,7 +50,7 @@ public class ArticleTermService {
      * 이미 term이 있는 article은 건너뜀
      */
     public ArticleTermExtractionResult extractAndSaveAllArticleTerms() {
-        return extractAndSaveAllArticleTerms(false);
+        return extractAndSaveAllArticleTerms(true);
     }
 
     /**
