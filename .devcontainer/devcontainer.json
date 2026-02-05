@@ -1,13 +1,14 @@
 {
   "name": "small-town",
   "dockerComposeFile": "docker-compose.yml", 
-  "service": "app", 
+  "service": "postgres", 
   "workspaceFolder": "/workspaces/small-town", 
   "features": {
     "ghcr.io/devcontainers/features/java:1": {
       "version": "17",
       "installGradle": true
-    }
+    },
+    "ghcr.io/devcontainers/features/git:1": {}
   },
   "forwardPorts": [3306, 5432, 8080],
   "customizations": {

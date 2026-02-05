@@ -7,3 +7,4 @@ bin/
 .env
 # Logs
 logs/
+.devcontainer/postgres_backup_data
