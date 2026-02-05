@@ -8,6 +8,8 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -68,6 +70,15 @@ public class ArticleTerm {
      */
     @Column(name = "score")
     private Double score;
+
+    /**
+     * term이 추출된 소스 (TITLE, CONTENT, BOTH)
+     * BM25 인덱스 생성 시 구분하여 사용
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source", length = 10)
+    @Builder.Default
+    private TermSource source = TermSource.CONTENT;
 
     @CreatedDate
     @Column(name = "created_at", updatable = false)

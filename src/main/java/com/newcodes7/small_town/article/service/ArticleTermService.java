@@ -11,6 +11,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.ArticleTermRepository;
@@ -21,6 +22,7 @@ import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.ArticleTerm;
 import com.newcodes7.small_town.global.entity.Stopword;
 import com.newcodes7.small_town.global.entity.Term;
+import com.newcodes7.small_town.global.entity.TermSource;
 import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
 import com.newcodes7.small_town.global.service.UnifiedMorphemeAnalyzer;
 import com.newcodes7.small_town.global.util.KoreanCharacterUtil;
@@ -41,68 +43,72 @@ public class ArticleTermService {
     private final TermSynonymRepository termSynonymRepository;
     private final StopwordRepository stopwordRepository;
     private final UnifiedMorphemeAnalyzer unifiedMorphemeAnalyzer;
+    private final TransactionTemplate transactionTemplate;
 
     /**
      * 모든 article의 term을 추출하고 저장
      * 이미 term이 있는 article은 건너뜀
      */
-    @Transactional
     public ArticleTermExtractionResult extractAndSaveAllArticleTerms() {
         return extractAndSaveAllArticleTerms(false);
     }
 
     /**
      * 모든 article의 term을 추출하고 저장
+     * 배치 단위(100개)로 트랜잭션 커밋하여 메모리 효율성 향상
+     *
      * @param forceReanalyze true면 이미 term이 있어도 재분석, false면 건너뜀
      */
-    @Transactional
     public ArticleTermExtractionResult extractAndSaveAllArticleTerms(boolean forceReanalyze) {
         String mode = forceReanalyze ? "강제 재분석" : "기존 term이 있는 article은 건너뜀";
         log.info("모든 article term 추출 시작 ({})", mode);
         long startTime = System.currentTimeMillis();
 
         ArticleTermExtractionResult result = new ArticleTermExtractionResult();
-        int batchSize = 100;
+        final int BATCH_SIZE = 100;
         int page = 0;
 
         while (true) {
-            Pageable pageable = PageRequest.of(page, batchSize, Sort.by("id").ascending());
+            Pageable pageable = PageRequest.of(page, BATCH_SIZE, Sort.by("id").ascending());
             Page<Article> articles = articleRepository.findByDeletedAtIsNull(pageable);
 
             if (articles.isEmpty()) {
                 break;
             }
 
-            for (Article article : articles) {
-                try {
-                    // 강제 재분석이 아니고 이미 term이 있으면 건너뛰기
-                    if (!forceReanalyze && articleTermRepository.existsByArticleId(article.getId())) {
-                        result.incrementSkippedArticles();
-
-                        if ((result.getProcessedArticles() + result.getSkippedArticles()) % 100 == 0) {
-                            log.info("처리 진행 중: 처리={}, 건너뜀={}, term={}",
-                                    result.getProcessedArticles(),
-                                    result.getSkippedArticles(),
-                                    result.getTotalTerms());
+            // 배치 단위로 트랜잭션 처리
+            List<Article> articleList = articles.getContent();
+            BatchResult batchResult = transactionTemplate.execute(status -> {
+                BatchResult br = new BatchResult();
+                for (Article article : articleList) {
+                    try {
+                        // 강제 재분석이 아니고 이미 term이 있으면 건너뛰기
+                        if (!forceReanalyze && articleTermRepository.existsByArticleId(article.getId())) {
+                            br.skipped++;
+                            continue;
                         }
-                        continue;
-                    }
 
-                    int termCount = extractAndSaveTermsForArticle(article);
-                    result.incrementProcessedArticles();
-                    result.addTermCount(termCount);
-
-                    if ((result.getProcessedArticles() + result.getSkippedArticles()) % 100 == 0) {
-                        log.info("처리 진행 중: 처리={}, 건너뜀={}, term={}",
-                                result.getProcessedArticles(),
-                                result.getSkippedArticles(),
-                                result.getTotalTerms());
+                        int termCount = extractAndSaveTermsForArticleInternal(article);
+                        br.processed++;
+                        br.terms += termCount;
+                    } catch (Exception e) {
+                        log.error("Article ID {} term 추출 실패: {}", article.getId(), e.getMessage(), e);
+                        br.failed++;
                     }
-                } catch (Exception e) {
-                    log.error("Article ID {} term 추출 실패: {}", article.getId(), e.getMessage(), e);
-                    result.incrementFailedArticles();
                 }
+                return br;
+            });
+
+            if (batchResult != null) {
+                result.addProcessedArticles(batchResult.processed);
+                result.addSkippedArticles(batchResult.skipped);
+                result.addFailedArticles(batchResult.failed);
+                result.addTermCount(batchResult.terms);
             }
+
+            log.info("배치 {} 완료: 처리={}, 건너뜀={}, 실패={}, term={}",
+                    page + 1, result.getProcessedArticles(), result.getSkippedArticles(),
+                    result.getFailedArticles(), result.getTotalTerms());
 
             page++;
 
@@ -119,16 +125,29 @@ public class ArticleTermService {
                 result.getFailedArticles(), result.getTotalTerms(),
                 result.getProcessingTimeMs());
 
-        // Term 통계 갱신 (total_frequency, article_count)
+        // Term 통계 갱신 (별도 트랜잭션)
         if (result.getProcessedArticles() > 0) {
-            updateTermStatistics();
+            transactionTemplate.execute(status -> {
+                updateTermStatisticsInternal();
+                return null;
+            });
         }
 
         return result;
     }
 
     /**
-     * 특정 article의 term을 추출하고 저장
+     * 배치 처리 결과를 담는 내부 클래스
+     */
+    private static class BatchResult {
+        int processed = 0;
+        int skipped = 0;
+        int failed = 0;
+        int terms = 0;
+    }
+
+    /**
+     * 특정 article의 term을 추출하고 저장 (단일 article 처리용, 트랜잭션 포함)
      * Term 엔티티는 재사용하여 중복 저장하지 않음
      *
      * @param article 대상 article
@@ -136,6 +155,17 @@ public class ArticleTermService {
      */
     @Transactional
     public int extractAndSaveTermsForArticle(Article article) {
+        return extractAndSaveTermsForArticleInternal(article);
+    }
+
+    /**
+     * 특정 article의 term을 추출하고 저장 (내부 메서드, 트랜잭션 없음)
+     * 배치 처리 시 외부에서 트랜잭션을 관리할 때 사용
+     *
+     * @param article 대상 article
+     * @return 추출된 term 개수
+     */
+    private int extractAndSaveTermsForArticleInternal(Article article) {
         // 기존 term 삭제
         articleTermRepository.deleteByArticleId(article.getId());
 
@@ -161,8 +191,8 @@ public class ArticleTermService {
 
             for (MorphemeAnalyzer.TermInfo termInfo : titleTermMap.values()) {
                 String key = termInfo.getTerm() + ":" + termInfo.getTermType();
-                termDataMap.put(key, new TermData(termInfo, TITLE_WEIGHT, termInfo.getFrequency()));
-                log.debug("Title term 추출: {} (빈도: {}, 가중치: {})",
+                termDataMap.put(key, new TermData(termInfo, TITLE_WEIGHT, termInfo.getFrequency(), TermSource.TITLE));
+                log.debug("Title term 추출: {} (빈도: {}, 가중치: {}, source: TITLE)",
                     termInfo.getTerm(), termInfo.getFrequency(), TITLE_WEIGHT);
             }
         }
@@ -180,14 +210,15 @@ public class ArticleTermService {
                 TermData existingData = termDataMap.get(key);
 
                 if (existingData != null) {
-                    // 이미 title에서 추출된 term이면 빈도수만 합산, 가중치는 높은 값 유지
+                    // 이미 title에서 추출된 term이면 빈도수만 합산, source를 BOTH로 변경
                     existingData.frequency += termInfo.getFrequency();
-                    log.debug("중복 term 발견 (title+content): {} (빈도 합산: {})",
+                    existingData.source = TermSource.BOTH;
+                    log.debug("중복 term 발견 (title+content): {} (빈도 합산: {}, source: BOTH)",
                         termInfo.getTerm(), existingData.frequency);
                 } else {
                     // content에서만 나온 새로운 term
-                    termDataMap.put(key, new TermData(termInfo, CONTENT_WEIGHT, termInfo.getFrequency()));
-                    log.debug("Content term 추출: {} (빈도: {}, 가중치: {})",
+                    termDataMap.put(key, new TermData(termInfo, CONTENT_WEIGHT, termInfo.getFrequency(), TermSource.CONTENT));
+                    log.debug("Content term 추출: {} (빈도: {}, 가중치: {}, source: CONTENT)",
                         termInfo.getTerm(), termInfo.getFrequency(), CONTENT_WEIGHT);
                 }
             }
@@ -263,11 +294,12 @@ public class ArticleTermService {
                     .term(term)
                     .frequency(termData.frequency)
                     .score(score)
+                    .source(termData.source)
                     .build();
             articleTerms.add(articleTerm);
 
-            log.debug("ArticleTerm 생성: {} (빈도: {}, 가중치: {}, score: {})",
-                termInfo.getTerm(), termData.frequency, termData.weight, score);
+            log.debug("ArticleTerm 생성: {} (빈도: {}, 가중치: {}, score: {}, source: {})",
+                termInfo.getTerm(), termData.frequency, termData.weight, score, termData.source);
         }
 
         if (!articleTerms.isEmpty()) {
@@ -469,6 +501,13 @@ public class ArticleTermService {
      */
     @Transactional
     public void updateTermStatistics() {
+        updateTermStatisticsInternal();
+    }
+
+    /**
+     * 모든 Term의 통계 재계산 (내부 메서드, 트랜잭션 없음)
+     */
+    private void updateTermStatisticsInternal() {
         log.info("모든 Term 통계 갱신 시작...");
         long startTime = System.currentTimeMillis();
 
@@ -520,12 +559,24 @@ public class ArticleTermService {
             this.processedArticles++;
         }
 
+        public void addProcessedArticles(int count) {
+            this.processedArticles += count;
+        }
+
         public void incrementSkippedArticles() {
             this.skippedArticles++;
         }
 
+        public void addSkippedArticles(int count) {
+            this.skippedArticles += count;
+        }
+
         public void incrementFailedArticles() {
             this.failedArticles++;
+        }
+
+        public void addFailedArticles(int count) {
+            this.failedArticles += count;
         }
 
         public void addTermCount(int count) {
@@ -564,11 +615,13 @@ public class ArticleTermService {
         final MorphemeAnalyzer.TermInfo termInfo;
         final double weight;
         int frequency;
+        TermSource source;
 
-        TermData(MorphemeAnalyzer.TermInfo termInfo, double weight, int frequency) {
+        TermData(MorphemeAnalyzer.TermInfo termInfo, double weight, int frequency, TermSource source) {
             this.termInfo = termInfo;
             this.weight = weight;
             this.frequency = frequency;
+            this.source = source;
         }
     }
 }
