@@ -231,14 +231,12 @@ public class ArticleTermService {
             return 0;
         }
 
-        // 4. 필터링: 최소 2회 반복, score 기준 상위 20개만 선택
+        // 4. 필터링: 최소 2회 반복된 term만 저장 (BM25 IDF 정합성을 위해 개수 제한 없음)
         final int MIN_FREQUENCY = 2;
-        final int MAX_TERMS_PER_ARTICLE = 20;
 
         List<TermData> filteredTerms = termDataMap.values().stream()
                 .filter(td -> td.frequency >= MIN_FREQUENCY)
                 .sorted((a, b) -> Double.compare(b.frequency * b.weight, a.frequency * a.weight))
-                .limit(MAX_TERMS_PER_ARTICLE)
                 .toList();
 
         if (filteredTerms.isEmpty()) {
@@ -304,9 +302,9 @@ public class ArticleTermService {
 
         if (!articleTerms.isEmpty()) {
             articleTermRepository.saveAll(articleTerms);
-            log.info("Article ID {} term 저장 완료: {} terms (전체: {}, 필터링 후: {}, 최소빈도: {}, 최대개수: {})",
-                article.getId(), articleTerms.size(), termDataMap.size(), filteredTerms.size(),
-                MIN_FREQUENCY, MAX_TERMS_PER_ARTICLE);
+            log.info("Article ID {} term 저장 완료: {} terms (전체: {}, 최소빈도 {} 이상: {})",
+                article.getId(), articleTerms.size(), termDataMap.size(),
+                MIN_FREQUENCY, filteredTerms.size());
 
             // 저장된 각 term의 통계 갱신 (단일 article 처리 시에만)
             // 대량 처리 시에는 extractAndSaveAllArticleTerms에서 일괄 갱신
