@@ -60,8 +60,20 @@ public class ArticleTermService {
      * @param forceReanalyze true면 이미 term이 있어도 재분석, false면 건너뜀
      */
     public ArticleTermExtractionResult extractAndSaveAllArticleTerms(boolean forceReanalyze) {
+        return extractAndSaveAllArticleTerms(forceReanalyze, null);
+    }
+
+    /**
+     * article의 term을 추출하고 저장
+     * 배치 단위(100개)로 트랜잭션 커밋하여 메모리 효율성 향상
+     *
+     * @param forceReanalyze true면 이미 term이 있어도 재분석, false면 건너뜀
+     * @param maxArticleId null이 아니면 해당 ID 이하의 article만 처리
+     */
+    public ArticleTermExtractionResult extractAndSaveAllArticleTerms(boolean forceReanalyze, Long maxArticleId) {
         String mode = forceReanalyze ? "강제 재분석" : "기존 term이 있는 article은 건너뜀";
-        log.info("모든 article term 추출 시작 ({})", mode);
+        String range = maxArticleId != null ? ", maxArticleId=" + maxArticleId : "";
+        log.info("article term 추출 시작 ({}{})", mode, range);
         long startTime = System.currentTimeMillis();
 
         ArticleTermExtractionResult result = new ArticleTermExtractionResult();
@@ -70,7 +82,9 @@ public class ArticleTermService {
 
         while (true) {
             Pageable pageable = PageRequest.of(page, BATCH_SIZE, Sort.by("id").ascending());
-            Page<Article> articles = articleRepository.findByDeletedAtIsNull(pageable);
+            Page<Article> articles = maxArticleId != null
+                    ? articleRepository.findByDeletedAtIsNullAndIdLessThanEqual(maxArticleId, pageable)
+                    : articleRepository.findByDeletedAtIsNull(pageable);
 
             if (articles.isEmpty()) {
                 break;
@@ -248,6 +262,12 @@ public class ArticleTermService {
         List<ArticleTerm> articleTerms = new ArrayList<>();
         for (TermData termData : filteredTerms) {
             MorphemeAnalyzer.TermInfo termInfo = termData.termInfo;
+
+            // DB 컬럼 길이 초과 term 건너뛰기
+            if (termInfo.getTerm().length() > 100) {
+                log.debug("Term 길이 초과로 건너뜀: {} (길이: {})", termInfo.getTerm(), termInfo.getTerm().length());
+                continue;
+            }
             // 한글이 포함된 경우 자모 분리 및 초성 추출
             final String decomposed = KoreanCharacterUtil.containsHangul(termInfo.getTerm())
                     ? KoreanCharacterUtil.decomposeHangul(termInfo.getTerm())

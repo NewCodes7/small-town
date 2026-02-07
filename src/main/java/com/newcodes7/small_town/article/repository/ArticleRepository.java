@@ -224,6 +224,14 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "ORDER BY a.id DESC")
     Page<Article> findByDeletedAtIsNull(Pageable pageable);
 
+    // 특정 ID 이하의 글만 조회 (term 재분석용)
+    @Query("SELECT a FROM Article a " +
+           "JOIN FETCH a.corporation c " +
+           "LEFT JOIN FETCH a.category " +
+           "WHERE a.deletedAt IS NULL AND a.id <= :maxId " +
+           "ORDER BY a.id ASC")
+    Page<Article> findByDeletedAtIsNullAndIdLessThanEqual(@Param("maxId") Long maxId, Pageable pageable);
+
     // 해외 기업의 번역되지 않은 글들 조회 (한국어가 포함되지 않은 제목)
     @Query("SELECT a FROM Article a " +
            "JOIN FETCH a.corporation c " +

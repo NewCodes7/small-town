@@ -104,20 +104,24 @@ public class AdminTermController {
     /**
      * Article term 강제 재분석 (배치 작업)
      * 모든 article에 대해 term을 강제로 다시 추출 (기존 term이 있어도 재분석)
+     *
+     * @param maxArticleId 이 ID 이하의 article만 재분석 (선택사항, 미지정 시 전체)
      */
     @GetMapping("/articles/reextract-all-terms")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> reextractAllArticleTerms() {
+    public ResponseEntity<Map<String, Object>> reextractAllArticleTerms(
+            @RequestParam(required = false) Long maxArticleId) {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            log.info("Article term 강제 재분석 요청 시작");
+            String rangeInfo = maxArticleId != null ? " (ID <= " + maxArticleId + ")" : " (전체)";
+            log.info("Article term 강제 재분석 요청 시작{}", rangeInfo);
 
             // 비동기로 실행
             new Thread(() -> {
                 try {
                     ArticleTermService.ArticleTermExtractionResult result =
-                            articleTermService.extractAndSaveAllArticleTerms(true);
+                            articleTermService.extractAndSaveAllArticleTerms(true, maxArticleId);
 
                     log.info("Article term 강제 재분석 완료: 처리={}, 건너뜀={}, 실패={}, term={}, 소요시간={}ms",
                             result.getProcessedArticles(),
@@ -132,7 +136,10 @@ public class AdminTermController {
             }).start();
 
             response.put("success", true);
-            response.put("message", "Article term 강제 재분석 작업이 시작되었습니다. 모든 article을 재분석합니다. 로그를 확인해주세요.");
+            response.put("message", "Article term 강제 재분석 작업이 시작되었습니다." + rangeInfo + " 로그를 확인해주세요.");
+            if (maxArticleId != null) {
+                response.put("maxArticleId", maxArticleId);
+            }
 
             return ResponseEntity.ok(response);
 
