@@ -106,12 +106,12 @@ public class ArticleControllerCacheTest {
     @Test
     void 기업별_그룹_조회시_캐시_성공() throws Exception {
         // when
-        mockMvc.perform(get("/").param("view", "grouped"))
+        mockMvc.perform(get("/articles").param("view", "grouped"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
             .andReturn();
-        mockMvc.perform(get("/").param("view", "grouped"))
+        mockMvc.perform(get("/articles").param("view", "grouped"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
@@ -127,12 +127,12 @@ public class ArticleControllerCacheTest {
     @Test
     void 기업별_그룹_조회시_키워드_있으면_캐시_안됨() throws Exception {
         // when - 키워드 검색은 캐시 조건 불충족
-        mockMvc.perform(get("/").param("view", "grouped").param("keyword", "100"))
+        mockMvc.perform(get("/articles").param("view", "grouped").param("keyword", "100"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
             .andReturn();
-        mockMvc.perform(get("/").param("view", "grouped").param("keyword", "100"))
+        mockMvc.perform(get("/articles").param("view", "grouped").param("keyword", "100"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
@@ -147,12 +147,12 @@ public class ArticleControllerCacheTest {
     @Test
     void 리스트_조회시_캐시_성공() throws Exception {
         // when
-        mockMvc.perform(get("/").param("view", "list"))
+        mockMvc.perform(get("/articles").param("view", "list"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
             .andReturn();
-        mockMvc.perform(get("/").param("view", "list"))
+        mockMvc.perform(get("/articles").param("view", "list"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
@@ -160,13 +160,13 @@ public class ArticleControllerCacheTest {
 
         // then 
         verify(articleRepository, times(1))
-            .findArticlesWithFilters(any(), any(), any(), any(), any(), any());
+            .findArticlesWithFiltersWithoutTerms(any(), any(), any(), any(), any());
     }
 
     @Test
     void 게시글_추가시_캐시_삭제_후_preload() throws Exception {
         // given - 캐시 생성
-        mockMvc.perform(get("/").param("view", "grouped"))
+        mockMvc.perform(get("/articles").param("view", "grouped"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
@@ -178,7 +178,7 @@ public class ArticleControllerCacheTest {
         articlePersistenceService.saveArticleWithAnalysis(newArticle, corp, defaultBlogCrawler);
 
         // then - 캐시 삭제되어 다시 DB 조회
-        mockMvc.perform(get("/").param("view", "grouped"))
+        mockMvc.perform(get("/articles").param("view", "grouped"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))

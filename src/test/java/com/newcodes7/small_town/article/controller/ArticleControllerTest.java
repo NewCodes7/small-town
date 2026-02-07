@@ -87,7 +87,7 @@ public class ArticleControllerTest {
     @Test
     public void 홈페이지_게시글_조회_리스트() throws Exception {
         //when&then
-        MvcResult result = mockMvc.perform(get("/").param("view", "list"))
+        MvcResult result = mockMvc.perform(get("/articles").param("view", "list"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
@@ -108,7 +108,7 @@ public class ArticleControllerTest {
     @Test
     public void 홈페이지_게시글_조회_리스트_검색() throws Exception {
         //when&then
-        MvcResult result = mockMvc.perform(get("/").param("view", "list").param("keyword", "100"))
+        MvcResult result = mockMvc.perform(get("/articles").param("view", "list").param("keyword", "100"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
@@ -126,7 +126,7 @@ public class ArticleControllerTest {
     @Test
     public void 홈페이지_게시글_조회_리스트_국내() throws Exception {
         //when&then
-        MvcResult result = mockMvc.perform(get("/").param("view", "list").param("regions", "domestic"))
+        MvcResult result = mockMvc.perform(get("/articles").param("view", "list").param("regions", "domestic"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
@@ -148,7 +148,7 @@ public class ArticleControllerTest {
     @Test
     public void 홈페이지_게시글_조회_리스트_해외() throws Exception {
         //when&then
-        MvcResult result = mockMvc.perform(get("/").param("view", "list").param("regions", "overseas"))
+        MvcResult result = mockMvc.perform(get("/articles").param("view", "list").param("regions", "overseas"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
@@ -170,7 +170,7 @@ public class ArticleControllerTest {
     @Test
     public void 홈페이지_게시글_조회_리스트_카테고리() throws Exception {
         //when&then
-        MvcResult result = mockMvc.perform(get("/").param("view", "list").param("category", "backend0"))
+        MvcResult result = mockMvc.perform(get("/articles").param("view", "list").param("category", "backend0"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
@@ -189,7 +189,7 @@ public class ArticleControllerTest {
     @Test
     public void 홈페이지_게시글_조회_그룹() throws Exception {
         //when&then
-        MvcResult result = mockMvc.perform(get("/"))
+        MvcResult result = mockMvc.perform(get("/articles"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
@@ -217,7 +217,7 @@ public class ArticleControllerTest {
     @Test
     public void 홈페이지_게시글_조회_그룹_검색() throws Exception {
         //when&then
-        MvcResult result = mockMvc.perform(get("/").param("keyword", "100"))
+        MvcResult result = mockMvc.perform(get("/articles").param("view", "grouped").param("keyword", "100"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
@@ -237,7 +237,7 @@ public class ArticleControllerTest {
     @Test
     public void 홈페이지_게시글_조회_그룹_검색2() throws Exception {
         //when&then
-        MvcResult result = mockMvc.perform(get("/").param("keyword", "110"))
+        MvcResult result = mockMvc.perform(get("/articles").param("view", "grouped").param("keyword", "110"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
@@ -257,7 +257,7 @@ public class ArticleControllerTest {
     @Test
     public void 홈페이지_게시글_조회_그룹_국내() throws Exception {
         //when&then
-        MvcResult result = mockMvc.perform(get("/").param("regions", "domestic"))
+        MvcResult result = mockMvc.perform(get("/articles").param("regions", "domestic"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
@@ -286,7 +286,7 @@ public class ArticleControllerTest {
     @Test
     public void 홈페이지_게시글_조회_그룹_해외() throws Exception {
         //when&then
-        MvcResult result = mockMvc.perform(get("/").param("regions", "overseas"))
+        MvcResult result = mockMvc.perform(get("/articles").param("regions", "overseas"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
@@ -315,7 +315,7 @@ public class ArticleControllerTest {
     @Test
     public void 홈페이지_게시글_조회_그룹_국내_해외() throws Exception {
         //when&then
-        MvcResult result = mockMvc.perform(get("/").param("regions", "overseas").param("regions", "domestic"))
+        MvcResult result = mockMvc.perform(get("/articles").param("regions", "overseas").param("regions", "domestic"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
@@ -343,7 +343,7 @@ public class ArticleControllerTest {
     @Test
     public void 홈페이지_게시글_조회_그룹_국내_검색() throws Exception {
         //when&then
-        MvcResult result = mockMvc.perform(get("/").param("regions", "domestic").param("keyword", "101"))
+        MvcResult result = mockMvc.perform(get("/articles").param("view", "grouped").param("regions", "domestic").param("keyword", "101"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))
@@ -363,7 +363,7 @@ public class ArticleControllerTest {
     @Test
     public void 홈페이지_게시글_조회_그룹_카테고리() throws Exception {
         //when&then
-        MvcResult result = mockMvc.perform(get("/").param("category", "backend0"))
+        MvcResult result = mockMvc.perform(get("/articles").param("category", "backend0"))
             .andExpect(status().isOk())
             .andExpect(view().name("home"))
             .andExpect(model().attributeExists("articles"))

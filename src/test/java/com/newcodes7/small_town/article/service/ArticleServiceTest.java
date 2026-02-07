@@ -57,7 +57,7 @@ public class ArticleServiceTest {
         List<Article> articlesList = ArticleCreator.createArticlesWithId(List.of(1L, 1L));
         Pageable pageable = PageRequest.of(0, 10);
         Page<Article> articles = new PageImpl<>(articlesList, pageable, articlesList.size());
-        when(articleRepository.findArticlesWithFilters(null, null, null, null, null, pageable)).thenReturn(articles);
+        when(articleRepository.findArticlesWithFiltersWithoutTerms(null, null, null, null, pageable)).thenReturn(articles);
         
         //when
         Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(null, null, 0, 10, null, view, null);
@@ -78,7 +78,7 @@ public class ArticleServiceTest {
         // Mock morphemeAnalyzer to return empty map for any keyword
         when(morphemeAnalyzer.extractTerms(anyString())).thenReturn(new HashMap<>());
 
-        when(articleRepository.findArticlesWithFilters(keyword, null, null, null, null, pageable)).thenReturn(expect);
+        when(articleRepository.findArticlesWithFiltersWithoutTerms("%" + keyword.toLowerCase() + "%", null, null, null, pageable)).thenReturn(expect);
 
         //when
         Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, null, 0, 10, null, view, null);
@@ -99,7 +99,7 @@ public class ArticleServiceTest {
 
         when(morphemeAnalyzer.extractTerms(anyString())).thenReturn(new HashMap<>());
 
-        when(articleRepository.findArticlesWithFilters(keyword, null, List.of(1), null, null, pageable)).thenReturn(expect);
+        when(articleRepository.findArticlesWithFiltersWithoutTerms("%" + keyword.toLowerCase() + "%", List.of(1), null, null, pageable)).thenReturn(expect);
 
         //when
         Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, regions, 0, 10, null, view, null);
@@ -120,7 +120,7 @@ public class ArticleServiceTest {
 
         when(morphemeAnalyzer.extractTerms(anyString())).thenReturn(new HashMap<>());
 
-        when(articleRepository.findArticlesWithFilters(keyword, null, List.of(0), null, null, pageable)).thenReturn(expect);
+        when(articleRepository.findArticlesWithFiltersWithoutTerms("%" + keyword.toLowerCase() + "%", List.of(0), null, null, pageable)).thenReturn(expect);
 
         //when
         Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, regions, 0, 10, null, view, null);
@@ -141,7 +141,7 @@ public class ArticleServiceTest {
 
         when(morphemeAnalyzer.extractTerms(anyString())).thenReturn(new HashMap<>());
 
-        when(articleRepository.findArticlesWithFilters(keyword, null, List.of(1, 0), null, null, pageable)).thenReturn(expect);
+        when(articleRepository.findArticlesWithFiltersWithoutTerms("%" + keyword.toLowerCase() + "%", List.of(1, 0), null, null, pageable)).thenReturn(expect);
 
         //when
         Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, regions, 0, 10, null, view, null);
@@ -162,7 +162,7 @@ public class ArticleServiceTest {
 
         when(morphemeAnalyzer.extractTerms(anyString())).thenReturn(new HashMap<>());
 
-        when(articleRepository.findArticlesWithFilters(keyword, null, List.of(1), null, null, pageable)).thenReturn(expect);
+        when(articleRepository.findArticlesWithFiltersWithoutTerms("%" + keyword.toLowerCase() + "%", List.of(1), null, null, pageable)).thenReturn(expect);
 
         //when
         Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(keyword, regions, 0, 10, null, view, null);
@@ -179,7 +179,7 @@ public class ArticleServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         List<Article> targetArticles = ArticleCreator.createArticlesWithId(List.of(1L));
         Page<Article> expect = new PageImpl<>(targetArticles, pageable, targetArticles.size());
-        when(articleRepository.findArticlesWithFilters(null, null, null, null, category, pageable)).thenReturn(expect);
+        when(articleRepository.findArticlesWithFiltersWithoutTerms(null, null, null, category, pageable)).thenReturn(expect);
 
         //when
         Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(null, null, 0, 10, null, view, category);
@@ -211,7 +211,7 @@ public class ArticleServiceTest {
         List<GroupedArticlesDto> groupedList = List.of(groupedArticlesDto1, groupedArticlesDto2);
         Page<GroupedArticlesDto> expected = new PageImpl<>(groupedList, pageable, groupedList.size());
 
-        when(articleRepository.countDistinctCorporationsByFilters(null, null, new ArrayList<>(), 0, new ArrayList<>(), 0)).thenReturn(2L);
+        when(articleRepository.countDistinctCorporationsByFilters(null, new ArrayList<>(), 0, new ArrayList<>(), 0, new ArrayList<>(), 0)).thenReturn(2L);
         when(articleRepository.findTop3ArticlesGroupedByCorporation(null, new ArrayList<>(), 0, new ArrayList<>(), 0, new ArrayList<>(), 0, "latest", 0, 10)).thenReturn(allArticles);
 
         //when
@@ -239,7 +239,7 @@ public class ArticleServiceTest {
         List<GroupedArticlesDto> groupedList = List.of(groupedArticlesDto1);
         Page<GroupedArticlesDto> expected = new PageImpl<>(groupedList, pageable, groupedList.size());
 
-        when(articleRepository.countDistinctCorporationsByFilters(null, null, new ArrayList<>(), 0, Arrays.asList("backend1"), 1)).thenReturn(1L);
+        when(articleRepository.countDistinctCorporationsByFilters(null, new ArrayList<>(), 0, new ArrayList<>(), 0, Arrays.asList("backend1"), 1)).thenReturn(1L);
         when(articleRepository.findTop3ArticlesGroupedByCorporation(null, new ArrayList<>(), 0, new ArrayList<>(), 0, Arrays.asList("backend1"), 1, "latest", 0, 10)).thenReturn(allArticles);
 
         //when
