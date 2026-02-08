@@ -596,7 +596,10 @@ public class ArticleService {
             return Page.empty();
         }
 
+        long totalStartTime = System.currentTimeMillis();
+
         // 1. BM25 검색 쿼리 생성 (나중에 Vector-only article들의 BM25 점수 계산에 재사용)
+        long bm25StartTime = System.currentTimeMillis();
         String bm25SearchQuery = buildBM25SearchQuery(keyword);
         if (bm25SearchQuery == null || bm25SearchQuery.isEmpty()) {
             log.warn("BM25 검색 쿼리 생성 실패: '{}'", keyword);
@@ -619,7 +622,7 @@ public class ArticleService {
                 publishedAtMap.put(articleId, publishedAt);
             }
         }
-        log.info("BM25 검색 결과: {}개", bm25Results.size());
+        long bm25EndTime = System.currentTimeMillis();
 
         // 3. ILIKE 폴백 (고유명사 등 BM25가 놓칠 수 있는 경우)
         Map<Long, Double> ilikeResults = new HashMap<>();
@@ -635,17 +638,18 @@ public class ArticleService {
                     publishedAtMap.put(articleId, publishedAt);
                 }
             }
-            log.info("ILIKE 검색 결과: {}개", ilikeResults.size());
+            log.debug("ILIKE 검색 결과: {}개", ilikeResults.size());
         }
 
         // 4. Clova Vector 검색 (의미적 유사도)
+        long vectorStartTime = System.currentTimeMillis();
         Map<Long, Double> vectorResults = new HashMap<>();
         try {
             vectorResults = clovaSearchService.searchByKeyword(keyword);
-            log.info("Clova Vector 검색 결과: {}개", vectorResults.size());
         } catch (Exception e) {
             log.warn("Clova Vector 검색 실패 (스킵): {}", e.getMessage());
         }
+        long vectorEndTime = System.currentTimeMillis();
 
         // 5. RRF 계산용 원본 결과 저장 (추가 계산 전)
         // RRF는 원래 검색 결과의 순위를 기반으로 계산해야 함
@@ -703,15 +707,23 @@ public class ArticleService {
 
         // 7. RRF (Reciprocal Rank Fusion) 계산 - 원본 검색 결과 기반
         // 추가 계산된 점수는 RRF에 영향 주지 않음 (DTO 표시용)
+        long rerankStartTime = System.currentTimeMillis();
         Map<Long, Double> rrfScores = calculateRRFScores(originalBm25Results, ilikeResults, originalVectorResults);
+        long rerankEndTime = System.currentTimeMillis();
 
         if (rrfScores.isEmpty()) {
             log.warn("모든 검색 방법에서 결과가 없습니다: '{}'", keyword);
             return Page.empty();
         }
 
-        log.info("RRF 완료 - BM25(원본): {}개, ILIKE: {}개, Vector(원본): {}개, 최종: {}개",
-            originalBm25Results.size(), ilikeResults.size(), originalVectorResults.size(), rrfScores.size());
+        long totalEndTime = System.currentTimeMillis();
+        log.info("[검색] keyword='{}' | BM25: {}ms ({}개), Vector: {}ms ({}개), ILIKE: {}개, Rerank(RRF): {}ms ({}개) | 총: {}ms",
+            keyword,
+            bm25EndTime - bm25StartTime, originalBm25Results.size(),
+            vectorEndTime - vectorStartTime, originalVectorResults.size(),
+            ilikeResults.size(),
+            rerankEndTime - rerankStartTime, rrfScores.size(),
+            totalEndTime - totalStartTime);
 
         // 8. 전체 RRF 결과의 article을 조회하여 유효한 것만 필터링
         // (Materialized View 동기화 지연, soft delete 등으로 일부 article이 없을 수 있음)
