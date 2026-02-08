@@ -90,23 +90,6 @@ public class SemanticTermExpansionService {
             } catch (Exception e) {
                 log.warn("Term '{}' 유의어 조회 중 오류: {}", term, e.getMessage());
             }
-
-            // 4. 임베딩 기반 유사 Term 발견 (비활성화됨)
-            // NOTE: 임베딩 기반 검색은 현재 비활성화되어 있습니다.
-            // try {
-            //     List<SimilarTermInfo> similarTerms = findSimilarTermsByEmbedding(term, 5, 0.7);
-            //     for (SimilarTermInfo similarTerm : similarTerms) {
-            //         if (!expandedTerms.containsKey(similarTerm.getTerm())) {
-            //             // 유사도에 따라 가중치 조정 (0.7~1.0 → 0.35~0.5)
-            //             double weight = similarTerm.getSimilarity() * 0.5;
-            //             expandedTerms.put(similarTerm.getTerm(), weight);
-            //             log.debug("임베딩 유사 Term: '{}' (가중치: {}, 유사도: {})",
-            //                     similarTerm.getTerm(), weight, similarTerm.getSimilarity());
-            //         }
-            //     }
-            // } catch (Exception e) {
-            //     log.warn("Term '{}' 임베딩 유사어 조회 중 오류", term, e);
-            // }
         }
 
         log.info("검색어 '{}' 확장 완료 - 총 {}개 Term (직접: {}, 유의어: {})",

@@ -163,6 +163,66 @@ public class ClovaSearchService {
     }
 
     /**
+     * 키워드 검색 결과와 생성된 임베딩을 함께 반환
+     * 임베딩을 재사용하여 중복 API 호출을 방지
+     *
+     * @param keyword 검색 키워드
+     * @return 검색 결과 (스코어 맵 + 쿼리 임베딩)
+     */
+    public VectorSearchResult searchByKeywordWithEmbedding(String keyword) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return new VectorSearchResult(Map.of(), null);
+        }
+
+        try {
+            ModelEmbeddingResult embResult = clovaEmbeddingService.generateEmbedding(keyword, null);
+
+            if (!embResult.isSuccess() || embResult.getEmbedding() == null) {
+                log.warn("Clova 키워드 임베딩 생성 실패: {}", embResult.getErrorMessage());
+                return new VectorSearchResult(Map.of(), null);
+            }
+
+            float[] queryEmbedding = embResult.getEmbedding();
+            log.debug("Clova 키워드 임베딩 생성 완료 - 차원: {}, 토큰: {}",
+                    queryEmbedding.length, embResult.getTokenUsage());
+
+            Map<Long, Double> scores;
+            if (USE_TWO_STAGE_SEARCH) {
+                scores = searchTwoStage(queryEmbedding, DEFAULT_SIMILARITY_THRESHOLD, DEFAULT_TOP_K, DEFAULT_MAX_RESULTS);
+            } else {
+                scores = searchDirectHalfvec(queryEmbedding, DEFAULT_SIMILARITY_THRESHOLD, DEFAULT_TOP_K, DEFAULT_MAX_RESULTS);
+            }
+
+            return new VectorSearchResult(scores, queryEmbedding);
+
+        } catch (Exception e) {
+            log.error("Clova 벡터 검색 실패: {}", e.getMessage(), e);
+            return new VectorSearchResult(Map.of(), null);
+        }
+    }
+
+    /**
+     * 벡터 검색 결과 + 쿼리 임베딩 래퍼
+     */
+    public static class VectorSearchResult {
+        private final Map<Long, Double> scores;
+        private final float[] queryEmbedding;
+
+        public VectorSearchResult(Map<Long, Double> scores, float[] queryEmbedding) {
+            this.scores = scores;
+            this.queryEmbedding = queryEmbedding;
+        }
+
+        public Map<Long, Double> getScores() {
+            return scores;
+        }
+
+        public float[] getQueryEmbedding() {
+            return queryEmbedding;
+        }
+    }
+
+    /**
      * 특정 Article ID들에 대한 vector similarity 계산
      * BM25로만 검색된 article들의 vector score를 채우기 위해 사용
      *

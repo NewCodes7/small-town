@@ -188,6 +188,7 @@ public class ArticleController {
             String clientIp = com.newcodes7.small_town.global.util.Client.getClientIpAddress(request);
             articles = articleService.searchArticlesHybrid(
                 keyword.trim().toLowerCase(),
+                expandedTerms,
                 regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
                 category == null || category.isEmpty() ? null : category.stream().sorted().toList(),
                 page,
