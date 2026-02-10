@@ -488,7 +488,8 @@ public class CrawlingService {
 
             log.info("본문 추출 성공 - Article: {}, 본문 길이: {}자", article.getTitle(), content.length());
 
-            // 추출된 본문을 DB에 저장 (독립 트랜잭션)
+            // 추출된 본문을 DB에 저장 (독립 트랜잭션) + 인메모리 객체에도 반영
+            article.setContent(content);
             try {
                 articleContentExtractionService.updateArticleContent(article.getId(), content);
                 log.info("Article 본문 DB 저장 완료 - Article: {}", article.getTitle());
