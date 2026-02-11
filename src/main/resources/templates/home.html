@@ -575,7 +575,7 @@
                         <div class="child-container" th:if="${!childArticles.isEmpty()}">
                             <div class="child" th:each="child : ${childArticles}"
                                  th:attr="data-article-id=${child.id}, data-detail-url=${child.detailUrl}"
-                                 onclick="window.location.href=this.getAttribute('data-detail-url')"
+                                 onclick="event.stopPropagation(); window.location.href=this.getAttribute('data-detail-url')"
                                  style="cursor: pointer;">
                                 <h6 class="fw-bold d-flex align-items-center" style="margin: 0;">
                                     <span class="title-link" th:text="${child.translatedTitle != null && !child.translatedTitle.isEmpty() ? child.translatedTitle : child.title}"></span>
