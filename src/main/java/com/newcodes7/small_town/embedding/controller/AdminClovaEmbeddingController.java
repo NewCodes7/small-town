@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.embedding.repository.ClovaArticleChunkRepository;
 import com.newcodes7.small_town.embedding.service.ClovaEmbeddingBatchService;
 import com.newcodes7.small_town.global.entity.Article;
 
@@ -36,6 +37,7 @@ import lombok.extern.slf4j.Slf4j;
 public class AdminClovaEmbeddingController {
 
     private final ArticleRepository articleRepository;
+    private final ClovaArticleChunkRepository clovaChunkRepository;
     private final ClovaEmbeddingBatchService clovaEmbeddingBatchService;
 
     /**
@@ -270,6 +272,169 @@ public class AdminClovaEmbeddingController {
             log.error("Clova 임베딩 통계 조회 중 오류 발생", e);
             response.put("success", false);
             response.put("message", "통계 조회 중 오류 발생: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    // ==================== 임베딩 재분석 API ====================
+
+    /**
+     * 임베딩 재분석 (전체)
+     * 기존 임베딩을 삭제하고 재생성 (1초 rate limit)
+     * 대상 전체를 10개씩 배치 분할하여 처리
+     *
+     * Query Parameters:
+     * - articleId: 이 ID 미만인 Article만 재분석 (미지정 시 가장 큰 ID부터)
+     * - corporationId: 특정 회사의 Article만 재분석
+     *
+     * Example: GET /admin/clova/articles/regenerate-embeddings
+     * Example: GET /admin/clova/articles/regenerate-embeddings?articleId=500
+     * Example: GET /admin/clova/articles/regenerate-embeddings?corporationId=3
+     */
+    @GetMapping("/articles/regenerate-embeddings")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> regenerateEmbeddings(
+            @RequestParam(required = false) Long articleId,
+            @RequestParam(required = false) Long corporationId) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            log.info("임베딩 재분석 요청 - articleId: {}, corporationId: {}",
+                    articleId, corporationId);
+
+            // 대상 Article ID 목록 조회 (전체)
+            List<Long> targetIds;
+
+            if (corporationId != null) {
+                targetIds = clovaChunkRepository.findArticleIdsWithEmbeddingByCorporationIdOrderByIdDesc(
+                        corporationId);
+            } else if (articleId != null) {
+                targetIds = clovaChunkRepository.findArticleIdsWithEmbeddingLessThanOrderByIdDesc(
+                        articleId);
+            } else {
+                targetIds = clovaChunkRepository.findArticleIdsWithEmbeddingOrderByIdDesc();
+            }
+
+            if (targetIds.isEmpty()) {
+                response.put("success", true);
+                response.put("message", "재분석할 Article이 없습니다.");
+                response.put("totalArticles", 0);
+                return ResponseEntity.ok(response);
+            }
+
+            log.info("재분석 대상: {}개 Article (ID: {}~{})",
+                    targetIds.size(), targetIds.get(0), targetIds.get(targetIds.size() - 1));
+
+            // 10개씩 배치 분할하여 재분석 (프록시를 통한 호출로 @Transactional 적용)
+            int batchSize = clovaEmbeddingBatchService.getBatchSize();
+            int totalSuccess = 0;
+            int totalFailure = 0;
+            int totalChunks = 0;
+            int batchNumber = 0;
+
+            for (int i = 0; i < targetIds.size(); i += batchSize) {
+                List<Long> batchIds = targetIds.subList(i, Math.min(i + batchSize, targetIds.size()));
+                batchNumber++;
+
+                log.info("재분석 배치 {} 처리 시작 - {}개 Article", batchNumber, batchIds.size());
+
+                try {
+                    Map<String, Object> batchResult = clovaEmbeddingBatchService.processRegenerateBatch(batchIds);
+
+                    int successCount = (int) batchResult.get("successCount");
+                    int failureCount = (int) batchResult.get("failureCount");
+                    int chunksGenerated = (int) batchResult.get("totalChunks");
+
+                    totalSuccess += successCount;
+                    totalFailure += failureCount;
+                    totalChunks += chunksGenerated;
+
+                    log.info("재분석 배치 {} 완료 - 성공: {}, 실패: {}, 청크: {} (누적: 성공 {}, 청크 {})",
+                            batchNumber, successCount, failureCount, chunksGenerated,
+                            totalSuccess, totalChunks);
+                } catch (Exception ex) {
+                    log.error("재분석 배치 {} 처리 실패: {}", batchNumber, ex.getMessage());
+                    totalFailure += batchIds.size();
+                }
+            }
+
+            log.info("임베딩 재분석 완료 - 배치: {}, 성공: {}/{}, 청크: {}",
+                    batchNumber, totalSuccess, totalSuccess + totalFailure, totalChunks);
+
+            response.put("success", true);
+            response.put("totalArticles", targetIds.size());
+            response.put("totalBatches", batchNumber);
+            response.put("successArticles", totalSuccess);
+            response.put("failureArticles", totalFailure);
+            response.put("totalChunksGenerated", totalChunks);
+            response.put("message", String.format(
+                    "임베딩 재분석 완료: %d/%d Articles, %d 청크",
+                    totalSuccess, targetIds.size(), totalChunks
+            ));
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("임베딩 재분석 중 오류 발생", e);
+            response.put("success", false);
+            response.put("message", "재분석 중 오류 발생: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 단건 임베딩 재분석
+     * 특정 Article의 기존 임베딩을 삭제하고 재생성
+     *
+     * Example: GET /admin/clova/articles/123/regenerate-embeddings
+     */
+    @GetMapping("/articles/{id}/regenerate-embeddings")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> regenerateEmbeddingsForArticle(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            log.info("Article {} 임베딩 재분석 요청", id);
+
+            Optional<Article> articleOpt = articleRepository.findById(id);
+            if (articleOpt.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "Article을 찾을 수 없습니다: " + id);
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            Article article = articleOpt.get();
+
+            if (article.getContent() == null || article.getContent().trim().isEmpty()) {
+                response.put("success", false);
+                response.put("message", "Article의 본문이 비어있어 재분석할 수 없습니다");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // 단건 재분석 (기존 chunk 삭제 후 재생성)
+            Map<String, Object> result = clovaEmbeddingBatchService.processRegenerateBatch(List.of(id));
+
+            int successCount = (int) result.get("successCount");
+            int totalChunks = (int) result.get("totalChunks");
+
+            if (successCount > 0) {
+                response.put("success", true);
+                response.put("articleId", id);
+                response.put("title", article.getTitle());
+                response.put("chunksGenerated", totalChunks);
+                response.put("message", totalChunks + "개 청크 임베딩 재분석 완료");
+            } else {
+                response.put("success", false);
+                response.put("message", "임베딩 재분석에 실패했습니다");
+            }
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Article {} 임베딩 재분석 실패", id, e);
+            response.put("success", false);
+            response.put("message", "재분석 중 오류 발생: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
     }

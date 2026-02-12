@@ -31,6 +31,13 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
     void deleteByArticleId(Long articleId);
 
     /**
+     * 여러 Article의 청크 벌크 삭제
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM ClovaArticleChunk c WHERE c.article.id IN :articleIds")
+    void deleteByArticleIdIn(@Param("articleIds") List<Long> articleIds);
+
+    /**
      * 특정 Article의 청크 존재 여부 확인
      */
     boolean existsByArticleId(Long articleId);
@@ -45,6 +52,37 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
      */
     @Query("SELECT DISTINCT c.article.id FROM ClovaArticleChunk c WHERE c.embedding IS NOT NULL")
     List<Long> findArticleIdsWithEmbedding();
+
+    /**
+     * Article ID 목록 (ID 내림차순, 전체)
+     */
+    @Query(value = "SELECT a.id FROM article a " +
+           "WHERE a.deleted_at IS NULL " +
+           "ORDER BY a.id DESC",
+           nativeQuery = true)
+    List<Long> findArticleIdsWithEmbeddingOrderByIdDesc();
+
+    /**
+     * Article ID 목록 (특정 ID 미만, ID 내림차순, 전체)
+     */
+    @Query(value = "SELECT a.id FROM article a " +
+           "WHERE a.deleted_at IS NULL " +
+           "AND a.id < :maxArticleId " +
+           "ORDER BY a.id DESC",
+           nativeQuery = true)
+    List<Long> findArticleIdsWithEmbeddingLessThanOrderByIdDesc(
+            @Param("maxArticleId") Long maxArticleId);
+
+    /**
+     * 특정 Corporation Article ID 목록 (ID 내림차순, 전체)
+     */
+    @Query(value = "SELECT a.id FROM article a " +
+           "WHERE a.deleted_at IS NULL " +
+           "AND a.corporation_id = :corporationId " +
+           "ORDER BY a.id DESC",
+           nativeQuery = true)
+    List<Long> findArticleIdsWithEmbeddingByCorporationIdOrderByIdDesc(
+            @Param("corporationId") Long corporationId);
 
     /**
      * 벡터 유사도 검색 - 상위 K개 청크 평균 방식 (halfvec)

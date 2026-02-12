@@ -2,12 +2,15 @@ package com.newcodes7.small_town.embedding.service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+
+import com.knuddels.jtokkit.Encodings;
+import com.knuddels.jtokkit.api.Encoding;
+import com.knuddels.jtokkit.api.EncodingRegistry;
+import com.knuddels.jtokkit.api.EncodingType;
+import com.knuddels.jtokkit.api.IntArrayList;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,7 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.embedding.dto.ModelEmbeddingResult;
 import com.newcodes7.small_town.embedding.entity.ClovaArticleChunk;
+import com.newcodes7.small_town.embedding.entity.ClovaEmbeddingFailure;
 import com.newcodes7.small_town.embedding.repository.ClovaArticleChunkRepository;
+import com.newcodes7.small_town.embedding.repository.ClovaEmbeddingFailureRepository;
 import com.newcodes7.small_town.global.config.BitVectorType;
 import com.newcodes7.small_town.global.entity.Article;
 
@@ -36,18 +41,31 @@ public class ClovaEmbeddingBatchService {
 
     private final ArticleRepository articleRepository;
     private final ClovaArticleChunkRepository clovaChunkRepository;
+    private final ClovaEmbeddingFailureRepository clovaEmbeddingFailureRepository;
     private final NaverClovaEmbeddingService clovaEmbeddingService;
     private final RepresentativeChunkService representativeChunkService;
 
     // API rate limit 대응을 위한 딜레이 (500ms)
     private static final long RATE_LIMIT_DELAY_MS = 500;
 
-    // 청크 크기 설정
-    private static final int CHUNK_SIZE = 500;      // 청크 크기 (글자 수)
-    private static final int CHUNK_OVERLAP = 100;   // 겹침 크기 (글자 수)
+    // 재분석용 딜레이 (200ms)
+    private static final long REGENERATE_RATE_LIMIT_DELAY_MS = 200;
 
-    // 문장 종결 패턴 (한국어 + 영어)
-    private static final Pattern SENTENCE_END = Pattern.compile("[.!?。！？]\\s");
+    // 배치 크기
+    private static final int BATCH_SIZE = 10;
+
+    // 청크 크기 설정 (토큰 수 기준) - 영문 기준
+    private static final int CHUNK_SIZE_TOKENS = 512;
+    private static final int CHUNK_OVERLAP_TOKENS = 200;
+    // 한국어는 토큰이 약 2배로 인코딩되므로 2배 적용
+    private static final int CHUNK_SIZE_TOKENS_KO = 1024;
+    private static final int CHUNK_OVERLAP_TOKENS_KO = 400;
+    private static final int MAX_SENTENCE_TOKENS = 1024; // 문장 최대 토큰 수 (초과 시 비정상 문장으로 스킵)
+    private static final double KOREAN_RATIO_THRESHOLD = 0.3; // 한국어 비율 30% 이상이면 한국어로 판단
+
+    // 토크나이저 (cl100k_base)
+    private static final EncodingRegistry REGISTRY = Encodings.newDefaultEncodingRegistry();
+    private static final Encoding ENCODING = REGISTRY.getEncoding(EncodingType.CL100K_BASE);
 
     /**
      * Clova 청크 임베딩이 없는 Article 조회
@@ -79,23 +97,25 @@ public class ClovaEmbeddingBatchService {
     public int generateClovaChunkEmbeddingsForArticle(Article article) {
         if (article.getContent() == null || article.getContent().trim().isEmpty()) {
             log.warn("Article {}의 본문이 비어있어 청크를 생성하지 않습니다", article.getId());
+            recordFailure(article, "본문이 비어있음");
             return 0;
         }
 
         // 기존 청크 삭제 (재생성 시)
         clovaChunkRepository.deleteByArticleId(article.getId());
 
-        // 1. 고정 크기 청크 분할 (overlap 포함)
+        // 1. content 기준 청크 분할 (overlap 포함)
         String fullText = buildFullText(article);
         List<String> segments = splitIntoChunksWithOverlap(fullText);
 
         if (segments.isEmpty()) {
             log.warn("Article {} - 청크 분할 결과가 비어있습니다", article.getId());
+            recordFailure(article, "청크 분할 결과가 비어있음");
             return 0;
         }
 
-        log.info("Article {} - {}개 청크 생성됨 (size={}, overlap={})",
-                article.getId(), segments.size(), CHUNK_SIZE, CHUNK_OVERLAP);
+        log.info("Article {} - {}개 청크 생성됨 (size={}tokens, overlap={}tokens)",
+                article.getId(), segments.size(), CHUNK_SIZE_TOKENS, CHUNK_OVERLAP_TOKENS);
 
         // 2. 각 청크에 대해 임베딩 생성
         List<ClovaArticleChunk> chunks = new ArrayList<>();
@@ -162,11 +182,18 @@ public class ClovaEmbeddingBatchService {
         log.info("Article {} - Clova 임베딩 완료: {}/{}개 청크",
                 article.getId(), successCount, segments.size());
 
+        if (successCount > 0) {
+            clearFailure(article.getId());
+        } else {
+            recordFailure(article, "모든 청크 임베딩 생성 실패");
+        }
+
         return successCount;
     }
 
     /**
-     * 텍스트를 고정 크기 청크로 분할 (overlap 포함)
+     * 텍스트를 문장 경계 기준으로 청크 분할 (overlap 포함)
+     * CHUNK_SIZE_TOKENS에 최대한 맞추되, 문장이 끝나는 지점에서 분할
      *
      * @param text 원본 텍스트
      * @return 청크 리스트
@@ -178,41 +205,50 @@ public class ClovaEmbeddingBatchService {
             return chunks;
         }
 
-        int textLength = text.length();
-        int startIndex = 0;
+        // 한국어 비율에 따라 청크 크기 결정
+        boolean isKorean = isKoreanDominant(text);
+        int chunkSize = isKorean ? CHUNK_SIZE_TOKENS_KO : CHUNK_SIZE_TOKENS;
+        int overlapSize = isKorean ? CHUNK_OVERLAP_TOKENS_KO : CHUNK_OVERLAP_TOKENS;
 
-        while (startIndex < textLength) {
-            // 청크 끝 위치 계산
-            int endIndex = Math.min(startIndex + CHUNK_SIZE, textLength);
+        int totalTokens = ENCODING.encode(text).size();
 
-            // 마지막 청크가 아니면 문장 경계에서 자르기 시도
-            if (endIndex < textLength) {
-                endIndex = findSentenceBoundary(text, startIndex, endIndex);
+        if (totalTokens <= chunkSize) {
+            chunks.add(text.trim());
+            return chunks;
+        }
+
+        // 문장 단위로 분할
+        List<String> sentences = splitIntoSentences(text);
+
+        List<String> currentSentences = new ArrayList<>();
+        int currentTokenCount = 0;
+
+        for (String sentence : sentences) {
+            int sentenceTokens = ENCODING.encode(sentence).size();
+
+            // 1024 토큰 초과 문장은 비정상 문장으로 판단하고 스킵
+            if (sentenceTokens > MAX_SENTENCE_TOKENS) {
+                log.warn("비정상 문장 스킵 ({}tokens): {}...", sentenceTokens,
+                        sentence.substring(0, Math.min(100, sentence.length())));
+                continue;
             }
 
-            // 청크 추출
-            String chunk = text.substring(startIndex, endIndex).trim();
-            if (!chunk.isEmpty()) {
-                chunks.add(chunk);
+            // 현재 청크에 문장을 추가하면 초과하는 경우 → 청크 확정
+            if (currentTokenCount + sentenceTokens > chunkSize && !currentSentences.isEmpty()) {
+                chunks.add(String.join(" ", currentSentences).trim());
+                currentSentences = getOverlapSentences(currentSentences, overlapSize);
+                currentTokenCount = countTokens(currentSentences);
             }
 
-            // 다음 시작 위치 계산 (overlap 적용)
-            // 마지막 청크면 루프 종료
-            if (endIndex >= textLength) {
-                break;
-            }
+            currentSentences.add(sentence);
+            currentTokenCount += sentenceTokens;
+        }
 
-            // overlap만큼 뒤로 이동하여 다음 청크 시작
-            startIndex = endIndex - CHUNK_OVERLAP;
-
-            // 시작 위치가 음수가 되지 않도록
-            if (startIndex < 0) {
-                startIndex = 0;
-            }
-
-            // 무한 루프 방지: 진전이 없으면 강제로 이동
-            if (startIndex >= endIndex) {
-                startIndex = endIndex;
+        // 남은 문장 처리
+        if (!currentSentences.isEmpty()) {
+            String lastChunk = String.join(" ", currentSentences).trim();
+            if (!lastChunk.isEmpty()) {
+                chunks.add(lastChunk);
             }
         }
 
@@ -220,38 +256,69 @@ public class ClovaEmbeddingBatchService {
     }
 
     /**
-     * 문장 경계 찾기
-     * 지정된 위치 근처에서 문장 종결 패턴을 찾아 반환
-     *
-     * @param text 전체 텍스트
-     * @param startIndex 청크 시작 위치
-     * @param targetEnd 목표 끝 위치
-     * @return 실제 끝 위치 (문장 경계)
+     * 텍스트를 문장 단위로 분할
+     * 마침표(.), 느낌표(!), 물음표(?) 뒤의 공백을 기준으로 분할
      */
-    private int findSentenceBoundary(String text, int startIndex, int targetEnd) {
-        // targetEnd 이전 50자 범위에서 문장 끝 찾기
-        int searchStart = Math.max(startIndex, targetEnd - 50);
-        String searchRegion = text.substring(searchStart, targetEnd);
+    private List<String> splitIntoSentences(String text) {
+        List<String> sentences = new ArrayList<>();
+        String[] parts = text.split("(?<=[.!?])\\s+");
+        for (String part : parts) {
+            if (!part.trim().isEmpty()) {
+                sentences.add(part.trim());
+            }
+        }
+        return sentences;
+    }
 
-        Matcher matcher = SENTENCE_END.matcher(searchRegion);
-        int lastMatchEnd = -1;
+    /**
+     * 이전 청크의 마지막 문장들을 overlap으로 가져옴
+     * overlapSize 이내의 문장들을 뒤에서부터 선택
+     */
+    private List<String> getOverlapSentences(List<String> sentences, int overlapSize) {
+        List<String> overlap = new ArrayList<>();
+        int overlapTokens = 0;
 
-        while (matcher.find()) {
-            lastMatchEnd = matcher.end();
+        for (int i = sentences.size() - 1; i >= 0; i--) {
+            int sentenceTokens = ENCODING.encode(sentences.get(i)).size();
+            if (overlapTokens + sentenceTokens > overlapSize) {
+                break;
+            }
+            overlap.add(0, sentences.get(i));
+            overlapTokens += sentenceTokens;
         }
 
-        if (lastMatchEnd > 0) {
-            return searchStart + lastMatchEnd;
+        return overlap;
+    }
+
+    /**
+     * 텍스트가 한국어 위주인지 판단
+     * 한글 문자 비율이 KOREAN_RATIO_THRESHOLD 이상이면 한국어로 판단
+     */
+    private boolean isKoreanDominant(String text) {
+        int koreanCount = 0;
+        int totalCount = 0;
+
+        for (char c : text.toCharArray()) {
+            if (Character.isWhitespace(c)) {
+                continue;
+            }
+            totalCount++;
+            if (c >= '\uAC00' && c <= '\uD7A3') {
+                koreanCount++;
+            }
         }
 
-        // 문장 끝을 못 찾으면 공백에서 자르기
-        int lastSpace = text.lastIndexOf(' ', targetEnd);
-        if (lastSpace > startIndex + CHUNK_SIZE / 2) {
-            return lastSpace + 1;
-        }
+        return totalCount > 0 && (double) koreanCount / totalCount >= KOREAN_RATIO_THRESHOLD;
+    }
 
-        // 그래도 못 찾으면 원래 위치 반환
-        return targetEnd;
+    /**
+     * 문장 리스트의 총 토큰 수 계산
+     */
+    private int countTokens(List<String> sentences) {
+        if (sentences.isEmpty()) {
+            return 0;
+        }
+        return ENCODING.encode(String.join(" ", sentences)).size();
     }
 
     /**
@@ -431,20 +498,180 @@ public class ClovaEmbeddingBatchService {
         return stats;
     }
 
+    public int getBatchSize() {
+        return BATCH_SIZE;
+    }
+
     /**
-     * 제목과 본문을 결합 (임베딩용)
-     * 제목을 3번 반복하여 가중치 부여
+     * 재분석 배치 처리 (배치 단위 트랜잭션)
+     * 기존 chunk 벌크 삭제 → 재생성
+     *
+     * @param articleIds 처리할 Article ID 목록 (최대 10개)
+     * @return 처리 결과
+     */
+    @Transactional
+    public Map<String, Object> processRegenerateBatch(List<Long> articleIds) {
+        // 1. 기존 chunk 벌크 삭제
+        clovaChunkRepository.deleteByArticleIdIn(articleIds);
+        log.info("기존 chunk 삭제 완료 - {}개 Article", articleIds.size());
+
+        // 2. 각 Article별 재생성
+        int successCount = 0;
+        int failureCount = 0;
+        int totalChunks = 0;
+
+        List<Article> articles = articleRepository.findAllById(articleIds);
+
+        for (Article article : articles) {
+            try {
+                int chunksGenerated = regenerateSingleArticleEmbedding(article);
+                if (chunksGenerated > 0) {
+                    successCount++;
+                    totalChunks += chunksGenerated;
+                } else {
+                    failureCount++;
+                }
+            } catch (Exception e) {
+                failureCount++;
+                log.error("Article {} 재분석 실패: {}", article.getId(), e.getMessage());
+            }
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("successCount", successCount);
+        result.put("failureCount", failureCount);
+        result.put("totalChunks", totalChunks);
+        return result;
+    }
+
+    /**
+     * 단일 Article 임베딩 재생성 (1초 rate limit 적용)
+     *
+     * @param article Article 엔티티
+     * @return 생성된 청크 수
+     */
+    private int regenerateSingleArticleEmbedding(Article article) {
+        if (article.getContent() == null || article.getContent().trim().isEmpty()) {
+            log.warn("Article {}의 본문이 비어있어 재분석을 건너뜁니다", article.getId());
+            recordFailure(article, "본문이 비어있음 (재분석)");
+            return 0;
+        }
+
+        // 1. content 기준 청크 분할
+        String fullText = buildFullText(article);
+        List<String> segments = splitIntoChunksWithOverlap(fullText);
+
+        if (segments.isEmpty()) {
+            log.warn("Article {} - 청크 분할 결과가 비어있습니다", article.getId());
+            recordFailure(article, "청크 분할 결과가 비어있음 (재분석)");
+            return 0;
+        }
+
+        log.info("Article {} - 재분석: {}개 청크 생성됨", article.getId(), segments.size());
+
+        // 2. 각 청크에 대해 임베딩 생성 (1초 간격)
+        List<ClovaArticleChunk> chunks = new ArrayList<>();
+        int successCount = 0;
+
+        for (int i = 0; i < segments.size(); i++) {
+            String segmentContent = segments.get(i);
+
+            try {
+                ModelEmbeddingResult embResult = clovaEmbeddingService.generateEmbedding(
+                        segmentContent, fullText);
+
+                ClovaArticleChunk chunk = ClovaArticleChunk.builder()
+                        .article(article)
+                        .chunkIndex(i)
+                        .content(segmentContent)
+                        .build();
+
+                if (embResult.isSuccess()) {
+                    float[] embedding = embResult.getEmbedding();
+                    chunk.setEmbedding(embedding);
+                    chunk.setEmbeddingBinary(BitVectorType.fromFloatArray(embedding));
+                    chunk.setEmbeddingGeneratedAt(LocalDateTime.now());
+                    chunk.setTokenCount(embResult.getTokenUsage());
+                    successCount++;
+                } else {
+                    log.warn("Article {} 청크 {} - 임베딩 생성 실패: {}",
+                            article.getId(), i, embResult.getErrorMessage());
+                }
+
+                chunks.add(chunk);
+
+                // 재분석용 rate limit (1초)
+                Thread.sleep(REGENERATE_RATE_LIMIT_DELAY_MS);
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.error("Article {} 청크 {} - 중단됨", article.getId(), i);
+                break;
+            } catch (Exception e) {
+                log.error("Article {} 청크 {} - 오류: {}", article.getId(), i, e.getMessage());
+            }
+        }
+
+        // 3. 청크 저장
+        if (!chunks.isEmpty()) {
+            clovaChunkRepository.saveAll(chunks);
+        }
+
+        // 4. 대표 chunk 선정
+        if (successCount > 0) {
+            try {
+                Long representativeChunkId = representativeChunkService.selectRepresentativeChunk(article.getId());
+                if (representativeChunkId != null) {
+                    log.debug("Article {} - 대표 chunk 재선정 완료: {}", article.getId(), representativeChunkId);
+                }
+            } catch (Exception e) {
+                log.warn("Article {} - 대표 chunk 선정 실패: {}", article.getId(), e.getMessage());
+            }
+        }
+
+        log.info("Article {} - 재분석 완료: {}/{}개 청크",
+                article.getId(), successCount, segments.size());
+
+        if (successCount > 0) {
+            clearFailure(article.getId());
+        } else {
+            recordFailure(article, "모든 청크 임베딩 생성 실패 (재분석)");
+        }
+
+        return successCount;
+    }
+
+    private void recordFailure(Article article, String reason) {
+        try {
+            clovaEmbeddingFailureRepository.deleteByArticleId(article.getId());
+            ClovaEmbeddingFailure failure = ClovaEmbeddingFailure.builder()
+                    .article(article)
+                    .reason(reason)
+                    .build();
+            clovaEmbeddingFailureRepository.save(failure);
+        } catch (Exception e) {
+            log.error("Article {} - 실패 기록 저장 오류: {}", article.getId(), e.getMessage());
+        }
+    }
+
+    private void clearFailure(Long articleId) {
+        try {
+            clovaEmbeddingFailureRepository.deleteByArticleId(articleId);
+        } catch (Exception e) {
+            log.error("Article {} - 실패 기록 삭제 오류: {}", articleId, e.getMessage());
+        }
+    }
+
+    /**
+     * 제목과 본문을 결합 (청크 분할 및 임베딩용)
      */
     private String buildFullText(Article article) {
         StringBuilder sb = new StringBuilder();
 
-        // 제목 3번 반복 (가중치 부여)
         String title = article.getTranslatedTitle() != null
                 ? article.getTranslatedTitle()
                 : article.getTitle();
 
-        sb.append(title).append(". ");
-        sb.append(title).append(". ");
         sb.append(title).append(". ");
 
         // 본문 추가
