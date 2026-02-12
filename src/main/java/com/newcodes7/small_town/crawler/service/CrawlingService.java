@@ -111,11 +111,11 @@ public class CrawlingService {
 
         log.info("블로그 크롤링 완료 - 처리된 기업: {}개", results.size());
 
-        // 크롤링 완료 후 선택적 캐시 purge
-        purgeCacheForCrawlResults(results);
-
         // BM25 검색 인덱스 갱신 (ArticleTerm이 업데이트되었으므로)
         refreshBM25SearchIndex(results);
+
+        // 크롤링 완료 후 선택적 캐시 purge
+        purgeCacheForCrawlResults(results);
 
         return results;
     }
@@ -759,8 +759,8 @@ public class CrawlingService {
 
         // 크롤링 완료 후 선택적 캐시 purge
         if (!results.isEmpty()) {
-            purgeCacheForCrawlResults(results);
             refreshBM25SearchIndex(results);
+            purgeCacheForCrawlResults(results);
         }
 
         return results;
