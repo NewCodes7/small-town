@@ -163,7 +163,8 @@ deploy() {
     log "활성 서버: $NEW_ACTIVE ($NEW_CONTAINER)"
 
     log "=== docker 미사용 리소스 정리 ==="
-    docker system prune -a
+    docker container prune -f
+    docker image prune -f
 
     # swap 메모리 재할당 (비활성화)
     # reset_swap
