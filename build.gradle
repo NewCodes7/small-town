@@ -85,12 +85,12 @@ dependencies {
     implementation 'com.sksamuel.scrimage:scrimage-core:4.1.1'
     implementation 'com.sksamuel.scrimage:scrimage-webp:4.1.1'
 
-    // 한국어 형태소 분석기 (Komoran)
-    implementation 'com.github.shin285:KOMORAN:3.3.9'
+    // 한국어 형태소 분석기 (Lucene Nori - MeCab-Ko 사전 기반)
+    implementation 'org.apache.lucene:lucene-analysis-nori:9.12.3'
 
     // 영어 형태소 분석기 (Apache Lucene)
-    implementation 'org.apache.lucene:lucene-core:9.11.1'
-    implementation 'org.apache.lucene:lucene-analysis-common:9.11.1'
+    implementation 'org.apache.lucene:lucene-core:9.12.3'
+    implementation 'org.apache.lucene:lucene-analysis-common:9.12.3'
 
     // OpenAI 토큰 카운터 (jtokkit)
     implementation 'com.knuddels:jtokkit:1.0.0'

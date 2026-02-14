@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * 사용자 정의 단어 사전 엔티티
- * Komoran 형태소 분석기에서 인식하지 못하는 단어를 등록하여
+ * Nori 형태소 분석기에서 인식하지 못하는 단어를 등록하여
  * term으로 추출될 수 있도록 함
  */
 @Entity

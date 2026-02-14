@@ -1,17 +1,20 @@
 package com.newcodes7.small_town.global.service;
 
+import java.io.IOException;
+import java.io.StringReader;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.ko.KoreanAnalyzer;
+import org.apache.lucene.analysis.ko.tokenattributes.PartOfSpeechAttribute;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.springframework.stereotype.Service;
 
 import com.newcodes7.small_town.article.repository.StopwordRepository;
 
-import kr.co.shineware.nlp.komoran.core.Komoran;
-import kr.co.shineware.nlp.komoran.model.Token;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -20,7 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class MorphemeAnalyzer {
 
-    private final Komoran komoran;
+    private final KoreanAnalyzer koreanAnalyzer;
     private final StopwordRepository stopwordRepository;
 
     // 불용어 캐시 (성능 최적화)
@@ -41,31 +44,37 @@ public class MorphemeAnalyzer {
             // 불용어 캐시 로드 (최초 1회만)
             loadStopwordCacheIfNeeded();
 
-            List<Token> tokens = komoran.analyze(text).getTokenList();
-
             Map<String, TermInfo> termMap = new HashMap<>();
 
-            for (Token token : tokens) {
-                String morph = token.getMorph();
-                String pos = token.getPos();
+            try (TokenStream tokenStream = koreanAnalyzer.tokenStream("content", new StringReader(text))) {
+                CharTermAttribute termAttr = tokenStream.addAttribute(CharTermAttribute.class);
+                PartOfSpeechAttribute posAttr = tokenStream.addAttribute(PartOfSpeechAttribute.class);
+                tokenStream.reset();
 
-                // 영어는 소문자로 변환
-                if (pos.equals("SL")) {
-                    morph = morph.toLowerCase();
+                while (tokenStream.incrementToken()) {
+                    String morph = termAttr.toString();
+                    String pos = posAttr.getLeftPOS().name();
+
+                    // 영어는 소문자로 변환
+                    if (pos.equals("SL")) {
+                        morph = morph.toLowerCase();
+                    }
+
+                    // 필터링: 명사(NN*), 동사(VV), 영어(SL), 숫자(SN)만 추출
+                    // 불용어는 제외
+                    if (isValidTerm(morph, pos) && !isStopword(morph)) {
+                        termMap.merge(
+                            morph,
+                            new TermInfo(morph, pos, 1),
+                            (existing, newInfo) -> {
+                                existing.incrementFrequency();
+                                return existing;
+                            }
+                        );
+                    }
                 }
 
-                // 필터링: 명사(NN*), 동사(VV), 영어(SL), 숫자(SN)만 추출
-                // 불용어는 제외
-                if (isValidTerm(morph, pos) && !isStopword(morph)) {
-                    termMap.merge(
-                        morph,
-                        new TermInfo(morph, pos, 1),
-                        (existing, newInfo) -> {
-                            existing.incrementFrequency();
-                            return existing;
-                        }
-                    );
-                }
+                tokenStream.end();
             }
 
             log.debug("텍스트 분석 완료: {} -> {} terms", text.substring(0, Math.min(50, text.length())), termMap.size());

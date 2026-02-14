@@ -16,7 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * 통합 형태소 분석기 (Facade)
  * 언어를 자동 감지하여 적절한 분석기로 위임
- * - 한국어: MorphemeAnalyzer (Komoran)
+ * - 한국어: MorphemeAnalyzer (Nori)
  * - 영어: EnglishMorphemeAnalyzer (Lucene)
  * - 혼합: 두 분석기 병렬 실행 후 병합
  */
@@ -79,7 +79,7 @@ public class UnifiedMorphemeAnalyzer {
     private Map<String, TermInfo> extractTermsMixed(String text) {
         Map<String, TermInfo> combinedTerms = new HashMap<>();
 
-        // 한국어 분석 (Komoran은 영어도 SL 태그로 추출)
+        // 한국어 분석 (Nori는 영어도 SL 태그로 추출)
         Map<String, TermInfo> koreanTerms = koreanAnalyzer.extractTerms(text);
         combinedTerms.putAll(koreanTerms);
 
