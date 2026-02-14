@@ -502,16 +502,12 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     );
 
     /**
-     * 특정 Article ID들에 대한 BM25 점수 계산
-     * Vector로만 검색된 article들의 BM25 score를 채우기 위해 사용
-     * 검색 쿼리에 매칭되지 않는 article은 결과에 포함되지 않음 (BM25 점수 = 0으로 처리)
-     *
-     * @param searchQuery BM25 검색 쿼리
-     * @param articleIds BM25 점수를 계산할 Article ID 목록
-     * @return Article ID와 BM25 점수를 담은 결과
+     * 특정 Article ID들에 대한 BM25 점수 계산 (필터 없음)
+     * searchByBM25와 동일한 쿼리 구조 + article ID 필터
      */
     @Query(value = "SELECT asi.id, " +
-           "paradedb.score(asi.id) as bm25_score " +
+           "paradedb.score(asi.id) as bm25_score, " +
+           "asi.published_at " +
            "FROM article_search_view asi " +
            "WHERE asi @@@ paradedb.parse(:searchQuery) " +
            "AND asi.id IN (:articleIds) " +
@@ -519,6 +515,69 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            nativeQuery = true)
     List<Object[]> computeBM25ScoreForArticleIds(
             @Param("searchQuery") String searchQuery,
+            @Param("articleIds") List<Long> articleIds
+    );
+
+    /**
+     * 특정 Article ID들에 대한 BM25 점수 계산 + 두 필터 모두
+     * searchByBM25WithBothFilters와 동일한 쿼리 구조 + article ID 필터
+     */
+    @Query(value = "SELECT asi.id, " +
+           "paradedb.score(asi.id) as bm25_score, " +
+           "asi.published_at " +
+           "FROM article_search_view asi " +
+           "LEFT JOIN corporation c ON asi.corporation_id = c.id " +
+           "LEFT JOIN category cat ON asi.category_id = cat.id " +
+           "WHERE asi @@@ paradedb.parse(:searchQuery) " +
+           "AND c.is_domestic IN (:domesticTypes) " +
+           "AND cat.name IN (:category) " +
+           "AND asi.id IN (:articleIds) " +
+           "ORDER BY bm25_score DESC",
+           nativeQuery = true)
+    List<Object[]> computeBM25ScoreForArticleIdsWithBothFilters(
+            @Param("searchQuery") String searchQuery,
+            @Param("domesticTypes") List<Integer> domesticTypes,
+            @Param("category") List<String> category,
+            @Param("articleIds") List<Long> articleIds
+    );
+
+    /**
+     * 특정 Article ID들에 대한 BM25 점수 계산 + domesticTypes 필터만
+     * searchByBM25WithDomesticTypes와 동일한 쿼리 구조 + article ID 필터
+     */
+    @Query(value = "SELECT asi.id, " +
+           "paradedb.score(asi.id) as bm25_score, " +
+           "asi.published_at " +
+           "FROM article_search_view asi " +
+           "LEFT JOIN corporation c ON asi.corporation_id = c.id " +
+           "WHERE asi @@@ paradedb.parse(:searchQuery) " +
+           "AND c.is_domestic IN (:domesticTypes) " +
+           "AND asi.id IN (:articleIds) " +
+           "ORDER BY bm25_score DESC",
+           nativeQuery = true)
+    List<Object[]> computeBM25ScoreForArticleIdsWithDomesticTypes(
+            @Param("searchQuery") String searchQuery,
+            @Param("domesticTypes") List<Integer> domesticTypes,
+            @Param("articleIds") List<Long> articleIds
+    );
+
+    /**
+     * 특정 Article ID들에 대한 BM25 점수 계산 + category 필터만
+     * searchByBM25WithCategory와 동일한 쿼리 구조 + article ID 필터
+     */
+    @Query(value = "SELECT asi.id, " +
+           "paradedb.score(asi.id) as bm25_score, " +
+           "asi.published_at " +
+           "FROM article_search_view asi " +
+           "LEFT JOIN category cat ON asi.category_id = cat.id " +
+           "WHERE asi @@@ paradedb.parse(:searchQuery) " +
+           "AND cat.name IN (:category) " +
+           "AND asi.id IN (:articleIds) " +
+           "ORDER BY bm25_score DESC",
+           nativeQuery = true)
+    List<Object[]> computeBM25ScoreForArticleIdsWithCategory(
+            @Param("searchQuery") String searchQuery,
+            @Param("category") List<String> category,
             @Param("articleIds") List<Long> articleIds
     );
 

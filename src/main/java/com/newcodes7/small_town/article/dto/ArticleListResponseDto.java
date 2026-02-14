@@ -62,6 +62,14 @@ public class ArticleListResponseDto implements ArticleResponseDto {
     private final Double timeDecayScore;
 
     /**
+     * 각 검색 방법 내 순위 (Admin 전용, 하이브리드 검색 시에만 사용)
+     * null이면 해당 검색 방법에서 미검색
+     */
+    private final Integer bm25Rank;
+    private final Integer vectorRank;
+    private final Integer ilikeRank;
+
+    /**
      * 사용자 좋아요 상태 (IP 기반)
      * true: 좋아요함, false: 좋아요 안함, null: 미확인
      */
@@ -100,9 +108,17 @@ public class ArticleListResponseDto implements ArticleResponseDto {
     }
 
     /**
-     * 모든 검색 스코어와 좋아요 상태를 포함한 생성자 (최종)
+     * 모든 검색 스코어와 좋아요 상태를 포함한 생성자 (rank 없음)
      */
     public ArticleListResponseDto(Article article, Double bm25Score, Double vectorScore, Double rrfScore, Double ilikeScore, Double timeDecayScore, Boolean isLiked) {
+        this(article, bm25Score, vectorScore, rrfScore, ilikeScore, timeDecayScore, null, null, null, isLiked);
+    }
+
+    /**
+     * 모든 검색 스코어, 순위, 좋아요 상태를 포함한 생성자 (최종)
+     */
+    public ArticleListResponseDto(Article article, Double bm25Score, Double vectorScore, Double rrfScore, Double ilikeScore, Double timeDecayScore,
+                                  Integer bm25Rank, Integer vectorRank, Integer ilikeRank, Boolean isLiked) {
         this.id = article.getId();
         this.title = article.getTitle();
         this.translatedTitle = article.getTranslatedTitle();
@@ -123,6 +139,9 @@ public class ArticleListResponseDto implements ArticleResponseDto {
         this.rrfScore = rrfScore;
         this.ilikeScore = ilikeScore;
         this.timeDecayScore = timeDecayScore;
+        this.bm25Rank = bm25Rank;
+        this.vectorRank = vectorRank;
+        this.ilikeRank = ilikeRank;
         this.isLiked = isLiked;
     }
 
