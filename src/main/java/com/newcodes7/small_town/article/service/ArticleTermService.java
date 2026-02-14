@@ -127,6 +127,7 @@ public class ArticleTermService {
             }
 
             // 영속성 컨텍스트 초기화 (메모리 누적 방지, connection 조기 반환)
+            entityManager.flush();
             entityManager.clear();
 
             log.info("배치 {} 완료: 처리={}, 건너뜀={}, 실패={}, term={}",
@@ -325,15 +326,9 @@ public class ArticleTermService {
         termRepository.saveAll(newTermsToSave); // 신규 단어들 저장
         articleTermRepository.saveAll(articleTerms); // 관계 테이블 저장
 
-        if (!articleTerms.isEmpty()) {
-            articleTermRepository.saveAll(articleTerms);
-            log.info("Article ID {} term 저장 완료: {} terms (전체: {}, 최소빈도 {} 이상: {})",
-                article.getId(), articleTerms.size(), termDataMap.size(),
-                MIN_FREQUENCY, filteredTerms.size());
-
-            // 저장된 각 term의 통계 갱신 (단일 article 처리 시에만)
-            // 대량 처리 시에는 extractAndSaveAllArticleTerms에서 일괄 갱신
-        }
+        log.info("Article ID {} term 저장 완료: {} terms (전체: {}, 최소빈도 {} 이상: {})",
+            article.getId(), articleTerms.size(), termDataMap.size(),
+            MIN_FREQUENCY, filteredTerms.size());
 
         return articleTerms.size();
     }
