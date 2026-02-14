@@ -9,7 +9,7 @@ RUN gradle dependencies --no-daemon
 
 # 소스 코드 복사 및 빌드
 COPY src ./src
-RUN gradle build -x test --no-daemon
+RUN gradle bootJar --no-daemon --parallel
 
 # Stage 2: Runtime
 FROM eclipse-temurin:17-jre-jammy
