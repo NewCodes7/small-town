@@ -20,7 +20,8 @@
         "ms-vscode.vscode-sqltools-driver-mysql",
         "vscjava.vscode-java-pack",
         "usernamehw.errorlens",
-        "eamodio.gitlens"
+        "eamodio.gitlens",
+        "ckolkman.vscode-postgres"
       ]
     }
   }
