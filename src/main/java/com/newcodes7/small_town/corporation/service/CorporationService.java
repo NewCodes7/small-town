@@ -77,49 +77,17 @@ public class CorporationService {
     
     @Transactional
     public CorporationResponseDto createCorporation(CorporationCreateDto dto) {
-        if (dto == null) {
-            throw new InvalidParameterException("dto", null);
-        }
-        if (dto.getName() == null || dto.getName().trim().isEmpty()) {
-            throw new InvalidParameterException("name", dto.getName(), "기업명은 필수입니다");
-        }
+        validateCreateDto(dto);
 
         if (corporationRepository.existsByNameAndDeletedAtIsNull(dto.getName())) {
             throw new DuplicateCorporationNameException(dto.getName());
         }
 
-        // YouTube URL 처리
-        String youtubeChannelId = null;
-        if (dto.getYoutubeUrl() != null && !dto.getYoutubeUrl().trim().isEmpty()) {
-            try {
-                youtubeChannelId = youtubeService.getChannelIdFromUrl(dto.getYoutubeUrl());
-                if (youtubeChannelId == null) {
-                    log.warn("YouTube Channel ID 조회 실패 - URL: {}", dto.getYoutubeUrl());
-                }
-            } catch (Exception e) {
-                log.error("YouTube Channel ID 조회 중 오류 발생 - URL: {}", dto.getYoutubeUrl(), e);
-            }
-        }
-
-        // 기업명 자모 분리
-        String decomposedName = KoreanCharacterUtil.decomposeHangul(dto.getName());
-        String chosungName = KoreanCharacterUtil.extractChosung(dto.getName());
-
-        // 대체 기업명 자모 분리
-        String decomposedAlternateName = null;
-        String chosungAlternateName = null;
-        if (dto.getAlternateName() != null && !dto.getAlternateName().trim().isEmpty()) {
-            decomposedAlternateName = KoreanCharacterUtil.decomposeHangul(dto.getAlternateName());
-            chosungAlternateName = KoreanCharacterUtil.extractChosung(dto.getAlternateName());
-        }
+        String youtubeChannelId = resolveYoutubeChannelId(dto.getYoutubeUrl());
 
         Corporation corporation = Corporation.builder()
                 .name(dto.getName())
                 .alternateName(dto.getAlternateName())
-                .decomposedName(decomposedName)
-                .chosungName(chosungName)
-                .decomposedAlternateName(decomposedAlternateName)
-                .chosungAlternateName(chosungAlternateName)
                 .isDomestic(dto.getIsDomestic())
                 .homeLink(dto.getHomeLink())
                 .blogLink(dto.getBlogLink())
@@ -129,25 +97,11 @@ public class CorporationService {
                 .youtubeUrl(dto.getYoutubeUrl())
                 .youtubeChannelId(youtubeChannelId)
                 .build();
+        applyNameDecomposition(corporation, dto.getName(), dto.getAlternateName());
 
         Corporation savedCorporation = corporationRepository.save(corporation);
 
-        ParsingSelector parsingSelector = ParsingSelector.builder()
-                .corporationId(corporation.getId())
-                .baseUrl(dto.getBaseUrl())
-                .article(dto.getArticle())
-                .title(dto.getTitle())
-                .link(dto.getLink())
-                .thumbnail(dto.getThumbnail())
-                .publish(dto.getPublish())
-                .publishFormat(dto.getPublishFormat())
-                .publishType(dto.getPublishType() != null ? dto.getPublishType() : "OUTER")
-                .innerPublishSelector(dto.getInnerPublishSelector())
-                .paginationType(dto.getPaginationType())
-                .pageUrlPattern(dto.getPageUrlPattern())
-                .nextPageSelector(dto.getNextPageSelector())
-                .maxPages(dto.getMaxPages())
-                .build();
+        ParsingSelector parsingSelector = buildParsingSelector(savedCorporation.getId(), dto);
 
         parsingSelectorRepository.save(parsingSelector);
 
@@ -298,49 +252,17 @@ public class CorporationService {
      */
     @Transactional
     public CorporationResponseDto createCorporationWithLogo(CorporationCreateDto dto, MultipartFile logoFile) throws IOException {
-        if (dto == null) {
-            throw new InvalidParameterException("dto", null);
-        }
-        if (dto.getName() == null || dto.getName().trim().isEmpty()) {
-            throw new InvalidParameterException("name", dto.getName(), "기업명은 필수입니다");
-        }
+        validateCreateDto(dto);
 
         if (corporationRepository.existsByNameAndDeletedAtIsNull(dto.getName())) {
             throw new DuplicateCorporationNameException(dto.getName());
         }
 
-        // YouTube URL 처리
-        String youtubeChannelId = null;
-        if (dto.getYoutubeUrl() != null && !dto.getYoutubeUrl().trim().isEmpty()) {
-            try {
-                youtubeChannelId = youtubeService.getChannelIdFromUrl(dto.getYoutubeUrl());
-                if (youtubeChannelId == null) {
-                    log.warn("YouTube Channel ID 조회 실패 - URL: {}", dto.getYoutubeUrl());
-                }
-            } catch (Exception e) {
-                log.error("YouTube Channel ID 조회 중 오류 발생 - URL: {}", dto.getYoutubeUrl(), e);
-            }
-        }
-
-        // 기업명 자모 분리
-        String decomposedName = KoreanCharacterUtil.decomposeHangul(dto.getName());
-        String chosungName = KoreanCharacterUtil.extractChosung(dto.getName());
-
-        // 대체 기업명 자모 분리
-        String decomposedAlternateName = null;
-        String chosungAlternateName = null;
-        if (dto.getAlternateName() != null && !dto.getAlternateName().trim().isEmpty()) {
-            decomposedAlternateName = KoreanCharacterUtil.decomposeHangul(dto.getAlternateName());
-            chosungAlternateName = KoreanCharacterUtil.extractChosung(dto.getAlternateName());
-        }
+        String youtubeChannelId = resolveYoutubeChannelId(dto.getYoutubeUrl());
 
         Corporation corporation = Corporation.builder()
                 .name(dto.getName())
                 .alternateName(dto.getAlternateName())
-                .decomposedName(decomposedName)
-                .chosungName(chosungName)
-                .decomposedAlternateName(decomposedAlternateName)
-                .chosungAlternateName(chosungAlternateName)
                 .isDomestic(dto.getIsDomestic())
                 .homeLink(dto.getHomeLink())
                 .blogLink(dto.getBlogLink())
@@ -350,25 +272,11 @@ public class CorporationService {
                 .youtubeUrl(dto.getYoutubeUrl())
                 .youtubeChannelId(youtubeChannelId)
                 .build();
+        applyNameDecomposition(corporation, dto.getName(), dto.getAlternateName());
 
         Corporation savedCorporation = corporationRepository.save(corporation);
 
-        ParsingSelector parsingSelector = ParsingSelector.builder()
-                .corporationId(corporation.getId())
-                .baseUrl(dto.getBaseUrl())
-                .article(dto.getArticle())
-                .title(dto.getTitle())
-                .link(dto.getLink())
-                .thumbnail(dto.getThumbnail())
-                .publish(dto.getPublish())
-                .publishFormat(dto.getPublishFormat())
-                .publishType(dto.getPublishType() != null ? dto.getPublishType() : "OUTER")
-                .innerPublishSelector(dto.getInnerPublishSelector())
-                .paginationType(dto.getPaginationType())
-                .pageUrlPattern(dto.getPageUrlPattern())
-                .nextPageSelector(dto.getNextPageSelector())
-                .maxPages(dto.getMaxPages())
-                .build();
+        ParsingSelector parsingSelector = buildParsingSelector(savedCorporation.getId(), dto);
 
         parsingSelectorRepository.save(parsingSelector);
 
@@ -640,5 +548,64 @@ public class CorporationService {
             log.warn("알 수 없는 blogType: {}, 기본값(DEFAULT) 사용", blogType);
             return BlogType.DEFAULT;
         }
+    }
+
+    private void validateCreateDto(CorporationCreateDto dto) {
+        if (dto == null) {
+            throw new InvalidParameterException("dto", null);
+        }
+        if (dto.getName() == null || dto.getName().trim().isEmpty()) {
+            throw new InvalidParameterException("name", dto.getName(), "기업명은 필수입니다");
+        }
+    }
+
+    private String resolveYoutubeChannelId(String youtubeUrl) {
+        if (youtubeUrl == null || youtubeUrl.trim().isEmpty()) {
+            return null;
+        }
+
+        try {
+            String youtubeChannelId = youtubeService.getChannelIdFromUrl(youtubeUrl);
+            if (youtubeChannelId == null) {
+                log.warn("YouTube Channel ID 조회 실패 - URL: {}", youtubeUrl);
+            }
+            return youtubeChannelId;
+        } catch (Exception e) {
+            log.error("YouTube Channel ID 조회 중 오류 발생 - URL: {}", youtubeUrl, e);
+            return null;
+        }
+    }
+
+    private void applyNameDecomposition(Corporation corporation, String name, String alternateName) {
+        corporation.setDecomposedName(KoreanCharacterUtil.decomposeHangul(name));
+        corporation.setChosungName(KoreanCharacterUtil.extractChosung(name));
+
+        if (alternateName != null && !alternateName.trim().isEmpty()) {
+            corporation.setDecomposedAlternateName(KoreanCharacterUtil.decomposeHangul(alternateName));
+            corporation.setChosungAlternateName(KoreanCharacterUtil.extractChosung(alternateName));
+            return;
+        }
+
+        corporation.setDecomposedAlternateName(null);
+        corporation.setChosungAlternateName(null);
+    }
+
+    private ParsingSelector buildParsingSelector(Long corporationId, CorporationCreateDto dto) {
+        return ParsingSelector.builder()
+                .corporationId(corporationId)
+                .baseUrl(dto.getBaseUrl())
+                .article(dto.getArticle())
+                .title(dto.getTitle())
+                .link(dto.getLink())
+                .thumbnail(dto.getThumbnail())
+                .publish(dto.getPublish())
+                .publishFormat(dto.getPublishFormat())
+                .publishType(dto.getPublishType() != null ? dto.getPublishType() : "OUTER")
+                .innerPublishSelector(dto.getInnerPublishSelector())
+                .paginationType(dto.getPaginationType())
+                .pageUrlPattern(dto.getPageUrlPattern())
+                .nextPageSelector(dto.getNextPageSelector())
+                .maxPages(dto.getMaxPages())
+                .build();
     }
 }
