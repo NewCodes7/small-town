@@ -19,6 +19,7 @@ public class LanguageDetector {
     }
 
     private static final double THRESHOLD = 0.5;
+    private static final double KOREAN_THRESHOLD = 0.1;
 
     /**
      * 텍스트의 언어를 감지
@@ -50,7 +51,7 @@ public class LanguageDetector {
         double koreanRatio = (double) koreanCount / totalCount;
         double englishRatio = (double) englishCount / totalCount;
 
-        if (koreanRatio >= THRESHOLD) {
+        if (koreanRatio >= KOREAN_THRESHOLD) {
             return Language.KOREAN;
         } else if (englishRatio >= THRESHOLD) {
             return Language.ENGLISH;

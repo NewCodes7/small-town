@@ -965,7 +965,7 @@ public class AdminTermController {
         }
     }
 
-    // ========== Term Synonym 관리 ==========
+    // ========== Term Synonym 관리 ==========`
 
     /**
      * 모든 유의어 관계 조회 API

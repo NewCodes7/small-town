@@ -139,4 +139,16 @@ public class Term {
     public void updateHasTranslation(Boolean hasTranslation) {
         this.hasTranslation = hasTranslation;
     }
+
+    /**
+     * 기존 단어의 자모 분리 및 초성 정보를 업데이트하는 메서드
+     */
+    public void updateDecomposed(String decomposedTerm, String chosung) {
+        if (decomposedTerm != null) {
+            this.decomposedTerm = decomposedTerm;
+        }
+        if (chosung != null) {
+            this.chosung = chosung;
+        }
+    }
 }

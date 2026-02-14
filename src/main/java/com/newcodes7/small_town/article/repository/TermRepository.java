@@ -2,6 +2,7 @@ package com.newcodes7.small_town.article.repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Collection;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -206,4 +207,6 @@ public interface TermRepository extends JpaRepository<Term, Long> {
         WHERE t.id = stats.term_id
         """, nativeQuery = true)
     int updateTermStatisticsByArticleIds(@Param("articleIds") List<Long> articleIds);
+
+    List<Term> findByTermIn(Collection<String> terms);
 }

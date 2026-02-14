@@ -4,6 +4,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.Collection;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -258,67 +261,63 @@ public class ArticleTermService {
             return 0;
         }
 
-        // 5. term 저장
+        // 1. 처리할 모든 단어 텍스트 추출
+        Set<String> termNames = filteredTerms.stream()
+                .map(t -> t.termInfo.getTerm())
+                .collect(Collectors.toSet());
+
+        // 2. 이미 존재하는 Term들을 한 번에 조회 (Map으로 만들어 접근 속도 향상)
+        Map<String, Term> existingTermMap = termRepository.findByTermIn(termNames).stream()
+                .collect(Collectors.toMap(Term::getTerm, t -> t, (t1, t2) -> t1));
+
+        List<Term> newTermsToSave = new ArrayList<>();
         List<ArticleTerm> articleTerms = new ArrayList<>();
+
         for (TermData termData : filteredTerms) {
             MorphemeAnalyzer.TermInfo termInfo = termData.termInfo;
+            String termText = termInfo.getTerm();
 
-            // DB 컬럼 길이 초과 term 건너뛰기
-            if (termInfo.getTerm().length() > 100) {
-                log.debug("Term 길이 초과로 건너뜀: {} (길이: {})", termInfo.getTerm(), termInfo.getTerm().length());
-                continue;
+            if (termText.length() > 100) continue;
+
+            // 3. 한글 처리 (필요한 경우에만)
+            String decomposed = KoreanCharacterUtil.containsHangul(termText) ? KoreanCharacterUtil.decomposeHangul(termText) : null;
+            String chosung = KoreanCharacterUtil.containsHangul(termText) ? KoreanCharacterUtil.extractChosung(termText) : null;
+
+            // 4. 기존 Term 확인 및 업데이트 혹은 생성
+            Term term = existingTermMap.get(termText);
+            
+            if (term == null) {
+                // 신규 Term 객체 생성 (아직 save 안 함)
+                term = Term.builder()
+                        .term(termText)
+                        .termType(termInfo.getTermType())
+                        .decomposedTerm(decomposed)
+                        .chosung(chosung)
+                        .build();
+                newTermsToSave.add(term);
+                // Map에 미리 넣어 중복 생성 방지
+                existingTermMap.put(termText, term); 
+            } else {
+                // 기존 Term 업데이트 로직 (필요 시 더티 체킹 활용 가능)
+                if ((term.getDecomposedTerm() == null && decomposed != null) || (term.getChosung() == null && chosung != null)) {
+                    term.updateDecomposed(decomposed, chosung); // 별도의 update 메서드 사용 추천
+                }
             }
-            // 한글이 포함된 경우 자모 분리 및 초성 추출
-            final String decomposed = KoreanCharacterUtil.containsHangul(termInfo.getTerm())
-                    ? KoreanCharacterUtil.decomposeHangul(termInfo.getTerm())
-                    : null;
-            final String chosung = KoreanCharacterUtil.containsHangul(termInfo.getTerm())
-                    ? KoreanCharacterUtil.extractChosung(termInfo.getTerm())
-                    : null;
 
-            // Term 엔티티 찾기 또는 생성
-            Term term = termRepository.findByTermAndTermType(termInfo.getTerm(), termInfo.getTermType())
-                    .map(existingTerm -> {
-                        // 기존 Term의 decomposedTerm 또는 chosung이 null이면 업데이트
-                        if ((existingTerm.getDecomposedTerm() == null && decomposed != null) ||
-                            (existingTerm.getChosung() == null && chosung != null)) {
-                            Term updatedTerm = Term.builder()
-                                    .id(existingTerm.getId())
-                                    .term(existingTerm.getTerm())
-                                    .termType(existingTerm.getTermType())
-                                    .decomposedTerm(decomposed != null ? decomposed : existingTerm.getDecomposedTerm())
-                                    .chosung(chosung != null ? chosung : existingTerm.getChosung())
-                                    .createdAt(existingTerm.getCreatedAt())
-                                    .build();
-                            return termRepository.save(updatedTerm);
-                        }
-                        return existingTerm;
-                    })
-                    .orElseGet(() -> {
-                        Term newTerm = Term.builder()
-                                .term(termInfo.getTerm())
-                                .termType(termInfo.getTermType())
-                                .decomposedTerm(decomposed)
-                                .chosung(chosung)
-                                .build();
-                        return termRepository.save(newTerm);
-                    });
-
-            // ArticleTerm 생성 (가중치가 적용된 score 계산)
+            // 5. ArticleTerm 리스트 추가
             double score = termData.frequency * termData.weight;
-
-            ArticleTerm articleTerm = ArticleTerm.builder()
+            articleTerms.add(ArticleTerm.builder()
                     .article(article)
                     .term(term)
                     .frequency(termData.frequency)
                     .score(score)
                     .source(termData.source)
-                    .build();
-            articleTerms.add(articleTerm);
-
-            log.debug("ArticleTerm 생성: {} (빈도: {}, 가중치: {}, score: {}, source: {})",
-                termInfo.getTerm(), termData.frequency, termData.weight, score, termData.source);
+                    .build());
         }
+
+        // 6. DB 일괄 저장 (Transaction 내부에서 실행)
+        termRepository.saveAll(newTermsToSave); // 신규 단어들 저장
+        articleTermRepository.saveAll(articleTerms); // 관계 테이블 저장
 
         if (!articleTerms.isEmpty()) {
             articleTermRepository.saveAll(articleTerms);
