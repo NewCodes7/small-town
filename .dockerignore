@@ -1,0 +1,16 @@
+.git
+.gradle
+build
+logs
+.devcontainer
+.vscode
+.env
+*.sql.gz
+*.md
+nginx
+certbot
+credentials
+promtail-config.yml
+prometheus.yml
+deploy.sh
+docker-compose.yml
