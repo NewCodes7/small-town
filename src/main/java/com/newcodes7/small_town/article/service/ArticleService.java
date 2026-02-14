@@ -77,6 +77,7 @@ public class ArticleService {
     // RRF 가중치 (각 검색 방법의 기여도)
     private static final double RRF_WEIGHT_BM25 = 1.0;    // BM25: 기본 가중치
     private static final double RRF_WEIGHT_VECTOR = 1.0;  // Vector: 기본 가중치
+    private static final double RRF_WEIGHT_TITLE = 0.5;   // ILIKE 제목 매칭: 보조 신호
 
     public ArticleService(ArticleRepository articleRepository,
                          @Qualifier("articleCorporationRepository") CorporationRepository corporationRepository,
@@ -658,6 +659,11 @@ public class ArticleService {
         }
         long bm25EndTime = System.currentTimeMillis();
 
+        // ILIKE 제목 매칭 검색 (메인 스레드, 빠르므로 별도 스레드 불필요)
+        long ilikeStartTime = System.currentTimeMillis();
+        Map<Long, Double> titleResults = performILIKESearchWithScores(keyword.trim(), regions, category);
+        long ilikeEndTime = System.currentTimeMillis();
+
         // 3. Vector 검색 결과 대기
         Map<Long, Double> vectorResultsTmp = new HashMap<>();
         try {
@@ -673,9 +679,9 @@ public class ArticleService {
         Set<Long> vectorOnlyIds = new HashSet<>(vectorResults.keySet());
         vectorOnlyIds.removeAll(bm25Results.keySet());
 
-        // 5. RRF (Reciprocal Rank Fusion) 계산
+        // 5. RRF (Reciprocal Rank Fusion) 계산 — BM25 + Vector + ILIKE 제목 매칭
         long rerankStartTime = System.currentTimeMillis();
-        Map<Long, Double> rrfScores = calculateRRFScores(bm25Results, vectorResults);
+        Map<Long, Double> rrfScores = calculateRRFScores(bm25Results, vectorResults, titleResults);
         long rerankEndTime = System.currentTimeMillis();
 
         if (rrfScores.isEmpty()) {
@@ -684,9 +690,10 @@ public class ArticleService {
         }
 
         long totalEndTime = System.currentTimeMillis();
-        log.info("[검색] keyword='{}' | BM25: {}ms ({}개), Vector: {}ms ({}개), Rerank(RRF): {}ms ({}개) | 총: {}ms",
+        log.info("[검색] keyword='{}' | BM25: {}ms ({}개), ILIKE: {}ms ({}개), Vector: {}ms ({}개), Rerank(RRF): {}ms ({}개) | 총: {}ms",
             keyword,
             bm25EndTime - bm25StartTime, bm25Results.size(),
+            ilikeEndTime - ilikeStartTime, titleResults.size(),
             vectorEndTime - vectorStartTime, vectorResults.size(),
             rerankEndTime - rerankStartTime, rrfScores.size(),
             totalEndTime - totalStartTime);
@@ -763,9 +770,10 @@ public class ArticleService {
                     Double bm25Score = bm25Results.get(articleId);
                     Double vectorScore = vectorResults.get(articleId);
                     Double rrfScore = rrfScores.get(articleId);
+                    Double ilikeScore = titleResults.get(articleId);
                     Boolean isLiked = likeStatusMap.getOrDefault(articleId, false);
                     boolean foundByVector = vectorOnlyIds.contains(articleId);
-                    return new ArticleSearchResultDto(article, foundByVector, bm25Score, vectorScore, rrfScore, null, null, isLiked);
+                    return new ArticleSearchResultDto(article, foundByVector, bm25Score, vectorScore, rrfScore, ilikeScore, null, isLiked);
                 })
                 .collect(Collectors.toList());
 
@@ -883,29 +891,32 @@ public class ArticleService {
      * 가중치:
      * - BM25: 1.0 (주 검색)
      * - Vector: 1.0 (의미 검색)
+     * - Title (ILIKE): 0.5 (보조 신호 — 제목 매칭)
      *
      * @param bm25Results BM25 검색 결과 (ID -> 스코어)
      * @param vectorResults Vector 검색 결과 (ID -> 유사도)
+     * @param titleResults ILIKE 제목 매칭 결과 (ID -> pseudo-score)
      * @return RRF 스코어 맵 (ID -> RRF 스코어)
      */
     private Map<Long, Double> calculateRRFScores(
             Map<Long, Double> bm25Results,
-            Map<Long, Double> vectorResults) {
+            Map<Long, Double> vectorResults,
+            Map<Long, Double> titleResults) {
 
         Map<Long, Double> rrfScores = new HashMap<>();
 
-        // 1. BM25 순위 계산 (스코어 내림차순)
+        // 1. 각 검색 방법의 순위 계산 (스코어 내림차순)
         Map<Long, Integer> bm25Ranks = calculateRanks(bm25Results);
-
-        // 2. Vector 순위 계산 (유사도 내림차순)
         Map<Long, Integer> vectorRanks = calculateRanks(vectorResults);
+        Map<Long, Integer> titleRanks = calculateRanks(titleResults);
 
-        // 3. 모든 Article ID 수집
+        // 2. 모든 Article ID 수집
         Set<Long> allArticleIds = new HashSet<>();
         allArticleIds.addAll(bm25Results.keySet());
         allArticleIds.addAll(vectorResults.keySet());
+        allArticleIds.addAll(titleResults.keySet());
 
-        // 4. RRF 스코어 계산 (가중치 적용)
+        // 3. RRF 스코어 계산 (가중치 적용)
         for (Long articleId : allArticleIds) {
             double rrfScore = 0.0;
 
@@ -915,6 +926,10 @@ public class ArticleService {
 
             if (vectorRanks.containsKey(articleId)) {
                 rrfScore += RRF_WEIGHT_VECTOR / (RRF_K + vectorRanks.get(articleId));
+            }
+
+            if (titleRanks.containsKey(articleId)) {
+                rrfScore += RRF_WEIGHT_TITLE / (RRF_K + titleRanks.get(articleId));
             }
 
             rrfScores.put(articleId, rrfScore);
@@ -1138,6 +1153,66 @@ public class ArticleService {
         // 경량 쿼리 사용: ID와 published_at만 조회 (최대 100개)
         return articleRepository.findArticleIdsWithPublishedAtByFilters(
                 searchPattern, safeDomesticTypes, domesticTypesSize, safeCategorySized, categorySize);
+    }
+
+    /**
+     * ILIKE 검색 수행 (제목 매칭 품질 기반 pseudo-score 포함)
+     * title과 translated_title 모두 검사하여 더 높은 점수를 채택
+     *
+     * 매칭 점수:
+     * - 제목 == 키워드 (exact): 3.0
+     * - 제목이 키워드로 시작: 2.0
+     * - 제목에 키워드 포함 (contains): 1.0
+     *
+     * @param keyword 검색 키워드
+     * @param regions 지역 필터
+     * @param category 카테고리 필터
+     * @return Article ID -> pseudo-score 맵
+     */
+    private Map<Long, Double> performILIKESearchWithScores(String keyword, List<String> regions, List<String> category) {
+        List<Object[]> rawResults = performILIKESearchRaw(keyword, regions, category);
+        if (rawResults == null || rawResults.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        // ILIKE 매칭된 article ID 추출
+        List<Long> articleIds = rawResults.stream()
+                .map(row -> ((Number) row[0]).longValue())
+                .collect(Collectors.toList());
+
+        // article의 title, translatedTitle 조회
+        List<Article> articles = articleRepository.findAllById(articleIds);
+
+        String keywordLower = keyword.trim().toLowerCase();
+        Map<Long, Double> scoreMap = new HashMap<>();
+
+        for (Article article : articles) {
+            double score = calculateTitleMatchScore(article.getTitle(), keywordLower);
+            double translatedScore = calculateTitleMatchScore(article.getTranslatedTitle(), keywordLower);
+            scoreMap.put(article.getId(), Math.max(score, translatedScore));
+        }
+
+        return scoreMap;
+    }
+
+    /**
+     * 제목과 키워드의 매칭 품질에 따른 점수 계산
+     */
+    private double calculateTitleMatchScore(String title, String keywordLower) {
+        if (title == null || title.isEmpty()) {
+            return 0.0;
+        }
+        String titleLower = title.toLowerCase();
+        if (titleLower.equals(keywordLower)) {
+            return 3.0;
+        }
+        if (titleLower.startsWith(keywordLower)) {
+            return 2.0;
+        }
+        if (titleLower.contains(keywordLower)) {
+            return 1.0;
+        }
+        return 0.0;
     }
 
     /**
