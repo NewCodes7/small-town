@@ -8,6 +8,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.Collection;
 
+import jakarta.persistence.EntityManager;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -47,6 +49,7 @@ public class ArticleTermService {
     private final StopwordRepository stopwordRepository;
     private final UnifiedMorphemeAnalyzer unifiedMorphemeAnalyzer;
     private final TransactionTemplate transactionTemplate;
+    private final EntityManager entityManager;
 
     /**
      * 모든 article의 term을 추출하고 저장
@@ -80,7 +83,7 @@ public class ArticleTermService {
         long startTime = System.currentTimeMillis();
 
         ArticleTermExtractionResult result = new ArticleTermExtractionResult();
-        final int BATCH_SIZE = 100;
+        final int BATCH_SIZE = 50;
         int page = 0;
 
         while (true) {
@@ -122,6 +125,9 @@ public class ArticleTermService {
                 result.addFailedArticles(batchResult.failed);
                 result.addTermCount(batchResult.terms);
             }
+
+            // 영속성 컨텍스트 초기화 (메모리 누적 방지, connection 조기 반환)
+            entityManager.clear();
 
             log.info("배치 {} 완료: 처리={}, 건너뜀={}, 실패={}, term={}",
                     page + 1, result.getProcessedArticles(), result.getSkippedArticles(),
