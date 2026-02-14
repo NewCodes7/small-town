@@ -1,17 +1,39 @@
 services:
+  app:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    container_name: small-town-dev
+    working_dir: /workspaces/small-town
+    command: sleep infinity
+    volumes:
+      - ..:/workspaces/small-town:cached
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   postgres:
-    image: paradedb/paradedb:latest
+    build:
+      context: .
+      dockerfile: postgres.Dockerfile
+    container_name: postgres
+    restart: always
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: newcodes
-      POSTGRES_PASSWORD: dev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-whsskdjfuqrpgodiwl}
       POSTGRES_DB: small_town
     volumes:
-      - ./postgres_backup_data:/var/lib/postgresql/data 
+      - paradedb_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U newcodes -d small_town"]
+      interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s # PostgreSQL이 시작될 때까지 기다리는 시간
+      start_period: 30s
 
 volumes:
-  postgres_data:
+  paradedb_data:
+    external: true

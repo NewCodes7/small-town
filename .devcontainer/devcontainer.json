@@ -1,8 +1,8 @@
 {
   "name": "small-town",
-  "dockerComposeFile": "docker-compose.yml", 
-  "service": "postgres", 
-  "workspaceFolder": "/workspaces/small-town", 
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/small-town",
   "features": {
     "ghcr.io/devcontainers/features/java:1": {
       "version": "17",
@@ -10,14 +10,13 @@
     },
     "ghcr.io/devcontainers/features/git:1": {}
   },
-  "forwardPorts": [3306, 5432, 8080],
+  "forwardPorts": [5432, 8080],
   "customizations": {
     "vscode": {
       "extensions": [
         "ms-azuretools.vscode-docker",
         "ms-vscode.vscode-sqltools",
         "ms-vscode.vscode-sqltools-driver-pg",
-        "ms-vscode.vscode-sqltools-driver-mysql",
         "vscjava.vscode-java-pack",
         "usernamehw.errorlens",
         "eamodio.gitlens",
