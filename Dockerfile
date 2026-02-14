@@ -1,5 +1,6 @@
 # Stage 1: Build
 FROM gradle:8.5.0-jdk17 AS build
+ENV GRADLE_OPTS="-Xms512m -Xmx1024m"
 WORKDIR /home/gradle/project
 
 # 의존성만 먼저 복사해서 캐시 활용
