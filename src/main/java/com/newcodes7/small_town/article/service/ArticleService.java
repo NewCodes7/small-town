@@ -671,7 +671,7 @@ public class ArticleService {
         Map<Long, Double> vectorResults = new HashMap<>();
         float[] queryEmbedding = null;
         try {
-            ClovaSearchService.VectorSearchResult vectorSearchResult = vectorFuture.get(30, TimeUnit.SECONDS);
+            ClovaSearchService.VectorSearchResult vectorSearchResult = vectorFuture.get(5, TimeUnit.SECONDS);
             vectorResults = new HashMap<>(vectorSearchResult.getScores());
             queryEmbedding = vectorSearchResult.getQueryEmbedding();
         } catch (Exception e) {
@@ -679,44 +679,53 @@ public class ArticleService {
         }
         long vectorEndTime = System.currentTimeMillis();
 
-        // 4. 교차 점수 계산: 각 검색 방법에서만 발견된 article에 나머지 점수 보충
-        // 4-1. BM25에만 있는 article들의 벡터 점수 계산
+        // 4. 교차 점수 계산: 각 검색 방법에서만 발견된 article에 나머지 점수 보충 (병렬)
         Set<Long> bm25OnlyIds = new HashSet<>(bm25Results.keySet());
         bm25OnlyIds.removeAll(vectorResults.keySet());
-        if (!bm25OnlyIds.isEmpty() && queryEmbedding != null) {
-            try {
-                Map<Long, Double> supplementVectorScores = clovaSearchService
-                        .computeSimilarityForArticlesWithEmbedding(queryEmbedding, new ArrayList<>(bm25OnlyIds));
-                vectorResults.putAll(supplementVectorScores);
-            } catch (Exception e) {
-                log.warn("BM25-only article 벡터 보충 점수 계산 실패: {}", e.getMessage());
-            }
-        }
 
-        // 4-2. Vector에만 있는 article들의 BM25 점수 계산 (초기 BM25 검색과 동일한 쿼리 구조)
         Set<Long> vectorOnlyIds = new HashSet<>(vectorResults.keySet());
         vectorOnlyIds.removeAll(bm25Results.keySet());
-        if (!vectorOnlyIds.isEmpty()) {
-            log.info("교차검색 4-2: vector-only {} 건에 대해 BM25 보충 시도, IDs={}, query={}", vectorOnlyIds.size(), vectorOnlyIds, bm25SearchQuery);
-            List<Object[]> supplementBm25 = computeBM25ScoreForArticles(bm25SearchQuery, regions, category, new ArrayList<>(vectorOnlyIds));
-            log.info("교차검색 4-2: BM25 보충 결과 {} 건 반환", supplementBm25.size());
-            for (Object[] row : supplementBm25) {
-                Long id = ((Number) row[0]).longValue();
-                Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
-                log.info("교차검색 4-2: articleId={}, bm25Score={}", id, score);
-                if (score != null) {
-                    bm25Results.put(id, score);
-                }
-            }
-        }
 
-        // 4-3. ILIKE-only article들의 BM25/Vector 점수 보충
         Set<Long> ilikeOnlyIds = new HashSet<>(titleResults.keySet());
         ilikeOnlyIds.removeAll(bm25Results.keySet());
         ilikeOnlyIds.removeAll(vectorResults.keySet());
-        if (!ilikeOnlyIds.isEmpty()) {
-            // BM25 보충 (초기 BM25 검색과 동일한 쿼리 구조)
-            List<Object[]> supplementBm25 = computeBM25ScoreForArticles(bm25SearchQuery, regions, category, new ArrayList<>(ilikeOnlyIds));
+
+        // 4-1. Vector 보충 대상 합산 (BM25-only + ILIKE-only)
+        Set<Long> needVectorIds = new HashSet<>(bm25OnlyIds);
+        needVectorIds.addAll(ilikeOnlyIds);
+
+        // 4-2. BM25 보충 대상 합산 (Vector-only + ILIKE-only)
+        Set<Long> needBm25Ids = new HashSet<>(vectorOnlyIds);
+        needBm25Ids.addAll(ilikeOnlyIds);
+
+        // 병렬 실행: Vector 보충 + BM25 보충
+        final float[] cachedEmbedding = queryEmbedding;
+
+        CompletableFuture<Map<Long, Double>> vectorSupplementFuture = CompletableFuture.supplyAsync(() -> {
+            if (needVectorIds.isEmpty() || cachedEmbedding == null) return Map.<Long, Double>of();
+            try {
+                return clovaSearchService.computeSimilarityForArticlesWithEmbedding(cachedEmbedding, new ArrayList<>(needVectorIds));
+            } catch (Exception e) {
+                log.warn("교차검색 Vector 보충 실패: {}", e.getMessage());
+                return Map.<Long, Double>of();
+            }
+        }, searchExecutor);
+
+        CompletableFuture<List<Object[]>> bm25SupplementFuture = CompletableFuture.supplyAsync(() -> {
+            if (needBm25Ids.isEmpty()) return Collections.<Object[]>emptyList();
+            return computeBM25ScoreForArticles(bm25SearchQuery, regions, category, new ArrayList<>(needBm25Ids));
+        }, searchExecutor);
+
+        // 결과 대기 및 병합
+        try {
+            Map<Long, Double> supplementVectorScores = vectorSupplementFuture.get(5, TimeUnit.SECONDS);
+            vectorResults.putAll(supplementVectorScores);
+        } catch (Exception e) {
+            log.warn("교차검색 Vector 보충 결과 대기 실패: {}", e.getMessage());
+        }
+
+        try {
+            List<Object[]> supplementBm25 = bm25SupplementFuture.get(5, TimeUnit.SECONDS);
             for (Object[] row : supplementBm25) {
                 Long id = ((Number) row[0]).longValue();
                 Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
@@ -724,31 +733,20 @@ public class ArticleService {
                     bm25Results.put(id, score);
                 }
             }
-
-            // Vector 보충
-            if (queryEmbedding != null) {
-                try {
-                    Map<Long, Double> supplementVectorScores = clovaSearchService
-                            .computeSimilarityForArticlesWithEmbedding(queryEmbedding, new ArrayList<>(ilikeOnlyIds));
-                    vectorResults.putAll(supplementVectorScores);
-                } catch (Exception e) {
-                    log.warn("ILIKE-only article 벡터 보충 점수 계산 실패: {}", e.getMessage());
-                }
-            }
+        } catch (Exception e) {
+            log.warn("교차검색 BM25 보충 결과 대기 실패: {}", e.getMessage());
         }
 
         // 교차 점수 계산 완료 — 이후 lambda에서 참조할 수 있도록 final 변수 생성
         final Map<Long, Double> finalVectorResults = vectorResults;
         final Map<Long, Double> finalBm25Results = bm25Results;
 
-        // 5. 각 검색 방법 내 순위 계산 (Admin 표시용)
+        // 5-6. RRF (Reciprocal Rank Fusion) 계산 + 순위 계산 (한 번에 수행)
+        long rerankStartTime = System.currentTimeMillis();
         final Map<Long, Integer> bm25Ranks = calculateRanks(finalBm25Results);
         final Map<Long, Integer> vectorRanks = calculateRanks(finalVectorResults);
         final Map<Long, Integer> ilikeRanks = calculateRanks(titleResults);
-
-        // 6. RRF (Reciprocal Rank Fusion) 계산 — BM25 + Vector + ILIKE 제목 매칭
-        long rerankStartTime = System.currentTimeMillis();
-        Map<Long, Double> rrfScores = calculateRRFScores(finalBm25Results, finalVectorResults, titleResults, titleWeights);
+        Map<Long, Double> rrfScores = calculateRRFScoresFromRanks(bm25Ranks, vectorRanks, ilikeRanks, titleResults, titleWeights);
         long rerankEndTime = System.currentTimeMillis();
 
         if (rrfScores.isEmpty()) {
@@ -767,8 +765,9 @@ public class ArticleService {
 
         // 8. 전체 RRF 결과의 article을 조회하여 유효한 것만 필터링
         // (Materialized View 동기화 지연, soft delete 등으로 일부 article이 없을 수 있음)
+        // findByIdInWithCorporation: Corporation fetch join으로 N+1 방지
         List<Long> allRrfIds = new ArrayList<>(rrfScores.keySet());
-        List<Article> allArticles = articleRepository.findAllById(allRrfIds);
+        List<Article> allArticles = articleRepository.findByIdInWithCorporation(allRrfIds);
 
         // 유효한 article만 Map으로 저장 (deleted_at 체크 포함)
         Map<Long, Article> validArticleMap = allArticles.stream()
@@ -984,43 +983,31 @@ public class ArticleService {
     }
 
     /**
-     * RRF (Reciprocal Rank Fusion) 스코어 계산
-     * 각 검색 방법의 순위를 기반으로 최종 스코어 계산
+     * 미리 계산된 순위 맵을 사용하여 RRF 스코어 계산 (중복 순위 계산 방지)
      *
-     * RRF_score(d) = Σ (weight_i * 1 / (k + rank_i(d))) for each ranking list
-     * k = 60 (standard value)
-     *
-     * 가중치:
-     * - BM25: 1.0 (주 검색)
-     * - Vector: 1.0 (의미 검색)
-     * - Title (ILIKE): 제목 길이 대비 키워드 커버리지에 따라 0.3~1.5 동적 조절
-     *
-     * @param bm25Results BM25 검색 결과 (ID -> 스코어)
-     * @param vectorResults Vector 검색 결과 (ID -> 유사도)
-     * @param titleResults ILIKE 제목 매칭 결과 (ID -> pseudo-score)
-     * @param titleWeights ILIKE per-article 가중치 (ID -> 커버리지 기반 가중치)
+     * @param bm25Ranks BM25 순위 맵
+     * @param vectorRanks Vector 순위 맵
+     * @param ilikeRanks ILIKE 순위 맵
+     * @param titleResults ILIKE 제목 매칭 결과 (ID 수집용)
+     * @param titleWeights ILIKE per-article 가중치
      * @return RRF 스코어 맵 (ID -> RRF 스코어)
      */
-    private Map<Long, Double> calculateRRFScores(
-            Map<Long, Double> bm25Results,
-            Map<Long, Double> vectorResults,
+    private Map<Long, Double> calculateRRFScoresFromRanks(
+            Map<Long, Integer> bm25Ranks,
+            Map<Long, Integer> vectorRanks,
+            Map<Long, Integer> ilikeRanks,
             Map<Long, Double> titleResults,
             Map<Long, Double> titleWeights) {
 
         Map<Long, Double> rrfScores = new HashMap<>();
 
-        // 1. 각 검색 방법의 순위 계산 (스코어 내림차순)
-        Map<Long, Integer> bm25Ranks = calculateRanks(bm25Results);
-        Map<Long, Integer> vectorRanks = calculateRanks(vectorResults);
-        Map<Long, Integer> titleRanks = calculateRanks(titleResults);
-
-        // 2. 모든 Article ID 수집
+        // 모든 Article ID 수집
         Set<Long> allArticleIds = new HashSet<>();
-        allArticleIds.addAll(bm25Results.keySet());
-        allArticleIds.addAll(vectorResults.keySet());
-        allArticleIds.addAll(titleResults.keySet());
+        allArticleIds.addAll(bm25Ranks.keySet());
+        allArticleIds.addAll(vectorRanks.keySet());
+        allArticleIds.addAll(ilikeRanks.keySet());
 
-        // 3. RRF 스코어 계산 (가중치 적용)
+        // RRF 스코어 계산 (가중치 적용)
         for (Long articleId : allArticleIds) {
             double rrfScore = 0.0;
 
@@ -1032,9 +1019,9 @@ public class ArticleService {
                 rrfScore += RRF_WEIGHT_VECTOR / (RRF_K + vectorRanks.get(articleId));
             }
 
-            if (titleRanks.containsKey(articleId)) {
+            if (ilikeRanks.containsKey(articleId)) {
                 double titleWeight = titleWeights.getOrDefault(articleId, RRF_WEIGHT_TITLE_MIN);
-                rrfScore += titleWeight / (RRF_K + titleRanks.get(articleId));
+                rrfScore += titleWeight / (RRF_K + ilikeRanks.get(articleId));
             }
 
             rrfScores.put(articleId, rrfScore);
@@ -1293,26 +1280,25 @@ public class ArticleService {
                 .map(row -> ((Number) row[0]).longValue())
                 .collect(Collectors.toList());
 
-        // article의 title, translatedTitle 조회
-        List<Article> articles = articleRepository.findAllById(articleIds);
+        // 경량 쿼리: title, translatedTitle만 조회 (전체 Article 엔티티 로드 방지)
+        List<Object[]> titleRows = articleRepository.findTitlesByIds(articleIds);
 
         String keywordLower = keyword.trim().toLowerCase();
         int keywordLength = keywordLower.length();
 
-        for (Article article : articles) {
-            double score = calculateTitleMatchScore(article.getTitle(), keywordLower);
-            double translatedScore = calculateTitleMatchScore(article.getTranslatedTitle(), keywordLower);
+        for (Object[] row : titleRows) {
+            Long articleId = ((Number) row[0]).longValue();
+            String title = row[1] != null ? (String) row[1] : "";
+            String translatedTitle = row[2] != null ? (String) row[2] : "";
+
+            double score = calculateTitleMatchScore(title, keywordLower);
+            double translatedScore = calculateTitleMatchScore(translatedTitle, keywordLower);
 
             // 더 높은 점수의 제목을 기준으로 커버리지 계산
-            String bestTitle;
-            if (translatedScore > score) {
-                bestTitle = article.getTranslatedTitle();
-            } else {
-                bestTitle = article.getTitle();
-            }
+            String bestTitle = translatedScore > score ? translatedTitle : title;
 
-            scoreMap.put(article.getId(), Math.max(score, translatedScore));
-            weightMap.put(article.getId(), calculateTitleCoverageWeight(bestTitle, keywordLength));
+            scoreMap.put(articleId, Math.max(score, translatedScore));
+            weightMap.put(articleId, calculateTitleCoverageWeight(bestTitle, keywordLength));
         }
     }
 

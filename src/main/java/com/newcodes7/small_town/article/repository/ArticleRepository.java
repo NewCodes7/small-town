@@ -405,7 +405,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "JOIN corporation c ON a.corporation_id = c.id " +
            "LEFT JOIN category cat ON a.category_id = cat.id " +
            "WHERE a.deleted_at IS NULL " +
-           "AND (:keyword IS NULL OR LOWER(a.title) LIKE LOWER(:keyword) OR LOWER(a.translated_title) LIKE LOWER(:keyword)) " +
+           "AND (:keyword IS NULL OR a.title ILIKE :keyword OR a.translated_title ILIKE :keyword) " +
            "AND (:domesticTypesSize = 0 OR c.is_domestic IN (:domesticTypes)) " +
            "AND (:categorySize = 0 OR cat.name IN (:category)) " +
            "LIMIT 100",
@@ -416,6 +416,16 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
             @Param("domesticTypesSize") int domesticTypesSize,
             @Param("category") List<String> category,
             @Param("categorySize") int categorySize);
+
+    /**
+     * ILIKE 스코어 계산용 경량 쿼리 (id, title, translatedTitle만 반환)
+     * 전체 Article 엔티티 로드를 방지하여 메모리/DB 부하 감소
+     */
+    @Query(value = "SELECT a.id, a.title, a.translated_title " +
+           "FROM article a " +
+           "WHERE a.id IN (:ids)",
+           nativeQuery = true)
+    List<Object[]> findTitlesByIds(@Param("ids") List<Long> ids);
 
     // ===== BM25 검색 (ArticleTerm 기반) =====
 
