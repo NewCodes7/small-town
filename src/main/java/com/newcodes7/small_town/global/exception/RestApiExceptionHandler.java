@@ -7,11 +7,16 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * REST API 전용 예외 처리 핸들러
@@ -134,6 +139,25 @@ public class RestApiExceptionHandler {
         return ResponseEntity
             .status(HttpStatus.BAD_REQUEST)
             .body(errorResponse);
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, String>> handleValidationExceptions(MethodArgumentNotValidException ex, WebRequest request) throws MethodArgumentNotValidException {
+        String path = ((ServletWebRequest) request).getRequest().getRequestURI();
+        
+        if (!isApiRequest(path, request)) {
+            throw ex; // GlobalExceptionHandler에서 처리하도록 예외를 다시 던짐
+        }
+        
+        log.warn("Validation error at {}", path);
+        
+        Map<String, String> errors = new HashMap<>();
+        ex.getBindingResult().getAllErrors().forEach((error) -> {
+            String fieldName = ((FieldError) error).getField();
+            String errorMessage = error.getDefaultMessage();
+            errors.put(fieldName, errorMessage);
+        });
+        return new ResponseEntity<>(errors, HttpStatus.BAD_REQUEST);
     }
 
     private HttpStatus determineHttpStatus(ArticleException e) {
