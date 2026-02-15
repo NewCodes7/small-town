@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import com.newcodes7.small_town.admin.util.AdminResponseBuilder;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.ArticleTermRepository;
 import com.newcodes7.small_town.article.repository.TermRepository;
@@ -65,8 +66,6 @@ public class AdminTermController {
     @GetMapping("/articles/extract-terms")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> extractArticleTerms() {
-        Map<String, Object> response = new HashMap<>();
-
         try {
             log.info("Article term 추출 요청 시작");
 
@@ -88,16 +87,12 @@ public class AdminTermController {
                 }
             }).start();
 
-            response.put("success", true);
-            response.put("message", "Article term 추출 작업이 시작되었습니다. 이미 term이 있는 article은 건너뜁니다. 로그를 확인해주세요.");
-
-            return ResponseEntity.ok(response);
+            return AdminResponseBuilder.successWithMessage(
+                "Article term 추출 작업이 시작되었습니다. 이미 term이 있는 article은 건너뜁니다. 로그를 확인해주세요.");
 
         } catch (Exception e) {
             log.error("Article term 추출 작업 시작 중 오류 발생: {}", e.getMessage(), e);
-            response.put("success", false);
-            response.put("message", "Term 추출 작업 시작 중 오류가 발생했습니다: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(response);
+            return AdminResponseBuilder.error("Term 추출 작업 시작 중 오류가 발생했습니다: " + e.getMessage());
         }
     }
 
@@ -111,8 +106,6 @@ public class AdminTermController {
     @ResponseBody
     public ResponseEntity<Map<String, Object>> reextractAllArticleTerms(
             @RequestParam(required = false) Long maxArticleId) {
-        Map<String, Object> response = new HashMap<>();
-
         try {
             String rangeInfo = maxArticleId != null ? " (ID <= " + maxArticleId + ")" : " (전체)";
             log.info("Article term 강제 재분석 요청 시작{}", rangeInfo);
@@ -135,19 +128,17 @@ public class AdminTermController {
                 }
             }).start();
 
-            response.put("success", true);
-            response.put("message", "Article term 강제 재분석 작업이 시작되었습니다." + rangeInfo + " 로그를 확인해주세요.");
+            Map<String, Object> data = new HashMap<>();
             if (maxArticleId != null) {
-                response.put("maxArticleId", maxArticleId);
+                data.put("maxArticleId", maxArticleId);
             }
-
-            return ResponseEntity.ok(response);
+            
+            return AdminResponseBuilder.success(data, 
+                "Article term 강제 재분석 작업이 시작되었습니다." + rangeInfo + " 로그를 확인해주세요.");
 
         } catch (Exception e) {
             log.error("Article term 강제 재분석 작업 시작 중 오류 발생: {}", e.getMessage(), e);
-            response.put("success", false);
-            response.put("message", "Term 강제 재분석 작업 시작 중 오류가 발생했습니다: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(response);
+            return AdminResponseBuilder.error("Term 강제 재분석 작업 시작 중 오류가 발생했습니다: " + e.getMessage());
         }
     }
 
@@ -516,30 +507,21 @@ public class AdminTermController {
     public ResponseEntity<Map<String, Object>> deleteTerm(
             @PathVariable Long termId,
             @RequestBody(required = false) Map<String, String> request) {
-
-        Map<String, Object> response = new HashMap<>();
-
         try {
             String reason = request != null ? request.get("reason") : null;
-
             int deletedCount = articleTermService.deleteTermAndAddToStopwords(termId, reason);
 
-            response.put("success", true);
-            response.put("message", String.format("Term이 삭제되고 불용어로 등록되었습니다. (ArticleTerm + VideoTerm 총 %d개 삭제)", deletedCount));
-            response.put("deletedTermCount", deletedCount);
-
-            return ResponseEntity.ok(response);
+            Map<String, Object> data = new HashMap<>();
+            data.put("deletedTermCount", deletedCount);
+            
+            return AdminResponseBuilder.success(data, 
+                String.format("Term이 삭제되고 불용어로 등록되었습니다. (ArticleTerm + VideoTerm 총 %d개 삭제)", deletedCount));
 
         } catch (IllegalArgumentException e) {
-            response.put("success", false);
-            response.put("message", e.getMessage());
-            return ResponseEntity.badRequest().body(response);
-
+            return AdminResponseBuilder.badRequest(e.getMessage());
         } catch (Exception e) {
             log.error("Term 삭제 중 오류 발생: {}", e.getMessage(), e);
-            response.put("success", false);
-            response.put("message", "Term 삭제 중 오류가 발생했습니다: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(response);
+            return AdminResponseBuilder.error("Term 삭제 중 오류가 발생했습니다: " + e.getMessage());
         }
     }
 
