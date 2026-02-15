@@ -27,8 +27,8 @@ public class ClovaSearchService {
     private final NaverClovaEmbeddingService clovaEmbeddingService;
     private final ClovaArticleChunkRepository clovaChunkRepository;
 
-    // 기본 유사도 임계값
-    private static final double DEFAULT_SIMILARITY_THRESHOLD = 0.5;
+    // 기본 유사도 임계값 (0.52 미만은 관련도가 낮으므로 배제)
+    private static final double DEFAULT_SIMILARITY_THRESHOLD = 0.52;
 
     // 최대 결과 수
     private static final int DEFAULT_MAX_RESULTS = 100;

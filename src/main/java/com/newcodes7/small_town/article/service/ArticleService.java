@@ -71,14 +71,12 @@ public class ArticleService {
     private final ClovaSearchService clovaSearchService;
     private final ExecutorService searchExecutor;
 
-    // RRF 상수
-    private static final int RRF_K = 60;  // RRF 상수 (일반적으로 60 사용)
-
-    // RRF 가중치 (각 검색 방법의 기여도)
-    private static final double RRF_WEIGHT_BM25 = 1.0;    // BM25: 기본 가중치
-    private static final double RRF_WEIGHT_VECTOR = 1.0;  // Vector: 기본 가중치
-    private static final double RRF_WEIGHT_TITLE_MIN = 0.3;  // ILIKE: 커버리지 낮을 때 최소 가중치
-    private static final double RRF_WEIGHT_TITLE_MAX = 1.5;  // ILIKE: 커버리지 높을 때 최대 가중치
+    // Normalized Score Fusion (NSF) 가중치
+    // 각 검색 방법의 정규화된 점수에 곱해지는 가중치
+    private static final double NSF_WEIGHT_BM25 = 0.4;     // BM25: 키워드 매칭 기반
+    private static final double NSF_WEIGHT_VECTOR = 0.4;   // Vector: 의미적 유사도 기반
+    private static final double NSF_WEIGHT_TITLE_MIN = 0.1;  // ILIKE: 커버리지 낮을 때 최소 가중치
+    private static final double NSF_WEIGHT_TITLE_MAX = 0.3;  // ILIKE: 커버리지 높을 때 최대 가중치
 
     public ArticleService(ArticleRepository articleRepository,
                          @Qualifier("articleCorporationRepository") CorporationRepository corporationRepository,
@@ -741,12 +739,14 @@ public class ArticleService {
         final Map<Long, Double> finalVectorResults = vectorResults;
         final Map<Long, Double> finalBm25Results = bm25Results;
 
-        // 5-6. RRF (Reciprocal Rank Fusion) 계산 + 순위 계산 (한 번에 수행)
+        // 5-6. Normalized Score Fusion (NSF) 계산 + 순위 계산 (한 번에 수행)
+        // NSF: 각 검색 방법의 점수를 min-max 정규화 후 가중 합산
+        // RRF 대비 장점: 원본 점수의 크기 정보를 보존하여, 높은 유사도 결과를 더 정확히 반영
         long rerankStartTime = System.currentTimeMillis();
         final Map<Long, Integer> bm25Ranks = calculateRanks(finalBm25Results);
         final Map<Long, Integer> vectorRanks = calculateRanks(finalVectorResults);
         final Map<Long, Integer> ilikeRanks = calculateRanks(titleResults);
-        Map<Long, Double> rrfScores = calculateRRFScoresFromRanks(bm25Ranks, vectorRanks, ilikeRanks, titleResults, titleWeights);
+        Map<Long, Double> rrfScores = calculateNSFScores(finalBm25Results, finalVectorResults, titleResults, titleWeights);
         long rerankEndTime = System.currentTimeMillis();
 
         if (rrfScores.isEmpty()) {
@@ -755,7 +755,7 @@ public class ArticleService {
         }
 
         long totalEndTime = System.currentTimeMillis();
-        log.info("[검색] keyword='{}' | BM25: {}ms ({}개), ILIKE: {}ms ({}개), Vector: {}ms ({}개), Rerank(RRF): {}ms ({}개) | 총: {}ms",
+        log.info("[검색] keyword='{}' | BM25: {}ms ({}개), ILIKE: {}ms ({}개), Vector: {}ms ({}개), Rerank(NSF): {}ms ({}개) | 총: {}ms",
             keyword,
             bm25EndTime - bm25StartTime, finalBm25Results.size(),
             ilikeEndTime - ilikeStartTime, titleResults.size(),
@@ -983,51 +983,82 @@ public class ArticleService {
     }
 
     /**
-     * 미리 계산된 순위 맵을 사용하여 RRF 스코어 계산 (중복 순위 계산 방지)
+     * Normalized Score Fusion (NSF) 계산
      *
-     * @param bm25Ranks BM25 순위 맵
-     * @param vectorRanks Vector 순위 맵
-     * @param ilikeRanks ILIKE 순위 맵
-     * @param titleResults ILIKE 제목 매칭 결과 (ID 수집용)
+     * 각 검색 방법의 점수를 min-max 정규화(0~1)한 후 가중 합산하여 최종 스코어 산출.
+     * RRF 대비 장점:
+     * - 원본 점수의 크기(magnitude) 정보를 보존하여 높은 유사도 결과를 정확히 반영
+     * - 점수 분포가 넓은 검색(BM25 등)에서 상위권과 하위권의 차이를 유지
+     * - 벡터 유사도의 절대값 차이가 최종 스코어에 반영됨 (RRF는 순위만 사용)
+     *
+     * @param bm25Scores BM25 점수 맵
+     * @param vectorScores Vector 유사도 맵
+     * @param titleScores ILIKE 제목 매칭 점수 맵
      * @param titleWeights ILIKE per-article 가중치
-     * @return RRF 스코어 맵 (ID -> RRF 스코어)
+     * @return NSF 스코어 맵 (ID -> NSF 스코어)
      */
-    private Map<Long, Double> calculateRRFScoresFromRanks(
-            Map<Long, Integer> bm25Ranks,
-            Map<Long, Integer> vectorRanks,
-            Map<Long, Integer> ilikeRanks,
-            Map<Long, Double> titleResults,
+    private Map<Long, Double> calculateNSFScores(
+            Map<Long, Double> bm25Scores,
+            Map<Long, Double> vectorScores,
+            Map<Long, Double> titleScores,
             Map<Long, Double> titleWeights) {
 
-        Map<Long, Double> rrfScores = new HashMap<>();
+        // 각 검색 방법의 min-max 정규화
+        Map<Long, Double> normalizedBm25 = minMaxNormalize(bm25Scores);
+        Map<Long, Double> normalizedVector = minMaxNormalize(vectorScores);
+        Map<Long, Double> normalizedTitle = minMaxNormalize(titleScores);
+
+        Map<Long, Double> nsfScores = new HashMap<>();
 
         // 모든 Article ID 수집
         Set<Long> allArticleIds = new HashSet<>();
-        allArticleIds.addAll(bm25Ranks.keySet());
-        allArticleIds.addAll(vectorRanks.keySet());
-        allArticleIds.addAll(ilikeRanks.keySet());
+        allArticleIds.addAll(bm25Scores.keySet());
+        allArticleIds.addAll(vectorScores.keySet());
+        allArticleIds.addAll(titleScores.keySet());
 
-        // RRF 스코어 계산 (가중치 적용)
+        // NSF 스코어 계산 (정규화된 점수의 가중 합산)
         for (Long articleId : allArticleIds) {
-            double rrfScore = 0.0;
+            double nsfScore = 0.0;
 
-            if (bm25Ranks.containsKey(articleId)) {
-                rrfScore += RRF_WEIGHT_BM25 / (RRF_K + bm25Ranks.get(articleId));
+            if (normalizedBm25.containsKey(articleId)) {
+                nsfScore += NSF_WEIGHT_BM25 * normalizedBm25.get(articleId);
             }
 
-            if (vectorRanks.containsKey(articleId)) {
-                rrfScore += RRF_WEIGHT_VECTOR / (RRF_K + vectorRanks.get(articleId));
+            if (normalizedVector.containsKey(articleId)) {
+                nsfScore += NSF_WEIGHT_VECTOR * normalizedVector.get(articleId);
             }
 
-            if (ilikeRanks.containsKey(articleId)) {
-                double titleWeight = titleWeights.getOrDefault(articleId, RRF_WEIGHT_TITLE_MIN);
-                rrfScore += titleWeight / (RRF_K + ilikeRanks.get(articleId));
+            if (normalizedTitle.containsKey(articleId)) {
+                double titleWeight = titleWeights.getOrDefault(articleId, NSF_WEIGHT_TITLE_MIN);
+                nsfScore += titleWeight * normalizedTitle.get(articleId);
             }
 
-            rrfScores.put(articleId, rrfScore);
+            nsfScores.put(articleId, nsfScore);
         }
 
-        return rrfScores;
+        return nsfScores;
+    }
+
+    /**
+     * Min-Max 정규화: 점수를 0~1 범위로 변환
+     * 결과가 1개인 경우 해당 항목의 정규화 점수를 1.0으로 반환
+     */
+    private Map<Long, Double> minMaxNormalize(Map<Long, Double> scoreMap) {
+        Map<Long, Double> normalized = new HashMap<>();
+        if (scoreMap == null || scoreMap.isEmpty()) {
+            return normalized;
+        }
+
+        double min = scoreMap.values().stream().mapToDouble(Double::doubleValue).min().orElse(0.0);
+        double max = scoreMap.values().stream().mapToDouble(Double::doubleValue).max().orElse(0.0);
+        double range = max - min;
+
+        for (Map.Entry<Long, Double> entry : scoreMap.entrySet()) {
+            double normalizedScore = (range > 0) ? (entry.getValue() - min) / range : 1.0;
+            normalized.put(entry.getKey(), normalizedScore);
+        }
+
+        return normalized;
     }
 
     /**
@@ -1329,11 +1360,11 @@ public class ArticleService {
      */
     private double calculateTitleCoverageWeight(String title, int keywordLength) {
         if (title == null || title.isEmpty()) {
-            return RRF_WEIGHT_TITLE_MIN;
+            return NSF_WEIGHT_TITLE_MIN;
         }
         double coverage = (double) keywordLength / title.length();
         coverage = Math.min(coverage, 1.0);
-        return RRF_WEIGHT_TITLE_MIN + (RRF_WEIGHT_TITLE_MAX - RRF_WEIGHT_TITLE_MIN) * coverage;
+        return NSF_WEIGHT_TITLE_MIN + (NSF_WEIGHT_TITLE_MAX - NSF_WEIGHT_TITLE_MIN) * coverage;
     }
 
     /**
@@ -1594,14 +1625,14 @@ public class ArticleService {
     /**
      * BM25 쿼리에 부스트된 term 추가
      * ParadeDB parse()는 column:term 형식 필수
-     * title_terms에 2.0배 가중치 부여하여 제목 매칭 우선
+     * title_terms에 1.5배 가중치 부여하여 제목 매칭 우선
      */
     private void appendBoostedTerm(StringBuilder queryBuilder, String term, String boostValue) {
         String quotedTerm = quoteTerm(term);
         if (queryBuilder.length() > 0) {
             queryBuilder.append(" OR ");
         }
-        String titleBoost = String.format("%.1f", Double.parseDouble(boostValue) * 2.0);
+        String titleBoost = String.format("%.1f", Double.parseDouble(boostValue) * 1.5);
         queryBuilder.append(String.format(
             "title_terms:%s^%s OR content_terms:%s^%s",
             quotedTerm, titleBoost, quotedTerm, boostValue
