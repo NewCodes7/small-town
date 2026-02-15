@@ -132,6 +132,26 @@ public class ArticleController {
                     log.info("검색 로그 저장: userId={}, keyword={}, type=ARTICLE", user.getId(), keyword.trim());
                 }
             }
+            
+            // 세션 ID 가져오기
+            String sessionId = request.getSession(true).getId();
+            
+            // 필터 정보를 JSON 형태로 저장
+            String filters = null;
+            if ((regions != null && !regions.isEmpty()) || (category != null && !category.isEmpty())) {
+                StringBuilder filterBuilder = new StringBuilder("{");
+                if (regions != null && !regions.isEmpty()) {
+                    filterBuilder.append("\"regions\":").append(regions);
+                }
+                if (category != null && !category.isEmpty()) {
+                    if (regions != null && !regions.isEmpty()) filterBuilder.append(",");
+                    filterBuilder.append("\"category\":").append(category);
+                }
+                filterBuilder.append("}");
+                filters = filterBuilder.toString();
+            }
+            
+            // 기존 방식 호환을 위한 비동기 로그
             searchLogService.logSearch(keyword.trim(), SearchLog.SearchType.ARTICLE, null, user, request);
         }
 
