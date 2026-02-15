@@ -152,17 +152,20 @@ public class RestApiExceptionHandler {
         log.warn("Validation error at {}", path);
         
         Map<String, String> errors = new HashMap<>();
-        ex.getBindingResult().getAllErrors().forEach((error) -> {
+        int globalErrorCount = 0;
+        
+        for (var error : ex.getBindingResult().getAllErrors()) {
             if (error instanceof FieldError fieldError) {
                 String fieldName = fieldError.getField();
                 String errorMessage = error.getDefaultMessage();
                 errors.put(fieldName, errorMessage);
             } else {
-                // Global errors (not field-specific)
+                // Global errors (not field-specific) - use indexed key to avoid overwriting
                 String errorMessage = error.getDefaultMessage();
-                errors.put("error", errorMessage);
+                errors.put("globalError" + (globalErrorCount++), errorMessage);
             }
-        });
+        }
+        
         return new ResponseEntity<>(errors, HttpStatus.BAD_REQUEST);
     }
 
