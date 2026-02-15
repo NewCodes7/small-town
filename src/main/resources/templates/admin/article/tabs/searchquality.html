@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+    <div th:fragment="content">
+        <!-- 요약 통계 카드 -->
+        <div class="row mb-4">
+            <div class="col-md-2">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h6 class="card-title text-muted">총 검색 수</h6>
+                        <h3 class="card-text" th:text="${searchQualityStats != null ? searchQualityStats.totalSearches : 0}">0</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h6 class="card-title text-muted">고유 검색어</h6>
+                        <h3 class="card-text" th:text="${searchQualityStats != null ? searchQualityStats.uniqueKeywords : 0}">0</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h6 class="card-title text-muted">평균 결과 수</h6>
+                        <h3 class="card-text" th:text="${searchQualityStats != null ? #numbers.formatDecimal(searchQualityStats.averageResultCount, 1, 1) : '0.0'}">0.0</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h6 class="card-title text-muted">평균 소요 시간</h6>
+                        <h3 class="card-text">
+                            <span th:text="${searchQualityStats != null ? #numbers.formatDecimal(searchQualityStats.averageSearchDurationMs, 0, 0) : '0'}">0</span>
+                            <small class="text-muted">ms</small>
+                        </h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h6 class="card-title text-muted">클릭률 (CTR)</h6>
+                        <h3 class="card-text">
+                            <span th:text="${searchQualityStats != null ? #numbers.formatDecimal(searchQualityStats.clickThroughRate, 1, 1) : '0.0'}">0.0</span>
+                            <small class="text-muted">%</small>
+                        </h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h6 class="card-title text-muted">결과 없음 비율</h6>
+                        <h3 class="card-text text-danger">
+                            <span th:text="${searchQualityStats != null ? #numbers.formatDecimal(searchQualityStats.zeroResultRate, 1, 1) : '0.0'}">0.0</span>
+                            <small class="text-muted">%</small>
+                        </h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 일별 검색 추이 차트 -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">일별 검색 추이</h5>
+                <select id="trendDaysFilter" class="form-select form-select-sm" style="width: auto;">
+                    <option value="7">최근 7일</option>
+                    <option value="14">최근 14일</option>
+                    <option value="30" selected>최근 30일</option>
+                </select>
+            </div>
+            <div class="card-body">
+                <canvas id="searchTrendChart" style="height: 300px;"></canvas>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <!-- 인기 검색어 Top 20 -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">인기 검색어 Top 20</h5>
+                        <select id="keywordsDaysFilter" class="form-select form-select-sm" style="width: auto;">
+                            <option value="7" selected>최근 7일</option>
+                            <option value="14">최근 14일</option>
+                            <option value="30">최근 30일</option>
+                        </select>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive" style="max-height: 500px;">
+                            <table class="table table-sm table-hover" id="topKeywordsTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 10%;">순위</th>
+                                        <th style="width: 40%;">검색어</th>
+                                        <th style="width: 20%;">검색 횟수</th>
+                                        <th style="width: 15%;">평균 결과</th>
+                                        <th style="width: 15%;">CTR</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted">데이터를 불러오는 중...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 결과 없는 검색어 -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">결과 없는 검색어</h5>
+                        <select id="zeroResultDaysFilter" class="form-select form-select-sm" style="width: auto;">
+                            <option value="7" selected>최근 7일</option>
+                            <option value="14">최근 14일</option>
+                            <option value="30">최근 30일</option>
+                        </select>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive" style="max-height: 500px;">
+                            <table class="table table-sm table-hover" id="zeroResultTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 10%;">순위</th>
+                                        <th style="width: 70%;">검색어</th>
+                                        <th style="width: 20%;">횟수</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="3" class="text-center text-muted">데이터를 불러오는 중...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 인기 클릭 콘텐츠 Top 10 -->
+        <div class="card mb-4" th:if="${topClickedContent != null}">
+            <div class="card-header">
+                <h5 class="mb-0">인기 클릭 콘텐츠 Top 10 (최근 7일)</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 10%;">순위</th>
+                                <th style="width: 10%;">타입</th>
+                                <th style="width: 60%;">제목</th>
+                                <th style="width: 20%;">클릭 수</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="content, stat : ${topClickedContent}">
+                                <td th:text="${stat.count}"></td>
+                                <td>
+                                    <span class="badge" 
+                                          th:classappend="${content[0] == 'ARTICLE'} ? 'bg-primary' : 'bg-success'"
+                                          th:text="${content[0] == 'ARTICLE'} ? '기사' : '영상'">
+                                    </span>
+                                </td>
+                                <td th:text="${content[2]}"></td>
+                                <td><strong th:text="${content[3]}"></strong></td>
+                            </tr>
+                            <tr th:if="${#lists.isEmpty(topClickedContent)}">
+                                <td colspan="4" class="text-center text-muted">클릭 데이터가 없습니다.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 최근 검색 클릭 로그 -->
+        <div class="card" th:if="${recentClickLogs != null}">
+            <div class="card-header">
+                <h5 class="mb-0">최근 검색 클릭 로그</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 20%;">검색어</th>
+                                <th style="width: 10%;">타입</th>
+                                <th style="width: 40%;">클릭한 콘텐츠</th>
+                                <th style="width: 10%;">클릭 위치</th>
+                                <th style="width: 10%;">사용자</th>
+                                <th style="width: 10%;">시간</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="click : ${recentClickLogs.content}">
+                                <td><strong th:text="${click.searchKeyword}"></strong></td>
+                                <td>
+                                    <span class="badge" 
+                                          th:classappend="${click.article != null} ? 'bg-primary' : 'bg-success'"
+                                          th:text="${click.article != null} ? '기사' : '영상'">
+                                    </span>
+                                </td>
+                                <td>
+                                    <small th:if="${click.article != null}" th:text="${click.article.title}"></small>
+                                    <small th:if="${click.video != null}" th:text="${click.video.title}"></small>
+                                </td>
+                                <td th:text="${click.clickPosition != null ? click.clickPosition + '번째' : '-'}"></td>
+                                <td>
+                                    <small th:if="${click.user != null}" th:text="${click.user.nickname}">사용자</small>
+                                    <small th:if="${click.user == null}" class="text-muted">비회원</small>
+                                </td>
+                                <td>
+                                    <small th:text="${#temporals.format(click.createdAt, 'MM-dd HH:mm')}"></small>
+                                </td>
+                            </tr>
+                            <tr th:if="${#lists.isEmpty(recentClickLogs.content)}">
+                                <td colspan="6" class="text-center text-muted">클릭 로그가 없습니다.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 페이징 -->
+                <nav th:if="${recentClickLogs != null && recentClickLogs.totalPages > 1}">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item" th:classappend="${recentClickLogs.first} ? 'disabled'">
+                            <a class="page-link" th:href="@{/admin/articles(tab='searchquality', page=${recentClickLogs.number - 1}, size=${recentClickLogs.size})}">이전</a>
+                        </li>
+                        <li class="page-item" th:each="pageNum : ${#numbers.sequence(0, recentClickLogs.totalPages - 1)}"
+                            th:classappend="${pageNum == recentClickLogs.number} ? 'active'">
+                            <a class="page-link" th:href="@{/admin/articles(tab='searchquality', page=${pageNum}, size=${recentClickLogs.size})}" th:text="${pageNum + 1}">1</a>
+                        </li>
+                        <li class="page-item" th:classappend="${recentClickLogs.last} ? 'disabled'">
+                            <a class="page-link" th:href="@{/admin/articles(tab='searchquality', page=${recentClickLogs.number + 1}, size=${recentClickLogs.size})}">다음</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
