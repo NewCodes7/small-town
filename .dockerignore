@@ -1,6 +1,7 @@
 .git
 .gradle
 build
+!build/libs
 logs
 .devcontainer
 .vscode
