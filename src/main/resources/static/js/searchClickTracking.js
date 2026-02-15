@@ -32,11 +32,8 @@
         const articleCards = document.querySelectorAll('.article-card-wrapper .article-card[data-article-id]');
         
         articleCards.forEach(function(card, index) {
-            // 기존 onclick 이벤트 백업
-            const originalOnClick = card.onclick;
-            
-            // 새로운 onclick 이벤트 설정
-            card.onclick = function(event) {
+            // 클릭 추적을 위한 이벤트 리스너 추가
+            card.addEventListener('click', function(event) {
                 const articleId = this.getAttribute('data-article-id');
                 
                 // 클릭 추적 전송
@@ -45,12 +42,7 @@
                     keyword: keyword,
                     position: index + 1
                 });
-                
-                // 원래 이벤트 실행
-                if (originalOnClick) {
-                    originalOnClick.call(this, event);
-                }
-            };
+            }, { capture: true }); // capture phase에서 실행하여 다른 핸들러보다 먼저 실행
         });
     }
     
@@ -59,11 +51,8 @@
         const videoCards = document.querySelectorAll('.video-card-wrapper .video-card[data-video-id]');
         
         videoCards.forEach(function(card, index) {
-            // 기존 onclick 이벤트 백업
-            const originalOnClick = card.onclick;
-            
-            // 새로운 onclick 이벤트 설정
-            card.onclick = function(event) {
+            // 클릭 추적을 위한 이벤트 리스너 추가
+            card.addEventListener('click', function(event) {
                 const videoId = this.getAttribute('data-video-id');
                 
                 // 클릭 추적 전송
@@ -72,12 +61,7 @@
                     keyword: keyword,
                     position: index + 1
                 });
-                
-                // 원래 이벤트 실행
-                if (originalOnClick) {
-                    originalOnClick.call(this, event);
-                }
-            };
+            }, { capture: true });
         });
         
         // 비디오 링크도 추적 (외부 링크)

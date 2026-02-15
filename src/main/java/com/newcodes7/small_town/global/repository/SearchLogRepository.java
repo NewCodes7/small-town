@@ -103,6 +103,11 @@ public interface SearchLogRepository extends JpaRepository<SearchLog, Long> {
     long countDistinctKeywords(@Param("startDate") LocalDateTime startDate);
 
     /**
+     * 결과 없는 검색 수 (기간별)
+     */
+    long countByResultCountAndCreatedAtGreaterThanEqual(Integer resultCount, LocalDateTime startDate);
+
+    /**
      * 인기 검색어 (평균 결과 수 포함)
      */
     @Query("SELECT s.searchKeyword, COUNT(s) as searchCount, AVG(COALESCE(s.resultCount, 0)) as avgResultCount " +

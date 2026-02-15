@@ -91,4 +91,24 @@ public interface SearchClickLogRepository extends JpaRepository<SearchClickLog, 
                    "LIMIT :limit",
            nativeQuery = true)
     List<Object[]> findTopClickedContent(@Param("startDate") LocalDateTime startDate, @Param("limit") int limit);
+
+    /**
+     * 키워드별 클릭 수 집계 (효율적인 쿼리)
+     */
+    @Query("SELECT c.searchKeyword, COUNT(c) as clickCount " +
+           "FROM SearchClickLog c " +
+           "WHERE c.createdAt >= :startDate " +
+           "GROUP BY c.searchKeyword")
+    List<Object[]> countClicksByKeywordRaw(@Param("startDate") LocalDateTime startDate);
+
+    /**
+     * 키워드별 클릭 수 맵 반환
+     */
+    default Map<String, Long> countClicksByKeyword(LocalDateTime startDate) {
+        return countClicksByKeywordRaw(startDate).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        row -> (String) row[0],
+                        row -> ((Number) row[1]).longValue()
+                ));
+    }
 }

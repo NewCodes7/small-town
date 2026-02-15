@@ -87,15 +87,8 @@ public class AdminSearchQualityController {
         Pageable pageable = Pageable.ofSize(limit);
         List<Object[]> results = searchLogRepository.findTopKeywordsWithStats(startDate, pageable);
         
-        // 클릭 수 정보도 가져오기
-        Map<String, Long> clickCounts = new HashMap<>();
-        List<SearchClickLog> recentClicks = searchClickLogRepository.findByCreatedAtBetween(
-            startDate, LocalDateTime.now(), Pageable.unpaged()).getContent();
-        
-        for (var click : recentClicks) {
-            String keyword = click.getSearchKeyword();
-            clickCounts.put(keyword, clickCounts.getOrDefault(keyword, 0L) + 1);
-        }
+        // 클릭 수 정보 - 효율적인 집계 쿼리 사용
+        Map<String, Long> clickCounts = searchClickLogRepository.countClicksByKeyword(startDate);
         
         List<KeywordStatsData> keywordStats = results.stream()
                 .map(row -> {

@@ -243,9 +243,8 @@ public class SearchLogService {
         long totalClicks = searchClickLogRepository.countByCreatedAtGreaterThanEqual(startDate);
         double clickThroughRate = totalSearches > 0 ? (double) totalClicks / totalSearches * 100 : 0.0;
 
-        long zeroResultCount = searchLogRepository.findZeroResultKeywords(startDate, Pageable.ofSize(Integer.MAX_VALUE)).stream()
-                .mapToLong(row -> (Long) row[1])
-                .sum();
+        // 결과 없는 검색어 수 계산 - 집계 쿼리 사용
+        long zeroResultCount = searchLogRepository.countByResultCountAndCreatedAtGreaterThanEqual(0, startDate);
         double zeroResultRate = totalSearches > 0 ? (double) zeroResultCount / totalSearches * 100 : 0.0;
 
         return SearchQualityStats.builder()

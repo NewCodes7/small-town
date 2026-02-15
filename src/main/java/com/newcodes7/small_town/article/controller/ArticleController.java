@@ -34,6 +34,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.dto.ArticleResponseDto;
 import com.newcodes7.small_town.article.dto.CorporationDetailDto;
@@ -98,6 +99,7 @@ public class ArticleController {
     private final TermAutocompleteRepository termAutocompleteRepository;
     private final SearchLogService searchLogService;
     private final SearchLogRepository searchLogRepository;
+    private final ObjectMapper objectMapper;
     private final ArticleRepository articleRepository;
     private final com.newcodes7.small_town.auth.repository.UserRepository userRepository;
     private final com.newcodes7.small_town.article.repository.LikeLogRepository likeLogRepository;
@@ -139,16 +141,18 @@ public class ArticleController {
             // 필터 정보를 JSON 형태로 저장
             String filters = null;
             if ((regions != null && !regions.isEmpty()) || (category != null && !category.isEmpty())) {
-                StringBuilder filterBuilder = new StringBuilder("{");
-                if (regions != null && !regions.isEmpty()) {
-                    filterBuilder.append("\"regions\":").append(regions);
+                try {
+                    Map<String, Object> filterMap = new HashMap<>();
+                    if (regions != null && !regions.isEmpty()) {
+                        filterMap.put("regions", regions);
+                    }
+                    if (category != null && !category.isEmpty()) {
+                        filterMap.put("category", category);
+                    }
+                    filters = objectMapper.writeValueAsString(filterMap);
+                } catch (Exception e) {
+                    log.error("필터 JSON 변환 실패", e);
                 }
-                if (category != null && !category.isEmpty()) {
-                    if (regions != null && !regions.isEmpty()) filterBuilder.append(",");
-                    filterBuilder.append("\"category\":").append(category);
-                }
-                filterBuilder.append("}");
-                filters = filterBuilder.toString();
             }
             
             // 기존 방식 호환을 위한 비동기 로그
