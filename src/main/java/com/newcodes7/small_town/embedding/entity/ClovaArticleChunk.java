@@ -93,6 +93,15 @@ public class ClovaArticleChunk {
     private BitSet embeddingBinary;
 
     /**
+     * L2-정규화된 임베딩 벡터 (1024 차원)
+     * DB Generated Column - embedding 저장 시 자동 계산됨
+     * 내적(<#>) 연산자와 함께 사용
+     */
+    @Type(HalfVectorType.class)
+    @Column(name = "embedding_normalized", columnDefinition = "halfvec(1024)")
+    private float[] embeddingNormalized;
+
+    /**
      * 임베딩 생성 시간
      */
     @Column(name = "embedding_generated_at")
