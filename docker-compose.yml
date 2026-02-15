@@ -1,6 +1,6 @@
 services:
   newcodes-backend-blue:
-    build: .
+    image: ghcr.io/newcodes7/small-town:latest
     container_name: newcodes-backend-blue
     restart: unless-stopped
     environment: &backend-env
@@ -47,7 +47,7 @@ services:
     init: true
 
   newcodes-backend-green:
-    build: .
+    image: ghcr.io/newcodes7/small-town:latest
     container_name: newcodes-backend-green
     restart: unless-stopped
     environment: *backend-env

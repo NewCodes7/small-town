@@ -149,9 +149,9 @@ deploy() {
     log "현재 활성 서버: $CURRENT_ACTIVE"
     log "새로 배포할 서버: $NEW_ACTIVE"
 
-    # 1. 새 컨테이너 빌드 및 시작
-    log "새 애플리케이션 이미지 빌드"
-    docker compose build newcodes-backend-$NEW_ACTIVE
+    # 1. 이미지 pull 및 새 컨테이너 시작
+    log "GHCR에서 이미지 pull"
+    docker pull ghcr.io/newcodes7/small-town:latest
 
     log "새 컨테이너 시작: $NEW_CONTAINER"
     if [ "$NEW_ACTIVE" = "green" ]; then
