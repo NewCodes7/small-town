@@ -115,23 +115,35 @@ reset_swap() {
 
 # 메인 배포 함수
 deploy() {
+    local target=$1
+
     log "=== git 변경 내용 가져오기 ==="
     sudo git restore nginx/default.conf
     git pull origin main
 
     log "=== Blue-Green 무중단 배포 시작 ==="
 
-    # 현재 활성 서버 확인
-    CURRENT_ACTIVE=$(get_active_server)
-
-    if [ "$CURRENT_ACTIVE" = "blue" ]; then
-        NEW_ACTIVE="green"
-        NEW_CONTAINER="newcodes-backend-green"
-        OLD_CONTAINER="newcodes-backend-blue"
+    if [ -n "$target" ]; then
+        if [ "$target" != "blue" ] && [ "$target" != "green" ]; then
+            error "배포 대상은 'blue' 또는 'green'만 가능합니다: $target"
+        fi
+        NEW_ACTIVE="$target"
     else
-        NEW_ACTIVE="blue"
+        # 대상 미지정 시 현재 활성 서버의 반대쪽 자동 선택
+        CURRENT_ACTIVE=$(get_active_server)
+        if [ "$CURRENT_ACTIVE" = "blue" ]; then
+            NEW_ACTIVE="green"
+        else
+            NEW_ACTIVE="blue"
+        fi
+    fi
+
+    if [ "$NEW_ACTIVE" = "blue" ]; then
         NEW_CONTAINER="newcodes-backend-blue"
         OLD_CONTAINER="newcodes-backend-green"
+    else
+        NEW_CONTAINER="newcodes-backend-green"
+        OLD_CONTAINER="newcodes-backend-blue"
     fi
 
     log "현재 활성 서버: $CURRENT_ACTIVE"
@@ -228,10 +240,10 @@ status() {
 
 # 사용법 출력
 usage() {
-    echo "Usage: $0 {deploy|rollback|status}"
+    echo "Usage: $0 {deploy [blue|green]|rollback|status}"
     echo ""
     echo "Commands:"
-    echo "  deploy   - 새 버전으로 무중단 배포"
+    echo "  deploy [blue|green] - 새 버전으로 무중단 배포 (대상 미지정 시 자동 선택)"
     echo "  rollback - 이전 버전으로 롤백"
     echo "  status   - 현재 배포 상태 확인"
     exit 1
@@ -240,7 +252,7 @@ usage() {
 # 메인 실행부
 case "$1" in
     deploy)
-        deploy
+        deploy "$2"
         ;;
     rollback)
         rollback
