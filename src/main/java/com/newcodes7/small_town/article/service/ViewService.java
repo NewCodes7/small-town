@@ -9,7 +9,7 @@ import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
 import com.newcodes7.small_town.global.exception.UserNotFoundException;
 import com.newcodes7.small_town.article.exception.ViewCooldownException;
-import com.newcodes7.small_town.article.exception.InvalidParameterException;
+import com.newcodes7.small_town.global.exception.InvalidParameterException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

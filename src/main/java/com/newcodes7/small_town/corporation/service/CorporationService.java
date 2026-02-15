@@ -20,7 +20,7 @@ import com.newcodes7.small_town.corporation.entity.Industry;
 import com.newcodes7.small_town.corporation.exception.CorporationNotFoundException;
 import com.newcodes7.small_town.corporation.exception.DuplicateCorporationNameException;
 import com.newcodes7.small_town.corporation.exception.IndustryNotFoundException;
-import com.newcodes7.small_town.corporation.exception.InvalidParameterException;
+import com.newcodes7.small_town.global.exception.InvalidParameterException;
 import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.corporation.repository.CorporationSpecification;
 import com.newcodes7.small_town.corporation.repository.IndustryRepository;

@@ -19,7 +19,7 @@ import com.newcodes7.small_town.article.dto.CorporationDetailDto;
 import com.newcodes7.small_town.article.dto.CorporationDto;
 import com.newcodes7.small_town.article.dto.GroupedArticlesDto;
 import com.newcodes7.small_town.article.exception.CorporationNotFoundException;
-import com.newcodes7.small_town.article.exception.InvalidParameterException;
+import com.newcodes7.small_town.global.exception.InvalidParameterException;
 import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
 
 
