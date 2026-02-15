@@ -20,7 +20,9 @@ import org.springframework.data.annotation.CreatedDate;
     @Index(name = "idx_search_keyword", columnList = "searchKeyword"),
     @Index(name = "idx_search_type", columnList = "searchType"),
     @Index(name = "idx_created_at", columnList = "createdAt"),
-    @Index(name = "idx_user_id", columnList = "user_id")
+    @Index(name = "idx_user_id", columnList = "user_id"),
+    @Index(name = "idx_session_id", columnList = "session_id"),
+    @Index(name = "idx_result_count", columnList = "result_count")
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -75,14 +77,57 @@ public class SearchLog {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    /**
+     * 검색 결과 수
+     */
+    @Column(name = "result_count")
+    private Integer resultCount;
+
+    /**
+     * 검색 소요 시간 (밀리초)
+     */
+    @Column(name = "search_duration_ms")
+    private Long searchDurationMs;
+
+    /**
+     * 검색 페이지 번호
+     */
+    @Column(name = "page_number")
+    private Integer pageNumber;
+
+    /**
+     * 검색 정렬 기준
+     */
+    @Column(name = "sort_type", length = 30)
+    private String sortType;
+
+    /**
+     * 검색 필터 (JSON 형태로 저장)
+     */
+    @Column(length = 500)
+    private String filters;
+
+    /**
+     * 세션 ID (같은 세션의 검색 행동 추적)
+     */
+    @Column(name = "session_id", length = 100)
+    private String sessionId;
+
     @Builder
-    public SearchLog(String searchKeyword, SearchType searchType, Long targetId, User user, String ipAddress, String userAgent) {
+    public SearchLog(String searchKeyword, SearchType searchType, Long targetId, User user, String ipAddress, String userAgent,
+                     Integer resultCount, Long searchDurationMs, Integer pageNumber, String sortType, String filters, String sessionId) {
         this.searchKeyword = searchKeyword;
         this.searchType = searchType;
         this.targetId = targetId;
         this.user = user;
         this.ipAddress = ipAddress;
         this.userAgent = userAgent;
+        this.resultCount = resultCount;
+        this.searchDurationMs = searchDurationMs;
+        this.pageNumber = pageNumber;
+        this.sortType = sortType;
+        this.filters = filters;
+        this.sessionId = sessionId;
         this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
     }
 
