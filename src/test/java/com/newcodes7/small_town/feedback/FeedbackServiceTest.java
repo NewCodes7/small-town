@@ -127,10 +127,10 @@ public class FeedbackServiceTest {
         );
 
         FeedbackResponseDto updated = feedbackService.updateFeedbackStatus(
-                created.getId(), FeedbackStatus.RESOLVED
+                created.getId(), FeedbackStatus.COMPLETED
         );
 
-        assertThat(updated.getStatus()).isEqualTo(FeedbackStatus.RESOLVED);
+        assertThat(updated.getStatus()).isEqualTo(FeedbackStatus.COMPLETED);
     }
 
     @Test
