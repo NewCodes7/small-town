@@ -153,9 +153,15 @@ public class RestApiExceptionHandler {
         
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach((error) -> {
-            String fieldName = ((FieldError) error).getField();
-            String errorMessage = error.getDefaultMessage();
-            errors.put(fieldName, errorMessage);
+            if (error instanceof FieldError fieldError) {
+                String fieldName = fieldError.getField();
+                String errorMessage = error.getDefaultMessage();
+                errors.put(fieldName, errorMessage);
+            } else {
+                // Global errors (not field-specific)
+                String errorMessage = error.getDefaultMessage();
+                errors.put("error", errorMessage);
+            }
         });
         return new ResponseEntity<>(errors, HttpStatus.BAD_REQUEST);
     }
