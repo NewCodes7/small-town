@@ -746,10 +746,10 @@ public class ArticleService {
         final Map<Long, Integer> bm25Ranks = calculateRanks(finalBm25Results);
         final Map<Long, Integer> vectorRanks = calculateRanks(finalVectorResults);
         final Map<Long, Integer> ilikeRanks = calculateRanks(titleResults);
-        Map<Long, Double> rrfScores = calculateNSFScores(finalBm25Results, finalVectorResults, titleResults, titleWeights);
+        Map<Long, Double> nsfScores = calculateNSFScores(finalBm25Results, finalVectorResults, titleResults, titleWeights);
         long rerankEndTime = System.currentTimeMillis();
 
-        if (rrfScores.isEmpty()) {
+        if (nsfScores.isEmpty()) {
             log.warn("모든 검색 방법에서 결과가 없습니다: '{}'", keyword);
             return Page.empty();
         }
@@ -760,14 +760,14 @@ public class ArticleService {
             bm25EndTime - bm25StartTime, finalBm25Results.size(),
             ilikeEndTime - ilikeStartTime, titleResults.size(),
             vectorEndTime - vectorStartTime, finalVectorResults.size(),
-            rerankEndTime - rerankStartTime, rrfScores.size(),
+            rerankEndTime - rerankStartTime, nsfScores.size(),
             totalEndTime - totalStartTime);
 
-        // 8. 전체 RRF 결과의 article을 조회하여 유효한 것만 필터링
+        // 8. 전체 NSF 결과의 article을 조회하여 유효한 것만 필터링
         // (Materialized View 동기화 지연, soft delete 등으로 일부 article이 없을 수 있음)
         // findByIdInWithCorporation: Corporation fetch join으로 N+1 방지
-        List<Long> allRrfIds = new ArrayList<>(rrfScores.keySet());
-        List<Article> allArticles = articleRepository.findByIdInWithCorporation(allRrfIds);
+        List<Long> allNsfIds = new ArrayList<>(nsfScores.keySet());
+        List<Article> allArticles = articleRepository.findByIdInWithCorporation(allNsfIds);
 
         // 유효한 article만 Map으로 저장 (deleted_at 체크 포함)
         Map<Long, Article> validArticleMap = allArticles.stream()
@@ -776,17 +776,17 @@ public class ArticleService {
 
         Set<Long> validArticleIds = validArticleMap.keySet();
 
-        log.debug("RRF 결과 {}개 중 유효한 article: {}개", rrfScores.size(), validArticleIds.size());
+        log.debug("NSF 결과 {}개 중 유효한 article: {}개", nsfScores.size(), validArticleIds.size());
 
-        // 9. 유효한 article만 포함하여 RRF 점수로 정렬
-        List<Map.Entry<Long, Double>> sortedByRRF = rrfScores.entrySet().stream()
+        // 9. 유효한 article만 포함하여 NSF 점수로 정렬
+        List<Map.Entry<Long, Double>> sortedByNSF = nsfScores.entrySet().stream()
                 .filter(e -> validArticleIds.contains(e.getKey()))
                 .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
                 .toList();
 
         // 10. 페이징 계산 (유효한 article 기준)
         int offset = page * size;
-        int totalResults = sortedByRRF.size();
+        int totalResults = sortedByNSF.size();
 
         if (offset >= totalResults) {
             return Page.empty(PageRequest.of(page, size));
@@ -797,7 +797,7 @@ public class ArticleService {
 
         if ("latest".equals(sort) || "oldest".equals(sort)) {
             // 최신순/오래된순
-            List<Map.Entry<Long, Double>> sortedByDate = sortedByRRF.stream()
+            List<Map.Entry<Long, Double>> sortedByDate = sortedByNSF.stream()
                     .sorted((e1, e2) -> {
                         LocalDateTime date1 = publishedAtMap.getOrDefault(e1.getKey(), LocalDateTime.MIN);
                         LocalDateTime date2 = publishedAtMap.getOrDefault(e2.getKey(), LocalDateTime.MIN);
@@ -812,8 +812,8 @@ public class ArticleService {
                     .collect(Collectors.toList());
 
         } else {
-            // 적합도순 (RRF 스코어순)
-            pageArticleIds = sortedByRRF.stream()
+            // 적합도순 (NSF 스코어순)
+            pageArticleIds = sortedByNSF.stream()
                     .skip(offset)
                     .limit(size)
                     .map(Map.Entry::getKey)
@@ -835,14 +835,14 @@ public class ArticleService {
                     Long articleId = article.getId();
                     Double bm25Score = finalBm25Results.get(articleId);
                     Double vectorScore = finalVectorResults.get(articleId);
-                    Double rrfScore = rrfScores.get(articleId);
+                    Double nsfScore = nsfScores.get(articleId);
                     Double ilikeScore = titleResults.get(articleId);
                     Boolean isLiked = likeStatusMap.getOrDefault(articleId, false);
                     boolean foundByVector = vectorOnlyIds.contains(articleId);
                     Integer bm25Rank = bm25Ranks.get(articleId);
                     Integer vectorRank = vectorRanks.get(articleId);
                     Integer ilikeRank = ilikeRanks.get(articleId);
-                    return new ArticleSearchResultDto(article, foundByVector, bm25Score, vectorScore, rrfScore, ilikeScore, null,
+                    return new ArticleSearchResultDto(article, foundByVector, bm25Score, vectorScore, nsfScore, ilikeScore, null,
                             bm25Rank, vectorRank, ilikeRank, isLiked);
                 })
                 .collect(Collectors.toList());
