@@ -22,7 +22,7 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class ViewService {
+public class ArticleViewService {
     
     private static final int VIEW_COOLDOWN_MINUTES = 30;
     

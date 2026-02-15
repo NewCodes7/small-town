@@ -46,10 +46,10 @@ import com.newcodes7.small_town.corporation.dto.CorporationAutocompleteDto;
 import com.newcodes7.small_town.theme.repository.ThemeAutocompleteRepository;
 import com.newcodes7.small_town.theme.dto.ThemeAutocompleteDto;
 import com.newcodes7.small_town.article.service.ArticleService;
-import com.newcodes7.small_town.article.service.LikeService;
+import com.newcodes7.small_town.article.service.ArticleLikeService;
 import com.newcodes7.small_town.article.service.SemanticTermExpansionService;
 import com.newcodes7.small_town.article.service.UserLikeService;
-import com.newcodes7.small_town.article.service.ViewService;
+import com.newcodes7.small_town.article.service.ArticleViewService;
 import com.newcodes7.small_town.auth.entity.User;
 import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
 import com.newcodes7.small_town.corporation.service.CorporationService;
@@ -87,9 +87,9 @@ public class ArticleController {
     private final ArticleService articleService;
     @Qualifier("autocompleteExecutor")
     private final ExecutorService autocompleteExecutor;
-    private final LikeService likeService;
+    private final ArticleLikeService likeService;
     private final UserLikeService userLikeService;
-    private final ViewService viewService;
+    private final ArticleViewService viewService;
     private final CorporationService corporationService;
     private final CategoryRepository categoryRepository;
     private final VideoRepository videoRepository;
