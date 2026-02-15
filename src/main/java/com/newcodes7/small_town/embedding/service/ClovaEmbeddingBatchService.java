@@ -138,6 +138,7 @@ public class ClovaEmbeddingBatchService {
                 if (embResult.isSuccess()) {
                     float[] embedding = embResult.getEmbedding();
                     chunk.setEmbedding(embedding);
+                    chunk.setEmbeddingNormalized(l2Normalize(embedding));
                     // Binary Quantization (양수→1, 음수→0)
                     chunk.setEmbeddingBinary(BitVectorType.fromFloatArray(embedding));
                     chunk.setEmbeddingGeneratedAt(LocalDateTime.now());
@@ -589,6 +590,7 @@ public class ClovaEmbeddingBatchService {
                 if (embResult.isSuccess()) {
                     float[] embedding = embResult.getEmbedding();
                     chunk.setEmbedding(embedding);
+                    chunk.setEmbeddingNormalized(l2Normalize(embedding));
                     chunk.setEmbeddingBinary(BitVectorType.fromFloatArray(embedding));
                     chunk.setEmbeddingGeneratedAt(LocalDateTime.now());
                     chunk.setTokenCount(embResult.getTokenUsage());
@@ -681,5 +683,25 @@ public class ClovaEmbeddingBatchService {
         }
 
         return sb.toString();
+    }
+
+    /**
+     * L2 정규화 (단위 벡터로 변환)
+     * 정규화된 벡터 간 내적 = 코사인 유사도
+     */
+    private float[] l2Normalize(float[] vector) {
+        double norm = 0.0;
+        for (float v : vector) {
+            norm += (double) v * v;
+        }
+        norm = Math.sqrt(norm);
+        if (norm == 0.0) {
+            return vector;
+        }
+        float[] normalized = new float[vector.length];
+        for (int i = 0; i < vector.length; i++) {
+            normalized[i] = (float) (vector[i] / norm);
+        }
+        return normalized;
     }
 }
