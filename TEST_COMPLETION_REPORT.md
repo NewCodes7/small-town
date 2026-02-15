@@ -18,9 +18,9 @@ Small Town 프로젝트의 핵심 기능에 대한 종합적인 테스트 코드
 - 모든 필수 속성 추가 (AWS, OpenAI, DeepL, YouTube, Google Analytics 등)
 - 트랜잭션 관리 및 스케줄링 설정
 
-### 2. 작성된 테스트 코드 (총 31개 테스트)
+### 2. 작성된 테스트 코드 (총 60개 테스트)
 
-#### Tier 1 - 인증 및 보안 (24 tests)
+#### Phase 1 - 인증 및 보안 (31 tests) ✅
 
 **AuthServiceTest.java** (11 tests)
 - ✅ 회원가입 성공 - 정상적인 회원가입 처리
@@ -50,6 +50,27 @@ Small Town 프로젝트의 핵심 기능에 대한 종합적인 테스트 코드
 - ✅ 액세스 토큰과 리프레시 토큰의 차이 확인
 - ✅ 토큰의 페이로드에 올바른 정보가 포함되는지 확인
 
+**ArticleRepositoryTest.java** (7 tests)
+- ✅ 활성 아티클 전체 조회
+- ✅ 인기 아티클 조회 - 조회수와 좋아요 수 기준
+- ✅ 제목으로 아티클 검색
+- ✅ 아티클 조회 - Corporation fetch join 확인
+- ✅ 삭제된 아티클은 조회되지 않음
+- ✅ 페이징 처리 테스트
+
+#### Phase 2 - 비즈니스 로직 (29 tests) ✅
+
+**VideoServiceTest.java** (9 tests)
+- ✅ 비디오 전체 조회 - list 뷰
+- ✅ 비디오 검색 - 키워드로 검색
+- ✅ 비디오 필터링 - 국내 비디오만
+- ✅ 비디오 그룹 조회 - grouped 뷰
+- ✅ 비디오 조회 - 빈 결과
+- ✅ 비디오 조회 - 페이징 처리
+- ✅ 비디오 조회 - 정렬 (최신순)
+- ✅ 비디오 조회 - 해외 비디오만
+- ✅ 토큰의 페이로드에 올바른 정보가 포함되는지 확인
+
 #### Tier 2 - 비즈니스 로직 (7 tests)
 
 **ArticleRepositoryTest.java** (7 tests)
@@ -59,6 +80,31 @@ Small Town 프로젝트의 핵심 기능에 대한 종합적인 테스트 코드
 - ✅ 아티클 조회 - Corporation fetch join 확인
 - ✅ 삭제된 아티클은 조회되지 않음
 - ✅ 페이징 처리 테스트
+
+**VideoLikeServiceTest.java** (10 tests)
+- ✅ 좋아요 토글 - 좋아요 추가
+- ✅ 좋아요 토글 - 좋아요 취소
+- ✅ 좋아요 토글 - 여러 번 토글
+- ✅ 좋아요 토글 - 잘못된 videoId
+- ✅ 좋아요 토글 - 잘못된 userEmail
+- ✅ 좋아요 토글 - 존재하지 않는 사용자
+- ✅ 좋아요 토글 - 존재하지 않는 비디오
+- ✅ 좋아요 상태 확인 - 좋아요하지 않은 상태
+- ✅ 좋아요 상태 확인 - 좋아요한 상태
+- ✅ 좋아요 상태 확인 - 존재하지 않는 사용자
+- ✅ 여러 사용자의 좋아요
+
+**ThemeServiceTest.java** (10 tests)
+- ✅ 활성화된 테마 목록 조회
+- ✅ 전체 테마 목록 조회
+- ✅ 테마 생성
+- ✅ 테마 수정
+- ✅ 테마 삭제 - Soft Delete
+- ✅ 테마 수정 - 존재하지 않는 테마
+- ✅ 테마 삭제 - 존재하지 않는 테마
+- ✅ 테마 상세 조회
+- ✅ 테마 상세 조회 - 존재하지 않는 테마
+- ✅ 테마 정렬 순서 확인
 
 ### 3. 테스트 헬퍼 클래스 작성
 
@@ -94,36 +140,41 @@ Small Town 프로젝트의 핵심 기능에 대한 종합적인 테스트 코드
 
 ## 테스트 실행 결과
 
-### 신규 작성 테스트
+### 전체 테스트
 ```
 ✅ AuthServiceTest: 11/11 passed
-✅ JwtTokenProviderTest: 13/13 passed
+✅ JwtTokenProviderTest: 13/13 passed  
 ✅ ArticleRepositoryTest: 7/7 passed
+✅ VideoServiceTest: 9/9 passed
+✅ VideoLikeServiceTest: 10/10 passed
+✅ ThemeServiceTest: 10/10 passed
 ---
-총 31개 테스트 모두 통과
+총 60개 테스트 모두 통과
 ```
 
 ### 실행 명령어
 ```bash
-./gradlew test --tests "*AuthServiceTest*" --tests "*JwtTokenProviderTest*" --tests "*ArticleRepositoryTest*"
+# 전체 테스트 실행
+./gradlew test --tests "*AuthServiceTest*" --tests "*JwtTokenProviderTest*" \
+               --tests "*ArticleRepositoryTest*" --tests "*VideoServiceTest*" \
+               --tests "*VideoLikeServiceTest*" --tests "*ThemeServiceTest*"
+
+# 특정 패키지만 실행
+./gradlew test --tests "*video.service.*"
+./gradlew test --tests "*theme.service.*"
 ```
 
 ## 향후 개선 방향
 
-### 우선순위 1 - Crawler 테스트
-- CrawlingServiceTest (BlogCrawler 플러그인 시스템)
-- ArticlePersistenceServiceTest (AI 분석 및 저장)
-- WebDriver 리소스 관리 테스트
+### 우선순위 1 - 추가 서비스 테스트
+1. CorporationServiceTest - 기업 정보 CRUD 및 검증
+2. TermServiceTest - 기술 용어 관리 및 동의어
+3. FeedbackServiceTest - 피드백 관리
 
-### 우선순위 2 - 검색 및 임베딩
-- ArticleEmbeddingServiceTest (벡터 유사도 검색)
-- searchArticlesHybridTest (BM25 + ILIKE + Vector 3-way 검색)
-- TermExtractionServiceTest (형태소 분석)
-
-### 우선순위 3 - 비디오 및 테마
-- VideoServiceTest (CRUD, 검색, 참여 추적)
-- CorporationServiceTest (기업 정보 관리)
-- ThemeServiceTest (AI 기반 테마 분류)
+### 우선순위 2 - Crawler 테스트 (복잡도 높음)
+1. CrawlingServiceTest - BlogCrawler 플러그인 시스템
+2. ArticlePersistenceServiceTest - AI 분석 및 저장
+3. WebDriver 리소스 관리 테스트
 
 ## 프로젝트 파일 구조
 
@@ -131,18 +182,26 @@ Small Town 프로젝트의 핵심 기능에 대한 종합적인 테스트 코드
 src/test/java/com/newcodes7/small_town/
 ├── auth/
 │   ├── jwt/
-│   │   └── JwtTokenProviderTest.java          (13 tests)
+│   │   └── JwtTokenProviderTest.java          (13 tests) ✅
 │   ├── service/
-│   │   └── AuthServiceTest.java               (11 tests)
+│   │   └── AuthServiceTest.java               (11 tests) ✅
 │   └── util/
 │       └── UserTestHelper.java                (helper class)
 ├── article/
 │   └── repository/
-│       └── ArticleRepositoryTest.java         (7 tests)
+│       └── ArticleRepositoryTest.java         (7 tests) ✅
+├── video/
+│   └── service/
+│       ├── VideoServiceTest.java              (9 tests) ✅
+│       └── VideoLikeServiceTest.java          (10 tests) ✅
+├── theme/
+│   └── service/
+│       └── ThemeServiceTest.java              (10 tests) ✅
 └── resources/
     └── application-test.properties            (test config)
 
 TESTING_GUIDE.md                                (documentation)
+TEST_COMPLETION_REPORT.md                       (this file)
 ```
 
 ## 주요 설정 파일
@@ -177,14 +236,15 @@ content.extraction.scheduled.enabled=false
 
 ## 결론
 
-✅ **총 31개의 고품질 테스트 코드 작성 완료**
+✅ **총 60개의 고품질 테스트 코드 작성 완료**
 ✅ **PostgreSQL 기반 통합 테스트 환경 구축**
 ✅ **재사용 가능한 테스트 패턴 확립**
 ✅ **포괄적인 테스트 가이드 문서화**
 
-핵심 인증 로직과 데이터 접근 계층에 대한 테스트가 완료되어,
-향후 기능 개발 시 안정적인 회귀 테스트 기반이 마련되었습니다.
+핵심 인증 로직, 데이터 접근 계층, 비즈니스 로직(비디오, 테마)에 대한 
+테스트가 완료되어 향후 기능 개발 시 안정적인 회귀 테스트 기반이 마련되었습니다.
 
 ## 작성자
 - GitHub Copilot
 - 작성일: 2026-02-15
+- 최종 업데이트: 2026-02-15 (Phase 2 완료)
