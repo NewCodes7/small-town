@@ -47,6 +47,7 @@ import com.newcodes7.small_town.theme.repository.ThemeAutocompleteRepository;
 import com.newcodes7.small_town.theme.dto.ThemeAutocompleteDto;
 import com.newcodes7.small_town.article.service.ArticleService;
 import com.newcodes7.small_town.article.service.ArticleLikeService;
+import com.newcodes7.small_town.article.service.HomePageService;
 import com.newcodes7.small_town.article.service.SemanticTermExpansionService;
 import com.newcodes7.small_town.article.service.UserLikeService;
 import com.newcodes7.small_town.article.service.ArticleViewService;
@@ -109,6 +110,7 @@ public class ArticleController {
     private final CorporationAutocompleteRepository corporationAutocompleteRepository;
     private final ThemeAutocompleteRepository themeAutocompleteRepository;
     private final RelatedArticleService relatedArticleService;
+    private final HomePageService homePageService;
 
     @GetMapping("/articles")
     public String home(
@@ -1119,75 +1121,14 @@ public class ArticleController {
      */
     @GetMapping({"", "/"})
     public String newHome(Model model, @AuthenticationPrincipal UserDetails userDetails, HttpServletRequest request) {
-        // 최신 블로그 글 50개 조회 (좋아요 상태는 별도 API로 조회)
-        Page<ArticleResponseDto> allArticles = articleService.getArticlesWithFilters(
-            null,  // keyword
-            null,  // regions
-            0,     // page
-            50,    // size - 여유있게 가져옴
-            "latest",  // sort
-            "list",    // view
-            null   // category
-        );
+        // 홈페이지 데이터 조회 (중복 제거 로직 포함)
+        HomePageService.HomePageData data = homePageService.getHomePageData();
 
-        // 기업별로 첫 번째 글만 선택 (최신순이므로 첫 번째가 가장 최신)
-        Map<Long, ArticleResponseDto> uniqueArticles = new LinkedHashMap<>();
-        for (ArticleResponseDto articleDto : allArticles.getContent()) {
-            // ArticleListResponseDto로 캐스팅하여 corporation 접근
-            ArticleListResponseDto article = (ArticleListResponseDto) articleDto;
-            Long corpId = article.getCorporation().getId();
-            if (!uniqueArticles.containsKey(corpId)) {
-                uniqueArticles.put(corpId, articleDto);
-                if (uniqueArticles.size() >= 8) break;  // 8개만 수집
-            }
-        }
-        List<ArticleResponseDto> latestArticles = new ArrayList<>(uniqueArticles.values());
-
-        // 최신 영상 50개 조회 (중복 제거를 위해 더 많이 가져옴, 좋아요 상태는 별도 API로 조회)
-        Page<com.newcodes7.small_town.video.dto.VideoResponseDto> allVideos = videoService.getVideosWithFilters(
-            null,  // keyword
-            null,  // regions
-            0,     // page
-            50,    // size - 여유있게 가져옴
-            "latest",  // sort
-            "list",    // view
-            null   // category
-        );
-
-        // 기업별로 첫 번째 영상만 선택 (최신순이므로 첫 번째가 가장 최신)
-        Map<Long, com.newcodes7.small_town.video.dto.VideoResponseDto> uniqueVideos = new LinkedHashMap<>();
-        for (com.newcodes7.small_town.video.dto.VideoResponseDto videoDto : allVideos.getContent()) {
-            com.newcodes7.small_town.video.dto.VideoListResponseDto video = (com.newcodes7.small_town.video.dto.VideoListResponseDto) videoDto;
-            Long corpId = video.getCorporation().getId();
-            if (!uniqueVideos.containsKey(corpId)) {
-                uniqueVideos.put(corpId, videoDto);
-                if (uniqueVideos.size() >= 8) break;  // 8개만 수집
-            }
-        }
-        List<com.newcodes7.small_town.video.dto.VideoResponseDto> latestVideos = new ArrayList<>(uniqueVideos.values());
-
-        // 회사 목록 가져오기 (로고용)
-        Page<CorporationResponseDto> corporations = corporationService.getCorporationsWithFilters(
-            null, null, null, PageRequest.of(0, 50)
-        );
-        List<CorporationResponseDto> corporationsWithLogos = corporations.getContent().stream()
-            .limit(20)
-            .toList();
-
-        // 전체 글 수
-        long totalElements = articleService.getTotalArticleCount();
-
-        // 활성화된 테마 목록 조회 (최대 8개)
-        List<com.newcodes7.small_town.theme.dto.ThemeResponseDto> themes = themeService.getActiveThemes()
-            .stream()
-            .limit(8)
-            .toList();
-
-        model.addAttribute("articles", latestArticles);
-        model.addAttribute("videos", latestVideos);
-        model.addAttribute("corporations", corporationsWithLogos);
-        model.addAttribute("totalElements", totalElements);
-        model.addAttribute("themes", themes);
+        model.addAttribute("articles", data.articles());
+        model.addAttribute("videos", data.videos());
+        model.addAttribute("corporations", data.corporations());
+        model.addAttribute("totalElements", data.totalArticles());
+        model.addAttribute("themes", data.themes());
 
         return "new-home";
     }
