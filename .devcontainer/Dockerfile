@@ -50,28 +50,33 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     && rm -rf /tmp/chromedriver.zip /tmp/chromedriver \
     && rm -rf /var/lib/apt/lists/*
 
-# 필요한 경우 기타 개발 도구 설치
-# RUN apt-get update && apt-get install -y vim git ...
-
 # ---------------------------------------------------------
 # 1. Node.js 설치 (Claude Code 실행을 위해 필요, v18 이상 권장)
 # ---------------------------------------------------------
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get update \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------------
+# 1.5. npm 글로벌 설치 경로를 사용자 홈으로 변경 (EACCES 방지)
+#   - devcontainer에서 vscode 유저로 npm -g 해도 권한 문제 안 나게 함
+# ---------------------------------------------------------
+RUN mkdir -p /home/vscode/.npm-global \
+    && npm config set prefix "/home/vscode/.npm-global" \
+    && chown -R vscode:vscode /home/vscode/.npm-global
+
+ENV PATH="/home/vscode/.npm-global/bin:${PATH}"
+
+# ---------------------------------------------------------
 # 2. Claude Code CLI 설치
 # ---------------------------------------------------------
-# Anthropic의 공식 Claude Code CLI를 전역으로 설치합니다.
 RUN npm install -g @anthropic-ai/claude-code
 
 # ---------------------------------------------------------
 # 3. Codex 관련 도구 설치
 # ---------------------------------------------------------
-# Cursor나 OpenAI Codex 관련 인터페이스를 위한 도구입니다. 
-# 일반적인 npm 라이브러리나 커스텀 CLI를 설치하는 예시입니다.
-RUN npm install -g @types/codex || true
+RUN npm install -g @openai/codex
 
 # ---------------------------------------------------------
 # 4. 환경 변수 및 최종 설정
