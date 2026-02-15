@@ -25,7 +25,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-whsskdjfuqrpgodiwl}
       POSTGRES_DB: small_town
     volumes:
-      - paradedb_data:/var/lib/postgresql/data
+      - ../.devcontainer/postgres_backup_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U newcodes -d small_town"]
@@ -33,7 +33,3 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-
-volumes:
-  paradedb_data:
-    external: true

@@ -15,7 +15,7 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     gnupg \
     && rm -rf /var/lib/apt/lists/*
 
-# Google Chrome 안정 버전 설치
+# Google Chrome 안정cat /etc/os-release 버전 설치
 RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | tee /etc/apt/sources.list.d/google-chrome.list \
     && apt-get update \
@@ -53,5 +53,37 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
 # 필요한 경우 기타 개발 도구 설치
 # RUN apt-get update && apt-get install -y vim git ...
 
-# Claude Code 설치 
-RUN curl -fsSL https://claude.ai/install.sh | bash
+# ---------------------------------------------------------
+# 1. Node.js 설치 (Claude Code 실행을 위해 필요, v18 이상 권장)
+# ---------------------------------------------------------
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---------------------------------------------------------
+# 2. Claude Code CLI 설치
+# ---------------------------------------------------------
+# Anthropic의 공식 Claude Code CLI를 전역으로 설치합니다.
+RUN npm install -g @anthropic-ai/claude-code
+
+# ---------------------------------------------------------
+# 3. Codex 관련 도구 설치
+# ---------------------------------------------------------
+# Cursor나 OpenAI Codex 관련 인터페이스를 위한 도구입니다. 
+# 일반적인 npm 라이브러리나 커스텀 CLI를 설치하는 예시입니다.
+RUN npm install -g @types/codex || true
+
+# ---------------------------------------------------------
+# 4. 환경 변수 및 최종 설정
+# ---------------------------------------------------------
+# Claude Code가 정상적으로 실행될 수 있도록 경로 확인 및 권한 부여
+RUN chmod +x /usr/local/bin/claude || true
+
+# (선택 사항) VS Code 내 터미널에서 바로 사용할 수 있도록 설정
+ENV SHELL=/bin/bash
+
+RUN sudo apt update
+RUN sudo apt install -y postgresql-client
+
+# 기본 작업 디렉토리 설정
+WORKDIR /workspace
