@@ -1,5 +1,6 @@
 package com.newcodes7.small_town.article.exception;
 
+import com.newcodes7.small_town.global.exception.CorporationNotFoundException;
 import com.newcodes7.small_town.global.exception.ErrorResponse;
 import com.newcodes7.small_town.global.exception.InvalidParameterException;
 import com.newcodes7.small_town.global.exception.UserNotFoundException;

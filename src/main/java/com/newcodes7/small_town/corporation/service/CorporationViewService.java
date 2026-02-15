@@ -3,7 +3,7 @@ package com.newcodes7.small_town.corporation.service;
 import com.newcodes7.small_town.corporation.entity.CorporationViewLog;
 import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.corporation.repository.CorporationViewLogRepository;
-import com.newcodes7.small_town.corporation.exception.CorporationNotFoundException;
+import com.newcodes7.small_town.global.exception.CorporationNotFoundException;
 import com.newcodes7.small_town.auth.entity.User;
 import com.newcodes7.small_town.auth.repository.UserRepository;
 import com.newcodes7.small_town.global.exception.UserNotFoundException;

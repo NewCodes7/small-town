@@ -17,7 +17,7 @@ import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
 import com.newcodes7.small_town.corporation.dto.CorporationUpdateDto;
 import com.newcodes7.small_town.corporation.entity.CorporationIndustry;
 import com.newcodes7.small_town.corporation.entity.Industry;
-import com.newcodes7.small_town.corporation.exception.CorporationNotFoundException;
+import com.newcodes7.small_town.global.exception.CorporationNotFoundException;
 import com.newcodes7.small_town.corporation.exception.DuplicateCorporationNameException;
 import com.newcodes7.small_town.corporation.exception.IndustryNotFoundException;
 import com.newcodes7.small_town.global.exception.InvalidParameterException;
