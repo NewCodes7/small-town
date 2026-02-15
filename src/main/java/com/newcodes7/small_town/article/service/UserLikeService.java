@@ -8,7 +8,7 @@ import com.newcodes7.small_town.auth.entity.User;
 import com.newcodes7.small_town.auth.repository.UserRepository;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
-import com.newcodes7.small_town.article.exception.UserNotFoundException;
+import com.newcodes7.small_town.global.exception.UserNotFoundException;
 import com.newcodes7.small_town.article.exception.InvalidParameterException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;

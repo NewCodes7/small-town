@@ -1,7 +1,6 @@
 package com.newcodes7.small_town.global.exception;
 
 import com.newcodes7.small_town.article.exception.ArticleException;
-import com.newcodes7.small_town.article.exception.ErrorResponse;
 import com.newcodes7.small_town.crawler.exception.CrawlerException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.Ordered;

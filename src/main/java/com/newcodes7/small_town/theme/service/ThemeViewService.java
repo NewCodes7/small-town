@@ -6,7 +6,7 @@ import com.newcodes7.small_town.theme.repository.ThemeRepository;
 import com.newcodes7.small_town.theme.repository.ThemeViewLogRepository;
 import com.newcodes7.small_town.auth.entity.User;
 import com.newcodes7.small_town.auth.repository.UserRepository;
-import com.newcodes7.small_town.article.exception.UserNotFoundException;
+import com.newcodes7.small_town.global.exception.UserNotFoundException;
 import com.newcodes7.small_town.article.exception.InvalidParameterException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

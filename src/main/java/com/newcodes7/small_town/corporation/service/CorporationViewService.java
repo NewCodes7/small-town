@@ -6,7 +6,7 @@ import com.newcodes7.small_town.corporation.repository.CorporationViewLogReposit
 import com.newcodes7.small_town.corporation.exception.CorporationNotFoundException;
 import com.newcodes7.small_town.auth.entity.User;
 import com.newcodes7.small_town.auth.repository.UserRepository;
-import com.newcodes7.small_town.article.exception.UserNotFoundException;
+import com.newcodes7.small_town.global.exception.UserNotFoundException;
 import com.newcodes7.small_town.article.exception.InvalidParameterException;
 import com.newcodes7.small_town.global.entity.Corporation;
 import lombok.RequiredArgsConstructor;

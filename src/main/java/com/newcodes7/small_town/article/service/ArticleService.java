@@ -3,7 +3,7 @@ package com.newcodes7.small_town.article.service;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.ArticleTermRepository;
 import com.newcodes7.small_town.article.repository.ArticleChunkRepository;
-import com.newcodes7.small_town.article.repository.CorporationRepository;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.article.repository.TermRepository;
 import com.newcodes7.small_town.embedding.service.ClovaSearchService;
 import com.newcodes7.small_town.global.entity.Article;
@@ -81,7 +81,7 @@ public class ArticleService {
     private static final double RRF_WEIGHT_TITLE_MAX = 1.5;  // ILIKE: 커버리지 높을 때 최대 가중치
 
     public ArticleService(ArticleRepository articleRepository,
-                         @Qualifier("articleCorporationRepository") CorporationRepository corporationRepository,
+                         CorporationRepository corporationRepository,
                          ArticleTermRepository articleTermRepository,
                          TermRepository termRepository,
                          TermSynonymService termSynonymService,

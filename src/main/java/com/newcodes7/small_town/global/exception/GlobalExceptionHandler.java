@@ -11,7 +11,6 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
 import com.newcodes7.small_town.article.exception.ArticleException;
-import com.newcodes7.small_town.article.exception.ErrorResponse;
 import com.newcodes7.small_town.crawler.exception.CrawlerException;
 
 import jakarta.servlet.http.HttpServletRequest;
