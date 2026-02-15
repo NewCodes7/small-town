@@ -18,7 +18,7 @@ Small Town 프로젝트의 핵심 기능에 대한 종합적인 테스트 코드
 - 모든 필수 속성 추가 (AWS, OpenAI, DeepL, YouTube, Google Analytics 등)
 - 트랜잭션 관리 및 스케줄링 설정
 
-### 2. 작성된 테스트 코드 (총 60개 테스트)
+### 2. 작성된 테스트 코드 (총 99개 테스트)
 
 #### Phase 1 - 인증 및 보안 (31 tests) ✅
 
@@ -148,8 +148,11 @@ Small Town 프로젝트의 핵심 기능에 대한 종합적인 테스트 코드
 ✅ VideoServiceTest: 9/9 passed
 ✅ VideoLikeServiceTest: 10/10 passed
 ✅ ThemeServiceTest: 10/10 passed
+✅ CorporationServiceTest: 16/16 passed
+✅ LikeServiceTest: 12/12 passed
+✅ ViewServiceTest: 11/11 passed
 ---
-총 60개 테스트 모두 통과
+총 99개 테스트 모두 통과
 ```
 
 ### 실행 명령어
@@ -157,11 +160,15 @@ Small Town 프로젝트의 핵심 기능에 대한 종합적인 테스트 코드
 # 전체 테스트 실행
 ./gradlew test --tests "*AuthServiceTest*" --tests "*JwtTokenProviderTest*" \
                --tests "*ArticleRepositoryTest*" --tests "*VideoServiceTest*" \
-               --tests "*VideoLikeServiceTest*" --tests "*ThemeServiceTest*"
+               --tests "*VideoLikeServiceTest*" --tests "*ThemeServiceTest*" \
+               --tests "*CorporationServiceTest*" --tests "*LikeServiceTest*" \
+               --tests "*ViewServiceTest*"
 
 # 특정 패키지만 실행
 ./gradlew test --tests "*video.service.*"
 ./gradlew test --tests "*theme.service.*"
+./gradlew test --tests "*corporation.service.*"
+./gradlew test --tests "*article.service.*"
 ```
 
 ## 향후 개선 방향
@@ -188,8 +195,11 @@ src/test/java/com/newcodes7/small_town/
 │   └── util/
 │       └── UserTestHelper.java                (helper class)
 ├── article/
-│   └── repository/
-│       └── ArticleRepositoryTest.java         (7 tests) ✅
+│   ├── repository/
+│   │   └── ArticleRepositoryTest.java         (7 tests) ✅
+│   └── service/
+│       ├── LikeServiceTest.java               (12 tests) ✅
+│       └── ViewServiceTest.java               (11 tests) ✅
 ├── video/
 │   └── service/
 │       ├── VideoServiceTest.java              (9 tests) ✅
@@ -197,6 +207,9 @@ src/test/java/com/newcodes7/small_town/
 ├── theme/
 │   └── service/
 │       └── ThemeServiceTest.java              (10 tests) ✅
+├── corporation/
+│   └── service/
+│       └── CorporationServiceTest.java        (16 tests) ✅
 └── resources/
     └── application-test.properties            (test config)
 
@@ -236,15 +249,15 @@ content.extraction.scheduled.enabled=false
 
 ## 결론
 
-✅ **총 60개의 고품질 테스트 코드 작성 완료**
+✅ **총 99개의 고품질 테스트 코드 작성 완료**
 ✅ **PostgreSQL 기반 통합 테스트 환경 구축**
 ✅ **재사용 가능한 테스트 패턴 확립**
 ✅ **포괄적인 테스트 가이드 문서화**
 
-핵심 인증 로직, 데이터 접근 계층, 비즈니스 로직(비디오, 테마)에 대한 
+핵심 인증 로직, 데이터 접근 계층, 비즈니스 로직(비디오, 테마, 기업, 좋아요, 조회)에 대한 
 테스트가 완료되어 향후 기능 개발 시 안정적인 회귀 테스트 기반이 마련되었습니다.
 
 ## 작성자
 - GitHub Copilot
 - 작성일: 2026-02-15
-- 최종 업데이트: 2026-02-15 (Phase 2 완료)
+- 최종 업데이트: 2026-02-15 (Phase 4 완료 - 99 tests)
