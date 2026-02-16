@@ -1,5 +1,6 @@
 package com.newcodes7.small_town.admin.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -17,6 +18,7 @@ import com.newcodes7.small_town.corporation.service.CorporationService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.SearchLog;
 import com.newcodes7.small_town.global.entity.Video;
+import com.newcodes7.small_town.global.repository.SearchClickLogRepository;
 import com.newcodes7.small_town.global.service.SearchLogService;
 import com.newcodes7.small_town.theme.dto.ThemeSimpleResponseDto;
 import com.newcodes7.small_town.theme.repository.ThemeRepository;
@@ -46,6 +48,7 @@ public class AdminArticleListService {
     private final SearchLogService searchLogService;
     private final UserRepository userRepository;
     private final com.newcodes7.small_town.article.repository.LikeLogRepository likeLogRepository;
+    private final SearchClickLogRepository searchClickLogRepository;
 
     /**
      * Article List 페이지 데이터 DTO
@@ -69,6 +72,11 @@ public class AdminArticleListService {
         private Page<SearchLog> searchLogs;
         private Page<com.newcodes7.small_town.auth.entity.User> users;
         private Page<com.newcodes7.small_town.article.entity.LikeLog> likeLogs;
+        
+        // 검색 품질 대시보드용 데이터
+        private SearchLogService.SearchQualityStats searchQualityStats;
+        private List<Object[]> topClickedContent;
+        private Page<com.newcodes7.small_town.global.entity.SearchClickLog> recentClickLogs;
     }
 
     /**
@@ -87,7 +95,7 @@ public class AdminArticleListService {
             } else {
                 return PageRequest.of(page, size, Sort.by("totalFrequency").descending());
             }
-        } else if (tab.equals("searchlogs") || tab.equals("users") || tab.equals("likelogs")) {
+        } else if (tab.equals("searchlogs") || tab.equals("users") || tab.equals("likelogs") || tab.equals("searchquality")) {
             return PageRequest.of(page, size, Sort.by("createdAt").descending());
         } else {
             return PageRequest.of(page, size, Sort.by("publishedAt").descending());
@@ -116,6 +124,9 @@ public class AdminArticleListService {
                 .searchLogs(getSearchLogs(tab, page, size))
                 .users(getUsers(tab, search, page, size))
                 .likeLogs(getLikeLogs(tab, page, size))
+                .searchQualityStats(getSearchQualityStats(tab))
+                .topClickedContent(getTopClickedContent(tab))
+                .recentClickLogs(getRecentClickLogs(tab, page, size))
                 .build();
     }
 
@@ -271,5 +282,28 @@ public class AdminArticleListService {
         // search 기능은 추후 필요시 구현
         return themeRepository.findByDeletedAtIsNull(pageable)
             .map(ThemeSimpleResponseDto::new);
+    }
+
+    private SearchLogService.SearchQualityStats getSearchQualityStats(String tab) {
+        if (!tab.equals("searchquality")) {
+            return null;
+        }
+        return searchLogService.getSearchQualityStats(7); // 최근 7일 데이터
+    }
+
+    private List<Object[]> getTopClickedContent(String tab) {
+        if (!tab.equals("searchquality")) {
+            return null;
+        }
+        LocalDateTime startDate = LocalDateTime.now().minusDays(7);
+        return searchClickLogRepository.findTopClickedContent(startDate, 10);
+    }
+
+    private Page<com.newcodes7.small_town.global.entity.SearchClickLog> getRecentClickLogs(String tab, int page, int size) {
+        if (!tab.equals("searchquality")) {
+            return null;
+        }
+        Pageable clickLogPageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        return searchClickLogRepository.findAllByOrderByCreatedAtDesc(clickLogPageable);
     }
 }

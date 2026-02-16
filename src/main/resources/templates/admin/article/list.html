@@ -100,6 +100,12 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" th:classappend="${currentTab == 'searchquality'} ? 'active'"
+                           th:href="@{/admin/articles(tab='searchquality')}">
+                            <i class="fas fa-chart-line me-2"></i>검색 품질
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" th:classappend="${currentTab == 'users'} ? 'active'"
                            th:href="@{/admin/articles(tab='users')}">
                             <i class="fas fa-users me-2"></i>회원 관리
@@ -187,6 +193,11 @@
                     <div th:replace="~{admin/article/tabs/searchlogs::content}"></div>
                 </div>
 
+                <!-- Search Quality 탭 -->
+                <div th:if="${currentTab == 'searchquality'}">
+                    <div th:replace="~{admin/article/tabs/searchquality::content}"></div>
+                </div>
+
                 <!-- Users 탭 -->
                 <div th:if="${currentTab == 'users'}">
                     <div th:replace="~{admin/article/tabs/users::content}"></div>
@@ -214,6 +225,7 @@
     <div th:replace="~{admin/article/modals/all-modals}"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 
     <!-- Admin Article List Modules (역할별로 분리된 JS 파일들) -->
     <script th:src="@{/js/admin/articleList/utils.js}"></script>
@@ -224,6 +236,7 @@
     <script th:src="@{/js/admin/articleList/embeddings.js}"></script>
     <script th:src="@{/js/admin/articleList/keywords.js}"></script>
     <script th:src="@{/js/admin/articleList/users.js}"></script>
+    <script th:src="@{/js/admin/articleList/searchquality.js}"></script>
     <script th:src="@{/js/admin/articleList/main.js}"></script>
 </body>
 </html>

@@ -59,4 +59,61 @@ public interface SearchLogRepository extends JpaRepository<SearchLog, Long> {
      * 사용자별 검색 로그 개수 조회
      */
     long countByUser(User user);
+
+    /**
+     * 결과 없는 검색어 조회 (resultCount == 0)
+     */
+    @Query("SELECT s.searchKeyword, COUNT(s) as count FROM SearchLog s " +
+           "WHERE s.resultCount = 0 AND s.createdAt >= :startDate " +
+           "GROUP BY s.searchKeyword " +
+           "ORDER BY count DESC")
+    List<Object[]> findZeroResultKeywords(@Param("startDate") LocalDateTime startDate, Pageable pageable);
+
+    /**
+     * 일별 검색 수 조회
+     */
+    @Query("SELECT FUNCTION('DATE', s.createdAt) as date, COUNT(s) as count " +
+           "FROM SearchLog s " +
+           "WHERE s.createdAt >= :startDate " +
+           "GROUP BY FUNCTION('DATE', s.createdAt) " +
+           "ORDER BY date ASC")
+    List<Object[]> countByDateRange(@Param("startDate") LocalDateTime startDate);
+
+    /**
+     * 평균 검색 결과 수 조회
+     */
+    @Query("SELECT AVG(s.resultCount) FROM SearchLog s WHERE s.resultCount IS NOT NULL AND s.createdAt >= :startDate")
+    Double getAverageResultCount(@Param("startDate") LocalDateTime startDate);
+
+    /**
+     * 평균 검색 소요 시간 조회
+     */
+    @Query("SELECT AVG(s.searchDurationMs) FROM SearchLog s WHERE s.searchDurationMs IS NOT NULL AND s.createdAt >= :startDate")
+    Double getAverageSearchDuration(@Param("startDate") LocalDateTime startDate);
+
+    /**
+     * 기간별 검색 수
+     */
+    long countByCreatedAtGreaterThanEqual(LocalDateTime startDate);
+
+    /**
+     * 고유 검색어 수 (기간별)
+     */
+    @Query("SELECT COUNT(DISTINCT s.searchKeyword) FROM SearchLog s WHERE s.createdAt >= :startDate")
+    long countDistinctKeywords(@Param("startDate") LocalDateTime startDate);
+
+    /**
+     * 결과 없는 검색 수 (기간별)
+     */
+    long countByResultCountAndCreatedAtGreaterThanEqual(Integer resultCount, LocalDateTime startDate);
+
+    /**
+     * 인기 검색어 (평균 결과 수 포함)
+     */
+    @Query("SELECT s.searchKeyword, COUNT(s) as searchCount, AVG(COALESCE(s.resultCount, 0)) as avgResultCount " +
+           "FROM SearchLog s " +
+           "WHERE s.createdAt >= :startDate " +
+           "GROUP BY s.searchKeyword " +
+           "ORDER BY searchCount DESC")
+    List<Object[]> findTopKeywordsWithStats(@Param("startDate") LocalDateTime startDate, Pageable pageable);
 }

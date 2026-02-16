@@ -93,6 +93,9 @@ public class AdminArticleController {
         model.addAttribute("searchLogs", data.getSearchLogs());
         model.addAttribute("users", data.getUsers());
         model.addAttribute("likeLogs", data.getLikeLogs());
+        model.addAttribute("searchQualityStats", data.getSearchQualityStats());
+        model.addAttribute("topClickedContent", data.getTopClickedContent());
+        model.addAttribute("recentClickLogs", data.getRecentClickLogs());
         model.addAttribute("categories", categoryRepository.findAll());
         model.addAttribute("currentTab", tab);
         model.addAttribute("currentSort", sort);
