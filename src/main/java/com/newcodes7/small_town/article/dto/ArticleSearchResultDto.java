@@ -125,4 +125,16 @@ public class ArticleSearchResultDto extends ArticleListResponseDto {
         super(article, bm25Score, vectorScore, finalScore, ilikeScore, timeDecayScore, bm25Rank, vectorRank, ilikeRank, isLiked);
         this.foundByVector = foundByVector;
     }
+
+    /**
+     * 모든 검색 스코어, 순위, 정규화 점수, 좋아요 상태를 포함한 생성자 (최종 - 정규화 점수 포함)
+     */
+    public ArticleSearchResultDto(Article article, boolean foundByVector, Double bm25Score, Double vectorScore, Double finalScore, Double ilikeScore, Double timeDecayScore,
+                                  Integer bm25Rank, Integer vectorRank, Integer ilikeRank,
+                                  Double normalizedBm25Score, Double normalizedVectorScore, Double normalizedIlikeScore,
+                                  Double titleWeight, Double weightSum, Boolean isLiked) {
+        super(article, bm25Score, vectorScore, finalScore, ilikeScore, timeDecayScore, bm25Rank, vectorRank, ilikeRank,
+                normalizedBm25Score, normalizedVectorScore, normalizedIlikeScore, titleWeight, weightSum, isLiked);
+        this.foundByVector = foundByVector;
+    }
 }

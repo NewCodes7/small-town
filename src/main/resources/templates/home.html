@@ -399,44 +399,6 @@
                                     th:title="${article.publishedAt}"
                                     th:text="${article.publishedAt}"
                                     style="white-space: nowrap;">2024-01-01</small>
-                                <!-- Admin 전용: Final Score (최우선 표시, 100% 기준 정규화) -->
-                                <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and article.finalScore != null}"
-                                       class="badge bg-primary text-white"
-                                       style="font-size: 0.75rem; white-space: nowrap;"
-                                       th:title="'NSF 최종 점수 (BM25 + ILIKE + Clova Vector 통합), 원본: ' + ${#numbers.formatDecimal(article.finalScore, 1, 4)}">
-                                    <i class="fas fa-star me-1"></i>Final: <span th:text="${#numbers.formatDecimal(article.finalScore * 100, 1, 1)}">0.0</span>%
-                                </small>
-                                <!-- Admin 전용: BM25 Score -->
-                                <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and article.bm25Score != null}"
-                                       class="badge bg-info text-white"
-                                       style="font-size: 0.75rem; white-space: nowrap;"
-                                       th:title="'BM25 관련도 점수'">
-                                    <i class="fas fa-chart-line me-1"></i>BM25: <span th:text="${#numbers.formatDecimal(article.bm25Score, 1, 2)}">0.00</span>
-                                </small>
-                                <!-- Admin 전용: Vector Similarity Score -->
-                                <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and article.vectorScore != null}"
-                                       class="badge bg-success text-white"
-                                       style="font-size: 0.75rem; white-space: nowrap;"
-                                       th:title="'벡터 유사도 점수 (0.0 ~ 1.0)'">
-                                    <i class="fas fa-brain me-1"></i>Vector: <span th:text="${#numbers.formatDecimal(article.vectorScore, 1, 2)}">0.00</span>
-                                </small>
-                                <!-- Admin 전용: ILIKE Score -->
-                                <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and article.ilikeScore != null}"
-                                       class="badge bg-warning text-dark"
-                                       style="font-size: 0.75rem; white-space: nowrap;"
-                                       th:title="'ILIKE 제목 매칭 점수'">
-                                    <i class="fas fa-search me-1"></i>ILIKE: <span th:text="${#numbers.formatDecimal(article.ilikeScore, 1, 2)}">0.00</span>
-                                </small>
-                                <!-- Admin 전용: Time Decay Score -->
-                                <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and article.timeDecayScore != null}"
-                                       class="badge bg-secondary text-white"
-                                       style="font-size: 0.75rem; white-space: nowrap;"
-                                       th:title="'Time Decay 점수 (날짜 기반 최신순, 0.05 ~ 1.0)'">
-                                    <i class="fas fa-clock me-1"></i>Time: <span th:text="${#numbers.formatDecimal(article.timeDecayScore, 1, 3)}">0.000</span>
-                                </small>
-                                <!-- <span class="text-muted d-flex align-items-center" style="font-size: 0.85rem;">
-                                    <i class="fas fa-eye me-1"></i> <span class="view-count" th:text="${article.viewCount}">0</span>
-                                </span> -->
                                 <button class="like-button"
                                         th:attr="data-article-id=${article.id}, data-liked=${article.isLiked != null and article.isLiked}"
                                         onclick="event.stopPropagation()">
@@ -461,6 +423,45 @@
                                 <div class="thumbnail-pattern"></div>
                             </div>
                         </div>
+                    </div>
+                    <!-- Admin 전용: Score Panel (카드 오른쪽 빈 영역에 띄움) -->
+                    <div th:if="${#authorization.expression('hasRole(''ADMIN'')') and article.finalScore != null}"
+                         class="admin-score-panel"
+                         onclick="event.stopPropagation()"
+                         th:with="
+                            bmNorm=${article.normalizedBm25Score != null ? article.normalizedBm25Score : 0.0},
+                            vecNorm=${article.normalizedVectorScore != null ? article.normalizedVectorScore : 0.0},
+                            ilikeNorm=${article.normalizedIlikeScore != null ? article.normalizedIlikeScore : 0.0},
+                            weightSumValue=${article.weightSum != null ? article.weightSum : 0.8}">
+                        <div class="admin-score-final">
+                            <i class="fas fa-star"></i> Final <span th:text="${#numbers.formatDecimal(article.finalScore, 1, 4)}">0.0000</span>
+                        </div>
+                        <table class="admin-score-table">
+                            <thead><tr><th></th><th>raw</th><th>norm</th><th>w</th><th>#</th></tr></thead>
+                            <tbody>
+                                <tr>
+                                    <td class="admin-label-bm25">BM25</td>
+                                    <td th:text="${article.bm25Score != null ? #numbers.formatDecimal(article.bm25Score, 1, 1) : '-'}">-</td>
+                                    <td th:text="${#numbers.formatDecimal(bmNorm, 1, 2)}">0.00</td>
+                                    <td>0.4</td>
+                                    <td th:text="${article.bm25Rank != null ? article.bm25Rank : '-'}">-</td>
+                                </tr>
+                                <tr>
+                                    <td class="admin-label-vec">Vector</td>
+                                    <td th:text="${article.vectorScore != null ? #numbers.formatDecimal(article.vectorScore, 1, 2) : '-'}">-</td>
+                                    <td th:text="${#numbers.formatDecimal(vecNorm, 1, 2)}">0.00</td>
+                                    <td>0.4</td>
+                                    <td th:text="${article.vectorRank != null ? article.vectorRank : '-'}">-</td>
+                                </tr>
+                                <tr th:if="${article.ilikeScore != null}">
+                                    <td class="admin-label-ilike">ILIKE</td>
+                                    <td th:text="${#numbers.formatDecimal(article.ilikeScore, 1, 1)}">-</td>
+                                    <td th:text="${#numbers.formatDecimal(ilikeNorm, 1, 2)}">0.00</td>
+                                    <td th:text="${article.titleWeight != null ? #numbers.formatDecimal(article.titleWeight, 1, 1) : '-'}">-</td>
+                                    <td th:text="${article.ilikeRank != null ? article.ilikeRank : '-'}">-</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                     </div>
 
@@ -510,41 +511,6 @@
                                 </div>
                                 <div class="d-flex align-items-center gap-2">
                                     <small class="text-muted relative-time" th:attr="data-date=${firstArticle.publishedAt}" th:title="${firstArticle.publishedAt}" th:text="${firstArticle.publishedAt}" style="white-space: nowrap;"></small>
-                                    <!-- Admin 전용: Final Score (최우선 표시, 100% 기준 정규화) -->
-                                    <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and firstArticle.finalScore != null}"
-                                           class="badge bg-primary text-white"
-                                           style="font-size: 0.75rem; white-space: nowrap;"
-                                           th:title="'NSF 최종 점수 (BM25 + ILIKE + Clova Vector 통합), 원본: ' + ${#numbers.formatDecimal(firstArticle.finalScore, 1, 4)}">
-                                        <i class="fas fa-star me-1"></i>Final: <span th:text="${#numbers.formatDecimal(firstArticle.finalScore * 100, 1, 1)}">0.0</span>%
-                                    </small>
-                                    <!-- Admin 전용: BM25 Score -->
-                                    <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and firstArticle.bm25Score != null}"
-                                           class="badge bg-info text-white"
-                                           style="font-size: 0.75rem; white-space: nowrap;"
-                                           th:title="'BM25 관련도 점수'">
-                                        <i class="fas fa-chart-line me-1"></i>BM25: <span th:text="${#numbers.formatDecimal(firstArticle.bm25Score, 1, 2)}">0.00</span>
-                                    </small>
-                                    <!-- Admin 전용: Vector Similarity Score -->
-                                    <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and firstArticle.vectorScore != null}"
-                                           class="badge bg-success text-white"
-                                           style="font-size: 0.75rem; white-space: nowrap;"
-                                           th:title="'벡터 유사도 점수 (0.0 ~ 1.0)'">
-                                        <i class="fas fa-brain me-1"></i>Vector: <span th:text="${#numbers.formatDecimal(firstArticle.vectorScore, 1, 2)}">0.00</span>
-                                    </small>
-                                    <!-- Admin 전용: ILIKE Score -->
-                                    <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and firstArticle.ilikeScore != null}"
-                                           class="badge bg-warning text-dark"
-                                           style="font-size: 0.75rem; white-space: nowrap;"
-                                           th:title="'ILIKE 제목 매칭 점수'">
-                                        <i class="fas fa-search me-1"></i>ILIKE: <span th:text="${#numbers.formatDecimal(firstArticle.ilikeScore, 1, 2)}">0.00</span>
-                                    </small>
-                                    <!-- Admin 전용: Time Decay Score -->
-                                    <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and firstArticle.timeDecayScore != null}"
-                                           class="badge bg-secondary text-white"
-                                           style="font-size: 0.75rem; white-space: nowrap;"
-                                           th:title="'Time Decay 점수 (날짜 기반 최신순, 0.05 ~ 1.0)'">
-                                        <i class="fas fa-clock me-1"></i>Time: <span th:text="${#numbers.formatDecimal(firstArticle.timeDecayScore, 1, 3)}">0.000</span>
-                                    </small>
                                     <button class="like-button"
                                             th:attr="data-article-id=${firstArticle.id}, data-liked=${firstArticle.isLiked != null and firstArticle.isLiked}"
                                             onclick="event.stopPropagation()">
@@ -583,34 +549,23 @@
                                 <span class="child-date d-flex align-items-center flex-wrap">
                                     <span class="d-flex align-items-center gap-2">
                                         <small class="text-muted relative-time" th:attr="data-date=${child.publishedAt}" th:title="${child.publishedAt}" th:text="${child.publishedAt}" style="white-space: nowrap;"></small>
-                                        <!-- Admin 전용: BM25 Score -->
-                                        <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and child.bm25Score != null}"
-                                               class="badge bg-info text-white"
-                                               style="font-size: 0.7rem; white-space: nowrap;"
-                                               th:title="'BM25 관련도 점수'">
-                                            <i class="fas fa-chart-line me-1"></i><span th:text="${#numbers.formatDecimal(child.bm25Score, 1, 2)}">0.00</span>
-                                        </small>
-                                        <!-- Admin 전용: Vector Similarity Score -->
-                                        <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and child.vectorScore != null}"
-                                               class="badge bg-success text-white"
-                                               style="font-size: 0.7rem; white-space: nowrap;"
-                                               th:title="'벡터 유사도 점수 (0.0 ~ 1.0)'">
-                                            <i class="fas fa-brain me-1"></i><span th:text="${#numbers.formatDecimal(child.vectorScore, 1, 2)}">0.00</span>
-                                        </small>
-                                        <!-- Admin 전용: ILIKE Score -->
-                                        <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and child.ilikeScore != null}"
-                                               class="badge bg-warning text-dark"
-                                               style="font-size: 0.7rem; white-space: nowrap;"
-                                               th:title="'ILIKE 제목 매칭 점수'">
-                                            <i class="fas fa-search me-1"></i><span th:text="${#numbers.formatDecimal(child.ilikeScore, 1, 2)}">0.00</span>
-                                        </small>
-                                        <!-- Admin 전용: Time Decay Score -->
-                                        <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and child.timeDecayScore != null}"
-                                               class="badge bg-secondary text-white"
-                                               style="font-size: 0.7rem; white-space: nowrap;"
-                                               th:title="'Time Decay 점수 (날짜 기반 최신순, 0.05 ~ 1.0)'">
-                                            <i class="fas fa-clock me-1"></i><span th:text="${#numbers.formatDecimal(child.timeDecayScore, 1, 3)}">0.000</span>
-                                        </small>
+                                        <!-- Admin 전용: Score Panel (항상 표시) -->
+                                        <div th:if="${#authorization.expression('hasRole(''ADMIN'')') and child.finalScore != null}"
+                                             class="admin-score-panel compact"
+                                             onclick="event.stopPropagation()"
+                                             th:with="
+                                                bmNorm=${child.normalizedBm25Score != null ? child.normalizedBm25Score : 0.0},
+                                                vecNorm=${child.normalizedVectorScore != null ? child.normalizedVectorScore : 0.0},
+                                                ilikeNorm=${child.normalizedIlikeScore != null ? child.normalizedIlikeScore : 0.0}">
+                                            <span class="admin-score-final">
+                                                <i class="fas fa-star"></i> <span th:text="${#numbers.formatDecimal(child.finalScore, 1, 4)}">0.0000</span>
+                                            </span>
+                                            <span class="admin-score-inline">
+                                                <span class="admin-label-bm25">BM</span><span th:text="${child.bm25Score != null ? #numbers.formatDecimal(child.bm25Score, 1, 1) : '-'}">-</span>
+                                                <span class="admin-label-vec">Vec</span><span th:text="${child.vectorScore != null ? #numbers.formatDecimal(child.vectorScore, 1, 2) : '-'}">-</span>
+                                                <span th:if="${child.ilikeScore != null}"><span class="admin-label-ilike">ILK</span><span th:text="${#numbers.formatDecimal(child.ilikeScore, 1, 1)}">-</span></span>
+                                            </span>
+                                        </div>
                                         <button class="like-button"
                                                 th:attr="data-article-id=${child.id}, data-liked=${child.isLiked != null and child.isLiked}"
                                                 onclick="event.stopPropagation()">
@@ -626,6 +581,45 @@
                                 </a>
                             </div>
                         </div>
+                    <!-- Admin 전용: Score Panel (카드 오른쪽에 표시) -->
+                    <div th:if="${#authorization.expression('hasRole(''ADMIN'')') and firstArticle.finalScore != null}"
+                         class="admin-score-panel"
+                         onclick="event.stopPropagation()"
+                         th:with="
+                            bmNorm=${firstArticle.normalizedBm25Score != null ? firstArticle.normalizedBm25Score : 0.0},
+                            vecNorm=${firstArticle.normalizedVectorScore != null ? firstArticle.normalizedVectorScore : 0.0},
+                            ilikeNorm=${firstArticle.normalizedIlikeScore != null ? firstArticle.normalizedIlikeScore : 0.0},
+                            weightSumValue=${firstArticle.weightSum != null ? firstArticle.weightSum : 0.8}">
+                        <div class="admin-score-final">
+                            <i class="fas fa-star"></i> Final <span th:text="${#numbers.formatDecimal(firstArticle.finalScore, 1, 4)}">0.0000</span>
+                        </div>
+                        <table class="admin-score-table">
+                            <thead><tr><th></th><th>raw</th><th>norm</th><th>w</th><th>순위</th></tr></thead>
+                            <tbody>
+                                <tr>
+                                    <td class="admin-label-bm25">BM25</td>
+                                    <td th:text="${firstArticle.bm25Score != null ? #numbers.formatDecimal(firstArticle.bm25Score, 1, 1) : '-'}">-</td>
+                                    <td th:text="${#numbers.formatDecimal(bmNorm, 1, 2)}">0.00</td>
+                                    <td>0.4</td>
+                                    <td th:text="${firstArticle.bm25Rank != null ? firstArticle.bm25Rank : '-'}">-</td>
+                                </tr>
+                                <tr>
+                                    <td class="admin-label-vec">Vector</td>
+                                    <td th:text="${firstArticle.vectorScore != null ? #numbers.formatDecimal(firstArticle.vectorScore, 1, 2) : '-'}">-</td>
+                                    <td th:text="${#numbers.formatDecimal(vecNorm, 1, 2)}">0.00</td>
+                                    <td>0.4</td>
+                                    <td th:text="${firstArticle.vectorRank != null ? firstArticle.vectorRank : '-'}">-</td>
+                                </tr>
+                                <tr th:if="${firstArticle.ilikeScore != null}">
+                                    <td class="admin-label-ilike">ILIKE</td>
+                                    <td th:text="${#numbers.formatDecimal(firstArticle.ilikeScore, 1, 1)}">-</td>
+                                    <td th:text="${#numbers.formatDecimal(ilikeNorm, 1, 2)}">0.00</td>
+                                    <td th:text="${firstArticle.titleWeight != null ? #numbers.formatDecimal(firstArticle.titleWeight, 1, 1) : '-'}">-</td>
+                                    <td th:text="${firstArticle.ilikeRank != null ? firstArticle.ilikeRank : '-'}">-</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                     </div>
 
                     <!-- Admin Control Panel (separate from article) -->
@@ -1156,6 +1150,135 @@
                     width: 32px;
                     height: 32px;
                     font-size: 12px;
+                }
+            }
+
+            /* Admin Score Panel - 카드 오른쪽 빈 영역에 띄움 */
+            .article-card {
+                position: relative;
+                overflow: visible !important;
+            }
+
+            .admin-score-panel {
+                position: absolute;
+                left: calc(100% + 12px);
+                top: 0;
+                bottom: 0;
+                width: 200px;
+                background: #f8faff;
+                border: 1px solid #dde3f0;
+                border-radius: 10px;
+                padding: 12px 14px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                z-index: 10;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+                cursor: default;
+            }
+
+            .admin-score-final {
+                font-weight: 800;
+                color: #1d4ed8;
+                font-size: 1rem;
+                margin-bottom: 8px;
+                letter-spacing: -0.02em;
+            }
+
+            .admin-score-final i {
+                color: #eab308;
+                font-size: 0.85rem;
+                margin-right: 2px;
+            }
+
+            .admin-score-table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            .admin-score-table th {
+                font-weight: 600;
+                color: #94a3b8;
+                font-size: 0.7rem;
+                padding: 0 5px 4px;
+                text-align: right;
+                border-bottom: 1px solid #e2e8f0;
+            }
+
+            .admin-score-table th:first-child {
+                text-align: left;
+            }
+
+            .admin-score-table td {
+                font-size: 0.78rem;
+                padding: 3px 5px;
+                text-align: right;
+                color: #374151;
+                font-variant-numeric: tabular-nums;
+            }
+
+            .admin-score-table td:first-child {
+                text-align: left;
+                font-weight: 700;
+                font-size: 0.72rem;
+            }
+
+            .admin-label-bm25 { color: #0891b2; }
+            .admin-label-vec { color: #16a34a; }
+            .admin-label-ilike { color: #d97706; }
+
+            /* Compact (child articles - inline badge) */
+            .admin-score-panel.compact {
+                position: static;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                width: auto;
+                top: auto;
+                bottom: auto;
+                left: auto;
+                padding: 2px 8px;
+                border-radius: 6px;
+                box-shadow: none;
+                flex-direction: row;
+                justify-content: flex-start;
+            }
+
+            .admin-score-panel.compact .admin-score-final {
+                font-size: 0.7rem;
+                margin-bottom: 0;
+            }
+
+            .admin-score-inline {
+                display: inline-flex;
+                gap: 5px;
+                color: #4b5563;
+                font-size: 0.65rem;
+                font-variant-numeric: tabular-nums;
+            }
+
+            .admin-score-inline .admin-label-bm25,
+            .admin-score-inline .admin-label-vec,
+            .admin-score-inline .admin-label-ilike {
+                margin-right: 1px;
+                font-weight: 700;
+            }
+
+            /* 화면 너비가 좁아 오른쪽 공간이 없으면 카드 아래에 표시 */
+            @media (max-width: 1400px) {
+                .admin-score-panel:not(.compact) {
+                    position: static;
+                    width: 100%;
+                    margin-top: 8px;
+                    flex-direction: row;
+                    align-items: center;
+                    gap: 12px;
+                    padding: 8px 14px;
+                }
+
+                .admin-score-panel:not(.compact) .admin-score-final {
+                    margin-bottom: 0;
+                    white-space: nowrap;
                 }
             }
         </style>

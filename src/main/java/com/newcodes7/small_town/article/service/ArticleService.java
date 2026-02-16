@@ -742,7 +742,13 @@ public class ArticleService {
         final Map<Long, Integer> bm25Ranks = calculateRanks(finalBm25Results);
         final Map<Long, Integer> vectorRanks = calculateRanks(finalVectorResults);
         final Map<Long, Integer> ilikeRanks = calculateRanks(titleResults);
-        Map<Long, Double> nsfScores = hybridSearchScorer.calculateNSFScores(finalBm25Results, finalVectorResults, titleResults, titleWeights);
+        HybridSearchScorer.NSFResult nsfResult = hybridSearchScorer.calculateNSFScores(finalBm25Results, finalVectorResults, titleResults, titleWeights);
+        Map<Long, Double> nsfScores = nsfResult.getNsfScores();
+        final Map<Long, Double> normalizedBm25Map = nsfResult.getNormalizedBm25();
+        final Map<Long, Double> normalizedVectorMap = nsfResult.getNormalizedVector();
+        final Map<Long, Double> normalizedTitleMap = nsfResult.getNormalizedTitle();
+        final Map<Long, Double> titleWeightMap = nsfResult.getTitleWeights();
+        final Map<Long, Double> weightSumMap = nsfResult.getWeightSums();
         long rerankEndTime = System.currentTimeMillis();
 
         if (nsfScores.isEmpty()) {
@@ -825,7 +831,7 @@ public class ArticleService {
                 .filter(a -> a != null)
                 .collect(Collectors.toList());
 
-        // 14. DTO 생성 (순위 정보 포함)
+        // 14. DTO 생성 (순위 정보 + 정규화 점수 포함)
         List<ArticleSearchResultDto> results = sortedArticles.stream()
                 .map(article -> {
                     Long articleId = article.getId();
@@ -838,8 +844,13 @@ public class ArticleService {
                     Integer bm25Rank = bm25Ranks.get(articleId);
                     Integer vectorRank = vectorRanks.get(articleId);
                     Integer ilikeRank = ilikeRanks.get(articleId);
+                    Double normBm25 = normalizedBm25Map.get(articleId);
+                    Double normVector = normalizedVectorMap.get(articleId);
+                    Double normIlike = normalizedTitleMap.get(articleId);
+                    Double titleWeight = titleWeightMap.get(articleId);
+                    Double weightSum = weightSumMap.get(articleId);
                     return new ArticleSearchResultDto(article, foundByVector, bm25Score, vectorScore, nsfScore, ilikeScore, null,
-                            bm25Rank, vectorRank, ilikeRank, isLiked);
+                            bm25Rank, vectorRank, ilikeRank, normBm25, normVector, normIlike, titleWeight, weightSum, isLiked);
                 })
                 .collect(Collectors.toList());
 
