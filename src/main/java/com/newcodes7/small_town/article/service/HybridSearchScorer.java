@@ -57,20 +57,22 @@ public class HybridSearchScorer {
         allArticleIds.addAll(titleScores.keySet());
 
         // NSF 스코어 계산 (정규화된 점수의 가중 합산, 가중치 합 정규화)
+        // BM25와 Vector 가중치는 해당 article에 점수가 없어도 항상 분모에 포함하여,
+        // 1개 검색 방법에서만 발견된 article이 과대평가되는 것을 방지
         for (Long articleId : allArticleIds) {
             double weightedSum = 0.0;
-            double weightSum = 0.0;
+            // BM25 + Vector 가중치는 항상 분모에 포함 (미참여 시 점수 0으로 취급)
+            double weightSum = NSF_WEIGHT_BM25 + NSF_WEIGHT_VECTOR;
 
             if (normalizedBm25.containsKey(articleId)) {
                 weightedSum += NSF_WEIGHT_BM25 * normalizedBm25.get(articleId);
-                weightSum += NSF_WEIGHT_BM25;
             }
 
             if (normalizedVector.containsKey(articleId)) {
                 weightedSum += NSF_WEIGHT_VECTOR * normalizedVector.get(articleId);
-                weightSum += NSF_WEIGHT_VECTOR;
             }
 
+            // Title 가중치는 참여한 경우에만 분모에 추가 (ILIKE 미실행 시 페널티 없음)
             if (normalizedTitle.containsKey(articleId)) {
                 double titleWeight = titleWeights.getOrDefault(articleId, NSF_WEIGHT_TITLE_MIN);
                 weightedSum += titleWeight * normalizedTitle.get(articleId);

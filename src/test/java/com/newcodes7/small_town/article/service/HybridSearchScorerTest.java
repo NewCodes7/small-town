@@ -169,10 +169,11 @@ public class HybridSearchScorerTest {
         Map<Long, Double> result = scorer.calculateNSFScores(
                 bm25Scores, vectorScores, titleScores, titleWeights);
 
-        // then: BM25만 있을 때, 가중치 합 정규화로 최종 스코어 = 정규화된 점수 그대로
+        // then: BM25만 있을 때, 분모는 항상 BM25+Vector(0.8)
+        // Vector 미참여 → 점수 0으로 취급되어 최종 스코어가 절반으로 줄어듦
         assertTrue(result.get(1L) > result.get(2L));
-        assertEquals(1.0, result.get(1L), 0.001); // (0.4 * 1.0) / 0.4 = 1.0
-        assertEquals(0.0, result.get(2L), 0.001); // (0.4 * 0.0) / 0.4 = 0.0
+        assertEquals(0.5, result.get(1L), 0.001); // (0.4 * 1.0) / 0.8 = 0.5
+        assertEquals(0.0, result.get(2L), 0.001); // (0.4 * 0.0) / 0.8 = 0.0
     }
 
     @Test
@@ -219,9 +220,12 @@ public class HybridSearchScorerTest {
         Map<Long, Double> result = scorer.calculateNSFScores(
                 bm25Scores, vectorScores, titleScores, titleWeights);
 
-        // then: 벡터에서 높은 점수를 받은 Article 3도 결과에 포함
+        // then: 벡터에서만 발견된 Article 3도 결과에 포함되지만,
+        // BM25 미참여 페널티(분모에 BM25 가중치 포함)로 과대평가되지 않음
         assertTrue(result.containsKey(3L));
         assertTrue(result.get(3L) > 0);
+        assertTrue(result.get(1L) >= result.get(3L),
+                "BM25+Vector 모두 히트한 Article 1이 Vector만 히트한 Article 3보다 같거나 높아야 함");
     }
 
     @Test
@@ -246,10 +250,38 @@ public class HybridSearchScorerTest {
         // then: 최종 스코어가 1.0을 초과하지 않음
         // 단일 결과: BM25 10.0→1.0(클램핑), Vector 0.9→0.9, Title 3.0→1.0(클램핑)
         // weightedSum = 0.4*1.0 + 0.4*0.9 + 0.3*1.0 = 1.06
-        // weightSum = 0.4 + 0.4 + 0.3 = 1.1
+        // weightSum = 0.4 + 0.4 + 0.3 = 1.1 (BM25+Vector 항상 포함 + title 참여)
         // nsfScore = 1.06 / 1.1 ≈ 0.964
         assertTrue(result.get(1L) <= 1.0);
         assertTrue(result.get(1L) > 0.9);
+    }
+
+    @Test
+    public void calculateNSFScores_단일_검색방법_과대평가_방지() {
+        // given: Article A는 BM25+Vector 모두 히트, Article B는 Vector에서만 히트
+        Map<Long, Double> bm25Scores = new HashMap<>();
+        bm25Scores.put(1L, 10.0);  // A: BM25 최고점
+        bm25Scores.put(2L, 5.0);
+
+        Map<Long, Double> vectorScores = new HashMap<>();
+        vectorScores.put(1L, 0.8);  // A: Vector 높은 점수
+        vectorScores.put(3L, 0.95); // B: Vector에서만 발견, 매우 높은 점수
+
+        Map<Long, Double> titleScores = new HashMap<>();
+        titleScores.put(1L, 3.0);   // A: 제목 매칭도 있음
+
+        Map<Long, Double> titleWeights = new HashMap<>();
+        titleWeights.put(1L, 0.2);
+
+        // when
+        Map<Long, Double> result = scorer.calculateNSFScores(
+                bm25Scores, vectorScores, titleScores, titleWeights);
+
+        // then: BM25+Vector+ILIKE 모두 히트한 A가 Vector만 히트한 B보다 높아야 함
+        // 수정 전: B = (0.4*1.0)/0.4 = 1.0, A = 0.90/1.0 = 0.90 → B > A (과대평가!)
+        // 수정 후: B = (0.4*1.0)/0.8 = 0.50, A = 0.90/1.0 = 0.90 → A > B (정상)
+        assertTrue(result.get(1L) > result.get(3L),
+                "3가지 검색 방법 모두에서 발견된 Article이 Vector만 히트한 Article보다 높아야 함");
     }
 
     @Test
