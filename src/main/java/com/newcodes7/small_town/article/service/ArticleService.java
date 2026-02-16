@@ -2,7 +2,6 @@ package com.newcodes7.small_town.article.service;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.ArticleTermRepository;
-import com.newcodes7.small_town.article.repository.ArticleChunkRepository;
 import com.newcodes7.small_town.article.repository.CorporationRepository;
 import com.newcodes7.small_town.article.repository.TermRepository;
 import com.newcodes7.small_town.embedding.service.ClovaSearchService;
@@ -63,7 +62,6 @@ public class ArticleService {
     private final TermRepository termRepository;
     private final TermSynonymService termSynonymService;
     private final MorphemeAnalyzer morphemeAnalyzer;
-    private final ArticleChunkRepository chunkRepository;
     private final ArticleEmbeddingService embeddingService;
     private final SemanticTermExpansionService semanticExpansionService;
     private final LikeService likeService;
@@ -78,7 +76,6 @@ public class ArticleService {
                          TermRepository termRepository,
                          TermSynonymService termSynonymService,
                          MorphemeAnalyzer morphemeAnalyzer,
-                         ArticleChunkRepository chunkRepository,
                          ArticleEmbeddingService embeddingService,
                          SemanticTermExpansionService semanticExpansionService,
                          LikeService likeService,
@@ -92,7 +89,6 @@ public class ArticleService {
         this.termRepository = termRepository;
         this.termSynonymService = termSynonymService;
         this.morphemeAnalyzer = morphemeAnalyzer;
-        this.chunkRepository = chunkRepository;
         this.embeddingService = embeddingService;
         this.semanticExpansionService = semanticExpansionService;
         this.likeService = likeService;
@@ -1306,116 +1302,6 @@ public class ArticleService {
         // 경량 쿼리 사용: ID와 published_at만 조회 (최대 100개)
         return articleRepository.findArticleIdsWithPublishedAtByFilters(
                 searchPattern, safeDomesticTypes, domesticTypesSize, safeCategorySized, categorySize);
-    }
-
-    /**
-     * 벡터 검색 수행 (청크 기반)
-     */
-    private List<Long> performVectorSearch(String keyword) {
-        Map<Long, Double> results = performVectorSearchWithScores(keyword);
-        return results != null ? new ArrayList<>(results.keySet()) : null;
-    }
-
-    /**
-     * 벡터 검색 수행 (청크 기반, 유사도 스코어 포함)
-     * @param keyword 검색 키워드
-     * @return Article ID -> 최고 유사도 스코어 맵
-     */
-    private Map<Long, Double> performVectorSearchWithScores(String keyword) {
-        try {
-            // 쿼리 임베딩 생성
-            float[] queryEmbedding = embeddingService.generateEmbedding(keyword);
-            if (queryEmbedding == null) {
-                log.warn("청크 벡터 검색 실패: 쿼리 임베딩 생성 불가");
-                return Collections.emptyMap();
-            }
-
-            // PostgreSQL vector 포맷 변환
-            String vectorString = formatVectorForPostgres(queryEmbedding);
-
-            // 청크 기반 유사도 검색
-            List<Object[]> results = chunkRepository.findArticleIdsBySimilarity(
-                    vectorString,
-                    0.7,  // 유사도 임계값
-                    50    // 최대 결과 수
-            );
-
-            // Article ID와 유사도 스코어를 Map으로 변환
-            Map<Long, Double> scoreMap = new HashMap<>();
-            for (Object[] row : results) {
-                Long articleId = ((Number) row[0]).longValue();
-                Double similarity = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
-                if (similarity != null) {
-                    scoreMap.put(articleId, similarity);
-                }
-            }
-
-            log.debug("청크 벡터 검색 완료 - 키워드: '{}', 결과 수: {}", keyword, scoreMap.size());
-            return scoreMap;
-
-        } catch (Exception e) {
-            log.error("청크 벡터 검색 중 오류 발생", e);
-            return Collections.emptyMap();
-        }
-    }
-
-    /**
-     * Summary 기반 벡터 검색 수행 (Article.summary 임베딩 기반)
-     * 글의 전체 맥락을 이해한 검색 - "이어서 읽으면 좋은 글" 추천에 적합
-     *
-     * @param keyword 검색 키워드
-     * @return Article ID -> 유사도 스코어 맵
-     */
-    private Map<Long, Double> performSummaryVectorSearch(String keyword) {
-        try {
-            // 쿼리 임베딩 생성
-            float[] queryEmbedding = embeddingService.generateEmbedding(keyword);
-            if (queryEmbedding == null) {
-                log.warn("Summary 벡터 검색 실패: 쿼리 임베딩 생성 불가");
-                return Collections.emptyMap();
-            }
-
-            // PostgreSQL vector 포맷 변환
-            String vectorString = formatVectorForPostgres(queryEmbedding);
-
-            // Article.summary 기반 유사도 검색 (ID와 스코어만 반환)
-            List<Object[]> results = articleRepository.findByVectorSimilarityWithScores(
-                    vectorString,
-                    0.1,  // summary는 낮은 임계값 사용 (맥락 기반이므로 유연하게)
-                    50     // 최대 결과 수
-            );
-
-            // Article ID와 유사도 스코어를 Map으로 변환
-            Map<Long, Double> scoreMap = new HashMap<>();
-            for (Object[] row : results) {
-                Long articleId = ((Number) row[0]).longValue();
-                Double similarity = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
-                if (similarity != null) {
-                    scoreMap.put(articleId, similarity);
-                }
-            }
-
-            log.debug("Summary 벡터 검색 완료 - 키워드: '{}', 결과 수: {}", keyword, scoreMap.size());
-            return scoreMap;
-
-        } catch (Exception e) {
-            log.error("Summary 벡터 검색 중 오류 발생", e);
-            return Collections.emptyMap();
-        }
-    }
-
-    /**
-     * float[] 임베딩을 PostgreSQL vector 포맷으로 변환
-     * 형식: [0.1,0.2,0.3,...,0.9]
-     */
-    private String formatVectorForPostgres(float[] embedding) {
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < embedding.length; i++) {
-            if (i > 0) sb.append(",");
-            sb.append(embedding[i]);
-        }
-        sb.append("]");
-        return sb.toString();
     }
 
     /**

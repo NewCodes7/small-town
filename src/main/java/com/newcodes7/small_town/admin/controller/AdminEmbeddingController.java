@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.time.LocalDateTime;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
@@ -17,7 +18,6 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.admin.service.EmbeddingBatchService;
-import com.newcodes7.small_town.article.repository.ArticleChunkRepository;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.service.ArticleEmbeddingService;
 import com.newcodes7.small_town.article.service.TermEmbeddingService;
@@ -40,7 +40,6 @@ import lombok.extern.slf4j.Slf4j;
 public class AdminEmbeddingController {
 
     private final ArticleRepository articleRepository;
-    private final ArticleChunkRepository articleChunkRepository;
     private final ClovaArticleChunkRepository clovaArticleChunkRepository;
     private final EmbeddingBatchService embeddingBatchService;
     private final TermEmbeddingService termEmbeddingService;
@@ -185,8 +184,8 @@ public class AdminEmbeddingController {
             long articlesWithoutContent = totalArticles - articlesWithContent;
 
             // Chunk 통계
-            long totalChunks = articleChunkRepository.countAllChunks();
-            long chunksWithEmbedding = articleChunkRepository.countChunksWithEmbedding();
+            long totalChunks = clovaArticleChunkRepository.countAllChunks();
+            long chunksWithEmbedding = clovaArticleChunkRepository.countChunksWithEmbedding();
             long chunksWithoutEmbedding = totalChunks - chunksWithEmbedding;
 
             // 커버리지 계산
@@ -366,9 +365,9 @@ public class AdminEmbeddingController {
             articleRepository.save(article);
 
             // 4. summary 기반 임베딩 생성 및 저장
-            float[] embedding = articleEmbeddingService.generateSummaryEmbedding(article);
+            float[] embedding = generateSummaryEmbedding(article);
             if (embedding != null) {
-                articleEmbeddingService.saveEmbeddingToArticle(id, embedding);
+                saveEmbeddingToArticle(article, embedding);
             }
 
             response.put("success", true);
@@ -505,9 +504,9 @@ public class AdminEmbeddingController {
                     articleRepository.save(article);
 
                     // 임베딩 생성
-                    float[] embedding = articleEmbeddingService.generateSummaryEmbedding(article);
+                    float[] embedding = generateSummaryEmbedding(article);
                     if (embedding != null) {
-                        articleEmbeddingService.saveEmbeddingToArticle(article.getId(), embedding);
+                        saveEmbeddingToArticle(article, embedding);
                     }
 
                     Map<String, Object> result = new HashMap<>();
@@ -854,5 +853,18 @@ public class AdminEmbeddingController {
             response.put("message", "통계 조회 중 오류 발생: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
+    }
+
+    private float[] generateSummaryEmbedding(Article article) {
+        if (article.getSummary() == null || article.getSummary().trim().isEmpty()) {
+            return null;
+        }
+        return articleEmbeddingService.generateEmbedding(article.getSummary());
+    }
+
+    private void saveEmbeddingToArticle(Article article, float[] embedding) {
+        article.setEmbedding(embedding);
+        article.setEmbeddingGeneratedAt(LocalDateTime.now());
+        articleRepository.save(article);
     }
 }

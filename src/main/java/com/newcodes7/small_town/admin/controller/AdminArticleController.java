@@ -21,8 +21,8 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.admin.service.AdminArticleListService;
-import com.newcodes7.small_town.article.repository.ArticleChunkRepository;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.embedding.entity.ClovaArticleChunk;
 import com.newcodes7.small_town.embedding.repository.ClovaArticleChunkRepository;
 import com.newcodes7.small_town.article.service.ArticleTermService;
 import com.newcodes7.small_town.article.service.RelatedContentKeywordService;
@@ -30,7 +30,6 @@ import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
 import com.newcodes7.small_town.crawler.repository.ArticleSummaryRepository;
 import com.newcodes7.small_town.crawler.repository.CategoryRepository;
 import com.newcodes7.small_town.global.entity.Article;
-import com.newcodes7.small_town.global.entity.ArticleChunk;
 import com.newcodes7.small_town.global.entity.ArticleSummary;
 import com.newcodes7.small_town.global.entity.RelatedContentKeyword;
 
@@ -52,7 +51,6 @@ public class AdminArticleController {
     private final CategoryRepository categoryRepository;
     private final AdminArticleListService adminArticleListService;
     private final RelatedContentKeywordService relatedContentKeywordService;
-    private final ArticleChunkRepository articleChunkRepository;
     private final ArticleTermService articleTermService;
     private final ClovaArticleChunkRepository clovaArticleChunkRepository;
 
@@ -512,14 +510,14 @@ public class AdminArticleController {
             Article article = articleOpt.get();
 
             // 해당 Article의 모든 chunk 조회
-            List<ArticleChunk> chunks = articleChunkRepository.findByArticleIdOrderByChunkIndexAsc(articleId);
+            List<ClovaArticleChunk> chunks = clovaArticleChunkRepository.findByArticleIdOrderByChunkIndexAsc(articleId);
 
             // Chunk 정보를 DTO로 변환
             List<Map<String, Object>> chunkDataList = new ArrayList<>();
             int totalChunks = chunks.size();
             int chunksWithEmbedding = 0;
 
-            for (ArticleChunk chunk : chunks) {
+            for (ClovaArticleChunk chunk : chunks) {
                 Map<String, Object> chunkData = new HashMap<>();
                 chunkData.put("id", chunk.getId());
                 chunkData.put("chunkIndex", chunk.getChunkIndex());
@@ -576,14 +574,14 @@ public class AdminArticleController {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            Optional<ArticleChunk> chunkOpt = articleChunkRepository.findById(chunkId);
+            Optional<ClovaArticleChunk> chunkOpt = clovaArticleChunkRepository.findById(chunkId);
             if (chunkOpt.isEmpty()) {
                 response.put("success", false);
                 response.put("message", "Chunk를 찾을 수 없습니다.");
                 return ResponseEntity.notFound().build();
             }
 
-            ArticleChunk chunk = chunkOpt.get();
+            ClovaArticleChunk chunk = chunkOpt.get();
 
             response.put("success", true);
             response.put("chunkId", chunkId);

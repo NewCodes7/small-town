@@ -37,7 +37,6 @@ import com.newcodes7.small_town.corporation.dto.CorporationUpdateDto;
 import com.newcodes7.small_town.corporation.exception.CorporationException;
 import com.newcodes7.small_town.corporation.repository.IndustryRepository;
 import com.newcodes7.small_town.corporation.service.CorporationService;
-import com.newcodes7.small_town.article.repository.ArticleChunkRepository;
 import com.newcodes7.small_town.article.repository.ArticleTermRepository;
 import com.newcodes7.small_town.article.repository.LikeLogRepository;
 import com.newcodes7.small_town.article.repository.LikeRepository;
@@ -46,6 +45,7 @@ import com.newcodes7.small_town.crawler.repository.ArticleSummaryRepository;
 import com.newcodes7.small_town.crawler.repository.ArticleTagRepository;
 import com.newcodes7.small_town.crawler.repository.CrawlerArticleRepository;
 import com.newcodes7.small_town.crawler.repository.CrawlerCorporationRepository;
+import com.newcodes7.small_town.embedding.repository.ClovaArticleChunkRepository;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.theme.repository.ThemeArticleRepository;
@@ -71,7 +71,7 @@ public class AdminCorporationController {
 
     // Article 삭제 시 연관 데이터 삭제를 위한 Repository들
     private final ArticleTermRepository articleTermRepository;
-    private final ArticleChunkRepository articleChunkRepository;
+    private final ClovaArticleChunkRepository clovaArticleChunkRepository;
     private final ArticleTagRepository articleTagRepository;
     private final ArticleSummaryRepository articleSummaryRepository;
     private final ThemeArticleRepository themeArticleRepository;
@@ -549,7 +549,7 @@ public class AdminCorporationController {
 
             // 연관 데이터 먼저 삭제 (FK 제약 해결)
             articleTermRepository.deleteByArticleId(articleId);
-            articleChunkRepository.deleteByArticleId(articleId);
+            clovaArticleChunkRepository.deleteByArticleId(articleId);
             articleTagRepository.deleteByArticleId(articleId);
             articleSummaryRepository.deleteByArticleId(articleId);
             themeArticleRepository.deleteByArticleId(articleId);

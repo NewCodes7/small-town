@@ -16,9 +16,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
-import com.newcodes7.small_town.article.repository.ArticleChunkRepository;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.article.service.ArticleEmbeddingService;
+import com.newcodes7.small_town.embedding.service.ClovaSearchService;
 import com.newcodes7.small_town.global.entity.Article;
 
 import lombok.RequiredArgsConstructor;
@@ -35,8 +34,7 @@ import lombok.extern.slf4j.Slf4j;
 public class AdminSearchTestController {
 
     private final ArticleRepository articleRepository;
-    private final ArticleChunkRepository chunkRepository;
-    private final ArticleEmbeddingService embeddingService;
+    private final ClovaSearchService clovaSearchService;
 
     /**
      * 하이브리드 검색 테스트 - 상세 매칭 정보 제공
@@ -80,45 +78,31 @@ public class AdminSearchTestController {
             List<Map<String, Object>> vectorResults = new ArrayList<>();
             Set<Long> vectorArticleIds = new HashSet<>();
 
-            float[] queryEmbedding = embeddingService.generateEmbedding(keyword);
-            if (queryEmbedding != null) {
-                String vectorString = formatVectorForPostgres(queryEmbedding);
+            Map<Long, Double> similarityMap = clovaSearchService.searchByKeyword(keyword, 0.5, 50);
+            if (!similarityMap.isEmpty()) {
+                similarityMap.entrySet().stream()
+                        .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
+                        .forEach(entry -> {
+                            Long articleId = entry.getKey();
+                            Double similarity = entry.getValue();
 
-                // 청크 기반 유사도 검색 (상위 50개)
-                List<Object[]> chunkResults = chunkRepository.findArticleIdsBySimilarity(
-                    vectorString,
-                    0.5,  // 낮은 임계값으로 더 많은 결과 확인
-                    50
-                );
+                            if (!vectorArticleIds.contains(articleId)) {
+                                vectorArticleIds.add(articleId);
 
-                for (Object[] row : chunkResults) {
-                    Long articleId = ((Number) row[0]).longValue();
-                    Double similarity = ((Number) row[1]).doubleValue();
-
-                    if (!vectorArticleIds.contains(articleId)) {
-                        vectorArticleIds.add(articleId);
-
-                        Article article = articleRepository.findById(articleId).orElse(null);
-                        if (article != null) {
-                            Map<String, Object> result = new LinkedHashMap<>();
-                            result.put("articleId", article.getId());
-                            result.put("title", article.getTitle() != null ? article.getTitle() : "");
-                            result.put("translatedTitle", article.getTranslatedTitle() != null ? article.getTranslatedTitle() : "");
-                            result.put("corporation", article.getCorporation().getName());
-                            result.put("link", article.getLink() != null ? article.getLink() : "");
-                            result.put("similarity", String.format("%.4f", similarity));
-                            result.put("matchType", keywordArticleIds.contains(articleId) ? "BOTH" : "VECTOR_ONLY");
-                            vectorResults.add(result);
-                        }
-                    }
-                }
-
-                // 유사도 순으로 정렬
-                vectorResults.sort((a, b) -> {
-                    double simA = Double.parseDouble((String) a.get("similarity"));
-                    double simB = Double.parseDouble((String) b.get("similarity"));
-                    return Double.compare(simB, simA);
-                });
+                                Article article = articleRepository.findById(articleId).orElse(null);
+                                if (article != null) {
+                                    Map<String, Object> result = new LinkedHashMap<>();
+                                    result.put("articleId", article.getId());
+                                    result.put("title", article.getTitle() != null ? article.getTitle() : "");
+                                    result.put("translatedTitle", article.getTranslatedTitle() != null ? article.getTranslatedTitle() : "");
+                                    result.put("corporation", article.getCorporation().getName());
+                                    result.put("link", article.getLink() != null ? article.getLink() : "");
+                                    result.put("similarity", String.format("%.4f", similarity));
+                                    result.put("matchType", keywordArticleIds.contains(articleId) ? "BOTH" : "VECTOR_ONLY");
+                                    vectorResults.add(result);
+                                }
+                            }
+                        });
             }
 
             // 3. 통합 결과 생성
@@ -153,16 +137,4 @@ public class AdminSearchTestController {
         }
     }
 
-    /**
-     * PostgreSQL vector 포맷 변환
-     */
-    private String formatVectorForPostgres(float[] embedding) {
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < embedding.length; i++) {
-            if (i > 0) sb.append(",");
-            sb.append(embedding[i]);
-        }
-        sb.append("]");
-        return sb.toString();
-    }
 }
