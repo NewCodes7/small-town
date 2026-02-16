@@ -47,6 +47,9 @@ public class ArticleServiceTest {
     @Mock
     private com.newcodes7.small_town.global.service.MorphemeAnalyzer morphemeAnalyzer;
 
+    @Mock
+    private HybridSearchScorer hybridSearchScorer;
+
     @InjectMocks
     private ArticleService articleService;
 

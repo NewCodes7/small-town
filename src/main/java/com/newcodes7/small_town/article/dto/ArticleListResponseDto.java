@@ -41,11 +41,11 @@ public class ArticleListResponseDto implements ArticleResponseDto {
     private final Double vectorScore;
 
     /**
-     * RRF (Reciprocal Rank Fusion) 스코어 (Admin 전용, 하이브리드 검색 시에만 사용)
-     * BM25 + Vector 검색 결과를 순위 기반으로 결합한 최종 스코어
-     * null이면 일반 목록 조회 또는 RRF 미사용
+     * 최종 검색 스코어 (Admin 전용, 하이브리드 검색 시에만 사용)
+     * BM25 + Vector + ILIKE 검색 결과를 Normalized Score Fusion으로 결합한 최종 스코어
+     * null이면 일반 목록 조회 또는 하이브리드 검색 미사용
      */
-    private final Double rrfScore;
+    private final Double finalScore;
 
     /**
      * ILIKE 검색 스코어 (Admin 전용, 하이브리드 검색 시에만 사용)
@@ -89,35 +89,35 @@ public class ArticleListResponseDto implements ArticleResponseDto {
     /**
      * 모든 검색 스코어를 포함한 생성자 (하이브리드 검색 결과용)
      */
-    protected ArticleListResponseDto(Article article, Double bm25Score, Double vectorScore, Double rrfScore) {
-        this(article, bm25Score, vectorScore, rrfScore, null, null, null);
+    protected ArticleListResponseDto(Article article, Double bm25Score, Double vectorScore, Double finalScore) {
+        this(article, bm25Score, vectorScore, finalScore, null, null, null);
     }
 
     /**
      * 모든 검색 스코어를 포함한 생성자 (하이브리드 검색 결과용 - ilikeScore 포함)
      */
-    protected ArticleListResponseDto(Article article, Double bm25Score, Double vectorScore, Double rrfScore, Double ilikeScore) {
-        this(article, bm25Score, vectorScore, rrfScore, ilikeScore, null, null);
+    protected ArticleListResponseDto(Article article, Double bm25Score, Double vectorScore, Double finalScore, Double ilikeScore) {
+        this(article, bm25Score, vectorScore, finalScore, ilikeScore, null, null);
     }
 
     /**
      * 모든 검색 스코어를 포함한 생성자 (하이브리드 검색 결과용 - timeDecayScore 포함)
      */
-    protected ArticleListResponseDto(Article article, Double bm25Score, Double vectorScore, Double rrfScore, Double ilikeScore, Double timeDecayScore) {
-        this(article, bm25Score, vectorScore, rrfScore, ilikeScore, timeDecayScore, null);
+    protected ArticleListResponseDto(Article article, Double bm25Score, Double vectorScore, Double finalScore, Double ilikeScore, Double timeDecayScore) {
+        this(article, bm25Score, vectorScore, finalScore, ilikeScore, timeDecayScore, null);
     }
 
     /**
      * 모든 검색 스코어와 좋아요 상태를 포함한 생성자 (rank 없음)
      */
-    public ArticleListResponseDto(Article article, Double bm25Score, Double vectorScore, Double rrfScore, Double ilikeScore, Double timeDecayScore, Boolean isLiked) {
-        this(article, bm25Score, vectorScore, rrfScore, ilikeScore, timeDecayScore, null, null, null, isLiked);
+    public ArticleListResponseDto(Article article, Double bm25Score, Double vectorScore, Double finalScore, Double ilikeScore, Double timeDecayScore, Boolean isLiked) {
+        this(article, bm25Score, vectorScore, finalScore, ilikeScore, timeDecayScore, null, null, null, isLiked);
     }
 
     /**
      * 모든 검색 스코어, 순위, 좋아요 상태를 포함한 생성자 (최종)
      */
-    public ArticleListResponseDto(Article article, Double bm25Score, Double vectorScore, Double rrfScore, Double ilikeScore, Double timeDecayScore,
+    public ArticleListResponseDto(Article article, Double bm25Score, Double vectorScore, Double finalScore, Double ilikeScore, Double timeDecayScore,
                                   Integer bm25Rank, Integer vectorRank, Integer ilikeRank, Boolean isLiked) {
         this.id = article.getId();
         this.title = article.getTitle();
@@ -136,7 +136,7 @@ public class ArticleListResponseDto implements ArticleResponseDto {
         this.tags = List.of();  // 태그 미사용 - OOM 방지를 위해 비활성화
         this.bm25Score = bm25Score;
         this.vectorScore = vectorScore;
-        this.rrfScore = rrfScore;
+        this.finalScore = finalScore;
         this.ilikeScore = ilikeScore;
         this.timeDecayScore = timeDecayScore;
         this.bm25Rank = bm25Rank;
