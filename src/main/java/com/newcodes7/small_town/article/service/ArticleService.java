@@ -70,13 +70,7 @@ public class ArticleService {
     private final UserLikeService userLikeService;
     private final ClovaSearchService clovaSearchService;
     private final ExecutorService searchExecutor;
-
-    // Normalized Score Fusion (NSF) 가중치
-    // 각 검색 방법의 정규화된 점수에 곱해지는 가중치
-    private static final double NSF_WEIGHT_BM25 = 0.4;     // BM25: 키워드 매칭 기반
-    private static final double NSF_WEIGHT_VECTOR = 0.4;   // Vector: 의미적 유사도 기반
-    private static final double NSF_WEIGHT_TITLE_MIN = 0.1;  // ILIKE: 커버리지 낮을 때 최소 가중치
-    private static final double NSF_WEIGHT_TITLE_MAX = 0.3;  // ILIKE: 커버리지 높을 때 최대 가중치
+    private final HybridSearchScorer hybridSearchScorer;
 
     public ArticleService(ArticleRepository articleRepository,
                          @Qualifier("articleCorporationRepository") CorporationRepository corporationRepository,
@@ -90,7 +84,8 @@ public class ArticleService {
                          LikeService likeService,
                          UserLikeService userLikeService,
                          ClovaSearchService clovaSearchService,
-                         @Qualifier("searchExecutor") ExecutorService searchExecutor) {
+                         @Qualifier("searchExecutor") ExecutorService searchExecutor,
+                         HybridSearchScorer hybridSearchScorer) {
         this.articleRepository = articleRepository;
         this.corporationRepository = corporationRepository;
         this.articleTermRepository = articleTermRepository;
@@ -104,6 +99,7 @@ public class ArticleService {
         this.userLikeService = userLikeService;
         this.clovaSearchService = clovaSearchService;
         this.searchExecutor = searchExecutor;
+        this.hybridSearchScorer = hybridSearchScorer;
     }
 
     @Cacheable(value = "corporationArticles",
@@ -746,7 +742,7 @@ public class ArticleService {
         final Map<Long, Integer> bm25Ranks = calculateRanks(finalBm25Results);
         final Map<Long, Integer> vectorRanks = calculateRanks(finalVectorResults);
         final Map<Long, Integer> ilikeRanks = calculateRanks(titleResults);
-        Map<Long, Double> nsfScores = calculateNSFScores(finalBm25Results, finalVectorResults, titleResults, titleWeights);
+        Map<Long, Double> nsfScores = hybridSearchScorer.calculateNSFScores(finalBm25Results, finalVectorResults, titleResults, titleWeights);
         long rerankEndTime = System.currentTimeMillis();
 
         if (nsfScores.isEmpty()) {
@@ -903,13 +899,13 @@ public class ArticleService {
 
         // 개별 직접 매칭 Term (OR 절, 높은 우선순위)
         for (String term : directMatchTerms) {
-            appendBoostedTerm(queryBuilder, term, "2.0");
+            hybridSearchScorer.appendBoostedTerm(queryBuilder, term, "2.0");
         }
 
         // 유의어 및 임베딩 유사어 (OR 절, 낮은 우선순위)
         for (Map.Entry<String, Double> entry : expandedOnlyTerms.entrySet()) {
             String boostValue = String.format("%.1f", entry.getValue() * 2.0);
-            appendBoostedTerm(queryBuilder, entry.getKey(), boostValue);
+            hybridSearchScorer.appendBoostedTerm(queryBuilder, entry.getKey(), boostValue);
         }
 
         log.debug("BM25 검색 쿼리 생성 완료 - 직접 Term: {}, 확장 Term: {}", directMatchTerms, expandedOnlyTerms.keySet());
@@ -980,100 +976,6 @@ public class ArticleService {
             log.error("BM25 보충 점수 계산 실패: {}", e.getMessage(), e);
             return Collections.emptyList();
         }
-    }
-
-    /**
-     * Normalized Score Fusion (NSF) 계산
-     *
-     * 각 검색 방법의 점수를 min-max 정규화(0~1)한 후 가중 합산하여 최종 스코어 산출.
-     * RRF 대비 장점:
-     * - 원본 점수의 크기(magnitude) 정보를 보존하여 높은 유사도 결과를 정확히 반영
-     * - 점수 분포가 넓은 검색(BM25 등)에서 상위권과 하위권의 차이를 유지
-     * - 벡터 유사도의 절대값 차이가 최종 스코어에 반영됨 (RRF는 순위만 사용)
-     *
-     * @param bm25Scores BM25 점수 맵
-     * @param vectorScores Vector 유사도 맵
-     * @param titleScores ILIKE 제목 매칭 점수 맵
-     * @param titleWeights ILIKE per-article 가중치
-     * @return NSF 스코어 맵 (ID -> NSF 스코어)
-     */
-    Map<Long, Double> calculateNSFScores(
-            Map<Long, Double> bm25Scores,
-            Map<Long, Double> vectorScores,
-            Map<Long, Double> titleScores,
-            Map<Long, Double> titleWeights) {
-
-        // 각 검색 방법의 min-max 정규화
-        Map<Long, Double> normalizedBm25 = minMaxNormalize(bm25Scores);
-        Map<Long, Double> normalizedVector = minMaxNormalize(vectorScores);
-        Map<Long, Double> normalizedTitle = minMaxNormalize(titleScores);
-
-        Map<Long, Double> nsfScores = new HashMap<>();
-
-        // 모든 Article ID 수집
-        Set<Long> allArticleIds = new HashSet<>();
-        allArticleIds.addAll(bm25Scores.keySet());
-        allArticleIds.addAll(vectorScores.keySet());
-        allArticleIds.addAll(titleScores.keySet());
-
-        // NSF 스코어 계산 (정규화된 점수의 가중 합산, 가중치 합 정규화)
-        for (Long articleId : allArticleIds) {
-            double weightedSum = 0.0;
-            double weightSum = 0.0;
-
-            if (normalizedBm25.containsKey(articleId)) {
-                weightedSum += NSF_WEIGHT_BM25 * normalizedBm25.get(articleId);
-                weightSum += NSF_WEIGHT_BM25;
-            }
-
-            if (normalizedVector.containsKey(articleId)) {
-                weightedSum += NSF_WEIGHT_VECTOR * normalizedVector.get(articleId);
-                weightSum += NSF_WEIGHT_VECTOR;
-            }
-
-            if (normalizedTitle.containsKey(articleId)) {
-                double titleWeight = titleWeights.getOrDefault(articleId, NSF_WEIGHT_TITLE_MIN);
-                weightedSum += titleWeight * normalizedTitle.get(articleId);
-                weightSum += titleWeight;
-            }
-
-            // 가중치 합으로 나누어 최종 스코어를 [0, 1] 범위로 정규화
-            double nsfScore = (weightSum > 0) ? weightedSum / weightSum : 0.0;
-            nsfScores.put(articleId, nsfScore);
-        }
-
-        return nsfScores;
-    }
-
-    /**
-     * Min-Max 정규화: 점수를 0~1 범위로 변환
-     * 결과가 1개이거나 모든 점수가 동일한 경우, 원본 점수를 [0, 1]로 클램핑하여 반환
-     * (벡터 유사도 0.52 같은 threshold 근처 단일 결과가 1.0으로 과대평가되는 것을 방지)
-     */
-    Map<Long, Double> minMaxNormalize(Map<Long, Double> scoreMap) {
-        Map<Long, Double> normalized = new HashMap<>();
-        if (scoreMap == null || scoreMap.isEmpty()) {
-            return normalized;
-        }
-
-        double min = scoreMap.values().stream().mapToDouble(Double::doubleValue).min().orElse(0.0);
-        double max = scoreMap.values().stream().mapToDouble(Double::doubleValue).max().orElse(0.0);
-        double range = max - min;
-
-        for (Map.Entry<Long, Double> entry : scoreMap.entrySet()) {
-            double normalizedScore;
-            if (range > 0) {
-                normalizedScore = (entry.getValue() - min) / range;
-            } else {
-                // 단일 결과이거나 모든 점수가 동일한 경우:
-                // 원본 점수를 [0, 1]로 클램핑 (벡터 유사도는 이미 0~1 범위이므로 그대로 보존,
-                // BM25/ILIKE 등 1.0 초과 점수는 1.0으로 제한)
-                normalizedScore = Math.max(0.0, Math.min(entry.getValue(), 1.0));
-            }
-            normalized.put(entry.getKey(), normalizedScore);
-        }
-
-        return normalized;
     }
 
     /**
@@ -1205,13 +1107,13 @@ public class ArticleService {
 
             // 2-1. 개별 직접 매칭 Term (OR 절, 높은 우선순위)
             for (String term : directMatchTerms) {
-                appendBoostedTerm(queryBuilder, term, "2.0");
+                hybridSearchScorer.appendBoostedTerm(queryBuilder, term, "2.0");
             }
 
             // 2-2. 유의어 및 임베딩 유사어 (OR 절, 낮은 우선순위)
             for (Map.Entry<String, Double> entry : expandedOnlyTerms.entrySet()) {
                 String boostValue = String.format("%.1f", entry.getValue() * 2.0);
-                appendBoostedTerm(queryBuilder, entry.getKey(), boostValue);
+                hybridSearchScorer.appendBoostedTerm(queryBuilder, entry.getKey(), boostValue);
             }
 
             String searchQuery = queryBuilder.toString();
@@ -1344,7 +1246,7 @@ public class ArticleService {
             String bestTitle = translatedScore > score ? translatedTitle : title;
 
             scoreMap.put(articleId, Math.max(score, translatedScore));
-            weightMap.put(articleId, calculateTitleCoverageWeight(bestTitle, keywordLength));
+            weightMap.put(articleId, hybridSearchScorer.calculateTitleCoverageWeight(bestTitle, keywordLength));
         }
     }
 
@@ -1366,20 +1268,6 @@ public class ArticleService {
             return 1.0;
         }
         return 0.0;
-    }
-
-    /**
-     * 제목 길이 대비 키워드 커버리지에 따른 RRF 가중치 계산
-     * coverage = keywordLength / titleLength
-     * weight = TITLE_MIN + (TITLE_MAX - TITLE_MIN) * coverage
-     */
-    double calculateTitleCoverageWeight(String title, int keywordLength) {
-        if (title == null || title.isEmpty()) {
-            return NSF_WEIGHT_TITLE_MIN;
-        }
-        double coverage = (double) keywordLength / title.length();
-        coverage = Math.min(coverage, 1.0);
-        return NSF_WEIGHT_TITLE_MIN + (NSF_WEIGHT_TITLE_MAX - NSF_WEIGHT_TITLE_MIN) * coverage;
     }
 
     /**
@@ -1618,40 +1506,6 @@ public class ArticleService {
         }
 
         return results;
-    }
-
-    /**
-     * BM25 쿼리용 Term 따옴표 처리
-     * 띄어쓰기가 포함된 term은 따옴표로 감싸고, 단일 단어는 그대로 반환
-     */
-    String quoteTerm(String term) {
-        if (term == null || term.isEmpty()) {
-            return term;
-        }
-
-        // 띄어쓰기가 포함된 경우 따옴표로 감싸기
-        if (term.contains(" ")) {
-            return "\"" + term + "\"";
-        }
-
-        return term;
-    }
-
-    /**
-     * BM25 쿼리에 부스트된 term 추가
-     * ParadeDB parse()는 column:term 형식 필수
-     * title_terms에 1.5배 가중치 부여하여 제목 매칭 우선
-     */
-    void appendBoostedTerm(StringBuilder queryBuilder, String term, String boostValue) {
-        String quotedTerm = quoteTerm(term);
-        if (queryBuilder.length() > 0) {
-            queryBuilder.append(" OR ");
-        }
-        String titleBoost = String.format("%.1f", Double.parseDouble(boostValue) * 1.5);
-        queryBuilder.append(String.format(
-            "title_terms:%s^%s OR content_terms:%s^%s",
-            quotedTerm, titleBoost, quotedTerm, boostValue
-        ));
     }
 
     /**

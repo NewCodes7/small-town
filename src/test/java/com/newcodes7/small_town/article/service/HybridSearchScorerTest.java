@@ -6,36 +6,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
-import com.newcodes7.small_town.article.repository.ArticleRepository;
 
 /**
- * Normalized Score Fusion (NSF) 및 관련 점수 계산 메서드 단위 테스트
+ * HybridSearchScorer (Normalized Score Fusion) 단위 테스트
+ *
+ * 스코어링 로직이 별도 클래스로 분리되어 Mock 없이 직접 인스턴스화 가능
  */
-@ExtendWith(MockitoExtension.class)
-public class ArticleServiceNSFTest {
+public class HybridSearchScorerTest {
 
-    @Mock
-    private ArticleRepository articleRepository;
-
-    @Mock
-    private com.newcodes7.small_town.article.repository.TermRepository termRepository;
-
-    @Mock
-    private com.newcodes7.small_town.article.repository.ArticleTermRepository articleTermRepository;
-
-    @Mock
-    private TermSynonymService termSynonymService;
-
-    @Mock
-    private com.newcodes7.small_town.global.service.MorphemeAnalyzer morphemeAnalyzer;
-
-    @InjectMocks
-    private ArticleService articleService;
+    private final HybridSearchScorer scorer = new HybridSearchScorer();
 
     @Test
     public void minMaxNormalize_정상_정규화() {
@@ -46,7 +25,7 @@ public class ArticleServiceNSFTest {
         scores.put(3L, 0.0);
 
         // when
-        Map<Long, Double> result = articleService.minMaxNormalize(scores);
+        Map<Long, Double> result = scorer.minMaxNormalize(scores);
 
         // then
         assertEquals(1.0, result.get(1L), 0.001);
@@ -62,7 +41,7 @@ public class ArticleServiceNSFTest {
         scores.put(2L, 5.0);
 
         // when
-        Map<Long, Double> result = articleService.minMaxNormalize(scores);
+        Map<Long, Double> result = scorer.minMaxNormalize(scores);
 
         // then: 5.0은 1.0 초과이므로 1.0으로 클램핑
         assertEquals(1.0, result.get(1L), 0.001);
@@ -75,7 +54,7 @@ public class ArticleServiceNSFTest {
         Map<Long, Double> scores = new HashMap<>();
 
         // when
-        Map<Long, Double> result = articleService.minMaxNormalize(scores);
+        Map<Long, Double> result = scorer.minMaxNormalize(scores);
 
         // then
         assertTrue(result.isEmpty());
@@ -88,7 +67,7 @@ public class ArticleServiceNSFTest {
         scores.put(1L, 7.0);
 
         // when
-        Map<Long, Double> result = articleService.minMaxNormalize(scores);
+        Map<Long, Double> result = scorer.minMaxNormalize(scores);
 
         // then: 단일 항목은 원본 점수를 [0,1]로 클램핑 (7.0 → 1.0)
         assertEquals(1.0, result.get(1L), 0.001);
@@ -101,10 +80,79 @@ public class ArticleServiceNSFTest {
         scores.put(1L, 0.52);
 
         // when
-        Map<Long, Double> result = articleService.minMaxNormalize(scores);
+        Map<Long, Double> result = scorer.minMaxNormalize(scores);
 
         // then: 0.52 그대로 보존 (기존에는 1.0으로 과대평가됨)
         assertEquals(0.52, result.get(1L), 0.001);
+    }
+
+    @Test
+    public void minMaxNormalize_이상치_캡핑() {
+        // given: BM25 점수에서 하나가 극단적으로 높은 경우
+        // 이상치 없으면 상위 3개가 모두 0에 가까워지는 문제 방지
+        Map<Long, Double> scores = new HashMap<>();
+        for (long i = 1; i <= 20; i++) {
+            scores.put(i, (double) i);
+        }
+        // 이상치 추가: 100.0
+        scores.put(21L, 100.0);
+
+        // when
+        Map<Long, Double> result = scorer.minMaxNormalize(scores);
+
+        // then: 이상치가 캡핑되어 나머지 점수들이 고르게 분포
+        // 캡핑 없이는 20.0/100.0 = 0.2, 19.0/100.0 ≈ 0.19 등으로 눌림
+        // 캡핑 후에는 20.0이 최대값에 가까워져 상위 점수가 더 높게 정규화됨
+        assertTrue(result.get(20L) > 0.8, "20번 항목이 이상치 캡핑 후 높은 정규화 점수를 가져야 함");
+        assertTrue(result.get(15L) > 0.5, "15번 항목이 이상치 캡핑 후 중간 정규화 점수를 가져야 함");
+    }
+
+    @Test
+    public void minMaxNormalize_소규모_결과는_캡핑_미적용() {
+        // given: 20개 미만인 경우 캡핑 없이 일반 min-max 정규화
+        Map<Long, Double> scores = new HashMap<>();
+        scores.put(1L, 1.0);
+        scores.put(2L, 2.0);
+        scores.put(3L, 3.0);
+        scores.put(4L, 100.0);
+
+        // when
+        Map<Long, Double> result = scorer.minMaxNormalize(scores);
+
+        // then: 캡핑 없이 일반 min-max (100.0이 최대이므로 3.0은 낮게 정규화)
+        assertEquals(1.0, result.get(4L), 0.001); // 100.0 → 1.0
+        assertTrue(result.get(3L) < 0.05, "소규모에서는 캡핑 없이 3.0/99.0 ≈ 0.02");
+    }
+
+    @Test
+    public void capOutliers_대규모_결과에서_95th_percentile_캡핑() {
+        // given
+        Map<Long, Double> scores = new HashMap<>();
+        for (long i = 1; i <= 20; i++) {
+            scores.put(i, (double) i);
+        }
+        scores.put(21L, 100.0);
+
+        // when
+        Map<Long, Double> result = scorer.capOutliers(scores);
+
+        // then: 100.0이 95th percentile (= 20.0)로 캡핑
+        assertEquals(20.0, result.get(21L), 0.001);
+        assertEquals(15.0, result.get(15L), 0.001); // 정상 점수는 변경 없음
+    }
+
+    @Test
+    public void capOutliers_소규모_결과는_캡핑_미적용() {
+        // given: 20개 미만
+        Map<Long, Double> scores = new HashMap<>();
+        scores.put(1L, 1.0);
+        scores.put(2L, 100.0);
+
+        // when
+        Map<Long, Double> result = scorer.capOutliers(scores);
+
+        // then: 캡핑 없이 원본 유지
+        assertEquals(100.0, result.get(2L), 0.001);
     }
 
     @Test
@@ -118,7 +166,7 @@ public class ArticleServiceNSFTest {
         Map<Long, Double> titleWeights = new HashMap<>();
 
         // when
-        Map<Long, Double> result = articleService.calculateNSFScores(
+        Map<Long, Double> result = scorer.calculateNSFScores(
                 bm25Scores, vectorScores, titleScores, titleWeights);
 
         // then: BM25만 있을 때, 가중치 합 정규화로 최종 스코어 = 정규화된 점수 그대로
@@ -145,11 +193,10 @@ public class ArticleServiceNSFTest {
         titleWeights.put(1L, 0.25);
 
         // when
-        Map<Long, Double> result = articleService.calculateNSFScores(
+        Map<Long, Double> result = scorer.calculateNSFScores(
                 bm25Scores, vectorScores, titleScores, titleWeights);
 
         // then
-        // Article 1: BM25 정규화(1.0)*0.4 + Vector 정규화(1.0)*0.4 + Title 정규화(1.0)*0.25
         assertEquals(3, result.size());
         assertTrue(result.get(1L) > result.get(2L));
         assertTrue(result.get(1L) > result.get(3L));
@@ -169,7 +216,7 @@ public class ArticleServiceNSFTest {
         Map<Long, Double> titleWeights = new HashMap<>();
 
         // when
-        Map<Long, Double> result = articleService.calculateNSFScores(
+        Map<Long, Double> result = scorer.calculateNSFScores(
                 bm25Scores, vectorScores, titleScores, titleWeights);
 
         // then: 벡터에서 높은 점수를 받은 Article 3도 결과에 포함
@@ -193,7 +240,7 @@ public class ArticleServiceNSFTest {
         titleWeights.put(1L, 0.3); // 최대 타이틀 가중치
 
         // when
-        Map<Long, Double> result = articleService.calculateNSFScores(
+        Map<Long, Double> result = scorer.calculateNSFScores(
                 bm25Scores, vectorScores, titleScores, titleWeights);
 
         // then: 최종 스코어가 1.0을 초과하지 않음
@@ -208,7 +255,7 @@ public class ArticleServiceNSFTest {
     @Test
     public void calculateTitleCoverageWeight_빈_제목() {
         // when
-        double result = articleService.calculateTitleCoverageWeight("", 5);
+        double result = scorer.calculateTitleCoverageWeight("", 5);
 
         // then: 빈 제목은 최소 가중치 반환
         assertEquals(0.1, result, 0.001);
@@ -221,7 +268,7 @@ public class ArticleServiceNSFTest {
         int keywordLength = 5;
 
         // when
-        double result = articleService.calculateTitleCoverageWeight(title, keywordLength);
+        double result = scorer.calculateTitleCoverageWeight(title, keywordLength);
 
         // then: 커버리지가 1.0이므로 최대 가중치
         assertEquals(0.3, result, 0.001);
@@ -234,7 +281,7 @@ public class ArticleServiceNSFTest {
         int keywordLength = 5;
 
         // when
-        double result = articleService.calculateTitleCoverageWeight(title, keywordLength);
+        double result = scorer.calculateTitleCoverageWeight(title, keywordLength);
 
         // then: 커버리지가 낮으므로 최소 가중치에 가까움
         assertTrue(result > 0.1);
@@ -249,7 +296,7 @@ public class ArticleServiceNSFTest {
         String boostValue = "2.0";
 
         // when
-        articleService.appendBoostedTerm(queryBuilder, term, boostValue);
+        scorer.appendBoostedTerm(queryBuilder, term, boostValue);
 
         // then: title boost = 2.0 * 1.5 = 3.0, content boost = 2.0
         String query = queryBuilder.toString();
@@ -265,7 +312,7 @@ public class ArticleServiceNSFTest {
         String boostValue = "0.5";
 
         // when
-        articleService.appendBoostedTerm(queryBuilder, term, boostValue);
+        scorer.appendBoostedTerm(queryBuilder, term, boostValue);
 
         // then: title boost = 0.5 * 1.5 = 0.8 (반올림), content boost = 0.5
         String query = queryBuilder.toString();
@@ -279,8 +326,8 @@ public class ArticleServiceNSFTest {
         StringBuilder queryBuilder = new StringBuilder();
 
         // when
-        articleService.appendBoostedTerm(queryBuilder, "redis", "2.0");
-        articleService.appendBoostedTerm(queryBuilder, "캐시", "1.0");
+        scorer.appendBoostedTerm(queryBuilder, "redis", "2.0");
+        scorer.appendBoostedTerm(queryBuilder, "캐시", "1.0");
 
         // then: 두 번째 term 앞에 OR 연결
         String query = queryBuilder.toString();
