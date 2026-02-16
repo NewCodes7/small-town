@@ -9,6 +9,7 @@ import com.newcodes7.small_town.auth.jwt.JwtTokenProvider;
 import com.newcodes7.small_town.auth.repository.ProviderRepository;
 import com.newcodes7.small_town.auth.repository.RoleRepository;
 import com.newcodes7.small_town.auth.repository.UserRepository;
+import com.newcodes7.small_town.global.exception.UserNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;

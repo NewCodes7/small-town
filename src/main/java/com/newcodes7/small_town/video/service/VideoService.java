@@ -17,7 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.article.dto.CorporationDto;
-import com.newcodes7.small_town.article.repository.CorporationRepository;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.article.repository.TermRepository;
 import com.newcodes7.small_town.article.service.TermSynonymService;
 import com.newcodes7.small_town.crawler.repository.CategoryRepository;
@@ -48,7 +48,7 @@ public class VideoService {
     private final VideoLikeService videoLikeService;
 
     public VideoService(VideoRepository videoRepository,
-                       @Qualifier("articleCorporationRepository") CorporationRepository corporationRepository,
+                       CorporationRepository corporationRepository,
                        CategoryRepository categoryRepository,
                        VideoTermRepository videoTermRepository,
                        TermRepository termRepository,

@@ -42,7 +42,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.article.repository.CorporationRepository;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.auth.dto.JwtResponseDto;
 import com.newcodes7.small_town.auth.dto.LoginRequestDto;
 import com.newcodes7.small_town.auth.entity.Role;

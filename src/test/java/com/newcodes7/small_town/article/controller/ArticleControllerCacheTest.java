@@ -30,7 +30,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.article.repository.CorporationRepository;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
 import com.newcodes7.small_town.crawler.crawler.DefaultBlogCrawler;
 import com.newcodes7.small_town.global.entity.Article;

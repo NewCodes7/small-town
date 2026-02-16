@@ -64,6 +64,7 @@ public class CrawlingService {
     private final ArticleTermRepository articleTermRepository;
     private final ArticleContentExtractionService articleContentExtractionService;
     private final ArticleRepository articleRepository;
+    private final com.newcodes7.small_town.crawler.util.WebDriverExecutor webDriverExecutor;
 
     // Term 추출 설정
     @Value("${term.extraction.max-terms:7}")
@@ -83,29 +84,24 @@ public class CrawlingService {
 
         // 기업별로 WebDriver를 새로 생성하여 메모리 누적 방지
         for (Corporation corporation : corporations) {
-            WebDriver driver = null;
-            try {
-                driver = webDriverConfig.createWebDriver();
-                CrawlResult result = crawlSingleBlog(corporation.getId(), driver);
-                results.add(result);
-
-                log.info("기업 크롤링 완료 - {}: {} 진행", corporation.getName(),
-                    results.size() + "/" + corporations.size());
-
-            } catch (Exception e) {
-                log.error("기업 ID {} 크롤링 중 오류 발생: {}", corporation.getId(), e.getMessage(), e);
-                results.add(CrawlResult.failure(corporation, "크롤링 실행 실패: " + e.getMessage()));
-            } finally {
-                if (driver != null) {
-                    webDriverConfig.forceCloseWebDriver(driver);
-                    // 메모리 정리를 위한 대기 시간
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        log.warn("메모리 정리 대기 중 인터럽트 발생");
-                    }
+            CrawlResult result = webDriverExecutor.executeWithErrorHandling(
+                driver -> crawlSingleBlog(corporation.getId(), driver),
+                e -> {
+                    log.error("기업 ID {} 크롤링 중 오류 발생: {}", corporation.getId(), e.getMessage(), e);
+                    return CrawlResult.failure(corporation, "크롤링 실행 실패: " + e.getMessage());
                 }
+            );
+            results.add(result);
+
+            log.info("기업 크롤링 완료 - {}: {}/{} 진행", corporation.getName(),
+                results.size(), corporations.size());
+
+            // 메모리 정리를 위한 대기 시간
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                log.warn("메모리 정리 대기 중 인터럽트 발생");
             }
         }
 
@@ -587,48 +583,48 @@ public class CrawlingService {
             throw new CorporationCrawlingException(corporationId);
         }
 
-        WebDriver driver = null;
-        try {
-            driver = webDriverConfig.createWebDriver();
-            BlogCrawler crawler = selectCrawler(corporation);
+        return webDriverExecutor.executeWithErrorHandling(
+            driver -> {
+                try {
+                    BlogCrawler crawler = selectCrawler(corporation);
 
-            log.info("Admin 전체 페이지 크롤링 - 기업: {}, 크롤러: {}",
-                    corporation.getName(), crawler.getProviderName());
+                    log.info("Admin 전체 페이지 크롤링 - 기업: {}, 크롤러: {}",
+                            corporation.getName(), crawler.getProviderName());
 
-            // crawlAllPages 호출
-            List<Article> articles = crawler.crawlAllPages(driver, corporation);
-            List<Article> newArticles = new ArrayList<>();
+                    // crawlAllPages 호출
+                    List<Article> articles = crawler.crawlAllPages(driver, corporation);
+                    List<Article> newArticles = new ArrayList<>();
 
-            // 중복 체크 및 저장 (link 또는 title이 같으면 중복, 캐시 작업 없이)
-            for (Article article : articles) {
-                boolean isDuplicateByLink = crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(article.getLink()).isPresent();
-                boolean isDuplicateByTitle = crawlerArticleRepository.existsByTitleAndCorporationIdAndDeletedAtIsNull(article.getTitle(), corporation.getId());
+                    // 중복 체크 및 저장 (link 또는 title이 같으면 중복, 캐시 작업 없이)
+                    for (Article article : articles) {
+                        boolean isDuplicateByLink = crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(article.getLink()).isPresent();
+                        boolean isDuplicateByTitle = crawlerArticleRepository.existsByTitleAndCorporationIdAndDeletedAtIsNull(article.getTitle(), corporation.getId());
 
-                if (!isDuplicateByLink && !isDuplicateByTitle) {
-                    // Article 저장 및 AI 분석 (캐시 작업 없음)
-                    articlePersistenceService.saveArticleWithAnalysisNoCache(article, corporation, crawler);
+                        if (!isDuplicateByLink && !isDuplicateByTitle) {
+                            // Article 저장 및 AI 분석 (캐시 작업 없음)
+                            articlePersistenceService.saveArticleWithAnalysisNoCache(article, corporation, crawler);
 
-                    // Content 추출 및 저장 (Term 분석은 생략)
-                    extractContentOnly(article, driver);
+                            // Content 추출 및 저장 (Term 분석은 생략)
+                            extractContentOnly(article, driver);
 
-                    newArticles.add(article);
+                            newArticles.add(article);
+                        }
+                    }
+
+                    log.info("Admin 전체 페이지 크롤링 완료 - 기업: {}, 수집: {}개, 신규: {}개",
+                            corporation.getName(), articles.size(), newArticles.size());
+
+                    return CrawlResult.success(corporation, newArticles, newArticles.size());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
                 }
+            },
+            e -> {
+                log.error("Admin 전체 페이지 크롤링 실패 - 기업: {}, 오류: {}",
+                        corporation.getName(), e.getMessage(), e);
+                return CrawlResult.failure(corporation, "크롤링 실행 실패: " + e.getMessage());
             }
-
-            log.info("Admin 전체 페이지 크롤링 완료 - 기업: {}, 수집: {}개, 신규: {}개",
-                    corporation.getName(), articles.size(), newArticles.size());
-
-            return CrawlResult.success(corporation, newArticles, newArticles.size());
-
-        } catch (Exception e) {
-            log.error("Admin 전체 페이지 크롤링 실패 - 기업: {}, 오류: {}",
-                    corporation.getName(), e.getMessage(), e);
-            return CrawlResult.failure(corporation, "크롤링 실행 실패: " + e.getMessage());
-        } finally {
-            if (driver != null) {
-                webDriverConfig.forceCloseWebDriver(driver);
-            }
-        }
+        );
     }
 
     /**

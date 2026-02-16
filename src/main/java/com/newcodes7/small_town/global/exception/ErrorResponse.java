@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.crawler.exception;
+package com.newcodes7.small_town.global.exception;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Builder;

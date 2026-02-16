@@ -1,5 +1,7 @@
 package com.newcodes7.small_town.auth.exception;
 
+import com.newcodes7.small_town.global.exception.ErrorResponse;
+import com.newcodes7.small_town.global.exception.UserNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

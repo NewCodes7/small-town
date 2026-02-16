@@ -3,7 +3,7 @@ package com.newcodes7.small_town.article.service;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.ArticleTermRepository;
 import com.newcodes7.small_town.article.repository.ArticleChunkRepository;
-import com.newcodes7.small_town.article.repository.CorporationRepository;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.article.repository.TermRepository;
 import com.newcodes7.small_town.embedding.service.ClovaSearchService;
 import com.newcodes7.small_town.global.entity.Article;
@@ -18,8 +18,8 @@ import com.newcodes7.small_town.article.dto.ArticleSearchResultDto;
 import com.newcodes7.small_town.article.dto.CorporationDetailDto;
 import com.newcodes7.small_town.article.dto.CorporationDto;
 import com.newcodes7.small_town.article.dto.GroupedArticlesDto;
-import com.newcodes7.small_town.article.exception.CorporationNotFoundException;
-import com.newcodes7.small_town.article.exception.InvalidParameterException;
+import com.newcodes7.small_town.global.exception.CorporationNotFoundException;
+import com.newcodes7.small_town.global.exception.InvalidParameterException;
 import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
 
 
@@ -66,14 +66,14 @@ public class ArticleService {
     private final ArticleChunkRepository chunkRepository;
     private final ArticleEmbeddingService embeddingService;
     private final SemanticTermExpansionService semanticExpansionService;
-    private final LikeService likeService;
+    private final ArticleLikeService likeService;
     private final UserLikeService userLikeService;
     private final ClovaSearchService clovaSearchService;
     private final ExecutorService searchExecutor;
     private final HybridSearchScorer hybridSearchScorer;
 
     public ArticleService(ArticleRepository articleRepository,
-                         @Qualifier("articleCorporationRepository") CorporationRepository corporationRepository,
+                         CorporationRepository corporationRepository,
                          ArticleTermRepository articleTermRepository,
                          TermRepository termRepository,
                          TermSynonymService termSynonymService,
@@ -81,7 +81,7 @@ public class ArticleService {
                          ArticleChunkRepository chunkRepository,
                          ArticleEmbeddingService embeddingService,
                          SemanticTermExpansionService semanticExpansionService,
-                         LikeService likeService,
+                         ArticleLikeService likeService,
                          UserLikeService userLikeService,
                          ClovaSearchService clovaSearchService,
                          @Qualifier("searchExecutor") ExecutorService searchExecutor,
@@ -283,14 +283,14 @@ public class ArticleService {
     /**
      * Helper method to get like status map based on user authentication
      * If username is provided (logged in), use UserLikeService
-     * Otherwise, use LikeService with IP address
+     * Otherwise, use ArticleLikeService with IP address
      */
     public Map<Long, Boolean> getLikeStatusMap(List<Long> articleIds, String username, String ipAddress) {
         if (username != null && !username.trim().isEmpty()) {
             // Logged in user - use UserLikeService
             return userLikeService.getLikeStatusBatchByUser(articleIds, username);
         } else {
-            // Anonymous user - use LikeService with IP
+            // Anonymous user - use ArticleLikeService with IP
             return userLikeService.getLikeStatusBatchByIp(articleIds, ipAddress);
         }
     }
