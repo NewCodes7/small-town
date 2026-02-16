@@ -150,7 +150,7 @@ public class ArticleService {
             }
 
             // 좋아요 상태는 별도 API로 조회하므로 null로 설정
-            return articles.map(article -> new ArticleListResponseDto(article, null, null, null, null, null, null));
+            return articles.map(article -> new ArticleListResponseDto(article));
         }
 
         if (view.equals("grouped")) {
@@ -218,7 +218,7 @@ public class ArticleService {
                 .map(entry -> new GroupedArticlesDto(
                         new CorporationDto(entry.getKey()),
                         entry.getValue().stream()
-                                .map(article -> new ArticleListResponseDto(article, null, null, null, null, null, null))
+                                .map(article -> new ArticleListResponseDto(article))
                                 .collect(Collectors.toList())
                 ))
                 .collect(Collectors.toList());
@@ -273,7 +273,7 @@ public class ArticleService {
         Page<Article> articles = articleRepository.findByCorporationId(corporationId, pageable);
 
         // 좋아요 상태는 별도 API로 조회하므로 null로 설정
-        return articles.map(article -> new ArticleListResponseDto(article, null, null, null, null, null, null));
+        return articles.map(article -> new ArticleListResponseDto(article));
     }
     
     public long getTotalArticleCount() {
@@ -557,16 +557,11 @@ public class ArticleService {
     }
 
     /**
-     * Hybrid 검색 + RRF (Reciprocal Rank Fusion) 스코어링
-     * BM25 (키워드 정확도) + ILIKE (폴백) + Clova Vector (의미 검색) → RRF로 통합
-     *
-     * RRF 스코어링 방식:
-     * - RRF_score(d) = Σ (1 / (k + rank_i(d))) for each ranking list
-     * - k = 60 (standard value)
+     * Hybrid 검색 + NSF (Normalized Score Fusion) 스코어링
+     * BM25 (키워드 정확도) + Clova Vector (의미 검색) → NSF로 통합
      *
      * 검색 방법:
      * - BM25: ArticleTerm 기반 키워드 검색 (정확도 높음)
-     * - ILIKE: 제목 직접 매칭 (고유명사 폴백)
      * - Clova Vector: 의미적 유사도 검색 (시맨틱 검색)
      *
      * 모든 검색 결과는 BM25와 Vector 점수를 모두 가짐:
@@ -654,13 +649,6 @@ public class ArticleService {
         }
         long bm25EndTime = System.currentTimeMillis();
 
-        // ILIKE 제목 매칭 검색 (메인 스레드, 빠르므로 별도 스레드 불필요)
-        long ilikeStartTime = System.currentTimeMillis();
-        Map<Long, Double> titleResults = new HashMap<>();
-        Map<Long, Double> titleWeights = new HashMap<>();
-        performILIKESearchWithScoresAndWeights(keyword.trim(), regions, category, titleResults, titleWeights);
-        long ilikeEndTime = System.currentTimeMillis();
-
         // 3. Vector 검색 결과 대기
         Map<Long, Double> vectorResults = new HashMap<>();
         float[] queryEmbedding = null;
@@ -680,17 +668,11 @@ public class ArticleService {
         Set<Long> vectorOnlyIds = new HashSet<>(vectorResults.keySet());
         vectorOnlyIds.removeAll(bm25Results.keySet());
 
-        Set<Long> ilikeOnlyIds = new HashSet<>(titleResults.keySet());
-        ilikeOnlyIds.removeAll(bm25Results.keySet());
-        ilikeOnlyIds.removeAll(vectorResults.keySet());
-
-        // 4-1. Vector 보충 대상 합산 (BM25-only + ILIKE-only)
+        // 4-1. Vector 보충 대상 (BM25-only)
         Set<Long> needVectorIds = new HashSet<>(bm25OnlyIds);
-        needVectorIds.addAll(ilikeOnlyIds);
 
-        // 4-2. BM25 보충 대상 합산 (Vector-only + ILIKE-only)
+        // 4-2. BM25 보충 대상 (Vector-only)
         Set<Long> needBm25Ids = new HashSet<>(vectorOnlyIds);
-        needBm25Ids.addAll(ilikeOnlyIds);
 
         // 병렬 실행: Vector 보충 + BM25 보충
         final float[] cachedEmbedding = queryEmbedding;
@@ -741,13 +723,10 @@ public class ArticleService {
         long rerankStartTime = System.currentTimeMillis();
         final Map<Long, Integer> bm25Ranks = calculateRanks(finalBm25Results);
         final Map<Long, Integer> vectorRanks = calculateRanks(finalVectorResults);
-        final Map<Long, Integer> ilikeRanks = calculateRanks(titleResults);
-        HybridSearchScorer.NSFResult nsfResult = hybridSearchScorer.calculateNSFScores(finalBm25Results, finalVectorResults, titleResults, titleWeights);
+        HybridSearchScorer.NSFResult nsfResult = hybridSearchScorer.calculateNSFScores(finalBm25Results, finalVectorResults);
         Map<Long, Double> nsfScores = nsfResult.getNsfScores();
         final Map<Long, Double> normalizedBm25Map = nsfResult.getNormalizedBm25();
         final Map<Long, Double> normalizedVectorMap = nsfResult.getNormalizedVector();
-        final Map<Long, Double> normalizedTitleMap = nsfResult.getNormalizedTitle();
-        final Map<Long, Double> titleWeightMap = nsfResult.getTitleWeights();
         final Map<Long, Double> weightSumMap = nsfResult.getWeightSums();
         long rerankEndTime = System.currentTimeMillis();
 
@@ -757,10 +736,9 @@ public class ArticleService {
         }
 
         long totalEndTime = System.currentTimeMillis();
-        log.info("[검색] keyword='{}' | BM25: {}ms ({}개), ILIKE: {}ms ({}개), Vector: {}ms ({}개), Rerank(NSF): {}ms ({}개) | 총: {}ms",
+        log.info("[검색] keyword='{}' | BM25: {}ms ({}개), Vector: {}ms ({}개), Rerank(NSF): {}ms ({}개) | 총: {}ms",
             keyword,
             bm25EndTime - bm25StartTime, finalBm25Results.size(),
-            ilikeEndTime - ilikeStartTime, titleResults.size(),
             vectorEndTime - vectorStartTime, finalVectorResults.size(),
             rerankEndTime - rerankStartTime, nsfScores.size(),
             totalEndTime - totalStartTime);
@@ -838,21 +816,145 @@ public class ArticleService {
                     Double bm25Score = finalBm25Results.get(articleId);
                     Double vectorScore = finalVectorResults.get(articleId);
                     Double nsfScore = nsfScores.get(articleId);
-                    Double ilikeScore = titleResults.get(articleId);
                     Boolean isLiked = likeStatusMap.getOrDefault(articleId, false);
                     boolean foundByVector = vectorOnlyIds.contains(articleId);
                     Integer bm25Rank = bm25Ranks.get(articleId);
                     Integer vectorRank = vectorRanks.get(articleId);
-                    Integer ilikeRank = ilikeRanks.get(articleId);
                     Double normBm25 = normalizedBm25Map.get(articleId);
                     Double normVector = normalizedVectorMap.get(articleId);
-                    Double normIlike = normalizedTitleMap.get(articleId);
-                    Double titleWeight = titleWeightMap.get(articleId);
                     Double weightSum = weightSumMap.get(articleId);
-                    return new ArticleSearchResultDto(article, foundByVector, bm25Score, vectorScore, nsfScore, ilikeScore, null,
-                            bm25Rank, vectorRank, ilikeRank, normBm25, normVector, normIlike, titleWeight, weightSum, isLiked);
+                    return new ArticleSearchResultDto(article, foundByVector, bm25Score, vectorScore, nsfScore, null,
+                            bm25Rank, vectorRank, normBm25, normVector, weightSum, isLiked);
                 })
                 .collect(Collectors.toList());
+
+        return new PageImpl<>(results, PageRequest.of(page, size), totalResults);
+    }
+
+    /**
+     * 따옴표 검색 (Exact Match): ILIKE 제목 매칭으로 후보 추출 → Vector 유사도 순위 매김
+     *
+     * 사용자가 "키워드"로 검색 시, 제목에 해당 키워드가 포함된 글만 반환.
+     * sort=relevance일 때 Vector 유사도순, 그 외 날짜순 정렬.
+     */
+    @Transactional(readOnly = true, noRollbackFor = {Exception.class, RuntimeException.class})
+    public Page<ArticleSearchResultDto> searchArticlesExactMatch(
+            String keyword,
+            List<String> regions,
+            List<String> category,
+            int page,
+            int size,
+            String sort,
+            String ipAddress,
+            String username) {
+
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return Page.empty();
+        }
+
+        long startTime = System.currentTimeMillis();
+
+        // 1. ILIKE 검색으로 제목 매칭 article ID 추출
+        List<Object[]> ilikeRawResults = performILIKESearchRaw(keyword.trim(), regions, category);
+        if (ilikeRawResults == null || ilikeRawResults.isEmpty()) {
+            log.info("[따옴표 검색] keyword='{}' | 결과 없음", keyword);
+            return Page.empty();
+        }
+
+        List<Long> matchedIds = ilikeRawResults.stream()
+                .map(row -> ((Number) row[0]).longValue())
+                .collect(Collectors.toList());
+
+        Map<Long, LocalDateTime> publishedAtMap = new HashMap<>();
+        for (Object[] row : ilikeRawResults) {
+            Long articleId = ((Number) row[0]).longValue();
+            java.sql.Timestamp timestamp = row.length > 1 ? (java.sql.Timestamp) row[1] : null;
+            if (timestamp != null) {
+                publishedAtMap.put(articleId, timestamp.toLocalDateTime());
+            }
+        }
+
+        // 2. Vector 유사도 계산 (relevance 정렬용)
+        Map<Long, Double> vectorScores = new HashMap<>();
+        if ("relevance".equals(sort)) {
+            try {
+                float[] queryEmbedding = embeddingService.generateEmbedding(keyword);
+                if (queryEmbedding != null) {
+                    vectorScores = clovaSearchService.computeSimilarityForArticlesWithEmbedding(queryEmbedding, matchedIds);
+                }
+            } catch (Exception e) {
+                log.warn("[따옴표 검색] Vector 유사도 계산 실패 (날짜순 fallback): {}", e.getMessage());
+            }
+        }
+
+        // 3. Article 조회 (Corporation fetch join)
+        List<Article> articles = articleRepository.findByIdInWithCorporation(matchedIds);
+        Map<Long, Article> articleMap = articles.stream()
+                .filter(a -> a.getDeletedAt() == null)
+                .collect(Collectors.toMap(Article::getId, a -> a));
+
+        // 4. 정렬
+        final Map<Long, Double> finalVectorScores = vectorScores;
+        List<Long> sortedIds;
+
+        if ("relevance".equals(sort) && !finalVectorScores.isEmpty()) {
+            sortedIds = matchedIds.stream()
+                    .filter(articleMap::containsKey)
+                    .sorted((a, b) -> Double.compare(
+                            finalVectorScores.getOrDefault(b, 0.0),
+                            finalVectorScores.getOrDefault(a, 0.0)))
+                    .collect(Collectors.toList());
+        } else if ("oldest".equals(sort)) {
+            sortedIds = matchedIds.stream()
+                    .filter(articleMap::containsKey)
+                    .sorted((a, b) -> {
+                        LocalDateTime dateA = publishedAtMap.getOrDefault(a, LocalDateTime.MIN);
+                        LocalDateTime dateB = publishedAtMap.getOrDefault(b, LocalDateTime.MIN);
+                        return dateA.compareTo(dateB);
+                    })
+                    .collect(Collectors.toList());
+        } else {
+            // latest (기본)
+            sortedIds = matchedIds.stream()
+                    .filter(articleMap::containsKey)
+                    .sorted((a, b) -> {
+                        LocalDateTime dateA = publishedAtMap.getOrDefault(a, LocalDateTime.MIN);
+                        LocalDateTime dateB = publishedAtMap.getOrDefault(b, LocalDateTime.MIN);
+                        return dateB.compareTo(dateA);
+                    })
+                    .collect(Collectors.toList());
+        }
+
+        // 5. 페이징
+        int totalResults = sortedIds.size();
+        int offset = page * size;
+        if (offset >= totalResults) {
+            return Page.empty(PageRequest.of(page, size));
+        }
+
+        List<Long> pageIds = sortedIds.stream()
+                .skip(offset)
+                .limit(size)
+                .collect(Collectors.toList());
+
+        // 6. 좋아요 상태
+        Map<Long, Boolean> likeStatusMap = getLikeStatusMap(pageIds, username, ipAddress);
+
+        // 7. DTO 생성
+        List<ArticleSearchResultDto> results = pageIds.stream()
+                .map(articleMap::get)
+                .filter(a -> a != null)
+                .map(article -> {
+                    Long articleId = article.getId();
+                    Double vectorScore = finalVectorScores.get(articleId);
+                    Boolean isLiked = likeStatusMap.getOrDefault(articleId, false);
+                    return new ArticleSearchResultDto(article, false, null, vectorScore, vectorScore, null, isLiked);
+                })
+                .collect(Collectors.toList());
+
+        long endTime = System.currentTimeMillis();
+        log.info("[따옴표 검색] keyword='{}' | ILIKE: {}개, 유효: {}개 | 총: {}ms",
+                keyword, matchedIds.size(), totalResults, endTime - startTime);
 
         return new PageImpl<>(results, PageRequest.of(page, size), totalResults);
     }
@@ -1204,81 +1306,6 @@ public class ArticleService {
         // 경량 쿼리 사용: ID와 published_at만 조회 (최대 100개)
         return articleRepository.findArticleIdsWithPublishedAtByFilters(
                 searchPattern, safeDomesticTypes, domesticTypesSize, safeCategorySized, categorySize);
-    }
-
-    /**
-     * ILIKE 검색 수행 (제목 매칭 품질 기반 pseudo-score + 커버리지 기반 RRF 가중치)
-     * title과 translated_title 모두 검사하여 더 높은 점수를 채택
-     *
-     * 매칭 점수 (pseudo-score, RRF 내 순위 결정용):
-     * - 제목 == 키워드 (exact): 3.0
-     * - 제목이 키워드로 시작: 2.0
-     * - 제목에 키워드 포함 (contains): 1.0
-     *
-     * RRF 가중치 (커버리지 기반):
-     * - coverage = keyword.length / title.length
-     * - weight = TITLE_MIN + (TITLE_MAX - TITLE_MIN) * coverage
-     * - 예: "Kubernetes" 검색 → 제목 "Kubernetes" → coverage=1.0 → weight=1.5
-     * - 예: "Kubernetes" 검색 → 제목 "Introduction to Kubernetes ..." → coverage≈0.2 → weight≈0.54
-     *
-     * @param keyword 검색 키워드
-     * @param regions 지역 필터
-     * @param category 카테고리 필터
-     * @param scoreMap [OUT] Article ID -> pseudo-score 맵
-     * @param weightMap [OUT] Article ID -> 커버리지 기반 RRF 가중치 맵
-     */
-    private void performILIKESearchWithScoresAndWeights(String keyword, List<String> regions, List<String> category,
-                                                        Map<Long, Double> scoreMap, Map<Long, Double> weightMap) {
-        List<Object[]> rawResults = performILIKESearchRaw(keyword, regions, category);
-        if (rawResults == null || rawResults.isEmpty()) {
-            return;
-        }
-
-        // ILIKE 매칭된 article ID 추출
-        List<Long> articleIds = rawResults.stream()
-                .map(row -> ((Number) row[0]).longValue())
-                .collect(Collectors.toList());
-
-        // 경량 쿼리: title, translatedTitle만 조회 (전체 Article 엔티티 로드 방지)
-        List<Object[]> titleRows = articleRepository.findTitlesByIds(articleIds);
-
-        String keywordLower = keyword.trim().toLowerCase();
-        int keywordLength = keywordLower.length();
-
-        for (Object[] row : titleRows) {
-            Long articleId = ((Number) row[0]).longValue();
-            String title = row[1] != null ? (String) row[1] : "";
-            String translatedTitle = row[2] != null ? (String) row[2] : "";
-
-            double score = calculateTitleMatchScore(title, keywordLower);
-            double translatedScore = calculateTitleMatchScore(translatedTitle, keywordLower);
-
-            // 더 높은 점수의 제목을 기준으로 커버리지 계산
-            String bestTitle = translatedScore > score ? translatedTitle : title;
-
-            scoreMap.put(articleId, Math.max(score, translatedScore));
-            weightMap.put(articleId, hybridSearchScorer.calculateTitleCoverageWeight(bestTitle, keywordLength));
-        }
-    }
-
-    /**
-     * 제목과 키워드의 매칭 품질에 따른 점수 계산
-     */
-    private double calculateTitleMatchScore(String title, String keywordLower) {
-        if (title == null || title.isEmpty()) {
-            return 0.0;
-        }
-        String titleLower = title.toLowerCase();
-        if (titleLower.equals(keywordLower)) {
-            return 3.0;
-        }
-        if (titleLower.startsWith(keywordLower)) {
-            return 2.0;
-        }
-        if (titleLower.contains(keywordLower)) {
-            return 1.0;
-        }
-        return 0.0;
     }
 
     /**

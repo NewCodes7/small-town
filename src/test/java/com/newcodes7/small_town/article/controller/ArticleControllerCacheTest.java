@@ -177,6 +177,9 @@ public class ArticleControllerCacheTest {
         Article newArticle = ArticleCreator.createArticle(corp);
         articlePersistenceService.saveArticleWithAnalysis(newArticle, corp, defaultBlogCrawler);
 
+        // @Async 캐시 프리로드 완료 대기
+        Thread.sleep(2000);
+
         // then - 캐시 삭제되어 다시 DB 조회
         mockMvc.perform(get("/articles").param("view", "grouped"))
             .andExpect(status().isOk())

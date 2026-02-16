@@ -165,38 +165,55 @@ public class ArticleController {
         // Get username from UserDetails (null if not logged in)
         String username = userDetails != null ? userDetails.getUsername() : null;
 
-        // 키워드 검색 시 Hybrid 검색 사용 (BM25 + Summary Vector + RRF)
+        // 키워드 검색 시 Hybrid 검색 사용 (BM25 + Vector) 또는 따옴표 검색 (ILIKE + Vector)
         if (keyword != null && !keyword.trim().isEmpty() && effectiveView.equals("list")) {
-            // 검색어 확장 정보 가져오기 (Admin 표시용)
-            expandedTerms = semanticExpansionService.expandSearchTerms(keyword.trim().toLowerCase());
+            String trimmedKeyword = keyword.trim();
+            String clientIp = com.newcodes7.small_town.global.util.Client.getClientIpAddress(request);
 
-            // 확장된 검색어를 가중치별로 분류 (템플릿에서 사용)
-            if (expandedTerms != null) {
-                for (Map.Entry<String, Double> entry : expandedTerms.entrySet()) {
-                    double weight = entry.getValue();
-                    if (weight == 1.0) {
-                        directMatchTerms.put(entry.getKey(), entry.getValue());
-                    } else if (weight == 0.8) {
-                        synonymTerms.put(entry.getKey(), entry.getValue());
-                    } else if (weight < 0.8) {
-                        embeddingTerms.put(entry.getKey(), entry.getValue());
+            // 따옴표 검색 감지: "키워드" 형식
+            if (trimmedKeyword.startsWith("\"") && trimmedKeyword.endsWith("\"") && trimmedKeyword.length() > 2) {
+                String exactKeyword = trimmedKeyword.substring(1, trimmedKeyword.length() - 1).toLowerCase();
+                articles = articleService.searchArticlesExactMatch(
+                    exactKeyword,
+                    regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
+                    category == null || category.isEmpty() ? null : category.stream().sorted().toList(),
+                    page,
+                    size,
+                    effectiveSort,
+                    clientIp,
+                    username
+                ).map(dto -> (ArticleResponseDto) dto);
+            } else {
+                // 일반 Hybrid 검색 (BM25 + Vector)
+                // 검색어 확장 정보 가져오기 (Admin 표시용)
+                expandedTerms = semanticExpansionService.expandSearchTerms(trimmedKeyword.toLowerCase());
+
+                // 확장된 검색어를 가중치별로 분류 (템플릿에서 사용)
+                if (expandedTerms != null) {
+                    for (Map.Entry<String, Double> entry : expandedTerms.entrySet()) {
+                        double weight = entry.getValue();
+                        if (weight == 1.0) {
+                            directMatchTerms.put(entry.getKey(), entry.getValue());
+                        } else if (weight == 0.8) {
+                            synonymTerms.put(entry.getKey(), entry.getValue());
+                        } else if (weight < 0.8) {
+                            embeddingTerms.put(entry.getKey(), entry.getValue());
+                        }
                     }
                 }
-            }
 
-            // Hybrid 검색 수행 (BM25 + ILIKE + Binary Boost)
-            String clientIp = com.newcodes7.small_town.global.util.Client.getClientIpAddress(request);
-            articles = articleService.searchArticlesHybrid(
-                keyword.trim().toLowerCase(),
-                expandedTerms,
-                regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
-                category == null || category.isEmpty() ? null : category.stream().sorted().toList(),
-                page,
-                size,
-                effectiveSort,
-                clientIp,
-                username
-            ).map(dto -> (ArticleResponseDto) dto);
+                articles = articleService.searchArticlesHybrid(
+                    trimmedKeyword.toLowerCase(),
+                    expandedTerms,
+                    regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
+                    category == null || category.isEmpty() ? null : category.stream().sorted().toList(),
+                    page,
+                    size,
+                    effectiveSort,
+                    clientIp,
+                    username
+                ).map(dto -> (ArticleResponseDto) dto);
+            }
         } else {
             // 일반 목록 조회 또는 grouped view
             articles = articleService.getArticlesWithFilters(

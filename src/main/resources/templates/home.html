@@ -151,7 +151,7 @@
                                    id="searchInput"
                                    name="keyword"
                                    class="search-input"
-                                   placeholder="원하는 글을 검색해보세요!"
+                                   placeholder="검색어 입력 | 정확한 제목 검색: &quot;키워드&quot;"
                                    th:value="${keyword}"
                                    autocomplete="off">
                             <button type="submit" class="search-submit-btn">
@@ -431,8 +431,7 @@
                          th:with="
                             bmNorm=${article.normalizedBm25Score != null ? article.normalizedBm25Score : 0.0},
                             vecNorm=${article.normalizedVectorScore != null ? article.normalizedVectorScore : 0.0},
-                            ilikeNorm=${article.normalizedIlikeScore != null ? article.normalizedIlikeScore : 0.0},
-                            weightSumValue=${article.weightSum != null ? article.weightSum : 0.8}">
+                            weightSumValue=${article.weightSum != null ? article.weightSum : 1.0}">
                         <div class="admin-score-final">
                             <i class="fas fa-star"></i> Final <span th:text="${#numbers.formatDecimal(article.finalScore, 1, 4)}">0.0000</span>
                         </div>
@@ -443,22 +442,15 @@
                                     <td class="admin-label-bm25">BM25</td>
                                     <td th:text="${article.bm25Score != null ? #numbers.formatDecimal(article.bm25Score, 1, 1) : '-'}">-</td>
                                     <td th:text="${#numbers.formatDecimal(bmNorm, 1, 2)}">0.00</td>
-                                    <td>0.4</td>
+                                    <td>0.5</td>
                                     <td th:text="${article.bm25Rank != null ? article.bm25Rank : '-'}">-</td>
                                 </tr>
                                 <tr>
                                     <td class="admin-label-vec">Vector</td>
                                     <td th:text="${article.vectorScore != null ? #numbers.formatDecimal(article.vectorScore, 1, 2) : '-'}">-</td>
                                     <td th:text="${#numbers.formatDecimal(vecNorm, 1, 2)}">0.00</td>
-                                    <td>0.4</td>
+                                    <td>0.5</td>
                                     <td th:text="${article.vectorRank != null ? article.vectorRank : '-'}">-</td>
-                                </tr>
-                                <tr th:if="${article.ilikeScore != null}">
-                                    <td class="admin-label-ilike">ILIKE</td>
-                                    <td th:text="${#numbers.formatDecimal(article.ilikeScore, 1, 1)}">-</td>
-                                    <td th:text="${#numbers.formatDecimal(ilikeNorm, 1, 2)}">0.00</td>
-                                    <td th:text="${article.titleWeight != null ? #numbers.formatDecimal(article.titleWeight, 1, 1) : '-'}">-</td>
-                                    <td th:text="${article.ilikeRank != null ? article.ilikeRank : '-'}">-</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -555,15 +547,13 @@
                                              onclick="event.stopPropagation()"
                                              th:with="
                                                 bmNorm=${child.normalizedBm25Score != null ? child.normalizedBm25Score : 0.0},
-                                                vecNorm=${child.normalizedVectorScore != null ? child.normalizedVectorScore : 0.0},
-                                                ilikeNorm=${child.normalizedIlikeScore != null ? child.normalizedIlikeScore : 0.0}">
+                                                vecNorm=${child.normalizedVectorScore != null ? child.normalizedVectorScore : 0.0}">
                                             <span class="admin-score-final">
                                                 <i class="fas fa-star"></i> <span th:text="${#numbers.formatDecimal(child.finalScore, 1, 4)}">0.0000</span>
                                             </span>
                                             <span class="admin-score-inline">
                                                 <span class="admin-label-bm25">BM</span><span th:text="${child.bm25Score != null ? #numbers.formatDecimal(child.bm25Score, 1, 1) : '-'}">-</span>
                                                 <span class="admin-label-vec">Vec</span><span th:text="${child.vectorScore != null ? #numbers.formatDecimal(child.vectorScore, 1, 2) : '-'}">-</span>
-                                                <span th:if="${child.ilikeScore != null}"><span class="admin-label-ilike">ILK</span><span th:text="${#numbers.formatDecimal(child.ilikeScore, 1, 1)}">-</span></span>
                                             </span>
                                         </div>
                                         <button class="like-button"
@@ -588,8 +578,7 @@
                          th:with="
                             bmNorm=${firstArticle.normalizedBm25Score != null ? firstArticle.normalizedBm25Score : 0.0},
                             vecNorm=${firstArticle.normalizedVectorScore != null ? firstArticle.normalizedVectorScore : 0.0},
-                            ilikeNorm=${firstArticle.normalizedIlikeScore != null ? firstArticle.normalizedIlikeScore : 0.0},
-                            weightSumValue=${firstArticle.weightSum != null ? firstArticle.weightSum : 0.8}">
+                            weightSumValue=${firstArticle.weightSum != null ? firstArticle.weightSum : 1.0}">
                         <div class="admin-score-final">
                             <i class="fas fa-star"></i> Final <span th:text="${#numbers.formatDecimal(firstArticle.finalScore, 1, 4)}">0.0000</span>
                         </div>
@@ -600,22 +589,15 @@
                                     <td class="admin-label-bm25">BM25</td>
                                     <td th:text="${firstArticle.bm25Score != null ? #numbers.formatDecimal(firstArticle.bm25Score, 1, 1) : '-'}">-</td>
                                     <td th:text="${#numbers.formatDecimal(bmNorm, 1, 2)}">0.00</td>
-                                    <td>0.4</td>
+                                    <td>0.5</td>
                                     <td th:text="${firstArticle.bm25Rank != null ? firstArticle.bm25Rank : '-'}">-</td>
                                 </tr>
                                 <tr>
                                     <td class="admin-label-vec">Vector</td>
                                     <td th:text="${firstArticle.vectorScore != null ? #numbers.formatDecimal(firstArticle.vectorScore, 1, 2) : '-'}">-</td>
                                     <td th:text="${#numbers.formatDecimal(vecNorm, 1, 2)}">0.00</td>
-                                    <td>0.4</td>
+                                    <td>0.5</td>
                                     <td th:text="${firstArticle.vectorRank != null ? firstArticle.vectorRank : '-'}">-</td>
-                                </tr>
-                                <tr th:if="${firstArticle.ilikeScore != null}">
-                                    <td class="admin-label-ilike">ILIKE</td>
-                                    <td th:text="${#numbers.formatDecimal(firstArticle.ilikeScore, 1, 1)}">-</td>
-                                    <td th:text="${#numbers.formatDecimal(ilikeNorm, 1, 2)}">0.00</td>
-                                    <td th:text="${firstArticle.titleWeight != null ? #numbers.formatDecimal(firstArticle.titleWeight, 1, 1) : '-'}">-</td>
-                                    <td th:text="${firstArticle.ilikeRank != null ? firstArticle.ilikeRank : '-'}">-</td>
                                 </tr>
                             </tbody>
                         </table>

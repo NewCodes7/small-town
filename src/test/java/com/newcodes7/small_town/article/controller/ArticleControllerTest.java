@@ -30,10 +30,17 @@ import org.springframework.transaction.annotation.Transactional;
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.dto.GroupedArticlesDto;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.article.repository.ArticleTermRepository;
 import com.newcodes7.small_town.article.repository.CorporationRepository;
+import com.newcodes7.small_town.article.repository.TermRepository;
 import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.ArticleTerm;
 import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.global.entity.Term;
+import com.newcodes7.small_town.global.entity.TermSource;
 import com.newcodes7.small_town.utils.ArticleCreator;
+
+import jakarta.persistence.EntityManager;
 
 @TestPropertySource("classpath:application-test.properties")
 @SpringBootTest
@@ -50,6 +57,15 @@ public class ArticleControllerTest {
     @Autowired
     private CorporationRepository corporationRepository;
 
+    @Autowired
+    private TermRepository termRepository;
+
+    @Autowired
+    private ArticleTermRepository articleTermRepository;
+
+    @Autowired
+    private EntityManager entityManager;
+
     private static final int CORPORATION_TOTAL_COUNT = 40;
     private static final int ARTICLE_TOTAL_COUNT = 160;
     private static final int GROUP_ARTILCE_COUNT = 3;
@@ -61,6 +77,8 @@ public class ArticleControllerTest {
 
     @BeforeEach
     public void setUp() {
+        articleTermRepository.deleteAll();
+        termRepository.deleteAll();
         corporationRepository.deleteAll();
         articleRepository.deleteAll();
         ArticleCreator.resetArticleIdCounter();
@@ -82,6 +100,34 @@ public class ArticleControllerTest {
             articles.add(article);
         }
         articleRepository.saveAll(articles);
+
+        // BM25 검색을 위한 Term/ArticleTerm 데이터 생성
+        List<Term> terms = new ArrayList<>();
+        for (int i = 0; i < ARTICLE_TOTAL_COUNT; i++) {
+            Term term = Term.builder()
+                .term(String.valueOf(i))
+                .termType("SN")
+                .build();
+            terms.add(term);
+        }
+        termRepository.saveAll(terms);
+
+        List<ArticleTerm> articleTerms = new ArrayList<>();
+        for (int i = 0; i < ARTICLE_TOTAL_COUNT; i++) {
+            ArticleTerm articleTerm = ArticleTerm.builder()
+                .article(articles.get(i))
+                .term(terms.get(i))
+                .frequency(1)
+                .score(1.0)
+                .source(TermSource.TITLE)
+                .build();
+            articleTerms.add(articleTerm);
+        }
+        articleTermRepository.saveAll(articleTerms);
+
+        // Materialized View 리프레시 (BM25 인덱스도 자동 갱신)
+        entityManager.flush();
+        entityManager.createNativeQuery("REFRESH MATERIALIZED VIEW article_search_view").executeUpdate();
     }
 
     @Test

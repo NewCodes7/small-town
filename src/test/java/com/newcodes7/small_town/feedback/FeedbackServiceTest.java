@@ -84,7 +84,7 @@ public class FeedbackServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getName()).isEqualTo("홍길동");
         assertThat(result.getType()).isEqualTo("기능개선");
-        assertThat(result.getStatus()).isEqualTo(FeedbackStatus.PENDING);
+        assertThat(result.getStatus()).isEqualTo(FeedbackStatus.PENDING.name());
     }
 
     @Test
@@ -130,7 +130,7 @@ public class FeedbackServiceTest {
                 created.getId(), FeedbackStatus.COMPLETED
         );
 
-        assertThat(updated.getStatus()).isEqualTo(FeedbackStatus.COMPLETED);
+        assertThat(updated.getStatus()).isEqualTo(FeedbackStatus.COMPLETED.name());
     }
 
     @Test

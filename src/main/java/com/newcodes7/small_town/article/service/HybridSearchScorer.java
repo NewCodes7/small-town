@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 /**
  * 하이브리드 검색 스코어 퓨전 (Normalized Score Fusion)
  *
- * BM25, Vector, ILIKE 검색 결과를 정규화하고 가중 합산하여
+ * BM25, Vector 검색 결과를 정규화하고 가중 합산하여
  * 최종 검색 스코어를 계산하는 책임을 담당.
  *
  * - 가중치 합 정규화로 최종 스코어를 [0, 1] 범위로 보장
@@ -20,10 +20,8 @@ import org.springframework.stereotype.Component;
 public class HybridSearchScorer {
 
     // Normalized Score Fusion (NSF) 가중치
-    public static final double NSF_WEIGHT_BM25 = 0.4;
-    public static final double NSF_WEIGHT_VECTOR = 0.4;
-    public static final double NSF_WEIGHT_TITLE_MIN = 0.1;
-    public static final double NSF_WEIGHT_TITLE_MAX = 0.3;
+    public static final double NSF_WEIGHT_BM25 = 0.5;
+    public static final double NSF_WEIGHT_VECTOR = 0.5;
 
     /**
      * NSF 계산 결과를 담는 DTO
@@ -34,22 +32,16 @@ public class HybridSearchScorer {
         private final Map<Long, Double> nsfScores;
         private final Map<Long, Double> normalizedBm25;
         private final Map<Long, Double> normalizedVector;
-        private final Map<Long, Double> normalizedTitle;
         private final Map<Long, Double> weightSums;
-        private final Map<Long, Double> titleWeights;
 
         public NSFResult(Map<Long, Double> nsfScores,
                          Map<Long, Double> normalizedBm25,
                          Map<Long, Double> normalizedVector,
-                         Map<Long, Double> normalizedTitle,
-                         Map<Long, Double> weightSums,
-                         Map<Long, Double> titleWeights) {
+                         Map<Long, Double> weightSums) {
             this.nsfScores = nsfScores;
             this.normalizedBm25 = normalizedBm25;
             this.normalizedVector = normalizedVector;
-            this.normalizedTitle = normalizedTitle;
             this.weightSums = weightSums;
-            this.titleWeights = titleWeights;
         }
     }
 
@@ -61,20 +53,15 @@ public class HybridSearchScorer {
      *
      * @param bm25Scores BM25 검색 점수 맵
      * @param vectorScores 벡터 검색 유사도 점수 맵
-     * @param titleScores ILIKE 제목 매칭 점수 맵
-     * @param titleWeights 제목 매칭별 커버리지 기반 가중치 맵
      * @return NSFResult (최종 스코어 + 각 검색 방법의 정규화 점수)
      */
     public NSFResult calculateNSFScores(
             Map<Long, Double> bm25Scores,
-            Map<Long, Double> vectorScores,
-            Map<Long, Double> titleScores,
-            Map<Long, Double> titleWeights) {
+            Map<Long, Double> vectorScores) {
 
         // 각 검색 방법의 min-max 정규화
         Map<Long, Double> normalizedBm25 = minMaxNormalize(bm25Scores);
         Map<Long, Double> normalizedVector = minMaxNormalize(vectorScores);
-        Map<Long, Double> normalizedTitle = minMaxNormalize(titleScores);
 
         Map<Long, Double> nsfScores = new HashMap<>();
         Map<Long, Double> weightSums = new HashMap<>();
@@ -83,15 +70,14 @@ public class HybridSearchScorer {
         Set<Long> allArticleIds = new HashSet<>();
         allArticleIds.addAll(bm25Scores.keySet());
         allArticleIds.addAll(vectorScores.keySet());
-        allArticleIds.addAll(titleScores.keySet());
 
         // NSF 스코어 계산 (정규화된 점수의 가중 합산, 가중치 합 정규화)
         // BM25와 Vector 가중치는 해당 article에 점수가 없어도 항상 분모에 포함하여,
         // 1개 검색 방법에서만 발견된 article이 과대평가되는 것을 방지
+        double weightSum = NSF_WEIGHT_BM25 + NSF_WEIGHT_VECTOR;
+
         for (Long articleId : allArticleIds) {
             double weightedSum = 0.0;
-            // BM25 + Vector 가중치는 항상 분모에 포함 (미참여 시 점수 0으로 취급)
-            double weightSum = NSF_WEIGHT_BM25 + NSF_WEIGHT_VECTOR;
 
             if (normalizedBm25.containsKey(articleId)) {
                 weightedSum += NSF_WEIGHT_BM25 * normalizedBm25.get(articleId);
@@ -101,20 +87,13 @@ public class HybridSearchScorer {
                 weightedSum += NSF_WEIGHT_VECTOR * normalizedVector.get(articleId);
             }
 
-            // Title 가중치는 참여한 경우에만 분모에 추가 (ILIKE 미실행 시 페널티 없음)
-            if (normalizedTitle.containsKey(articleId)) {
-                double titleWeight = titleWeights.getOrDefault(articleId, NSF_WEIGHT_TITLE_MIN);
-                weightedSum += titleWeight * normalizedTitle.get(articleId);
-                weightSum += titleWeight;
-            }
-
             // 가중치 합으로 나누어 최종 스코어를 [0, 1] 범위로 정규화
             double nsfScore = (weightSum > 0) ? weightedSum / weightSum : 0.0;
             nsfScores.put(articleId, nsfScore);
             weightSums.put(articleId, weightSum);
         }
 
-        return new NSFResult(nsfScores, normalizedBm25, normalizedVector, normalizedTitle, weightSums, titleWeights);
+        return new NSFResult(nsfScores, normalizedBm25, normalizedVector, weightSums);
     }
 
     /**
@@ -150,25 +129,6 @@ public class HybridSearchScorer {
         }
 
         return normalized;
-    }
-
-    /**
-     * 제목 길이 대비 키워드 커버리지에 따른 타이틀 가중치 계산
-     *
-     * coverage = keywordLength / titleLength
-     * weight = TITLE_MIN + (TITLE_MAX - TITLE_MIN) * coverage
-     *
-     * @param title 기사 제목
-     * @param keywordLength 검색 키워드 길이
-     * @return 커버리지 기반 타이틀 가중치 (TITLE_MIN ~ TITLE_MAX)
-     */
-    public double calculateTitleCoverageWeight(String title, int keywordLength) {
-        if (title == null || title.isEmpty()) {
-            return NSF_WEIGHT_TITLE_MIN;
-        }
-        double coverage = (double) keywordLength / title.length();
-        coverage = Math.min(coverage, 1.0);
-        return NSF_WEIGHT_TITLE_MIN + (NSF_WEIGHT_TITLE_MAX - NSF_WEIGHT_TITLE_MIN) * coverage;
     }
 
     /**

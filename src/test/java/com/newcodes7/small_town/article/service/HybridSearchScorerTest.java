@@ -112,31 +112,27 @@ public class HybridSearchScorerTest {
         bm25Scores.put(1L, 10.0);
         bm25Scores.put(2L, 5.0);
         Map<Long, Double> vectorScores = new HashMap<>();
-        Map<Long, Double> titleScores = new HashMap<>();
-        Map<Long, Double> titleWeights = new HashMap<>();
 
         // when
-        HybridSearchScorer.NSFResult nsfResult = scorer.calculateNSFScores(
-                bm25Scores, vectorScores, titleScores, titleWeights);
+        HybridSearchScorer.NSFResult nsfResult = scorer.calculateNSFScores(bm25Scores, vectorScores);
         Map<Long, Double> result = nsfResult.getNsfScores();
 
-        // then: BM25만 있을 때, 분모는 항상 BM25+Vector(0.8)
+        // then: BM25만 있을 때, 분모는 항상 BM25+Vector(1.0)
         // Vector 미참여 → 점수 0으로 취급되어 최종 스코어가 절반으로 줄어듦
         assertTrue(result.get(1L) > result.get(2L));
-        assertEquals(0.5, result.get(1L), 0.001); // (0.4 * 1.0) / 0.8 = 0.5
-        assertEquals(0.0, result.get(2L), 0.001); // (0.4 * 0.0) / 0.8 = 0.0
+        assertEquals(0.5, result.get(1L), 0.001); // (0.5 * 1.0) / 1.0 = 0.5
+        assertEquals(0.0, result.get(2L), 0.001); // (0.5 * 0.0) / 1.0 = 0.0
 
         // 정규화 점수 검증
         assertNotNull(nsfResult.getNormalizedBm25());
         assertEquals(2, nsfResult.getNormalizedBm25().size());
         assertTrue(nsfResult.getNormalizedVector().isEmpty());
-        assertTrue(nsfResult.getNormalizedTitle().isEmpty());
         assertEquals(2, nsfResult.getWeightSums().size());
-        assertEquals(0.8, nsfResult.getWeightSums().get(1L), 0.001);
+        assertEquals(1.0, nsfResult.getWeightSums().get(1L), 0.001);
     }
 
     @Test
-    public void calculateNSFScores_모든_검색방법_결합() {
+    public void calculateNSFScores_BM25_Vector_결합() {
         // given
         Map<Long, Double> bm25Scores = new HashMap<>();
         bm25Scores.put(1L, 10.0);
@@ -146,15 +142,8 @@ public class HybridSearchScorerTest {
         vectorScores.put(1L, 0.9);
         vectorScores.put(3L, 0.7);
 
-        Map<Long, Double> titleScores = new HashMap<>();
-        titleScores.put(1L, 3.0);  // exact match
-
-        Map<Long, Double> titleWeights = new HashMap<>();
-        titleWeights.put(1L, 0.25);
-
         // when
-        HybridSearchScorer.NSFResult nsfResult = scorer.calculateNSFScores(
-                bm25Scores, vectorScores, titleScores, titleWeights);
+        HybridSearchScorer.NSFResult nsfResult = scorer.calculateNSFScores(bm25Scores, vectorScores);
         Map<Long, Double> result = nsfResult.getNsfScores();
 
         // then
@@ -162,16 +151,13 @@ public class HybridSearchScorerTest {
         assertTrue(result.get(1L) > result.get(2L));
         assertTrue(result.get(1L) > result.get(3L));
 
-        // 정규화 점수 검증: 3가지 검색 방법 모두 정규화 맵이 존재
+        // 정규화 점수 검증
         assertNotNull(nsfResult.getNormalizedBm25());
         assertNotNull(nsfResult.getNormalizedVector());
-        assertNotNull(nsfResult.getNormalizedTitle());
         assertTrue(nsfResult.getNormalizedBm25().containsKey(1L));
         assertTrue(nsfResult.getNormalizedVector().containsKey(1L));
-        assertTrue(nsfResult.getNormalizedTitle().containsKey(1L));
         assertTrue(nsfResult.getWeightSums().containsKey(1L));
-        assertEquals(1.05, nsfResult.getWeightSums().get(1L), 0.001);
-        assertEquals(0.25, nsfResult.getTitleWeights().get(1L), 0.001);
+        assertEquals(1.0, nsfResult.getWeightSums().get(1L), 0.001);
     }
 
     @Test
@@ -184,12 +170,8 @@ public class HybridSearchScorerTest {
         vectorScores.put(1L, 0.8);
         vectorScores.put(3L, 0.95);
 
-        Map<Long, Double> titleScores = new HashMap<>();
-        Map<Long, Double> titleWeights = new HashMap<>();
-
         // when
-        HybridSearchScorer.NSFResult nsfResult = scorer.calculateNSFScores(
-                bm25Scores, vectorScores, titleScores, titleWeights);
+        HybridSearchScorer.NSFResult nsfResult = scorer.calculateNSFScores(bm25Scores, vectorScores);
         Map<Long, Double> result = nsfResult.getNsfScores();
 
         // then: 벡터에서만 발견된 Article 3도 결과에 포함되지만,
@@ -202,31 +184,25 @@ public class HybridSearchScorerTest {
 
     @Test
     public void calculateNSFScores_가중치_합_정규화_검증() {
-        // given: 3가지 검색 방법 모두 결과가 있는 경우
+        // given: BM25 + Vector 모두 결과가 있는 경우
         Map<Long, Double> bm25Scores = new HashMap<>();
         bm25Scores.put(1L, 10.0);
 
         Map<Long, Double> vectorScores = new HashMap<>();
         vectorScores.put(1L, 0.9);
 
-        Map<Long, Double> titleScores = new HashMap<>();
-        titleScores.put(1L, 3.0);
-
-        Map<Long, Double> titleWeights = new HashMap<>();
-        titleWeights.put(1L, 0.3); // 최대 타이틀 가중치
-
         // when
-        HybridSearchScorer.NSFResult nsfResult = scorer.calculateNSFScores(
-                bm25Scores, vectorScores, titleScores, titleWeights);
+        HybridSearchScorer.NSFResult nsfResult = scorer.calculateNSFScores(bm25Scores, vectorScores);
         Map<Long, Double> result = nsfResult.getNsfScores();
 
         // then: 최종 스코어가 1.0을 초과하지 않음
-        // 단일 결과: BM25 10.0→1.0(클램핑), Vector 0.9→0.9, Title 3.0→1.0(클램핑)
-        // weightedSum = 0.4*1.0 + 0.4*0.9 + 0.3*1.0 = 1.06
-        // weightSum = 0.4 + 0.4 + 0.3 = 1.1 (BM25+Vector 항상 포함 + title 참여)
-        // nsfScore = 1.06 / 1.1 ≈ 0.964
+        // 단일 결과: BM25 10.0→1.0(클램핑), Vector 0.9→0.9
+        // weightedSum = 0.5*1.0 + 0.5*0.9 = 0.95
+        // weightSum = 0.5 + 0.5 = 1.0
+        // nsfScore = 0.95 / 1.0 = 0.95
         assertTrue(result.get(1L) <= 1.0);
         assertTrue(result.get(1L) > 0.9);
+        assertEquals(0.95, result.get(1L), 0.001);
     }
 
     @Test
@@ -240,58 +216,13 @@ public class HybridSearchScorerTest {
         vectorScores.put(1L, 0.8);  // A: Vector 높은 점수
         vectorScores.put(3L, 0.95); // B: Vector에서만 발견, 매우 높은 점수
 
-        Map<Long, Double> titleScores = new HashMap<>();
-        titleScores.put(1L, 3.0);   // A: 제목 매칭도 있음
-
-        Map<Long, Double> titleWeights = new HashMap<>();
-        titleWeights.put(1L, 0.2);
-
         // when
-        HybridSearchScorer.NSFResult nsfResult = scorer.calculateNSFScores(
-                bm25Scores, vectorScores, titleScores, titleWeights);
+        HybridSearchScorer.NSFResult nsfResult = scorer.calculateNSFScores(bm25Scores, vectorScores);
         Map<Long, Double> result = nsfResult.getNsfScores();
 
-        // then: BM25+Vector+ILIKE 모두 히트한 A가 Vector만 히트한 B보다 높아야 함
-        // 수정 전: B = (0.4*1.0)/0.4 = 1.0, A = 0.90/1.0 = 0.90 → B > A (과대평가!)
-        // 수정 후: B = (0.4*1.0)/0.8 = 0.50, A = 0.90/1.0 = 0.90 → A > B (정상)
+        // then: BM25+Vector 모두 히트한 A가 Vector만 히트한 B보다 높아야 함
         assertTrue(result.get(1L) > result.get(3L),
-                "3가지 검색 방법 모두에서 발견된 Article이 Vector만 히트한 Article보다 높아야 함");
-    }
-
-    @Test
-    public void calculateTitleCoverageWeight_빈_제목() {
-        // when
-        double result = scorer.calculateTitleCoverageWeight("", 5);
-
-        // then: 빈 제목은 최소 가중치 반환
-        assertEquals(0.1, result, 0.001);
-    }
-
-    @Test
-    public void calculateTitleCoverageWeight_높은_커버리지() {
-        // given: 키워드가 제목의 대부분을 차지하는 경우
-        String title = "Redis";
-        int keywordLength = 5;
-
-        // when
-        double result = scorer.calculateTitleCoverageWeight(title, keywordLength);
-
-        // then: 커버리지가 1.0이므로 최대 가중치
-        assertEquals(0.3, result, 0.001);
-    }
-
-    @Test
-    public void calculateTitleCoverageWeight_낮은_커버리지() {
-        // given: 키워드가 제목의 작은 부분만 차지하는 경우
-        String title = "대규모 트래픽 환경에서의 Redis 캐시 활용 전략과 주의사항";
-        int keywordLength = 5;
-
-        // when
-        double result = scorer.calculateTitleCoverageWeight(title, keywordLength);
-
-        // then: 커버리지가 낮으므로 최소 가중치에 가까움
-        assertTrue(result > 0.1);
-        assertTrue(result < 0.2);
+                "2가지 검색 방법 모두에서 발견된 Article이 Vector만 히트한 Article보다 높아야 함");
     }
 
     @Test
