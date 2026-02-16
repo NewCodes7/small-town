@@ -997,7 +997,7 @@ public class ArticleService {
      * @param titleWeights ILIKE per-article 가중치
      * @return NSF 스코어 맵 (ID -> NSF 스코어)
      */
-    private Map<Long, Double> calculateNSFScores(
+    Map<Long, Double> calculateNSFScores(
             Map<Long, Double> bm25Scores,
             Map<Long, Double> vectorScores,
             Map<Long, Double> titleScores,
@@ -1043,7 +1043,7 @@ public class ArticleService {
      * Min-Max 정규화: 점수를 0~1 범위로 변환
      * 결과가 1개인 경우 해당 항목의 정규화 점수를 1.0으로 반환
      */
-    private Map<Long, Double> minMaxNormalize(Map<Long, Double> scoreMap) {
+    Map<Long, Double> minMaxNormalize(Map<Long, Double> scoreMap) {
         Map<Long, Double> normalized = new HashMap<>();
         if (scoreMap == null || scoreMap.isEmpty()) {
             return normalized;
@@ -1358,7 +1358,7 @@ public class ArticleService {
      * coverage = keywordLength / titleLength
      * weight = TITLE_MIN + (TITLE_MAX - TITLE_MIN) * coverage
      */
-    private double calculateTitleCoverageWeight(String title, int keywordLength) {
+    double calculateTitleCoverageWeight(String title, int keywordLength) {
         if (title == null || title.isEmpty()) {
             return NSF_WEIGHT_TITLE_MIN;
         }
@@ -1609,7 +1609,7 @@ public class ArticleService {
      * BM25 쿼리용 Term 따옴표 처리
      * 띄어쓰기가 포함된 term은 따옴표로 감싸고, 단일 단어는 그대로 반환
      */
-    private String quoteTerm(String term) {
+    String quoteTerm(String term) {
         if (term == null || term.isEmpty()) {
             return term;
         }
@@ -1627,7 +1627,7 @@ public class ArticleService {
      * ParadeDB parse()는 column:term 형식 필수
      * title_terms에 1.5배 가중치 부여하여 제목 매칭 우선
      */
-    private void appendBoostedTerm(StringBuilder queryBuilder, String term, String boostValue) {
+    void appendBoostedTerm(StringBuilder queryBuilder, String term, String boostValue) {
         String quotedTerm = quoteTerm(term);
         if (queryBuilder.length() > 0) {
             queryBuilder.append(" OR ");
