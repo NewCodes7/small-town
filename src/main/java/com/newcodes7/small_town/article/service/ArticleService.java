@@ -1016,23 +1016,29 @@ public class ArticleService {
         allArticleIds.addAll(vectorScores.keySet());
         allArticleIds.addAll(titleScores.keySet());
 
-        // NSF 스코어 계산 (정규화된 점수의 가중 합산)
+        // NSF 스코어 계산 (정규화된 점수의 가중 합산, 가중치 합 정규화)
         for (Long articleId : allArticleIds) {
-            double nsfScore = 0.0;
+            double weightedSum = 0.0;
+            double weightSum = 0.0;
 
             if (normalizedBm25.containsKey(articleId)) {
-                nsfScore += NSF_WEIGHT_BM25 * normalizedBm25.get(articleId);
+                weightedSum += NSF_WEIGHT_BM25 * normalizedBm25.get(articleId);
+                weightSum += NSF_WEIGHT_BM25;
             }
 
             if (normalizedVector.containsKey(articleId)) {
-                nsfScore += NSF_WEIGHT_VECTOR * normalizedVector.get(articleId);
+                weightedSum += NSF_WEIGHT_VECTOR * normalizedVector.get(articleId);
+                weightSum += NSF_WEIGHT_VECTOR;
             }
 
             if (normalizedTitle.containsKey(articleId)) {
                 double titleWeight = titleWeights.getOrDefault(articleId, NSF_WEIGHT_TITLE_MIN);
-                nsfScore += titleWeight * normalizedTitle.get(articleId);
+                weightedSum += titleWeight * normalizedTitle.get(articleId);
+                weightSum += titleWeight;
             }
 
+            // 가중치 합으로 나누어 최종 스코어를 [0, 1] 범위로 정규화
+            double nsfScore = (weightSum > 0) ? weightedSum / weightSum : 0.0;
             nsfScores.put(articleId, nsfScore);
         }
 
@@ -1041,7 +1047,8 @@ public class ArticleService {
 
     /**
      * Min-Max 정규화: 점수를 0~1 범위로 변환
-     * 결과가 1개인 경우 해당 항목의 정규화 점수를 1.0으로 반환
+     * 결과가 1개이거나 모든 점수가 동일한 경우, 원본 점수를 [0, 1]로 클램핑하여 반환
+     * (벡터 유사도 0.52 같은 threshold 근처 단일 결과가 1.0으로 과대평가되는 것을 방지)
      */
     Map<Long, Double> minMaxNormalize(Map<Long, Double> scoreMap) {
         Map<Long, Double> normalized = new HashMap<>();
@@ -1054,7 +1061,15 @@ public class ArticleService {
         double range = max - min;
 
         for (Map.Entry<Long, Double> entry : scoreMap.entrySet()) {
-            double normalizedScore = (range > 0) ? (entry.getValue() - min) / range : 1.0;
+            double normalizedScore;
+            if (range > 0) {
+                normalizedScore = (entry.getValue() - min) / range;
+            } else {
+                // 단일 결과이거나 모든 점수가 동일한 경우:
+                // 원본 점수를 [0, 1]로 클램핑 (벡터 유사도는 이미 0~1 범위이므로 그대로 보존,
+                // BM25/ILIKE 등 1.0 초과 점수는 1.0으로 제한)
+                normalizedScore = Math.max(0.0, Math.min(entry.getValue(), 1.0));
+            }
             normalized.put(entry.getKey(), normalizedScore);
         }
 

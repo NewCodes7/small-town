@@ -56,7 +56,7 @@ public class ArticleServiceNSFTest {
 
     @Test
     public void minMaxNormalize_동일한_점수() {
-        // given: 모든 점수가 같으면 정규화 값은 1.0
+        // given: 모든 점수가 같으면 원본 점수를 [0,1]로 클램핑
         Map<Long, Double> scores = new HashMap<>();
         scores.put(1L, 5.0);
         scores.put(2L, 5.0);
@@ -64,7 +64,7 @@ public class ArticleServiceNSFTest {
         // when
         Map<Long, Double> result = articleService.minMaxNormalize(scores);
 
-        // then
+        // then: 5.0은 1.0 초과이므로 1.0으로 클램핑
         assertEquals(1.0, result.get(1L), 0.001);
         assertEquals(1.0, result.get(2L), 0.001);
     }
@@ -90,8 +90,21 @@ public class ArticleServiceNSFTest {
         // when
         Map<Long, Double> result = articleService.minMaxNormalize(scores);
 
-        // then: 단일 항목은 1.0으로 정규화
+        // then: 단일 항목은 원본 점수를 [0,1]로 클램핑 (7.0 → 1.0)
         assertEquals(1.0, result.get(1L), 0.001);
+    }
+
+    @Test
+    public void minMaxNormalize_단일_벡터_결과_과대평가_방지() {
+        // given: 벡터 유사도 0.52 (threshold 근처)인 단일 결과
+        Map<Long, Double> scores = new HashMap<>();
+        scores.put(1L, 0.52);
+
+        // when
+        Map<Long, Double> result = articleService.minMaxNormalize(scores);
+
+        // then: 0.52 그대로 보존 (기존에는 1.0으로 과대평가됨)
+        assertEquals(0.52, result.get(1L), 0.001);
     }
 
     @Test
@@ -108,10 +121,10 @@ public class ArticleServiceNSFTest {
         Map<Long, Double> result = articleService.calculateNSFScores(
                 bm25Scores, vectorScores, titleScores, titleWeights);
 
-        // then: BM25 가중치(0.4)만 반영
+        // then: BM25만 있을 때, 가중치 합 정규화로 최종 스코어 = 정규화된 점수 그대로
         assertTrue(result.get(1L) > result.get(2L));
-        assertEquals(0.4, result.get(1L), 0.001); // 1.0 * 0.4
-        assertEquals(0.0, result.get(2L), 0.001); // 0.0 * 0.4
+        assertEquals(1.0, result.get(1L), 0.001); // (0.4 * 1.0) / 0.4 = 1.0
+        assertEquals(0.0, result.get(2L), 0.001); // (0.4 * 0.0) / 0.4 = 0.0
     }
 
     @Test
@@ -162,6 +175,34 @@ public class ArticleServiceNSFTest {
         // then: 벡터에서 높은 점수를 받은 Article 3도 결과에 포함
         assertTrue(result.containsKey(3L));
         assertTrue(result.get(3L) > 0);
+    }
+
+    @Test
+    public void calculateNSFScores_가중치_합_정규화_검증() {
+        // given: 3가지 검색 방법 모두 결과가 있는 경우
+        Map<Long, Double> bm25Scores = new HashMap<>();
+        bm25Scores.put(1L, 10.0);
+
+        Map<Long, Double> vectorScores = new HashMap<>();
+        vectorScores.put(1L, 0.9);
+
+        Map<Long, Double> titleScores = new HashMap<>();
+        titleScores.put(1L, 3.0);
+
+        Map<Long, Double> titleWeights = new HashMap<>();
+        titleWeights.put(1L, 0.3); // 최대 타이틀 가중치
+
+        // when
+        Map<Long, Double> result = articleService.calculateNSFScores(
+                bm25Scores, vectorScores, titleScores, titleWeights);
+
+        // then: 최종 스코어가 1.0을 초과하지 않음
+        // 단일 결과: BM25 10.0→1.0(클램핑), Vector 0.9→0.9, Title 3.0→1.0(클램핑)
+        // weightedSum = 0.4*1.0 + 0.4*0.9 + 0.3*1.0 = 1.06
+        // weightSum = 0.4 + 0.4 + 0.3 = 1.1
+        // nsfScore = 1.06 / 1.1 ≈ 0.964
+        assertTrue(result.get(1L) <= 1.0);
+        assertTrue(result.get(1L) > 0.9);
     }
 
     @Test

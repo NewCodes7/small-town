@@ -404,7 +404,7 @@
                                        class="badge bg-primary text-white"
                                        style="font-size: 0.75rem; white-space: nowrap;"
                                        th:title="'NSF 최종 점수 (BM25 + ILIKE + Clova Vector 통합), 원본: ' + ${#numbers.formatDecimal(article.finalScore, 1, 4)}">
-                                    <i class="fas fa-star me-1"></i>Final: <span th:text="${#numbers.formatDecimal(article.finalScore * 90, 1, 1)}">0.0</span>%
+                                    <i class="fas fa-star me-1"></i>Final: <span th:text="${#numbers.formatDecimal(article.finalScore * 100, 1, 1)}">0.0</span>%
                                 </small>
                                 <!-- Admin 전용: BM25 Score -->
                                 <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and article.bm25Score != null}"
@@ -515,7 +515,7 @@
                                            class="badge bg-primary text-white"
                                            style="font-size: 0.75rem; white-space: nowrap;"
                                            th:title="'NSF 최종 점수 (BM25 + ILIKE + Clova Vector 통합), 원본: ' + ${#numbers.formatDecimal(firstArticle.finalScore, 1, 4)}">
-                                        <i class="fas fa-star me-1"></i>Final: <span th:text="${#numbers.formatDecimal(firstArticle.finalScore * 90, 1, 1)}">0.0</span>%
+                                        <i class="fas fa-star me-1"></i>Final: <span th:text="${#numbers.formatDecimal(firstArticle.finalScore * 100, 1, 1)}">0.0</span>%
                                     </small>
                                     <!-- Admin 전용: BM25 Score -->
                                     <small th:if="${#authorization.expression('hasRole(''ADMIN'')') and firstArticle.bm25Score != null}"
