@@ -126,8 +126,8 @@ public class ArticleTermService {
                 result.addTermCount(batchResult.terms);
             }
 
-            // 영속성 컨텍스트 초기화 (메모리 누적 방지, connection 조기 반환)
-            entityManager.flush();
+            // 영속성 컨텍스트 초기화 (메모리 누적 방지)
+            // flush는 transactionTemplate.execute() 커밋 시 자동 수행됨
             entityManager.clear();
 
             log.info("배치 {} 완료: 처리={}, 건너뜀={}, 실패={}, term={}",

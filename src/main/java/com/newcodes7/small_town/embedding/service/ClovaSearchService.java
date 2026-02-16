@@ -28,7 +28,7 @@ public class ClovaSearchService {
     private final ClovaArticleChunkRepository clovaChunkRepository;
 
     // 기본 유사도 임계값
-    private static final double DEFAULT_SIMILARITY_THRESHOLD = 0.5;
+    private static final double DEFAULT_SIMILARITY_THRESHOLD = 0.52;
 
     // 최대 결과 수
     private static final int DEFAULT_MAX_RESULTS = 100;
@@ -299,7 +299,7 @@ public class ClovaSearchService {
             for (Object[] row : results) {
                 Long articleId = ((Number) row[0]).longValue();
                 Double similarity = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
-                if (similarity != null) {
+                if (similarity != null && similarity >= DEFAULT_SIMILARITY_THRESHOLD) {
                     scoreMap.put(articleId, similarity);
                 }
             }

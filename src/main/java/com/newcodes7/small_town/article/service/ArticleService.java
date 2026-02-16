@@ -70,15 +70,7 @@ public class ArticleService {
     private final UserLikeService userLikeService;
     private final ClovaSearchService clovaSearchService;
     private final ExecutorService searchExecutor;
-
-    // RRF 상수
-    private static final int RRF_K = 60;  // RRF 상수 (일반적으로 60 사용)
-
-    // RRF 가중치 (각 검색 방법의 기여도)
-    private static final double RRF_WEIGHT_BM25 = 1.0;    // BM25: 기본 가중치
-    private static final double RRF_WEIGHT_VECTOR = 1.0;  // Vector: 기본 가중치
-    private static final double RRF_WEIGHT_TITLE_MIN = 0.3;  // ILIKE: 커버리지 낮을 때 최소 가중치
-    private static final double RRF_WEIGHT_TITLE_MAX = 1.5;  // ILIKE: 커버리지 높을 때 최대 가중치
+    private final HybridSearchScorer hybridSearchScorer;
 
     public ArticleService(ArticleRepository articleRepository,
                          @Qualifier("articleCorporationRepository") CorporationRepository corporationRepository,
@@ -92,7 +84,8 @@ public class ArticleService {
                          LikeService likeService,
                          UserLikeService userLikeService,
                          ClovaSearchService clovaSearchService,
-                         @Qualifier("searchExecutor") ExecutorService searchExecutor) {
+                         @Qualifier("searchExecutor") ExecutorService searchExecutor,
+                         HybridSearchScorer hybridSearchScorer) {
         this.articleRepository = articleRepository;
         this.corporationRepository = corporationRepository;
         this.articleTermRepository = articleTermRepository;
@@ -106,6 +99,7 @@ public class ArticleService {
         this.userLikeService = userLikeService;
         this.clovaSearchService = clovaSearchService;
         this.searchExecutor = searchExecutor;
+        this.hybridSearchScorer = hybridSearchScorer;
     }
 
     @Cacheable(value = "corporationArticles",
@@ -741,33 +735,41 @@ public class ArticleService {
         final Map<Long, Double> finalVectorResults = vectorResults;
         final Map<Long, Double> finalBm25Results = bm25Results;
 
-        // 5-6. RRF (Reciprocal Rank Fusion) 계산 + 순위 계산 (한 번에 수행)
+        // 5-6. Normalized Score Fusion (NSF) 계산 + 순위 계산 (한 번에 수행)
+        // NSF: 각 검색 방법의 점수를 min-max 정규화 후 가중 합산
+        // RRF 대비 장점: 원본 점수의 크기 정보를 보존하여, 높은 유사도 결과를 더 정확히 반영
         long rerankStartTime = System.currentTimeMillis();
         final Map<Long, Integer> bm25Ranks = calculateRanks(finalBm25Results);
         final Map<Long, Integer> vectorRanks = calculateRanks(finalVectorResults);
         final Map<Long, Integer> ilikeRanks = calculateRanks(titleResults);
-        Map<Long, Double> rrfScores = calculateRRFScoresFromRanks(bm25Ranks, vectorRanks, ilikeRanks, titleResults, titleWeights);
+        HybridSearchScorer.NSFResult nsfResult = hybridSearchScorer.calculateNSFScores(finalBm25Results, finalVectorResults, titleResults, titleWeights);
+        Map<Long, Double> nsfScores = nsfResult.getNsfScores();
+        final Map<Long, Double> normalizedBm25Map = nsfResult.getNormalizedBm25();
+        final Map<Long, Double> normalizedVectorMap = nsfResult.getNormalizedVector();
+        final Map<Long, Double> normalizedTitleMap = nsfResult.getNormalizedTitle();
+        final Map<Long, Double> titleWeightMap = nsfResult.getTitleWeights();
+        final Map<Long, Double> weightSumMap = nsfResult.getWeightSums();
         long rerankEndTime = System.currentTimeMillis();
 
-        if (rrfScores.isEmpty()) {
+        if (nsfScores.isEmpty()) {
             log.warn("모든 검색 방법에서 결과가 없습니다: '{}'", keyword);
             return Page.empty();
         }
 
         long totalEndTime = System.currentTimeMillis();
-        log.info("[검색] keyword='{}' | BM25: {}ms ({}개), ILIKE: {}ms ({}개), Vector: {}ms ({}개), Rerank(RRF): {}ms ({}개) | 총: {}ms",
+        log.info("[검색] keyword='{}' | BM25: {}ms ({}개), ILIKE: {}ms ({}개), Vector: {}ms ({}개), Rerank(NSF): {}ms ({}개) | 총: {}ms",
             keyword,
             bm25EndTime - bm25StartTime, finalBm25Results.size(),
             ilikeEndTime - ilikeStartTime, titleResults.size(),
             vectorEndTime - vectorStartTime, finalVectorResults.size(),
-            rerankEndTime - rerankStartTime, rrfScores.size(),
+            rerankEndTime - rerankStartTime, nsfScores.size(),
             totalEndTime - totalStartTime);
 
-        // 8. 전체 RRF 결과의 article을 조회하여 유효한 것만 필터링
+        // 8. 전체 NSF 결과의 article을 조회하여 유효한 것만 필터링
         // (Materialized View 동기화 지연, soft delete 등으로 일부 article이 없을 수 있음)
         // findByIdInWithCorporation: Corporation fetch join으로 N+1 방지
-        List<Long> allRrfIds = new ArrayList<>(rrfScores.keySet());
-        List<Article> allArticles = articleRepository.findByIdInWithCorporation(allRrfIds);
+        List<Long> allNsfIds = new ArrayList<>(nsfScores.keySet());
+        List<Article> allArticles = articleRepository.findByIdInWithCorporation(allNsfIds);
 
         // 유효한 article만 Map으로 저장 (deleted_at 체크 포함)
         Map<Long, Article> validArticleMap = allArticles.stream()
@@ -776,17 +778,17 @@ public class ArticleService {
 
         Set<Long> validArticleIds = validArticleMap.keySet();
 
-        log.debug("RRF 결과 {}개 중 유효한 article: {}개", rrfScores.size(), validArticleIds.size());
+        log.debug("NSF 결과 {}개 중 유효한 article: {}개", nsfScores.size(), validArticleIds.size());
 
-        // 9. 유효한 article만 포함하여 RRF 점수로 정렬
-        List<Map.Entry<Long, Double>> sortedByRRF = rrfScores.entrySet().stream()
+        // 9. 유효한 article만 포함하여 NSF 점수로 정렬
+        List<Map.Entry<Long, Double>> sortedByNSF = nsfScores.entrySet().stream()
                 .filter(e -> validArticleIds.contains(e.getKey()))
                 .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
                 .toList();
 
         // 10. 페이징 계산 (유효한 article 기준)
         int offset = page * size;
-        int totalResults = sortedByRRF.size();
+        int totalResults = sortedByNSF.size();
 
         if (offset >= totalResults) {
             return Page.empty(PageRequest.of(page, size));
@@ -797,7 +799,7 @@ public class ArticleService {
 
         if ("latest".equals(sort) || "oldest".equals(sort)) {
             // 최신순/오래된순
-            List<Map.Entry<Long, Double>> sortedByDate = sortedByRRF.stream()
+            List<Map.Entry<Long, Double>> sortedByDate = sortedByNSF.stream()
                     .sorted((e1, e2) -> {
                         LocalDateTime date1 = publishedAtMap.getOrDefault(e1.getKey(), LocalDateTime.MIN);
                         LocalDateTime date2 = publishedAtMap.getOrDefault(e2.getKey(), LocalDateTime.MIN);
@@ -812,8 +814,8 @@ public class ArticleService {
                     .collect(Collectors.toList());
 
         } else {
-            // 적합도순 (RRF 스코어순)
-            pageArticleIds = sortedByRRF.stream()
+            // 적합도순 (NSF 스코어순)
+            pageArticleIds = sortedByNSF.stream()
                     .skip(offset)
                     .limit(size)
                     .map(Map.Entry::getKey)
@@ -829,21 +831,26 @@ public class ArticleService {
                 .filter(a -> a != null)
                 .collect(Collectors.toList());
 
-        // 14. DTO 생성 (순위 정보 포함)
+        // 14. DTO 생성 (순위 정보 + 정규화 점수 포함)
         List<ArticleSearchResultDto> results = sortedArticles.stream()
                 .map(article -> {
                     Long articleId = article.getId();
                     Double bm25Score = finalBm25Results.get(articleId);
                     Double vectorScore = finalVectorResults.get(articleId);
-                    Double rrfScore = rrfScores.get(articleId);
+                    Double nsfScore = nsfScores.get(articleId);
                     Double ilikeScore = titleResults.get(articleId);
                     Boolean isLiked = likeStatusMap.getOrDefault(articleId, false);
                     boolean foundByVector = vectorOnlyIds.contains(articleId);
                     Integer bm25Rank = bm25Ranks.get(articleId);
                     Integer vectorRank = vectorRanks.get(articleId);
                     Integer ilikeRank = ilikeRanks.get(articleId);
-                    return new ArticleSearchResultDto(article, foundByVector, bm25Score, vectorScore, rrfScore, ilikeScore, null,
-                            bm25Rank, vectorRank, ilikeRank, isLiked);
+                    Double normBm25 = normalizedBm25Map.get(articleId);
+                    Double normVector = normalizedVectorMap.get(articleId);
+                    Double normIlike = normalizedTitleMap.get(articleId);
+                    Double titleWeight = titleWeightMap.get(articleId);
+                    Double weightSum = weightSumMap.get(articleId);
+                    return new ArticleSearchResultDto(article, foundByVector, bm25Score, vectorScore, nsfScore, ilikeScore, null,
+                            bm25Rank, vectorRank, ilikeRank, normBm25, normVector, normIlike, titleWeight, weightSum, isLiked);
                 })
                 .collect(Collectors.toList());
 
@@ -903,13 +910,13 @@ public class ArticleService {
 
         // 개별 직접 매칭 Term (OR 절, 높은 우선순위)
         for (String term : directMatchTerms) {
-            appendBoostedTerm(queryBuilder, term, "2.0");
+            hybridSearchScorer.appendBoostedTerm(queryBuilder, term, "2.0");
         }
 
         // 유의어 및 임베딩 유사어 (OR 절, 낮은 우선순위)
         for (Map.Entry<String, Double> entry : expandedOnlyTerms.entrySet()) {
             String boostValue = String.format("%.1f", entry.getValue() * 2.0);
-            appendBoostedTerm(queryBuilder, entry.getKey(), boostValue);
+            hybridSearchScorer.appendBoostedTerm(queryBuilder, entry.getKey(), boostValue);
         }
 
         log.debug("BM25 검색 쿼리 생성 완료 - 직접 Term: {}, 확장 Term: {}", directMatchTerms, expandedOnlyTerms.keySet());
@@ -980,54 +987,6 @@ public class ArticleService {
             log.error("BM25 보충 점수 계산 실패: {}", e.getMessage(), e);
             return Collections.emptyList();
         }
-    }
-
-    /**
-     * 미리 계산된 순위 맵을 사용하여 RRF 스코어 계산 (중복 순위 계산 방지)
-     *
-     * @param bm25Ranks BM25 순위 맵
-     * @param vectorRanks Vector 순위 맵
-     * @param ilikeRanks ILIKE 순위 맵
-     * @param titleResults ILIKE 제목 매칭 결과 (ID 수집용)
-     * @param titleWeights ILIKE per-article 가중치
-     * @return RRF 스코어 맵 (ID -> RRF 스코어)
-     */
-    private Map<Long, Double> calculateRRFScoresFromRanks(
-            Map<Long, Integer> bm25Ranks,
-            Map<Long, Integer> vectorRanks,
-            Map<Long, Integer> ilikeRanks,
-            Map<Long, Double> titleResults,
-            Map<Long, Double> titleWeights) {
-
-        Map<Long, Double> rrfScores = new HashMap<>();
-
-        // 모든 Article ID 수집
-        Set<Long> allArticleIds = new HashSet<>();
-        allArticleIds.addAll(bm25Ranks.keySet());
-        allArticleIds.addAll(vectorRanks.keySet());
-        allArticleIds.addAll(ilikeRanks.keySet());
-
-        // RRF 스코어 계산 (가중치 적용)
-        for (Long articleId : allArticleIds) {
-            double rrfScore = 0.0;
-
-            if (bm25Ranks.containsKey(articleId)) {
-                rrfScore += RRF_WEIGHT_BM25 / (RRF_K + bm25Ranks.get(articleId));
-            }
-
-            if (vectorRanks.containsKey(articleId)) {
-                rrfScore += RRF_WEIGHT_VECTOR / (RRF_K + vectorRanks.get(articleId));
-            }
-
-            if (ilikeRanks.containsKey(articleId)) {
-                double titleWeight = titleWeights.getOrDefault(articleId, RRF_WEIGHT_TITLE_MIN);
-                rrfScore += titleWeight / (RRF_K + ilikeRanks.get(articleId));
-            }
-
-            rrfScores.put(articleId, rrfScore);
-        }
-
-        return rrfScores;
     }
 
     /**
@@ -1159,13 +1118,13 @@ public class ArticleService {
 
             // 2-1. 개별 직접 매칭 Term (OR 절, 높은 우선순위)
             for (String term : directMatchTerms) {
-                appendBoostedTerm(queryBuilder, term, "2.0");
+                hybridSearchScorer.appendBoostedTerm(queryBuilder, term, "2.0");
             }
 
             // 2-2. 유의어 및 임베딩 유사어 (OR 절, 낮은 우선순위)
             for (Map.Entry<String, Double> entry : expandedOnlyTerms.entrySet()) {
                 String boostValue = String.format("%.1f", entry.getValue() * 2.0);
-                appendBoostedTerm(queryBuilder, entry.getKey(), boostValue);
+                hybridSearchScorer.appendBoostedTerm(queryBuilder, entry.getKey(), boostValue);
             }
 
             String searchQuery = queryBuilder.toString();
@@ -1298,7 +1257,7 @@ public class ArticleService {
             String bestTitle = translatedScore > score ? translatedTitle : title;
 
             scoreMap.put(articleId, Math.max(score, translatedScore));
-            weightMap.put(articleId, calculateTitleCoverageWeight(bestTitle, keywordLength));
+            weightMap.put(articleId, hybridSearchScorer.calculateTitleCoverageWeight(bestTitle, keywordLength));
         }
     }
 
@@ -1320,20 +1279,6 @@ public class ArticleService {
             return 1.0;
         }
         return 0.0;
-    }
-
-    /**
-     * 제목 길이 대비 키워드 커버리지에 따른 RRF 가중치 계산
-     * coverage = keywordLength / titleLength
-     * weight = TITLE_MIN + (TITLE_MAX - TITLE_MIN) * coverage
-     */
-    private double calculateTitleCoverageWeight(String title, int keywordLength) {
-        if (title == null || title.isEmpty()) {
-            return RRF_WEIGHT_TITLE_MIN;
-        }
-        double coverage = (double) keywordLength / title.length();
-        coverage = Math.min(coverage, 1.0);
-        return RRF_WEIGHT_TITLE_MIN + (RRF_WEIGHT_TITLE_MAX - RRF_WEIGHT_TITLE_MIN) * coverage;
     }
 
     /**
@@ -1572,40 +1517,6 @@ public class ArticleService {
         }
 
         return results;
-    }
-
-    /**
-     * BM25 쿼리용 Term 따옴표 처리
-     * 띄어쓰기가 포함된 term은 따옴표로 감싸고, 단일 단어는 그대로 반환
-     */
-    private String quoteTerm(String term) {
-        if (term == null || term.isEmpty()) {
-            return term;
-        }
-
-        // 띄어쓰기가 포함된 경우 따옴표로 감싸기
-        if (term.contains(" ")) {
-            return "\"" + term + "\"";
-        }
-
-        return term;
-    }
-
-    /**
-     * BM25 쿼리에 부스트된 term 추가
-     * ParadeDB parse()는 column:term 형식 필수
-     * title_terms에 2.0배 가중치 부여하여 제목 매칭 우선
-     */
-    private void appendBoostedTerm(StringBuilder queryBuilder, String term, String boostValue) {
-        String quotedTerm = quoteTerm(term);
-        if (queryBuilder.length() > 0) {
-            queryBuilder.append(" OR ");
-        }
-        String titleBoost = String.format("%.1f", Double.parseDouble(boostValue) * 2.0);
-        queryBuilder.append(String.format(
-            "title_terms:%s^%s OR content_terms:%s^%s",
-            quotedTerm, titleBoost, quotedTerm, boostValue
-        ));
     }
 
     /**

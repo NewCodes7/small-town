@@ -62,10 +62,10 @@ public class ArticleSearchResultDto extends ArticleListResponseDto {
      * @param foundByVector 벡터 검색으로만 찾았는지 여부
      * @param bm25Score BM25 검색 스코어
      * @param vectorScore 벡터 유사도 스코어
-     * @param rrfScore RRF 스코어
+     * @param finalScore 최종 통합 스코어
      */
-    public ArticleSearchResultDto(Article article, boolean foundByVector, Double bm25Score, Double vectorScore, Double rrfScore) {
-        super(article, bm25Score, vectorScore, rrfScore, null, null);
+    public ArticleSearchResultDto(Article article, boolean foundByVector, Double bm25Score, Double vectorScore, Double finalScore) {
+        super(article, bm25Score, vectorScore, finalScore, null, null);
         this.foundByVector = foundByVector;
     }
 
@@ -76,11 +76,11 @@ public class ArticleSearchResultDto extends ArticleListResponseDto {
      * @param foundByVector 벡터 검색으로만 찾았는지 여부
      * @param bm25Score BM25 검색 스코어
      * @param vectorScore 벡터 유사도 스코어
-     * @param rrfScore RRF 스코어
+     * @param finalScore 최종 통합 스코어
      * @param ilikeScore ILIKE 검색 스코어
      */
-    public ArticleSearchResultDto(Article article, boolean foundByVector, Double bm25Score, Double vectorScore, Double rrfScore, Double ilikeScore) {
-        super(article, bm25Score, vectorScore, rrfScore, ilikeScore, null);
+    public ArticleSearchResultDto(Article article, boolean foundByVector, Double bm25Score, Double vectorScore, Double finalScore, Double ilikeScore) {
+        super(article, bm25Score, vectorScore, finalScore, ilikeScore, null);
         this.foundByVector = foundByVector;
     }
 
@@ -91,12 +91,12 @@ public class ArticleSearchResultDto extends ArticleListResponseDto {
      * @param foundByVector 벡터 검색으로만 찾았는지 여부
      * @param bm25Score BM25 검색 스코어
      * @param vectorScore 벡터 유사도 스코어
-     * @param rrfScore RRF 스코어
+     * @param finalScore 최종 통합 스코어
      * @param ilikeScore ILIKE 검색 스코어
      * @param timeDecayScore Time Decay 스코어
      */
-    public ArticleSearchResultDto(Article article, boolean foundByVector, Double bm25Score, Double vectorScore, Double rrfScore, Double ilikeScore, Double timeDecayScore) {
-        super(article, bm25Score, vectorScore, rrfScore, ilikeScore, timeDecayScore, null);
+    public ArticleSearchResultDto(Article article, boolean foundByVector, Double bm25Score, Double vectorScore, Double finalScore, Double ilikeScore, Double timeDecayScore) {
+        super(article, bm25Score, vectorScore, finalScore, ilikeScore, timeDecayScore, null);
         this.foundByVector = foundByVector;
     }
 
@@ -107,22 +107,34 @@ public class ArticleSearchResultDto extends ArticleListResponseDto {
      * @param foundByVector 벡터 검색으로만 찾았는지 여부
      * @param bm25Score BM25 검색 스코어
      * @param vectorScore 벡터 유사도 스코어
-     * @param rrfScore RRF 스코어 (Final Score)
+     * @param finalScore 최종 통합 스코어
      * @param ilikeScore ILIKE 검색 스코어
      * @param timeDecayScore Time Decay 스코어
      * @param isLiked 사용자 좋아요 상태
      */
-    public ArticleSearchResultDto(Article article, boolean foundByVector, Double bm25Score, Double vectorScore, Double rrfScore, Double ilikeScore, Double timeDecayScore, Boolean isLiked) {
-        super(article, bm25Score, vectorScore, rrfScore, ilikeScore, timeDecayScore, isLiked);
+    public ArticleSearchResultDto(Article article, boolean foundByVector, Double bm25Score, Double vectorScore, Double finalScore, Double ilikeScore, Double timeDecayScore, Boolean isLiked) {
+        super(article, bm25Score, vectorScore, finalScore, ilikeScore, timeDecayScore, isLiked);
         this.foundByVector = foundByVector;
     }
 
     /**
      * 모든 검색 스코어, 순위, 좋아요 상태를 포함한 생성자 (최종 - rank 포함)
      */
-    public ArticleSearchResultDto(Article article, boolean foundByVector, Double bm25Score, Double vectorScore, Double rrfScore, Double ilikeScore, Double timeDecayScore,
+    public ArticleSearchResultDto(Article article, boolean foundByVector, Double bm25Score, Double vectorScore, Double finalScore, Double ilikeScore, Double timeDecayScore,
                                   Integer bm25Rank, Integer vectorRank, Integer ilikeRank, Boolean isLiked) {
-        super(article, bm25Score, vectorScore, rrfScore, ilikeScore, timeDecayScore, bm25Rank, vectorRank, ilikeRank, isLiked);
+        super(article, bm25Score, vectorScore, finalScore, ilikeScore, timeDecayScore, bm25Rank, vectorRank, ilikeRank, isLiked);
+        this.foundByVector = foundByVector;
+    }
+
+    /**
+     * 모든 검색 스코어, 순위, 정규화 점수, 좋아요 상태를 포함한 생성자 (최종 - 정규화 점수 포함)
+     */
+    public ArticleSearchResultDto(Article article, boolean foundByVector, Double bm25Score, Double vectorScore, Double finalScore, Double ilikeScore, Double timeDecayScore,
+                                  Integer bm25Rank, Integer vectorRank, Integer ilikeRank,
+                                  Double normalizedBm25Score, Double normalizedVectorScore, Double normalizedIlikeScore,
+                                  Double titleWeight, Double weightSum, Boolean isLiked) {
+        super(article, bm25Score, vectorScore, finalScore, ilikeScore, timeDecayScore, bm25Rank, vectorRank, ilikeRank,
+                normalizedBm25Score, normalizedVectorScore, normalizedIlikeScore, titleWeight, weightSum, isLiked);
         this.foundByVector = foundByVector;
     }
 }
