@@ -4,10 +4,10 @@ global:
 scrape_configs:
   - job_name: 'backend'
     static_configs:
-      - targets: ['172.19.0.4:8080']
+      - targets: ['newcodes-backend-green:8080']
         labels:
           server: 'green'
-      - targets: ['172.19.0.3:8080']
+      - targets: ['newcodes-backend-blue:8080']
         labels:
           server: 'blue'
     metrics_path: '/actuator/prometheus'
