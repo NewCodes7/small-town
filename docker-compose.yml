@@ -177,3 +177,4 @@ networks:
 
 volumes:
   nginx-cache:
+  grafana-data:
