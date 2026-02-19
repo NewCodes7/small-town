@@ -76,6 +76,10 @@ services:
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml  
     restart: always
+    networks:
+      - app-network
+    expose:
+      - "9090"
 
   grafana:
     image: grafana/grafana:8.3.3
@@ -93,6 +97,12 @@ services:
       - GF_SMTP_FROM_NAME=Grafana Alerts
       - GF_SMTP_STARTTLS_POLICY=
     restart: always
+    networks:
+      - app-network
+    expose:
+      - "3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
 
   loki:
     image: grafana/loki:2.9.3
