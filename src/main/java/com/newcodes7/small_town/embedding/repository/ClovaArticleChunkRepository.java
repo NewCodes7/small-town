@@ -176,48 +176,44 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
     // ==================== 2단계 검색 (Binary HNSW → halfvec Reranking) ====================
 
     /**
-     * [Stage 1] Binary HNSW 검색 - 빠른 후보 필터링
-     * Hamming distance 기반 근사 검색으로 후보 청크 ID 반환
+     * 2단계 통합 검색: Binary HNSW 후보 필터링 → halfvec Reranking
      *
+     * CTE로 쿼리 벡터 정규화를 한 번만 수행하고,
+     * candidates CTE에서 embedding_normalized를 미리 읽어 PK 재조회를 방지합니다.
+     *
+     * @param queryEmbedding 검색 쿼리의 임베딩 벡터 (PostgreSQL 배열 포맷)
      * @param queryBinary 검색 쿼리의 binary vector (bit string)
-     * @param candidateLimit 후보 수 (예: 500)
-     * @return chunk ID 리스트
-     */
-    @Query(value = """
-            SELECT cac.id
-            FROM clova_article_chunk cac
-            JOIN article a ON cac.article_id = a.id
-            WHERE a.deleted_at IS NULL
-              AND cac.embedding_binary IS NOT NULL
-            ORDER BY cac.embedding_binary <~> CAST(:queryBinary AS bit(1024))
-            LIMIT :candidateLimit
-            """, nativeQuery = true)
-    List<Long> findCandidateChunkIdsByBinaryHnsw(
-            @Param("queryBinary") String queryBinary,
-            @Param("candidateLimit") int candidateLimit
-    );
-
-    /**
-     * [Stage 2] halfvec Reranking - 후보 청크들의 정밀 유사도 계산
-     * Stage 1에서 필터링된 청크들에 대해서만 cosine similarity 계산
-     *
-     * @param queryEmbedding 검색 쿼리의 임베딩 벡터
-     * @param chunkIds Stage 1에서 필터링된 청크 ID 목록
+     * @param candidateLimit Stage 1 후보 수 (예: 500)
      * @param topK 평균 계산에 사용할 상위 청크 수
      * @param threshold 최소 유사도 임계값
      * @param limit 최종 결과 수
      * @return Article ID와 평균 유사도
      */
     @Query(value = """
-            SELECT article_id, AVG(similarity) as avg_similarity
-            FROM (
+            WITH query_vec AS (
+                SELECT l2_normalize(CAST(:queryEmbedding AS halfvec)) AS vec
+            ),
+            candidates AS (
                 SELECT
                     cac.article_id,
-                    -(cac.embedding_normalized <#> l2_normalize(CAST(:queryEmbedding AS halfvec))) as similarity,
-                    ROW_NUMBER() OVER (PARTITION BY cac.article_id
-                                       ORDER BY cac.embedding_normalized <#> l2_normalize(CAST(:queryEmbedding AS halfvec))) as rn
+                    cac.embedding_normalized
                 FROM clova_article_chunk cac
-                WHERE cac.id IN (:chunkIds)
+                JOIN article a ON cac.article_id = a.id
+                WHERE a.deleted_at IS NULL
+                  AND cac.embedding_binary IS NOT NULL
+                ORDER BY cac.embedding_binary <~> CAST(:queryBinary AS bit(1024))
+                LIMIT :candidateLimit
+            )
+            SELECT article_id, AVG(similarity) AS avg_similarity
+            FROM (
+                SELECT
+                    c.article_id,
+                    -(c.embedding_normalized <#> q.vec) AS similarity,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY c.article_id
+                        ORDER BY c.embedding_normalized <#> q.vec
+                    ) AS rn
+                FROM candidates c, query_vec q
             ) ranked
             WHERE rn <= :topK
               AND similarity >= :threshold
@@ -225,9 +221,10 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
             ORDER BY avg_similarity DESC
             LIMIT :limit
             """, nativeQuery = true)
-    List<Object[]> rerankByHalfvec(
+    List<Object[]> findArticlesByTwoStageSearch(
             @Param("queryEmbedding") String queryEmbedding,
-            @Param("chunkIds") List<Long> chunkIds,
+            @Param("queryBinary") String queryBinary,
+            @Param("candidateLimit") int candidateLimit,
             @Param("topK") int topK,
             @Param("threshold") double threshold,
             @Param("limit") int limit

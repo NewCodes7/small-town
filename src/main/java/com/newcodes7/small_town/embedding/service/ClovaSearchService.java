@@ -109,27 +109,16 @@ public class ClovaSearchService {
     }
 
     /**
-     * 2단계 검색: Binary HNSW → halfvec Reranking
+     * 2단계 검색: Binary HNSW → halfvec Reranking (단일 CTE 쿼리)
      */
     private Map<Long, Double> searchTwoStage(float[] queryEmbedding, double threshold, int topK, int maxResults) {
         long startTime = System.currentTimeMillis();
 
-        // Stage 1: Binary HNSW로 후보 필터링
-        String binaryString = toBinaryString(queryEmbedding);
-        List<Long> candidateChunkIds = clovaChunkRepository.findCandidateChunkIdsByBinaryHnsw(
-                binaryString, DEFAULT_CANDIDATE_LIMIT);
-
-        long stage1Time = System.currentTimeMillis() - startTime;
-
-        if (candidateChunkIds.isEmpty()) {
-            log.info("Clova 2단계 검색 - Stage 1 결과 없음");
-            return Map.of();
-        }
-
-        // Stage 2: halfvec으로 정밀 Reranking
         String vectorString = formatVectorForPostgres(queryEmbedding);
-        List<Object[]> results = clovaChunkRepository.rerankByHalfvec(
-                vectorString, candidateChunkIds, topK, threshold, maxResults);
+        String binaryString = toBinaryString(queryEmbedding);
+
+        List<Object[]> results = clovaChunkRepository.findArticlesByTwoStageSearch(
+                vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, topK, threshold, maxResults);
 
         long totalTime = System.currentTimeMillis() - startTime;
 
@@ -142,8 +131,7 @@ public class ClovaSearchService {
             }
         }
 
-        log.info("Clova 2단계 검색 완료 - Stage1: {}ms (후보 {}개), 총: {}ms, 결과: {}개",
-                stage1Time, candidateChunkIds.size(), totalTime, scoreMap.size());
+        log.info("Clova 2단계 검색 완료 - 총: {}ms, 결과: {}개", totalTime, scoreMap.size());
 
         return scoreMap;
     }
