@@ -47,6 +47,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import lombok.extern.slf4j.Slf4j;
@@ -615,12 +616,16 @@ public class ArticleService {
 
         // 2. BM25와 Vector 검색을 병렬 실행
         // Vector 검색을 별도 스레드에서 비동기 실행 (Clova 임베딩 API 호출이 대부분의 시간)
-        long vectorStartTime = System.currentTimeMillis();
+        AtomicLong vectorElapsedMs = new AtomicLong(0);
         CompletableFuture<ClovaSearchService.VectorSearchResult> vectorFuture =
                 CompletableFuture.supplyAsync(() -> {
+                    long start = System.currentTimeMillis();
                     try {
-                        return clovaSearchService.searchByKeywordWithEmbedding(keyword);
+                        ClovaSearchService.VectorSearchResult result = clovaSearchService.searchByKeywordWithEmbedding(keyword);
+                        vectorElapsedMs.set(System.currentTimeMillis() - start);
+                        return result;
                     } catch (Exception e) {
+                        vectorElapsedMs.set(System.currentTimeMillis() - start);
                         log.warn("Clova Vector 검색 실패 (스킵): {}", e.getMessage());
                         return new ClovaSearchService.VectorSearchResult(new HashMap<>(), null);
                     }
@@ -655,7 +660,10 @@ public class ArticleService {
         } catch (Exception e) {
             log.warn("Clova Vector 검색 결과 대기 실패 (스킵): {}", e.getMessage());
         }
-        long vectorEndTime = System.currentTimeMillis();
+
+        // 원본 검색 결과 수 캡처 (cross-scoring 보충 전)
+        int originalBm25Count = bm25Results.size();
+        int originalVectorCount = vectorResults.size();
 
         // 4. 교차 점수 계산: 각 검색 방법에서만 발견된 article에 나머지 점수 보충 (병렬)
         Set<Long> bm25OnlyIds = new HashSet<>(bm25Results.keySet());
@@ -734,79 +742,74 @@ public class ArticleService {
         long totalEndTime = System.currentTimeMillis();
         log.info("[검색] keyword='{}' | BM25: {}ms ({}개), Vector: {}ms ({}개), Rerank(NSF): {}ms ({}개) | 총: {}ms",
             keyword,
-            bm25EndTime - bm25StartTime, finalBm25Results.size(),
-            vectorEndTime - vectorStartTime, finalVectorResults.size(),
+            bm25EndTime - bm25StartTime, originalBm25Count,
+            vectorElapsedMs.get(), originalVectorCount,
             rerankEndTime - rerankStartTime, nsfScores.size(),
             totalEndTime - totalStartTime);
 
-        // 8. 전체 NSF 결과의 article을 조회하여 유효한 것만 필터링
-        // (Materialized View 동기화 지연, soft delete 등으로 일부 article이 없을 수 있음)
-        // findByIdInWithCorporation: Corporation fetch join으로 N+1 방지
-        List<Long> allNsfIds = new ArrayList<>(nsfScores.keySet());
-        List<Article> allArticles = articleRepository.findByIdInWithCorporation(allNsfIds);
+        // 8. 전체 NSF 결과에 대해 (id, publishedAt) 경량 조회
+        // - deleted_at 검증 (Materialized View 동기화 지연으로 인한 stale 항목 제거)
+        // - vector-only 항목의 publishedAt 보충 (BM25 쿼리에서 수집되지 않은 날짜)
+        List<Object[]> idAndDateRows = articleRepository.findIdAndPublishedAtByIdIn(
+                new ArrayList<>(nsfScores.keySet()));
 
-        // 유효한 article만 Map으로 저장 (deleted_at 체크 포함)
-        Map<Long, Article> validArticleMap = allArticles.stream()
-                .filter(a -> a.getDeletedAt() == null)
-                .collect(Collectors.toMap(Article::getId, a -> a));
-
-        Set<Long> validArticleIds = validArticleMap.keySet();
+        Set<Long> validArticleIds = new HashSet<>();
+        for (Object[] row : idAndDateRows) {
+            Long id = ((Number) row[0]).longValue();
+            validArticleIds.add(id);
+            java.sql.Timestamp ts = row.length > 1 ? (java.sql.Timestamp) row[1] : null;
+            if (ts != null && !publishedAtMap.containsKey(id)) {
+                publishedAtMap.put(id, ts.toLocalDateTime());
+            }
+        }
 
         log.debug("NSF 결과 {}개 중 유효한 article: {}개", nsfScores.size(), validArticleIds.size());
 
-        // 9. 유효한 article만 포함하여 NSF 점수로 정렬
-        List<Map.Entry<Long, Double>> sortedByNSF = nsfScores.entrySet().stream()
-                .filter(e -> validArticleIds.contains(e.getKey()))
-                .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
-                .toList();
-
-        // 10. 페이징 계산 (유효한 article 기준)
+        // 9-10. 정렬 → 페이징 (sort 파라미터에 따라 NSF 정렬 또는 날짜 정렬)
         int offset = page * size;
-        int totalResults = sortedByNSF.size();
+        List<Long> sortedValidIds;
 
+        if ("latest".equals(sort) || "oldest".equals(sort)) {
+            // 날짜 정렬: NSF 정렬 없이 바로 날짜 기준으로 정렬
+            sortedValidIds = nsfScores.keySet().stream()
+                    .filter(validArticleIds::contains)
+                    .sorted((id1, id2) -> {
+                        LocalDateTime date1 = publishedAtMap.getOrDefault(id1, LocalDateTime.MIN);
+                        LocalDateTime date2 = publishedAtMap.getOrDefault(id2, LocalDateTime.MIN);
+                        return "latest".equals(sort) ? date2.compareTo(date1) : date1.compareTo(date2);
+                    })
+                    .collect(Collectors.toList());
+        } else {
+            // 적합도순 (NSF 스코어순)
+            sortedValidIds = nsfScores.entrySet().stream()
+                    .filter(e -> validArticleIds.contains(e.getKey()))
+                    .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toList());
+        }
+
+        int totalResults = sortedValidIds.size();
         if (offset >= totalResults) {
             return Page.empty(PageRequest.of(page, size));
         }
 
-        // 11. sort 파라미터에 따른 처리
-        List<Long> pageArticleIds;
+        List<Long> pageArticleIds = sortedValidIds.stream()
+                .skip(offset)
+                .limit(size)
+                .collect(Collectors.toList());
 
-        if ("latest".equals(sort) || "oldest".equals(sort)) {
-            // 최신순/오래된순
-            List<Map.Entry<Long, Double>> sortedByDate = sortedByNSF.stream()
-                    .sorted((e1, e2) -> {
-                        LocalDateTime date1 = publishedAtMap.getOrDefault(e1.getKey(), LocalDateTime.MIN);
-                        LocalDateTime date2 = publishedAtMap.getOrDefault(e2.getKey(), LocalDateTime.MIN);
-                        return "latest".equals(sort) ? date2.compareTo(date1) : date1.compareTo(date2);
-                    })
-                    .toList();
-
-            pageArticleIds = sortedByDate.stream()
-                    .skip(offset)
-                    .limit(size)
-                    .map(Map.Entry::getKey)
-                    .collect(Collectors.toList());
-
-        } else {
-            // 적합도순 (NSF 스코어순)
-            pageArticleIds = sortedByNSF.stream()
-                    .skip(offset)
-                    .limit(size)
-                    .map(Map.Entry::getKey)
-                    .collect(Collectors.toList());
-        }
+        // 11. 현재 페이지 article만 로딩 (Corporation fetch join으로 N+1 방지)
+        Map<Long, Article> pageArticleMap = articleRepository.findByIdInWithCorporation(pageArticleIds)
+                .stream()
+                .collect(Collectors.toMap(Article::getId, a -> a));
 
         // 12. 좋아요 상태 batch 조회 (N+1 방지)
         Map<Long, Boolean> likeStatusMap = getLikeStatusMap(pageArticleIds, username, ipAddress);
 
-        // 13. Article ID 순서대로 정렬 (이미 validArticleMap에 있으므로 재조회 불필요)
-        List<Article> sortedArticles = pageArticleIds.stream()
-                .map(validArticleMap::get)
+        // 13. DTO 생성 (페이지 순서 유지, 순위 정보 + 정규화 점수 포함)
+        List<ArticleSearchResultDto> results = pageArticleIds.stream()
+                .map(pageArticleMap::get)
                 .filter(a -> a != null)
-                .collect(Collectors.toList());
-
-        // 14. DTO 생성 (순위 정보 + 정규화 점수 포함)
-        List<ArticleSearchResultDto> results = sortedArticles.stream()
                 .map(article -> {
                     Long articleId = article.getId();
                     Double bm25Score = finalBm25Results.get(articleId);

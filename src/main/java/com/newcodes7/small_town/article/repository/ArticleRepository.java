@@ -886,4 +886,11 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "WHERE a.id IN :ids " +
            "AND a.deletedAt IS NULL")
     List<Article> findByIdInWithCorporation(@Param("ids") List<Long> ids);
+
+    /**
+     * ID 목록으로 (id, publishedAt) 경량 조회 (유효 article만, deletedAt 체크)
+     * 하이브리드 검색에서 전체 결과의 deleted_at 검증과 날짜 정렬에 사용
+     */
+    @Query("SELECT a.id, a.publishedAt FROM Article a WHERE a.id IN :ids AND a.deletedAt IS NULL")
+    List<Object[]> findIdAndPublishedAtByIdIn(@Param("ids") List<Long> ids);
 }
