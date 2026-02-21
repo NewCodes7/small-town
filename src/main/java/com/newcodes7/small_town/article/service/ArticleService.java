@@ -653,8 +653,9 @@ public class ArticleService {
         // 3. Vector 검색 결과 대기
         Map<Long, Double> vectorResults = new HashMap<>();
         float[] queryEmbedding = null;
+        ClovaSearchService.VectorSearchResult vectorSearchResult = new ClovaSearchService.VectorSearchResult(new HashMap<>(), null);
         try {
-            ClovaSearchService.VectorSearchResult vectorSearchResult = vectorFuture.get(5, TimeUnit.SECONDS);
+            vectorSearchResult = vectorFuture.get(5, TimeUnit.SECONDS);
             vectorResults = new HashMap<>(vectorSearchResult.getScores());
             queryEmbedding = vectorSearchResult.getQueryEmbedding();
         } catch (Exception e) {
@@ -740,10 +741,10 @@ public class ArticleService {
         }
 
         long totalEndTime = System.currentTimeMillis();
-        log.info("[검색] keyword='{}' | BM25: {}ms ({}개), Vector: {}ms ({}개), Rerank(NSF): {}ms ({}개) | 총: {}ms",
+        log.info("[검색] keyword='{}' | BM25: {}ms ({}개), Vector: {}ms (embedding: {}ms, query: {}ms) ({}개), Rerank(NSF): {}ms ({}개) | 총: {}ms",
             keyword,
             bm25EndTime - bm25StartTime, originalBm25Count,
-            vectorElapsedMs.get(), originalVectorCount,
+            vectorElapsedMs.get(), vectorSearchResult.getEmbeddingMs(), vectorSearchResult.getQueryMs(), originalVectorCount,
             rerankEndTime - rerankStartTime, nsfScores.size(),
             totalEndTime - totalStartTime);
 

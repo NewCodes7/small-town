@@ -163,7 +163,9 @@ public class ClovaSearchService {
         }
 
         try {
+            long embStart = System.currentTimeMillis();
             ModelEmbeddingResult embResult = clovaEmbeddingService.generateEmbedding(keyword, null);
+            long embeddingMs = System.currentTimeMillis() - embStart;
 
             if (!embResult.isSuccess() || embResult.getEmbedding() == null) {
                 log.warn("Clova 키워드 임베딩 생성 실패: {}", embResult.getErrorMessage());
@@ -174,14 +176,16 @@ public class ClovaSearchService {
             log.debug("Clova 키워드 임베딩 생성 완료 - 차원: {}, 토큰: {}",
                     queryEmbedding.length, embResult.getTokenUsage());
 
+            long queryStart = System.currentTimeMillis();
             Map<Long, Double> scores;
             if (USE_TWO_STAGE_SEARCH) {
                 scores = searchTwoStage(queryEmbedding, DEFAULT_SIMILARITY_THRESHOLD, DEFAULT_TOP_K, DEFAULT_MAX_RESULTS);
             } else {
                 scores = searchDirectHalfvec(queryEmbedding, DEFAULT_SIMILARITY_THRESHOLD, DEFAULT_TOP_K, DEFAULT_MAX_RESULTS);
             }
+            long queryMs = System.currentTimeMillis() - queryStart;
 
-            return new VectorSearchResult(scores, queryEmbedding);
+            return new VectorSearchResult(scores, queryEmbedding, embeddingMs, queryMs);
 
         } catch (Exception e) {
             log.error("Clova 벡터 검색 실패: {}", e.getMessage(), e);
@@ -195,10 +199,19 @@ public class ClovaSearchService {
     public static class VectorSearchResult {
         private final Map<Long, Double> scores;
         private final float[] queryEmbedding;
+        private final long embeddingMs;
+        private final long queryMs;
 
-        public VectorSearchResult(Map<Long, Double> scores, float[] queryEmbedding) {
+        public VectorSearchResult(Map<Long, Double> scores, float[] queryEmbedding,
+                                   long embeddingMs, long queryMs) {
             this.scores = scores;
             this.queryEmbedding = queryEmbedding;
+            this.embeddingMs = embeddingMs;
+            this.queryMs = queryMs;
+        }
+
+        public VectorSearchResult(Map<Long, Double> scores, float[] queryEmbedding) {
+            this(scores, queryEmbedding, 0, 0);
         }
 
         public Map<Long, Double> getScores() {
@@ -207,6 +220,14 @@ public class ClovaSearchService {
 
         public float[] getQueryEmbedding() {
             return queryEmbedding;
+        }
+
+        public long getEmbeddingMs() {
+            return embeddingMs;
+        }
+
+        public long getQueryMs() {
+            return queryMs;
         }
     }
 
