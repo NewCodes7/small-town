@@ -51,7 +51,7 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------------
-# 1. Node.js 설치 (Claude Code 실행을 위해 필요, v18 이상 권장)
+# 1. Node.js 설치 (v18+ / 여기선 20)
 # ---------------------------------------------------------
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get update \
@@ -60,11 +60,14 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
 
 # ---------------------------------------------------------
 # 1.5. npm 글로벌 설치 경로를 사용자 홈으로 변경 (EACCES 방지)
-#   - devcontainer에서 vscode 유저로 npm -g 해도 권한 문제 안 나게 함
+#   - "vscode 유저" 기준으로 설정/설치가 되도록 USER 전환 후 처리
 # ---------------------------------------------------------
 RUN mkdir -p /home/vscode/.npm-global \
-    && npm config set prefix "/home/vscode/.npm-global" \
     && chown -R vscode:vscode /home/vscode/.npm-global
+
+USER vscode
+
+RUN npm config set prefix "/home/vscode/.npm-global"
 
 ENV PATH="/home/vscode/.npm-global/bin:${PATH}"
 
@@ -77,12 +80,6 @@ RUN npm install -g @anthropic-ai/claude-code
 # 3. Codex 관련 도구 설치
 # ---------------------------------------------------------
 RUN npm install -g @openai/codex
-
-# ---------------------------------------------------------
-# 4. 환경 변수 및 최종 설정
-# ---------------------------------------------------------
-# Claude Code가 정상적으로 실행될 수 있도록 경로 확인 및 권한 부여
-RUN chmod +x /usr/local/bin/claude || true
 
 # (선택 사항) VS Code 내 터미널에서 바로 사용할 수 있도록 설정
 ENV SHELL=/bin/bash
