@@ -50,7 +50,7 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
     /**
      * 임베딩이 있는 청크가 있는 Article ID 목록
      */
-    @Query("SELECT DISTINCT c.article.id FROM ClovaArticleChunk c WHERE c.embedding IS NOT NULL")
+    @Query("SELECT DISTINCT c.article.id FROM ClovaArticleChunk c WHERE c.embeddingBinary IS NOT NULL")
     List<Long> findArticleIdsWithEmbedding();
 
     /**
@@ -152,7 +152,7 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
     /**
      * 임베딩이 없는 청크 조회
      */
-    @Query("SELECT c FROM ClovaArticleChunk c WHERE c.embedding IS NULL")
+    @Query("SELECT c FROM ClovaArticleChunk c WHERE c.embeddingBinary IS NULL")
     List<ClovaArticleChunk> findChunksWithoutEmbedding(Pageable pageable);
 
     /**
@@ -164,13 +164,13 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
     /**
      * 임베딩이 있는 청크 수
      */
-    @Query("SELECT COUNT(c) FROM ClovaArticleChunk c WHERE c.embedding IS NOT NULL")
+    @Query("SELECT COUNT(c) FROM ClovaArticleChunk c WHERE c.embeddingBinary IS NOT NULL")
     long countChunksWithEmbedding();
 
     /**
      * 임베딩이 있는 Article 수 (중복 제외)
      */
-    @Query("SELECT COUNT(DISTINCT c.article.id) FROM ClovaArticleChunk c WHERE c.embedding IS NOT NULL")
+    @Query("SELECT COUNT(DISTINCT c.article.id) FROM ClovaArticleChunk c WHERE c.embeddingBinary IS NOT NULL")
     long countArticlesWithEmbedding();
 
     // ==================== 2단계 검색 (Binary HNSW → halfvec Reranking) ====================
@@ -234,7 +234,7 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
     /**
      * Binary embedding이 없는 청크 수
      */
-    @Query("SELECT COUNT(c) FROM ClovaArticleChunk c WHERE c.embedding IS NOT NULL AND c.embeddingBinary IS NULL")
+    @Query("SELECT COUNT(c) FROM ClovaArticleChunk c WHERE c.embeddingBinary IS NULL")
     long countChunksWithoutBinaryEmbedding();
 
     /**
@@ -254,7 +254,7 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
     /**
      * 대표 Chunk가 있는 Article ID 목록
      */
-    @Query("SELECT DISTINCT c.article.id FROM ClovaArticleChunk c WHERE c.isRepresentative = true AND c.embedding IS NOT NULL")
+    @Query("SELECT DISTINCT c.article.id FROM ClovaArticleChunk c WHERE c.isRepresentative = true")
     List<Long> findArticleIdsWithRepresentativeChunk();
 
     /**
@@ -263,7 +263,7 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
     @Query(value = """
             SELECT DISTINCT cac.article_id
             FROM clova_article_chunk cac
-            WHERE cac.embedding IS NOT NULL
+            WHERE cac.embedding_binary IS NOT NULL
               AND NOT EXISTS (
                   SELECT 1 FROM clova_article_chunk cac2
                   WHERE cac2.article_id = cac.article_id

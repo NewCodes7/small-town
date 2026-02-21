@@ -9,7 +9,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.newcodes7.small_town.article.dto.RelatedArticleDto;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.embedding.entity.ClovaArticleChunk;
+import com.newcodes7.small_town.embedding.entity.ClovaChunkVector;
 import com.newcodes7.small_town.embedding.repository.ClovaArticleChunkRepository;
+import com.newcodes7.small_town.embedding.repository.ClovaChunkVectorRepository;
 import com.newcodes7.small_town.global.entity.Article;
 
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 public class RelatedArticleService {
 
     private final ClovaArticleChunkRepository chunkRepository;
+    private final ClovaChunkVectorRepository chunkVectorRepository;
     private final ArticleRepository articleRepository;
     private final RepresentativeChunkService representativeChunkService;
 
@@ -54,13 +57,18 @@ public class RelatedArticleService {
             }
         }
 
-        if (representativeChunk == null || representativeChunk.getEmbedding() == null) {
-            log.debug("Article ID {} has no representative chunk with embedding", articleId);
+        if (representativeChunk == null) {
+            log.debug("Article ID {} has no representative chunk", articleId);
             return List.of();
         }
 
-        // 2. embedding을 PostgreSQL 배열 포맷으로 변환
-        String embeddingStr = convertToPostgresArray(representativeChunk.getEmbedding());
+        // 2. ClovaChunkVector에서 embeddingNormalized 조회
+        ClovaChunkVector chunkVector = chunkVectorRepository.findById(representativeChunk.getId()).orElse(null);
+        if (chunkVector == null || chunkVector.getEmbeddingNormalized() == null) {
+            log.debug("Article ID {} has no representative chunk with embedding", articleId);
+            return List.of();
+        }
+        String embeddingStr = convertToPostgresArray(chunkVector.getEmbeddingNormalized());
 
         // 3. 대표 chunk 기반 유사도 검색
         List<Object[]> results = chunkRepository.findRelatedArticlesByRepresentativeChunk(

@@ -2,6 +2,7 @@ package com.newcodes7.small_town.crawler.integration.robotstxt;
 
 import com.newcodes7.small_town.crawler.dto.RobotsTxtRule;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -24,6 +25,9 @@ public class RobotsTxtService {
     
     // User-Agent 이름
     private static final String USER_AGENT = "SmallTownBot";
+
+    @Value("${crawler.robots.enabled:true}")
+    private boolean robotsEnabled;
     
     /**
      * 주어진 URL에 대한 robots.txt 규칙을 가져옴
@@ -31,6 +35,9 @@ public class RobotsTxtService {
      * @return RobotsTxtRule 객체
      */
     public RobotsTxtRule getRobotsTxtRules(String baseUrl) {
+        if (!robotsEnabled) {
+            return createDefaultAllowRule();
+        }
         if (baseUrl == null || baseUrl.isEmpty()) {
             return createDefaultAllowRule();
         }

@@ -141,7 +141,6 @@ public class ClovaEmbeddingBatchService {
 
                 if (embResult.isSuccess()) {
                     float[] embedding = embResult.getEmbedding();
-                    chunk.setEmbedding(embedding);
                     // Binary Quantization (양수→1, 음수→0)
                     chunk.setEmbeddingBinary(BitVectorType.fromFloatArray(embedding));
                     chunk.setEmbeddingGeneratedAt(LocalDateTime.now());
@@ -610,7 +609,6 @@ public class ClovaEmbeddingBatchService {
 
                 if (embResult.isSuccess()) {
                     float[] embedding = embResult.getEmbedding();
-                    chunk.setEmbedding(embedding);
                     chunk.setEmbeddingBinary(BitVectorType.fromFloatArray(embedding));
                     chunk.setEmbeddingGeneratedAt(LocalDateTime.now());
                     chunk.setTokenCount(embResult.getTokenUsage());

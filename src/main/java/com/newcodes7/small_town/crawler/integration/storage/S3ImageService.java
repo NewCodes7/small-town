@@ -41,10 +41,19 @@ public class S3ImageService {
     @Value("${s3.image.webp.quality:80}")
     private int webpQuality;
 
+    @Value("${s3.upload.enabled:true}")
+    private boolean uploadEnabled;
+
     /*
      * 현재 크롤링할 때 이미지 업로드 시 쓰이는 메서드
      */
     public String uploadImageFromUrl(String imageUrl, String corporationName) {
+        if (!uploadEnabled) {
+            if (imageUrl != null && imageUrl.startsWith("//")) {
+                return "https:" + imageUrl;
+            }
+            return imageUrl;
+        }
         try {
             // 프로토콜이 명시되지 않은 경우 https 추가
             if (imageUrl.startsWith("//")) {

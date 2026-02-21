@@ -724,7 +724,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "AND TRIM(a.content) != '' " +
            "AND NOT EXISTS (" +
            "    SELECT 1 FROM clova_article_chunk cac " +
-           "    WHERE cac.article_id = a.id AND cac.embedding IS NOT NULL" +
+           "    WHERE cac.article_id = a.id AND cac.embedding_binary IS NOT NULL" +
            ") " +
            "ORDER BY a.id DESC " +
            "LIMIT :limit",
@@ -741,7 +741,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "AND TRIM(a.content) != '' " +
            "AND NOT EXISTS (" +
            "    SELECT 1 FROM clova_article_chunk cac " +
-           "    WHERE cac.article_id = a.id AND cac.embedding IS NOT NULL" +
+           "    WHERE cac.article_id = a.id AND cac.embedding_binary IS NOT NULL" +
            ")",
            nativeQuery = true)
     long countArticlesWithoutClovaEmbedding();
@@ -760,7 +760,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "AND TRIM(a.content) != '' " +
            "AND NOT EXISTS (" +
            "    SELECT 1 FROM clova_article_chunk cac " +
-           "    WHERE cac.article_id = a.id AND cac.embedding IS NOT NULL" +
+           "    WHERE cac.article_id = a.id AND cac.embedding_binary IS NOT NULL" +
            ") " +
            "ORDER BY a.id DESC " +
            "OFFSET :offset LIMIT :limit",

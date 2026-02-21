@@ -8,7 +8,6 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import com.newcodes7.small_town.global.config.BitVectorType;
-import com.newcodes7.small_town.global.config.HalfVectorType;
 import com.newcodes7.small_town.global.entity.Article;
 
 import jakarta.persistence.Column;
@@ -33,7 +32,6 @@ import lombok.Setter;
  * Naver Clova Embedding을 사용한 Article 청크
  * 차원: 1024 (Clova Embedding v2)
  *
- * - halfvec (16비트 반정밀도): 정밀 검색용 (embedding)
  * - bit (binary quantization): HNSW 빠른 검색용 (embedding_binary)
  * - L2-정규화 벡터: clova_chunk_vectors 테이블로 분리 (TOAST I/O 방지)
  *
@@ -74,15 +72,6 @@ public class ClovaArticleChunk {
      */
     @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
-
-    /**
-     * Clova Embedding v2 반정밀도 벡터 (1024 차원)
-     * halfvec 타입으로 저장 공간 50% 절감
-     * Stage 2 Reranking에 사용
-     */
-    @Type(HalfVectorType.class)
-    @Column(name = "embedding", columnDefinition = "halfvec(1024)")
-    private float[] embedding;
 
     /**
      * Binary Quantized 벡터 (1024 bits = 128 bytes)

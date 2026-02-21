@@ -523,18 +523,14 @@ public class AdminArticleController {
                 chunkData.put("chunkIndex", chunk.getChunkIndex());
                 chunkData.put("content", chunk.getContent());
                 chunkData.put("contentLength", chunk.getContent().length());
-                chunkData.put("hasEmbedding", chunk.getEmbedding() != null);
-                chunkData.put("embeddingDimension", chunk.getEmbedding() != null ? chunk.getEmbedding().length : 0);
+                boolean hasEmbedding = chunk.getEmbeddingBinary() != null;
+                chunkData.put("hasEmbedding", hasEmbedding);
+                chunkData.put("embeddingDimension", hasEmbedding ? 1024 : 0);
                 chunkData.put("embeddingGeneratedAt", chunk.getEmbeddingGeneratedAt());
                 chunkData.put("createdAt", chunk.getCreatedAt());
 
-                // embedding 벡터의 처음 10개 값만 미리보기로 제공
-                if (chunk.getEmbedding() != null && chunk.getEmbedding().length > 0) {
+                if (hasEmbedding) {
                     chunksWithEmbedding++;
-                    int previewLength = Math.min(10, chunk.getEmbedding().length);
-                    float[] preview = new float[previewLength];
-                    System.arraycopy(chunk.getEmbedding(), 0, preview, 0, previewLength);
-                    chunkData.put("embeddingPreview", preview);
                 }
 
                 chunkDataList.add(chunkData);
@@ -583,15 +579,15 @@ public class AdminArticleController {
 
             ClovaArticleChunk chunk = chunkOpt.get();
 
+            boolean hasEmbedding = chunk.getEmbeddingBinary() != null;
             response.put("success", true);
             response.put("chunkId", chunkId);
             response.put("chunkIndex", chunk.getChunkIndex());
             response.put("articleId", chunk.getArticle().getId());
-            response.put("hasEmbedding", chunk.getEmbedding() != null);
+            response.put("hasEmbedding", hasEmbedding);
 
-            if (chunk.getEmbedding() != null) {
-                response.put("embedding", chunk.getEmbedding());
-                response.put("embeddingDimension", chunk.getEmbedding().length);
+            if (hasEmbedding) {
+                response.put("embeddingDimension", 1024);
                 response.put("embeddingGeneratedAt", chunk.getEmbeddingGeneratedAt());
             }
 
