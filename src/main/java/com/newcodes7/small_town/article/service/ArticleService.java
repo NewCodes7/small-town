@@ -757,9 +757,10 @@ public class ArticleService {
         for (Object[] row : idAndDateRows) {
             Long id = ((Number) row[0]).longValue();
             validArticleIds.add(id);
-            java.sql.Timestamp ts = row.length > 1 ? (java.sql.Timestamp) row[1] : null;
-            if (ts != null && !publishedAtMap.containsKey(id)) {
-                publishedAtMap.put(id, ts.toLocalDateTime());
+            // JPQL 쿼리는 LocalDateTime 그대로 반환 (native SQL의 Timestamp와 다름)
+            LocalDateTime publishedAt = row.length > 1 && row[1] != null ? (LocalDateTime) row[1] : null;
+            if (publishedAt != null && !publishedAtMap.containsKey(id)) {
+                publishedAtMap.put(id, publishedAt);
             }
         }
 
