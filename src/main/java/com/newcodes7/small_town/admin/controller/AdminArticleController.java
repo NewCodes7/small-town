@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -23,7 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.newcodes7.small_town.admin.service.AdminArticleListService;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.embedding.entity.ClovaArticleChunk;
+import com.newcodes7.small_town.embedding.entity.ClovaChunkContent;
 import com.newcodes7.small_town.embedding.repository.ClovaArticleChunkRepository;
+import com.newcodes7.small_town.embedding.repository.ClovaChunkContentRepository;
 import com.newcodes7.small_town.article.service.ArticleTermService;
 import com.newcodes7.small_town.article.service.RelatedContentKeywordService;
 import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
@@ -53,6 +56,7 @@ public class AdminArticleController {
     private final RelatedContentKeywordService relatedContentKeywordService;
     private final ArticleTermService articleTermService;
     private final ClovaArticleChunkRepository clovaArticleChunkRepository;
+    private final ClovaChunkContentRepository clovaChunkContentRepository;
 
     /**
      * 글 목록 페이지
@@ -513,16 +517,21 @@ public class AdminArticleController {
             List<ClovaArticleChunk> chunks = clovaArticleChunkRepository.findByArticleIdOrderByChunkIndexAsc(articleId);
 
             // Chunk 정보를 DTO로 변환
+            List<Long> chunkIds = chunks.stream().map(ClovaArticleChunk::getId).toList();
+            Map<Long, String> contentMap = clovaChunkContentRepository.findAllById(chunkIds).stream()
+                    .collect(Collectors.toMap(ClovaChunkContent::getId, ClovaChunkContent::getContent));
+
             List<Map<String, Object>> chunkDataList = new ArrayList<>();
             int totalChunks = chunks.size();
             int chunksWithEmbedding = 0;
 
             for (ClovaArticleChunk chunk : chunks) {
+                String content = contentMap.getOrDefault(chunk.getId(), "");
                 Map<String, Object> chunkData = new HashMap<>();
                 chunkData.put("id", chunk.getId());
                 chunkData.put("chunkIndex", chunk.getChunkIndex());
-                chunkData.put("content", chunk.getContent());
-                chunkData.put("contentLength", chunk.getContent().length());
+                chunkData.put("content", content);
+                chunkData.put("contentLength", content.length());
                 boolean hasEmbedding = chunk.getEmbeddingBinary() != null;
                 chunkData.put("hasEmbedding", hasEmbedding);
                 chunkData.put("embeddingDimension", hasEmbedding ? 1024 : 0);

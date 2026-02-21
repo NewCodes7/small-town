@@ -67,13 +67,6 @@ public class ClovaArticleChunk {
     private Integer chunkIndex;
 
     /**
-     * 청크 내용
-     * Clova Segmentation API로 분할된 문단
-     */
-    @Column(columnDefinition = "TEXT", nullable = false)
-    private String content;
-
-    /**
      * Binary Quantized 벡터 (1024 bits = 128 bytes)
      * 양수 → 1, 음수 → 0으로 변환
      * Stage 1 HNSW 빠른 검색에 사용

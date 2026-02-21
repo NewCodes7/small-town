@@ -6,13 +6,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.article.repository.ArticleTermRepository;
 import com.newcodes7.small_town.embedding.entity.ClovaArticleChunk;
+import com.newcodes7.small_town.embedding.entity.ClovaChunkContent;
 import com.newcodes7.small_town.embedding.repository.ClovaArticleChunkRepository;
+import com.newcodes7.small_town.embedding.repository.ClovaChunkContentRepository;
 import com.newcodes7.small_town.global.entity.ArticleTerm;
 
 import jakarta.persistence.EntityManager;
@@ -31,6 +34,7 @@ import org.springframework.transaction.annotation.Propagation;
 public class RepresentativeChunkService {
 
     private final ClovaArticleChunkRepository chunkRepository;
+    private final ClovaChunkContentRepository chunkContentRepository;
     private final ArticleTermRepository articleTermRepository;
     private final EntityManager entityManager;
 
@@ -83,11 +87,16 @@ public class RepresentativeChunkService {
         log.debug("Article ID {} - BM25 scores: {}", articleId, termBm25Scores);
 
         // 4. 각 chunk의 점수 계산
+        List<Long> chunkIds = chunks.stream().map(ClovaArticleChunk::getId).toList();
+        Map<Long, String> contentMap = chunkContentRepository.findAllById(chunkIds).stream()
+                .collect(Collectors.toMap(ClovaChunkContent::getId, ClovaChunkContent::getContent));
+
         Long bestChunkId = null;
         double bestScore = -1;
 
         for (ClovaArticleChunk chunk : chunks) {
-            double chunkScore = calculateChunkScore(chunk.getContent(), termBm25Scores);
+            String content = contentMap.get(chunk.getId());
+            double chunkScore = calculateChunkScore(content, termBm25Scores);
             log.debug("Chunk {} (index {}) score: {}", chunk.getId(), chunk.getChunkIndex(), chunkScore);
 
             if (chunkScore > bestScore) {

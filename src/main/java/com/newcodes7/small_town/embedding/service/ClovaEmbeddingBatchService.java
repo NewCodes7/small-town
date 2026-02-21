@@ -18,9 +18,11 @@ import org.springframework.transaction.annotation.Transactional;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.embedding.dto.ModelEmbeddingResult;
 import com.newcodes7.small_town.embedding.entity.ClovaArticleChunk;
+import com.newcodes7.small_town.embedding.entity.ClovaChunkContent;
 import com.newcodes7.small_town.embedding.entity.ClovaChunkVector;
 import com.newcodes7.small_town.embedding.entity.ClovaEmbeddingFailure;
 import com.newcodes7.small_town.embedding.repository.ClovaArticleChunkRepository;
+import com.newcodes7.small_town.embedding.repository.ClovaChunkContentRepository;
 import com.newcodes7.small_town.embedding.repository.ClovaChunkVectorRepository;
 import com.newcodes7.small_town.embedding.repository.ClovaEmbeddingFailureRepository;
 import com.newcodes7.small_town.global.config.BitVectorType;
@@ -44,6 +46,7 @@ public class ClovaEmbeddingBatchService {
     private final ArticleRepository articleRepository;
     private final ClovaArticleChunkRepository clovaChunkRepository;
     private final ClovaChunkVectorRepository clovaChunkVectorRepository;
+    private final ClovaChunkContentRepository clovaChunkContentRepository;
     private final ClovaEmbeddingFailureRepository clovaEmbeddingFailureRepository;
     private final NaverClovaEmbeddingService clovaEmbeddingService;
     private final RepresentativeChunkService representativeChunkService;
@@ -136,7 +139,6 @@ public class ClovaEmbeddingBatchService {
                 ClovaArticleChunk chunk = ClovaArticleChunk.builder()
                         .article(article)
                         .chunkIndex(i)
-                        .content(segmentContent)
                         .build();
 
                 if (embResult.isSuccess()) {
@@ -172,8 +174,13 @@ public class ClovaEmbeddingBatchService {
         if (!chunks.isEmpty()) {
             clovaChunkRepository.saveAll(chunks);
 
+            List<ClovaChunkContent> contentList = new ArrayList<>();
             List<ClovaChunkVector> vectors = new ArrayList<>();
             for (int i = 0; i < chunks.size(); i++) {
+                contentList.add(ClovaChunkContent.builder()
+                        .chunk(chunks.get(i))
+                        .content(segments.get(i))
+                        .build());
                 float[] norm = normalizedList.get(i);
                 if (norm != null) {
                     vectors.add(ClovaChunkVector.builder()
@@ -182,6 +189,7 @@ public class ClovaEmbeddingBatchService {
                             .build());
                 }
             }
+            clovaChunkContentRepository.saveAll(contentList);
             if (!vectors.isEmpty()) {
                 clovaChunkVectorRepository.saveAll(vectors);
             }
@@ -604,7 +612,6 @@ public class ClovaEmbeddingBatchService {
                 ClovaArticleChunk chunk = ClovaArticleChunk.builder()
                         .article(article)
                         .chunkIndex(i)
-                        .content(segmentContent)
                         .build();
 
                 if (embResult.isSuccess()) {
@@ -639,8 +646,13 @@ public class ClovaEmbeddingBatchService {
         if (!chunks.isEmpty()) {
             clovaChunkRepository.saveAll(chunks);
 
+            List<ClovaChunkContent> contentList = new ArrayList<>();
             List<ClovaChunkVector> vectors = new ArrayList<>();
             for (int i = 0; i < chunks.size(); i++) {
+                contentList.add(ClovaChunkContent.builder()
+                        .chunk(chunks.get(i))
+                        .content(segments.get(i))
+                        .build());
                 float[] norm = normalizedList.get(i);
                 if (norm != null) {
                     vectors.add(ClovaChunkVector.builder()
@@ -649,6 +661,7 @@ public class ClovaEmbeddingBatchService {
                             .build());
                 }
             }
+            clovaChunkContentRepository.saveAll(contentList);
             if (!vectors.isEmpty()) {
                 clovaChunkVectorRepository.saveAll(vectors);
             }
