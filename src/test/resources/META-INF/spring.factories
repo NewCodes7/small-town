@@ -1,0 +1,2 @@
+org.springframework.context.ApplicationContextInitializer=\
+com.newcodes7.small_town.config.TestDatabaseInitializer
