@@ -18,8 +18,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.embedding.dto.ModelEmbeddingResult;
 import com.newcodes7.small_town.embedding.entity.ClovaArticleChunk;
+import com.newcodes7.small_town.embedding.entity.ClovaChunkVector;
 import com.newcodes7.small_town.embedding.entity.ClovaEmbeddingFailure;
 import com.newcodes7.small_town.embedding.repository.ClovaArticleChunkRepository;
+import com.newcodes7.small_town.embedding.repository.ClovaChunkVectorRepository;
 import com.newcodes7.small_town.embedding.repository.ClovaEmbeddingFailureRepository;
 import com.newcodes7.small_town.global.config.BitVectorType;
 import com.newcodes7.small_town.global.entity.Article;
@@ -41,6 +43,7 @@ public class ClovaEmbeddingBatchService {
 
     private final ArticleRepository articleRepository;
     private final ClovaArticleChunkRepository clovaChunkRepository;
+    private final ClovaChunkVectorRepository clovaChunkVectorRepository;
     private final ClovaEmbeddingFailureRepository clovaEmbeddingFailureRepository;
     private final NaverClovaEmbeddingService clovaEmbeddingService;
     private final RepresentativeChunkService representativeChunkService;
@@ -119,6 +122,7 @@ public class ClovaEmbeddingBatchService {
 
         // 2. 각 청크에 대해 임베딩 생성
         List<ClovaArticleChunk> chunks = new ArrayList<>();
+        List<float[]> normalizedList = new ArrayList<>();
         int successCount = 0;
 
         for (int i = 0; i < segments.size(); i++) {
@@ -138,15 +142,16 @@ public class ClovaEmbeddingBatchService {
                 if (embResult.isSuccess()) {
                     float[] embedding = embResult.getEmbedding();
                     chunk.setEmbedding(embedding);
-                    chunk.setEmbeddingNormalized(l2Normalize(embedding));
                     // Binary Quantization (양수→1, 음수→0)
                     chunk.setEmbeddingBinary(BitVectorType.fromFloatArray(embedding));
                     chunk.setEmbeddingGeneratedAt(LocalDateTime.now());
                     chunk.setTokenCount(embResult.getTokenUsage());
+                    normalizedList.add(l2Normalize(embedding));
                     successCount++;
                 } else {
                     log.warn("Article {} 청크 {} - 임베딩 생성 실패: {}",
                             article.getId(), i, embResult.getErrorMessage());
+                    normalizedList.add(null);
                 }
 
                 chunks.add(chunk);
@@ -160,12 +165,27 @@ public class ClovaEmbeddingBatchService {
                 break;
             } catch (Exception e) {
                 log.error("Article {} 청크 {} - 오류: {}", article.getId(), i, e.getMessage());
+                normalizedList.add(null);
             }
         }
 
         // 3. 청크 저장
         if (!chunks.isEmpty()) {
             clovaChunkRepository.saveAll(chunks);
+
+            List<ClovaChunkVector> vectors = new ArrayList<>();
+            for (int i = 0; i < chunks.size(); i++) {
+                float[] norm = normalizedList.get(i);
+                if (norm != null) {
+                    vectors.add(ClovaChunkVector.builder()
+                            .chunk(chunks.get(i))
+                            .embeddingNormalized(norm)
+                            .build());
+                }
+            }
+            if (!vectors.isEmpty()) {
+                clovaChunkVectorRepository.saveAll(vectors);
+            }
         }
 
         // 4. 대표 chunk 선정
@@ -572,6 +592,7 @@ public class ClovaEmbeddingBatchService {
 
         // 2. 각 청크에 대해 임베딩 생성 (1초 간격)
         List<ClovaArticleChunk> chunks = new ArrayList<>();
+        List<float[]> normalizedList = new ArrayList<>();
         int successCount = 0;
 
         for (int i = 0; i < segments.size(); i++) {
@@ -590,19 +611,20 @@ public class ClovaEmbeddingBatchService {
                 if (embResult.isSuccess()) {
                     float[] embedding = embResult.getEmbedding();
                     chunk.setEmbedding(embedding);
-                    chunk.setEmbeddingNormalized(l2Normalize(embedding));
                     chunk.setEmbeddingBinary(BitVectorType.fromFloatArray(embedding));
                     chunk.setEmbeddingGeneratedAt(LocalDateTime.now());
                     chunk.setTokenCount(embResult.getTokenUsage());
+                    normalizedList.add(l2Normalize(embedding));
                     successCount++;
                 } else {
                     log.warn("Article {} 청크 {} - 임베딩 생성 실패: {}",
                             article.getId(), i, embResult.getErrorMessage());
+                    normalizedList.add(null);
                 }
 
                 chunks.add(chunk);
 
-                // 재분석용 rate limit (1초)
+                // 재분析용 rate limit (1초)
                 Thread.sleep(REGENERATE_RATE_LIMIT_DELAY_MS);
 
             } catch (InterruptedException e) {
@@ -611,12 +633,27 @@ public class ClovaEmbeddingBatchService {
                 break;
             } catch (Exception e) {
                 log.error("Article {} 청크 {} - 오류: {}", article.getId(), i, e.getMessage());
+                normalizedList.add(null);
             }
         }
 
         // 3. 청크 저장
         if (!chunks.isEmpty()) {
             clovaChunkRepository.saveAll(chunks);
+
+            List<ClovaChunkVector> vectors = new ArrayList<>();
+            for (int i = 0; i < chunks.size(); i++) {
+                float[] norm = normalizedList.get(i);
+                if (norm != null) {
+                    vectors.add(ClovaChunkVector.builder()
+                            .chunk(chunks.get(i))
+                            .embeddingNormalized(norm)
+                            .build());
+                }
+            }
+            if (!vectors.isEmpty()) {
+                clovaChunkVectorRepository.saveAll(vectors);
+            }
         }
 
         // 4. 대표 chunk 선정

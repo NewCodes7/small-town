@@ -98,12 +98,12 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
            "FROM (" +
            "  SELECT " +
            "    cac.article_id, " +
-           "    -(cac.embedding_normalized <#> l2_normalize(CAST(:queryEmbedding AS halfvec))) as similarity, " +
-           "    ROW_NUMBER() OVER (PARTITION BY cac.article_id ORDER BY cac.embedding_normalized <#> l2_normalize(CAST(:queryEmbedding AS halfvec))) as rn " +
+           "    -(ccv.embedding_normalized <#> l2_normalize(CAST(:queryEmbedding AS halfvec))) as similarity, " +
+           "    ROW_NUMBER() OVER (PARTITION BY cac.article_id ORDER BY ccv.embedding_normalized <#> l2_normalize(CAST(:queryEmbedding AS halfvec))) as rn " +
            "  FROM clova_article_chunk cac " +
            "  JOIN article a ON cac.article_id = a.id " +
+           "  JOIN clova_chunk_vectors ccv ON ccv.id = cac.id " +
            "  WHERE a.deleted_at IS NULL " +
-           "  AND cac.embedding_normalized IS NOT NULL " +
            ") ranked " +
            "WHERE rn <= :topK " +
            "AND similarity >= :threshold " +
@@ -131,12 +131,12 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
            "FROM (" +
            "  SELECT " +
            "    cac.article_id, " +
-           "    -(cac.embedding_normalized <#> l2_normalize(CAST(:queryEmbedding AS halfvec))) as similarity, " +
-           "    ROW_NUMBER() OVER (PARTITION BY cac.article_id ORDER BY cac.embedding_normalized <#> l2_normalize(CAST(:queryEmbedding AS halfvec))) as rn " +
+           "    -(ccv.embedding_normalized <#> l2_normalize(CAST(:queryEmbedding AS halfvec))) as similarity, " +
+           "    ROW_NUMBER() OVER (PARTITION BY cac.article_id ORDER BY ccv.embedding_normalized <#> l2_normalize(CAST(:queryEmbedding AS halfvec))) as rn " +
            "  FROM clova_article_chunk cac " +
            "  JOIN article a ON cac.article_id = a.id " +
+           "  JOIN clova_chunk_vectors ccv ON ccv.id = cac.id " +
            "  WHERE a.deleted_at IS NULL " +
-           "  AND cac.embedding_normalized IS NOT NULL " +
            "  AND cac.article_id IN (:articleIds) " +
            ") ranked " +
            "WHERE rn <= :topK " +
@@ -196,9 +196,10 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
             candidates AS (
                 SELECT
                     cac.article_id,
-                    cac.embedding_normalized
+                    ccv.embedding_normalized
                 FROM clova_article_chunk cac
                 JOIN article a ON cac.article_id = a.id
+                JOIN clova_chunk_vectors ccv ON ccv.id = cac.id
                 WHERE a.deleted_at IS NULL
                   AND cac.embedding_binary IS NOT NULL
                 ORDER BY cac.embedding_binary <~> CAST(:queryBinary AS bit(1024))
@@ -280,14 +281,14 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
      * @return Article ID와 유사도
      */
     @Query(value = """
-            SELECT cac.article_id, -(cac.embedding_normalized <#> l2_normalize(CAST(:queryEmbedding AS halfvec))) as similarity
+            SELECT cac.article_id, -(ccv.embedding_normalized <#> l2_normalize(CAST(:queryEmbedding AS halfvec))) as similarity
             FROM clova_article_chunk cac
             JOIN article a ON cac.article_id = a.id
+            JOIN clova_chunk_vectors ccv ON ccv.id = cac.id
             WHERE cac.is_representative = true
-              AND cac.embedding_normalized IS NOT NULL
               AND a.deleted_at IS NULL
               AND cac.article_id != :articleId
-            ORDER BY cac.embedding_normalized <#> l2_normalize(CAST(:queryEmbedding AS halfvec))
+            ORDER BY ccv.embedding_normalized <#> l2_normalize(CAST(:queryEmbedding AS halfvec))
             LIMIT :limit
             """, nativeQuery = true)
     List<Object[]> findRelatedArticlesByRepresentativeChunk(

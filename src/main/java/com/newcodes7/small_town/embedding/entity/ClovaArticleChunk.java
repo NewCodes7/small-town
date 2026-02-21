@@ -33,10 +33,11 @@ import lombok.Setter;
  * Naver Clova Embedding을 사용한 Article 청크
  * 차원: 1024 (Clova Embedding v2)
  *
- * - halfvec (16비트 반정밀도): 정밀 검색용
- * - bit (binary quantization): HNSW 빠른 검색용
+ * - halfvec (16비트 반정밀도): 정밀 검색용 (embedding)
+ * - bit (binary quantization): HNSW 빠른 검색용 (embedding_binary)
+ * - L2-정규화 벡터: clova_chunk_vectors 테이블로 분리 (TOAST I/O 방지)
  *
- * 2단계 검색: Binary HNSW → halfvec Reranking
+ * 2단계 검색: Binary HNSW → halfvec Reranking (clova_chunk_vectors JOIN)
  */
 @Entity
 @Getter
@@ -91,15 +92,6 @@ public class ClovaArticleChunk {
     @Type(BitVectorType.class)
     @Column(name = "embedding_binary", columnDefinition = "bit(1024)")
     private BitSet embeddingBinary;
-
-    /**
-     * L2-정규화된 임베딩 벡터 (1024 차원)
-     * DB Generated Column - embedding 저장 시 자동 계산됨
-     * 내적(<#>) 연산자와 함께 사용
-     */
-    @Type(HalfVectorType.class)
-    @Column(name = "embedding_normalized", columnDefinition = "halfvec(1024)")
-    private float[] embeddingNormalized;
 
     /**
      * 임베딩 생성 시간
