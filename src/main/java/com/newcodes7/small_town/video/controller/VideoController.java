@@ -37,8 +37,8 @@ import com.newcodes7.small_town.video.service.VideoService;
 import com.newcodes7.small_town.video.service.VideoViewService;
 import com.newcodes7.small_town.global.util.Client;
 import com.newcodes7.small_town.global.util.KoreanCharacterUtil;
-import com.newcodes7.small_town.global.entity.SearchLog;
-import com.newcodes7.small_town.global.service.SearchLogService;
+import com.newcodes7.small_town.search.entity.SearchLog;
+import com.newcodes7.small_town.search.service.SearchLogService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;

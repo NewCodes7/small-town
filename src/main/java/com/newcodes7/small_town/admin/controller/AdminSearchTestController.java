@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.embedding.service.ClovaSearchService;
+import com.newcodes7.small_town.search.service.ClovaSearchService;
 import com.newcodes7.small_town.global.entity.Article;
 
 import lombok.RequiredArgsConstructor;

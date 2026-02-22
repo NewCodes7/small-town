@@ -1,8 +1,8 @@
 package com.newcodes7.small_town.theme.controller;
 
 import com.newcodes7.small_town.auth.entity.User;
-import com.newcodes7.small_town.global.entity.SearchLog;
-import com.newcodes7.small_town.global.service.SearchLogService;
+import com.newcodes7.small_town.search.entity.SearchLog;
+import com.newcodes7.small_town.search.service.SearchLogService;
 import com.newcodes7.small_town.theme.dto.ThemeResponseDto;
 import com.newcodes7.small_town.theme.service.ThemeService;
 
