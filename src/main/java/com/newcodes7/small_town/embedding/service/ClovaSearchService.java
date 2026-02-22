@@ -112,13 +112,29 @@ public class ClovaSearchService {
      * 2단계 검색: Binary HNSW → halfvec Reranking (단일 CTE 쿼리)
      */
     private Map<Long, Double> searchTwoStage(float[] queryEmbedding, double threshold, int topK, int maxResults) {
+        return searchTwoStage(queryEmbedding, threshold, topK, maxResults, null);
+    }
+
+    /**
+     * 2단계 검색: Binary HNSW → halfvec Reranking (해외/국내 필터 지원)
+     *
+     * @param domesticTypes 허용할 is_domestic 값 목록 (null이면 필터 없음)
+     */
+    private Map<Long, Double> searchTwoStage(float[] queryEmbedding, double threshold, int topK, int maxResults,
+                                              List<Integer> domesticTypes) {
         long startTime = System.currentTimeMillis();
 
         String vectorString = formatVectorForPostgres(queryEmbedding);
         String binaryString = toBinaryString(queryEmbedding);
 
-        List<Object[]> results = clovaChunkRepository.findArticlesByTwoStageSearch(
-                vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, topK, threshold, maxResults);
+        List<Object[]> results;
+        if (domesticTypes != null && !domesticTypes.isEmpty()) {
+            results = clovaChunkRepository.findArticlesByTwoStageSearchWithDomesticFilter(
+                    vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, topK, threshold, maxResults, domesticTypes);
+        } else {
+            results = clovaChunkRepository.findArticlesByTwoStageSearch(
+                    vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, topK, threshold, maxResults);
+        }
 
         long totalTime = System.currentTimeMillis() - startTime;
 
@@ -158,6 +174,17 @@ public class ClovaSearchService {
      * @return 검색 결과 (스코어 맵 + 쿼리 임베딩)
      */
     public VectorSearchResult searchByKeywordWithEmbedding(String keyword) {
+        return searchByKeywordWithEmbedding(keyword, null);
+    }
+
+    /**
+     * 키워드 검색 결과와 생성된 임베딩을 함께 반환 (해외/국내 필터 지원)
+     *
+     * @param keyword 검색 키워드
+     * @param domesticTypes 허용할 is_domestic 값 목록 (null이면 필터 없음, 1=국내, 0=해외)
+     * @return 검색 결과 (스코어 맵 + 쿼리 임베딩)
+     */
+    public VectorSearchResult searchByKeywordWithEmbedding(String keyword, List<Integer> domesticTypes) {
         if (keyword == null || keyword.trim().isEmpty()) {
             return new VectorSearchResult(Map.of(), null);
         }
@@ -179,7 +206,7 @@ public class ClovaSearchService {
             long queryStart = System.currentTimeMillis();
             Map<Long, Double> scores;
             if (USE_TWO_STAGE_SEARCH) {
-                scores = searchTwoStage(queryEmbedding, DEFAULT_SIMILARITY_THRESHOLD, DEFAULT_TOP_K, DEFAULT_MAX_RESULTS);
+                scores = searchTwoStage(queryEmbedding, DEFAULT_SIMILARITY_THRESHOLD, DEFAULT_TOP_K, DEFAULT_MAX_RESULTS, domesticTypes);
             } else {
                 scores = searchDirectHalfvec(queryEmbedding, DEFAULT_SIMILARITY_THRESHOLD, DEFAULT_TOP_K, DEFAULT_MAX_RESULTS);
             }

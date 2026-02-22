@@ -232,6 +232,56 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
     );
 
     /**
+     * 2단계 통합 검색 (해외/국내 필터 적용): Binary HNSW 후보 필터링 → halfvec Reranking
+     *
+     * @param domesticTypes 허용할 is_domestic 값 목록 (1=국내, 0=해외)
+     */
+    @Query(value = """
+            WITH query_vec AS (
+                SELECT l2_normalize(CAST(:queryEmbedding AS halfvec)) AS vec
+            ),
+            candidates AS (
+                SELECT
+                    cac.article_id,
+                    ccv.embedding_normalized
+                FROM clova_article_chunk cac
+                JOIN article a ON cac.article_id = a.id
+                JOIN corporation corp ON a.corporation_id = corp.id
+                JOIN clova_chunk_vectors ccv ON ccv.id = cac.id
+                WHERE a.deleted_at IS NULL
+                  AND cac.embedding_binary IS NOT NULL
+                  AND corp.is_domestic IN (:domesticTypes)
+                ORDER BY cac.embedding_binary <~> CAST(:queryBinary AS bit(1024))
+                LIMIT :candidateLimit
+            )
+            SELECT article_id, AVG(similarity) AS avg_similarity
+            FROM (
+                SELECT
+                    c.article_id,
+                    -(c.embedding_normalized <#> q.vec) AS similarity,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY c.article_id
+                        ORDER BY c.embedding_normalized <#> q.vec
+                    ) AS rn
+                FROM candidates c, query_vec q
+            ) ranked
+            WHERE rn <= :topK
+              AND similarity >= :threshold
+            GROUP BY article_id
+            ORDER BY avg_similarity DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> findArticlesByTwoStageSearchWithDomesticFilter(
+            @Param("queryEmbedding") String queryEmbedding,
+            @Param("queryBinary") String queryBinary,
+            @Param("candidateLimit") int candidateLimit,
+            @Param("topK") int topK,
+            @Param("threshold") double threshold,
+            @Param("limit") int limit,
+            @Param("domesticTypes") List<Integer> domesticTypes
+    );
+
+    /**
      * Binary embedding이 없는 청크 수
      */
     @Query("SELECT COUNT(c) FROM ClovaArticleChunk c WHERE c.embeddingBinary IS NULL")
