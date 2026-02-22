@@ -112,25 +112,35 @@ public class ClovaSearchService {
      * 2단계 검색: Binary HNSW → halfvec Reranking (단일 CTE 쿼리)
      */
     private Map<Long, Double> searchTwoStage(float[] queryEmbedding, double threshold, int topK, int maxResults) {
-        return searchTwoStage(queryEmbedding, threshold, topK, maxResults, null);
+        return searchTwoStage(queryEmbedding, threshold, topK, maxResults, null, null);
     }
 
     /**
-     * 2단계 검색: Binary HNSW → halfvec Reranking (해외/국내 필터 지원)
+     * 2단계 검색: Binary HNSW → halfvec Reranking (해외/국내 + 카테고리 필터 지원)
      *
      * @param domesticTypes 허용할 is_domestic 값 목록 (null이면 필터 없음)
+     * @param categories    허용할 카테고리 이름 목록 (null이면 필터 없음)
      */
     private Map<Long, Double> searchTwoStage(float[] queryEmbedding, double threshold, int topK, int maxResults,
-                                              List<Integer> domesticTypes) {
+                                              List<Integer> domesticTypes, List<String> categories) {
         long startTime = System.currentTimeMillis();
 
         String vectorString = formatVectorForPostgres(queryEmbedding);
         String binaryString = toBinaryString(queryEmbedding);
 
+        boolean hasDomestic = domesticTypes != null && !domesticTypes.isEmpty();
+        boolean hasCategory = categories != null && !categories.isEmpty();
+
         List<Object[]> results;
-        if (domesticTypes != null && !domesticTypes.isEmpty()) {
+        if (hasDomestic && hasCategory) {
+            results = clovaChunkRepository.findArticlesByTwoStageSearchWithBothFilters(
+                    vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, topK, threshold, maxResults, domesticTypes, categories);
+        } else if (hasDomestic) {
             results = clovaChunkRepository.findArticlesByTwoStageSearchWithDomesticFilter(
                     vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, topK, threshold, maxResults, domesticTypes);
+        } else if (hasCategory) {
+            results = clovaChunkRepository.findArticlesByTwoStageSearchWithCategoryFilter(
+                    vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, topK, threshold, maxResults, categories);
         } else {
             results = clovaChunkRepository.findArticlesByTwoStageSearch(
                     vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, topK, threshold, maxResults);
@@ -174,17 +184,18 @@ public class ClovaSearchService {
      * @return 검색 결과 (스코어 맵 + 쿼리 임베딩)
      */
     public VectorSearchResult searchByKeywordWithEmbedding(String keyword) {
-        return searchByKeywordWithEmbedding(keyword, null);
+        return searchByKeywordWithEmbedding(keyword, null, null);
     }
 
     /**
-     * 키워드 검색 결과와 생성된 임베딩을 함께 반환 (해외/국내 필터 지원)
+     * 키워드 검색 결과와 생성된 임베딩을 함께 반환 (해외/국내 + 카테고리 필터 지원)
      *
      * @param keyword 검색 키워드
      * @param domesticTypes 허용할 is_domestic 값 목록 (null이면 필터 없음, 1=국내, 0=해외)
+     * @param categories 허용할 카테고리 이름 목록 (null이면 필터 없음)
      * @return 검색 결과 (스코어 맵 + 쿼리 임베딩)
      */
-    public VectorSearchResult searchByKeywordWithEmbedding(String keyword, List<Integer> domesticTypes) {
+    public VectorSearchResult searchByKeywordWithEmbedding(String keyword, List<Integer> domesticTypes, List<String> categories) {
         if (keyword == null || keyword.trim().isEmpty()) {
             return new VectorSearchResult(Map.of(), null);
         }
@@ -206,7 +217,7 @@ public class ClovaSearchService {
             long queryStart = System.currentTimeMillis();
             Map<Long, Double> scores;
             if (USE_TWO_STAGE_SEARCH) {
-                scores = searchTwoStage(queryEmbedding, DEFAULT_SIMILARITY_THRESHOLD, DEFAULT_TOP_K, DEFAULT_MAX_RESULTS, domesticTypes);
+                scores = searchTwoStage(queryEmbedding, DEFAULT_SIMILARITY_THRESHOLD, DEFAULT_TOP_K, DEFAULT_MAX_RESULTS, domesticTypes, categories);
             } else {
                 scores = searchDirectHalfvec(queryEmbedding, DEFAULT_SIMILARITY_THRESHOLD, DEFAULT_TOP_K, DEFAULT_MAX_RESULTS);
             }

@@ -617,12 +617,13 @@ public class ArticleService {
         // 2. BM25와 Vector 검색을 병렬 실행
         // Vector 검색을 별도 스레드에서 비동기 실행 (Clova 임베딩 API 호출이 대부분의 시간)
         List<Integer> vectorDomesticTypes = convertRegionsToTypes(regions);
+        List<String> vectorCategories = (category != null && !category.isEmpty()) ? category : null;
         AtomicLong vectorElapsedMs = new AtomicLong(0);
         CompletableFuture<ClovaSearchService.VectorSearchResult> vectorFuture =
                 CompletableFuture.supplyAsync(() -> {
                     long start = System.currentTimeMillis();
                     try {
-                        ClovaSearchService.VectorSearchResult result = clovaSearchService.searchByKeywordWithEmbedding(keyword, vectorDomesticTypes);
+                        ClovaSearchService.VectorSearchResult result = clovaSearchService.searchByKeywordWithEmbedding(keyword, vectorDomesticTypes, vectorCategories);
                         vectorElapsedMs.set(System.currentTimeMillis() - start);
                         return result;
                     } catch (Exception e) {
