@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.search.service.ClovaSearchService;
+import com.newcodes7.small_town.search.service.VectorSearchService;
 import com.newcodes7.small_town.global.entity.Article;
 
 import lombok.RequiredArgsConstructor;
@@ -34,7 +34,7 @@ import lombok.extern.slf4j.Slf4j;
 public class AdminSearchTestController {
 
     private final ArticleRepository articleRepository;
-    private final ClovaSearchService clovaSearchService;
+    private final VectorSearchService vectorSearchService;
 
     /**
      * 하이브리드 검색 테스트 - 상세 매칭 정보 제공
@@ -78,7 +78,7 @@ public class AdminSearchTestController {
             List<Map<String, Object>> vectorResults = new ArrayList<>();
             Set<Long> vectorArticleIds = new HashSet<>();
 
-            Map<Long, Double> similarityMap = clovaSearchService.searchByKeyword(keyword, 0.5, 50);
+            Map<Long, Double> similarityMap = vectorSearchService.searchByKeyword(keyword, 0.5, 50);
             if (!similarityMap.isEmpty()) {
                 similarityMap.entrySet().stream()
                         .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())

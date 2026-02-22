@@ -12,10 +12,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.article.repository.ArticleTermRepository;
-import com.newcodes7.small_town.embedding.entity.ClovaArticleChunk;
-import com.newcodes7.small_town.embedding.entity.ClovaChunkContent;
-import com.newcodes7.small_town.embedding.repository.ClovaArticleChunkRepository;
-import com.newcodes7.small_town.embedding.repository.ClovaChunkContentRepository;
+import com.newcodes7.small_town.embedding.entity.ArticleChunk;
+import com.newcodes7.small_town.embedding.entity.ChunkContent;
+import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
+import com.newcodes7.small_town.embedding.repository.ChunkContentRepository;
 import com.newcodes7.small_town.global.entity.ArticleTerm;
 
 import jakarta.persistence.EntityManager;
@@ -33,8 +33,8 @@ import org.springframework.transaction.annotation.Propagation;
 @Slf4j
 public class RepresentativeChunkService {
 
-    private final ClovaArticleChunkRepository chunkRepository;
-    private final ClovaChunkContentRepository chunkContentRepository;
+    private final ArticleChunkRepository chunkRepository;
+    private final ChunkContentRepository chunkContentRepository;
     private final ArticleTermRepository articleTermRepository;
     private final EntityManager entityManager;
 
@@ -50,7 +50,7 @@ public class RepresentativeChunkService {
     @Transactional
     public Long selectRepresentativeChunk(Long articleId) {
         // 1. Article의 모든 chunk 조회
-        List<ClovaArticleChunk> chunks = chunkRepository.findByArticleIdOrderByChunkIndexAsc(articleId);
+        List<ArticleChunk> chunks = chunkRepository.findByArticleIdOrderByChunkIndexAsc(articleId);
         if (chunks.isEmpty()) {
             log.debug("Article ID {} has no chunks", articleId);
             return null;
@@ -87,14 +87,14 @@ public class RepresentativeChunkService {
         log.debug("Article ID {} - BM25 scores: {}", articleId, termBm25Scores);
 
         // 4. 각 chunk의 점수 계산
-        List<Long> chunkIds = chunks.stream().map(ClovaArticleChunk::getId).toList();
+        List<Long> chunkIds = chunks.stream().map(ArticleChunk::getId).toList();
         Map<Long, String> contentMap = chunkContentRepository.findAllById(chunkIds).stream()
-                .collect(Collectors.toMap(ClovaChunkContent::getId, ClovaChunkContent::getContent));
+                .collect(Collectors.toMap(ChunkContent::getId, ChunkContent::getContent));
 
         Long bestChunkId = null;
         double bestScore = -1;
 
-        for (ClovaArticleChunk chunk : chunks) {
+        for (ArticleChunk chunk : chunks) {
             String content = contentMap.get(chunk.getId());
             double chunkScore = calculateChunkScore(content, termBm25Scores);
             log.debug("Chunk {} (index {}) score: {}", chunk.getId(), chunk.getChunkIndex(), chunkScore);
@@ -260,12 +260,12 @@ public class RepresentativeChunkService {
     /**
      * 첫 번째 chunk를 대표로 설정 (fallback)
      */
-    private Long setFirstChunkAsRepresentative(Long articleId, List<ClovaArticleChunk> chunks) {
+    private Long setFirstChunkAsRepresentative(Long articleId, List<ArticleChunk> chunks) {
         if (chunks.isEmpty()) {
             return null;
         }
 
-        ClovaArticleChunk firstChunk = chunks.get(0);
+        ArticleChunk firstChunk = chunks.get(0);
         chunkRepository.resetRepresentativeFlag(articleId);
         chunkRepository.setRepresentativeFlag(firstChunk.getId());
 

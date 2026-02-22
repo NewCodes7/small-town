@@ -48,7 +48,7 @@ public class ArticleSearchService {
     private final ArticleTermRepository articleTermRepository;
     private final TermRepository termRepository;
     private final HybridSearchScorer hybridSearchScorer;
-    private final ClovaSearchService clovaSearchService;
+    private final VectorSearchService vectorSearchService;
     private final SemanticTermExpansionService semanticExpansionService;
     private final ArticleEmbeddingService embeddingService;
     private final TermSynonymService termSynonymService;
@@ -60,7 +60,7 @@ public class ArticleSearchService {
                                 ArticleTermRepository articleTermRepository,
                                 TermRepository termRepository,
                                 HybridSearchScorer hybridSearchScorer,
-                                ClovaSearchService clovaSearchService,
+                                VectorSearchService vectorSearchService,
                                 SemanticTermExpansionService semanticExpansionService,
                                 ArticleEmbeddingService embeddingService,
                                 TermSynonymService termSynonymService,
@@ -71,7 +71,7 @@ public class ArticleSearchService {
         this.articleTermRepository = articleTermRepository;
         this.termRepository = termRepository;
         this.hybridSearchScorer = hybridSearchScorer;
-        this.clovaSearchService = clovaSearchService;
+        this.vectorSearchService = vectorSearchService;
         this.semanticExpansionService = semanticExpansionService;
         this.embeddingService = embeddingService;
         this.termSynonymService = termSynonymService;
@@ -140,11 +140,11 @@ public class ArticleSearchService {
 
     /**
      * Hybrid 검색 + NSF (Normalized Score Fusion) 스코어링
-     * BM25 (키워드 정확도) + Clova Vector (의미 검색) → NSF로 통합
+     * BM25 (키워드 정확도) + Vector (의미 검색) → NSF로 통합
      *
      * 검색 방법:
      * - BM25: ArticleTerm 기반 키워드 검색 (정확도 높음)
-     * - Clova Vector: 의미적 유사도 검색 (시맨틱 검색)
+     * - Vector: 의미적 유사도 검색 (시맨틱 검색)
      *
      * 모든 검색 결과는 BM25와 Vector 점수를 모두 가짐:
      * - BM25로만 검색된 article: Vector 점수 추가 계산
@@ -200,21 +200,21 @@ public class ArticleSearchService {
         }
 
         // 2. BM25와 Vector 검색을 병렬 실행
-        // Vector 검색을 별도 스레드에서 비동기 실행 (Clova 임베딩 API 호출이 대부분의 시간)
+        // Vector 검색을 별도 스레드에서 비동기 실행 (임베딩 API 호출이 대부분의 시간)
         List<Integer> vectorDomesticTypes = convertRegionsToTypes(regions);
         List<String> vectorCategories = (category != null && !category.isEmpty()) ? category : null;
         AtomicLong vectorElapsedMs = new AtomicLong(0);
-        CompletableFuture<ClovaSearchService.VectorSearchResult> vectorFuture =
+        CompletableFuture<VectorSearchService.VectorSearchResult> vectorFuture =
                 CompletableFuture.supplyAsync(() -> {
                     long start = System.currentTimeMillis();
                     try {
-                        ClovaSearchService.VectorSearchResult result = clovaSearchService.searchByKeywordWithEmbedding(keyword, vectorDomesticTypes, vectorCategories);
+                        VectorSearchService.VectorSearchResult result = vectorSearchService.searchByKeywordWithEmbedding(keyword, vectorDomesticTypes, vectorCategories);
                         vectorElapsedMs.set(System.currentTimeMillis() - start);
                         return result;
                     } catch (Exception e) {
                         vectorElapsedMs.set(System.currentTimeMillis() - start);
-                        log.warn("Clova Vector 검색 실패 (스킵): {}", e.getMessage());
-                        return new ClovaSearchService.VectorSearchResult(new HashMap<>(), null);
+                        log.warn("Vector 검색 실패 (스킵): {}", e.getMessage());
+                        return new VectorSearchService.VectorSearchResult(new HashMap<>(), null);
                     }
                 }, searchExecutor);
 
@@ -240,13 +240,13 @@ public class ArticleSearchService {
         // 3. Vector 검색 결과 대기
         Map<Long, Double> vectorResults = new HashMap<>();
         float[] queryEmbedding = null;
-        ClovaSearchService.VectorSearchResult vectorSearchResult = new ClovaSearchService.VectorSearchResult(new HashMap<>(), null);
+        VectorSearchService.VectorSearchResult vectorSearchResult = new VectorSearchService.VectorSearchResult(new HashMap<>(), null);
         try {
             vectorSearchResult = vectorFuture.get(5, TimeUnit.SECONDS);
             vectorResults = new HashMap<>(vectorSearchResult.getScores());
             queryEmbedding = vectorSearchResult.getQueryEmbedding();
         } catch (Exception e) {
-            log.warn("Clova Vector 검색 결과 대기 실패 (스킵): {}", e.getMessage());
+            log.warn("Vector 검색 결과 대기 실패 (스킵): {}", e.getMessage());
         }
 
         // 원본 검색 결과 수 캡처 (cross-scoring 보충 전)
@@ -272,7 +272,7 @@ public class ArticleSearchService {
         CompletableFuture<Map<Long, Double>> vectorSupplementFuture = CompletableFuture.supplyAsync(() -> {
             if (needVectorIds.isEmpty() || cachedEmbedding == null) return Map.<Long, Double>of();
             try {
-                return clovaSearchService.computeSimilarityForArticlesWithEmbedding(cachedEmbedding, new ArrayList<>(needVectorIds));
+                return vectorSearchService.computeSimilarityForArticlesWithEmbedding(cachedEmbedding, new ArrayList<>(needVectorIds));
             } catch (Exception e) {
                 log.warn("교차검색 Vector 보충 실패: {}", e.getMessage());
                 return Map.<Long, Double>of();
@@ -468,7 +468,7 @@ public class ArticleSearchService {
             try {
                 float[] queryEmbedding = embeddingService.generateEmbedding(keyword);
                 if (queryEmbedding != null) {
-                    vectorScores = clovaSearchService.computeSimilarityForArticlesWithEmbedding(queryEmbedding, matchedIds);
+                    vectorScores = vectorSearchService.computeSimilarityForArticlesWithEmbedding(queryEmbedding, matchedIds);
                 }
             } catch (Exception e) {
                 log.warn("[따옴표 검색] Vector 유사도 계산 실패 (날짜순 fallback): {}", e.getMessage());

@@ -23,7 +23,7 @@ import com.newcodes7.small_town.article.service.ArticleEmbeddingService;
 import com.newcodes7.small_town.article.service.TermEmbeddingService;
 import com.newcodes7.small_town.crawler.dto.ArticleSummaryResponse;
 import com.newcodes7.small_town.crawler.integration.openai.OpenaiService;
-import com.newcodes7.small_town.embedding.repository.ClovaArticleChunkRepository;
+import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
 import com.newcodes7.small_town.embedding.service.RepresentativeChunkService;
 import com.newcodes7.small_town.global.entity.Article;
 
@@ -40,7 +40,7 @@ import lombok.extern.slf4j.Slf4j;
 public class AdminEmbeddingController {
 
     private final ArticleRepository articleRepository;
-    private final ClovaArticleChunkRepository clovaArticleChunkRepository;
+    private final ArticleChunkRepository articleChunkRepository;
     private final EmbeddingBatchService embeddingBatchService;
     private final TermEmbeddingService termEmbeddingService;
     private final OpenaiService openaiService;
@@ -184,8 +184,8 @@ public class AdminEmbeddingController {
             long articlesWithoutContent = totalArticles - articlesWithContent;
 
             // Chunk 통계
-            long totalChunks = clovaArticleChunkRepository.countAllChunks();
-            long chunksWithEmbedding = clovaArticleChunkRepository.countChunksWithEmbedding();
+            long totalChunks = articleChunkRepository.countAllChunks();
+            long chunksWithEmbedding = articleChunkRepository.countChunksWithEmbedding();
             long chunksWithoutEmbedding = totalChunks - chunksWithEmbedding;
 
             // 커버리지 계산
@@ -822,16 +822,16 @@ public class AdminEmbeddingController {
 
         try {
             // 전체 Article 수 (청크가 있는)
-            long totalArticlesWithChunks = clovaArticleChunkRepository.findArticleIdsWithEmbedding().size();
+            long totalArticlesWithChunks = articleChunkRepository.findArticleIdsWithEmbedding().size();
 
             // 대표 Chunk가 선정된 Article 수
-            long articlesWithRepresentative = clovaArticleChunkRepository.findArticleIdsWithRepresentativeChunk().size();
+            long articlesWithRepresentative = articleChunkRepository.findArticleIdsWithRepresentativeChunk().size();
 
             // 대표 Chunk가 없는 Article 수
-            long articlesWithoutRepresentative = clovaArticleChunkRepository.findArticleIdsWithoutRepresentativeChunk().size();
+            long articlesWithoutRepresentative = articleChunkRepository.findArticleIdsWithoutRepresentativeChunk().size();
 
             // 전체 대표 Chunk 수
-            long totalRepresentativeChunks = clovaArticleChunkRepository.countRepresentativeChunks();
+            long totalRepresentativeChunks = articleChunkRepository.countRepresentativeChunks();
 
             // 커버리지 계산
             double coverage = totalArticlesWithChunks > 0

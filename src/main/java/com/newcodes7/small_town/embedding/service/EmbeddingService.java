@@ -4,7 +4,7 @@ import com.newcodes7.small_town.embedding.dto.ModelEmbeddingResult;
 
 /**
  * 임베딩 서비스 인터페이스
- * 다양한 임베딩 모델(OpenAI, Clova 등)을 추상화
+ * 다양한 임베딩 모델을 추상화
  */
 public interface EmbeddingService {
 

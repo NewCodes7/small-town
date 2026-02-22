@@ -8,10 +8,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.article.dto.RelatedArticleDto;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.embedding.entity.ClovaArticleChunk;
-import com.newcodes7.small_town.embedding.entity.ClovaChunkVector;
-import com.newcodes7.small_town.embedding.repository.ClovaArticleChunkRepository;
-import com.newcodes7.small_town.embedding.repository.ClovaChunkVectorRepository;
+import com.newcodes7.small_town.embedding.entity.ArticleChunk;
+import com.newcodes7.small_town.embedding.entity.ChunkVector;
+import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
+import com.newcodes7.small_town.embedding.repository.ChunkVectorRepository;
 import com.newcodes7.small_town.global.entity.Article;
 
 import lombok.RequiredArgsConstructor;
@@ -26,8 +26,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class RelatedArticleService {
 
-    private final ClovaArticleChunkRepository chunkRepository;
-    private final ClovaChunkVectorRepository chunkVectorRepository;
+    private final ArticleChunkRepository chunkRepository;
+    private final ChunkVectorRepository chunkVectorRepository;
     private final ArticleRepository articleRepository;
     private final RepresentativeChunkService representativeChunkService;
 
@@ -46,7 +46,7 @@ public class RelatedArticleService {
         int resultLimit = limit != null ? limit : DEFAULT_LIMIT;
 
         // 1. 현재 Article의 대표 chunk 조회
-        ClovaArticleChunk representativeChunk = chunkRepository.findRepresentativeByArticleId(articleId);
+        ArticleChunk representativeChunk = chunkRepository.findRepresentativeByArticleId(articleId);
 
         if (representativeChunk == null) {
             log.debug("Article ID {} has no representative chunk, attempting to select one", articleId);
@@ -62,8 +62,8 @@ public class RelatedArticleService {
             return List.of();
         }
 
-        // 2. ClovaChunkVector에서 embeddingNormalized 조회
-        ClovaChunkVector chunkVector = chunkVectorRepository.findById(representativeChunk.getId()).orElse(null);
+        // 2. ChunkVector에서 embeddingNormalized 조회
+        ChunkVector chunkVector = chunkVectorRepository.findById(representativeChunk.getId()).orElse(null);
         if (chunkVector == null || chunkVector.getEmbeddingNormalized() == null) {
             log.debug("Article ID {} has no representative chunk with embedding", articleId);
             return List.of();

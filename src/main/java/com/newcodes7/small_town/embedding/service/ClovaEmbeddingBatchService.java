@@ -83,7 +83,7 @@ public class ClovaEmbeddingBatchService {
     @Transactional(readOnly = true)
     public List<Article> findArticlesWithoutClovaEmbedding(int limit) {
         // Native Query로 효율적으로 ID 조회 (ID 내림차순)
-        List<Long> articleIds = articleRepository.findArticleIdsWithoutClovaEmbedding(limit);
+        List<Long> articleIds = articleRepository.findArticleIdsWithoutEmbedding(limit);
 
         if (articleIds.isEmpty()) {
             return List.of();
@@ -424,7 +424,7 @@ public class ClovaEmbeddingBatchService {
      */
     @Transactional(readOnly = true)
     public long countArticlesWithoutClovaEmbedding() {
-        return articleRepository.countArticlesWithoutClovaEmbedding();
+        return articleRepository.countArticlesWithoutEmbedding();
     }
 
     /**
@@ -436,7 +436,7 @@ public class ClovaEmbeddingBatchService {
      */
     @Transactional(readOnly = true)
     public List<Long> findArticleIdsWithoutClovaEmbedding(int offset, int limit) {
-        return articleRepository.findArticleIdsWithoutClovaEmbeddingPaged(offset, limit);
+        return articleRepository.findArticleIdsWithoutEmbeddingPaged(offset, limit);
     }
 
     /**

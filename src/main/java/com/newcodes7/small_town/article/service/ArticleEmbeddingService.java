@@ -3,14 +3,14 @@ package com.newcodes7.small_town.article.service;
 import org.springframework.stereotype.Service;
 
 import com.newcodes7.small_town.embedding.dto.ModelEmbeddingResult;
-import com.newcodes7.small_town.embedding.service.NaverClovaEmbeddingService;
+import com.newcodes7.small_town.embedding.service.EmbeddingApiService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * Embedding 공용 서비스
- * - generateEmbedding: Clova Embedding 호출
+ * - generateEmbedding: Embedding API 호출
  * - computeCosineSimilarity / interpretSimilarity: 테스트/분석용 유틸
  */
 @Service
@@ -18,7 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ArticleEmbeddingService {
 
-    private final NaverClovaEmbeddingService clovaEmbeddingService;
+    private final EmbeddingApiService embeddingApiService;
 
     /**
      * 텍스트를 임베딩 벡터로 변환
@@ -32,9 +32,9 @@ public class ArticleEmbeddingService {
         }
 
         try {
-            ModelEmbeddingResult result = clovaEmbeddingService.generateEmbedding(text, null);
+            ModelEmbeddingResult result = embeddingApiService.generateEmbedding(text, null);
             if (!result.isSuccess() || result.getEmbedding() == null) {
-                log.warn("Clova 임베딩 생성 실패: {}", result.getErrorMessage());
+                log.warn("임베딩 생성 실패: {}", result.getErrorMessage());
                 return null;
             }
             return result.getEmbedding();
