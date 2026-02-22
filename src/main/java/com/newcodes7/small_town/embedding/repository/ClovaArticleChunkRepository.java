@@ -281,14 +281,14 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
      * @return Article ID와 유사도
      */
     @Query(value = """
-            SELECT cac.article_id, -(ccv.embedding_normalized <#> l2_normalize(CAST(:queryEmbedding AS halfvec))) as similarity
+            SELECT cac.article_id, -(ccv.embedding_normalized <#> CAST(:queryEmbedding AS halfvec)) as similarity
             FROM clova_article_chunk cac
             JOIN article a ON cac.article_id = a.id
             JOIN clova_chunk_vectors ccv ON ccv.id = cac.id
             WHERE cac.is_representative = true
               AND a.deleted_at IS NULL
               AND cac.article_id != :articleId
-            ORDER BY ccv.embedding_normalized <#> l2_normalize(CAST(:queryEmbedding AS halfvec))
+            ORDER BY ccv.embedding_normalized <#> CAST(:queryEmbedding AS halfvec)
             LIMIT :limit
             """, nativeQuery = true)
     List<Object[]> findRelatedArticlesByRepresentativeChunk(
