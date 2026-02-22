@@ -15,7 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Clova Embedding 기반 벡터 검색 서비스
  *
- * 2단계 검색 지원:
+ * 2단계 검색:
  * - Stage 1: Binary HNSW (빠른 후보 필터링)
  * - Stage 2: halfvec Reranking (정밀 유사도 계산)
  */
@@ -39,15 +39,8 @@ public class ClovaSearchService {
     // Binary HNSW 후보 수 (Stage 1) — hnsw.ef_search=250보다 작게 설정하여 recall 향상
     private static final int DEFAULT_CANDIDATE_LIMIT = 200;
 
-    // 2단계 검색 사용 여부 (Binary HNSW 인덱스 생성 후 true로 변경)
-    private static final boolean USE_TWO_STAGE_SEARCH = true;
-
     /**
      * 키워드를 임베딩하여 유사한 Article 검색
-     *
-     * USE_TWO_STAGE_SEARCH가 true이면 2단계 검색 사용:
-     * - Stage 1: Binary HNSW로 빠른 후보 필터링
-     * - Stage 2: halfvec으로 정밀 Reranking
      *
      * @param keyword 검색 키워드
      * @param threshold 유사도 임계값 (0.0 ~ 1.0)
@@ -61,7 +54,6 @@ public class ClovaSearchService {
         }
 
         try {
-            // 1. 키워드 임베딩 생성
             ModelEmbeddingResult embResult = clovaEmbeddingService.generateEmbedding(keyword, null);
 
             if (!embResult.isSuccess() || embResult.getEmbedding() == null) {
@@ -73,93 +65,12 @@ public class ClovaSearchService {
             log.debug("Clova 키워드 임베딩 생성 완료 - 차원: {}, 토큰: {}",
                     queryEmbedding.length, embResult.getTokenUsage());
 
-            // 2단계 검색 또는 기존 검색 선택
-            if (USE_TWO_STAGE_SEARCH) {
-                return searchTwoStage(queryEmbedding, threshold, topK, maxResults);
-            } else {
-                return searchDirectHalfvec(queryEmbedding, threshold, topK, maxResults);
-            }
+            return searchTwoStage(queryEmbedding, threshold, topK, maxResults, null, null);
 
         } catch (Exception e) {
             log.error("Clova 벡터 검색 실패: {}", e.getMessage(), e);
             return Map.of();
         }
-    }
-
-    /**
-     * 기존 방식: halfvec 직접 검색
-     */
-    private Map<Long, Double> searchDirectHalfvec(float[] queryEmbedding, double threshold, int topK, int maxResults) {
-        String vectorString = formatVectorForPostgres(queryEmbedding);
-
-        List<Object[]> results = clovaChunkRepository.findArticleIdsByTopKAvgSimilarity(
-                vectorString, threshold, topK, maxResults);
-
-        Map<Long, Double> scoreMap = new HashMap<>();
-        for (Object[] row : results) {
-            Long articleId = ((Number) row[0]).longValue();
-            Double similarity = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
-            if (similarity != null) {
-                scoreMap.put(articleId, similarity);
-            }
-        }
-
-        log.info("Clova 벡터 검색 완료 (halfvec 직접) - 결과 수: {}", scoreMap.size());
-        return scoreMap;
-    }
-
-    /**
-     * 2단계 검색: Binary HNSW → halfvec Reranking (단일 CTE 쿼리)
-     */
-    private Map<Long, Double> searchTwoStage(float[] queryEmbedding, double threshold, int topK, int maxResults) {
-        return searchTwoStage(queryEmbedding, threshold, topK, maxResults, null, null);
-    }
-
-    /**
-     * 2단계 검색: Binary HNSW → halfvec Reranking (해외/국내 + 카테고리 필터 지원)
-     *
-     * @param domesticTypes 허용할 is_domestic 값 목록 (null이면 필터 없음)
-     * @param categories    허용할 카테고리 이름 목록 (null이면 필터 없음)
-     */
-    private Map<Long, Double> searchTwoStage(float[] queryEmbedding, double threshold, int topK, int maxResults,
-                                              List<Integer> domesticTypes, List<String> categories) {
-        long startTime = System.currentTimeMillis();
-
-        String vectorString = formatVectorForPostgres(queryEmbedding);
-        String binaryString = toBinaryString(queryEmbedding);
-
-        boolean hasDomestic = domesticTypes != null && !domesticTypes.isEmpty();
-        boolean hasCategory = categories != null && !categories.isEmpty();
-
-        List<Object[]> results;
-        if (hasDomestic && hasCategory) {
-            results = clovaChunkRepository.findArticlesByTwoStageSearchWithBothFilters(
-                    vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, topK, threshold, maxResults, domesticTypes, categories);
-        } else if (hasDomestic) {
-            results = clovaChunkRepository.findArticlesByTwoStageSearchWithDomesticFilter(
-                    vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, topK, threshold, maxResults, domesticTypes);
-        } else if (hasCategory) {
-            results = clovaChunkRepository.findArticlesByTwoStageSearchWithCategoryFilter(
-                    vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, topK, threshold, maxResults, categories);
-        } else {
-            results = clovaChunkRepository.findArticlesByTwoStageSearch(
-                    vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, topK, threshold, maxResults);
-        }
-
-        long totalTime = System.currentTimeMillis() - startTime;
-
-        Map<Long, Double> scoreMap = new HashMap<>();
-        for (Object[] row : results) {
-            Long articleId = ((Number) row[0]).longValue();
-            Double similarity = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
-            if (similarity != null) {
-                scoreMap.put(articleId, similarity);
-            }
-        }
-
-        log.info("Clova 2단계 검색 완료 - 총: {}ms, 결과: {}개", totalTime, scoreMap.size());
-
-        return scoreMap;
     }
 
     /**
@@ -215,12 +126,7 @@ public class ClovaSearchService {
                     queryEmbedding.length, embResult.getTokenUsage());
 
             long queryStart = System.currentTimeMillis();
-            Map<Long, Double> scores;
-            if (USE_TWO_STAGE_SEARCH) {
-                scores = searchTwoStage(queryEmbedding, DEFAULT_SIMILARITY_THRESHOLD, DEFAULT_TOP_K, DEFAULT_MAX_RESULTS, domesticTypes, categories);
-            } else {
-                scores = searchDirectHalfvec(queryEmbedding, DEFAULT_SIMILARITY_THRESHOLD, DEFAULT_TOP_K, DEFAULT_MAX_RESULTS);
-            }
+            Map<Long, Double> scores = searchTwoStage(queryEmbedding, DEFAULT_SIMILARITY_THRESHOLD, DEFAULT_TOP_K, DEFAULT_MAX_RESULTS, domesticTypes, categories);
             long queryMs = System.currentTimeMillis() - queryStart;
 
             return new VectorSearchResult(scores, queryEmbedding, embeddingMs, queryMs);
@@ -229,6 +135,53 @@ public class ClovaSearchService {
             log.error("Clova 벡터 검색 실패: {}", e.getMessage(), e);
             return new VectorSearchResult(Map.of(), null);
         }
+    }
+
+    /**
+     * 2단계 검색: Binary HNSW → halfvec Reranking (해외/국내 + 카테고리 필터 지원)
+     *
+     * @param domesticTypes 허용할 is_domestic 값 목록 (null이면 필터 없음)
+     * @param categories    허용할 카테고리 이름 목록 (null이면 필터 없음)
+     */
+    private Map<Long, Double> searchTwoStage(float[] queryEmbedding, double threshold, int topK, int maxResults,
+                                              List<Integer> domesticTypes, List<String> categories) {
+        long startTime = System.currentTimeMillis();
+
+        String vectorString = formatVectorForPostgres(queryEmbedding);
+        String binaryString = toBinaryString(queryEmbedding);
+
+        boolean hasDomestic = domesticTypes != null && !domesticTypes.isEmpty();
+        boolean hasCategory = categories != null && !categories.isEmpty();
+
+        List<Object[]> results;
+        if (hasDomestic && hasCategory) {
+            results = clovaChunkRepository.findArticlesByTwoStageSearchWithBothFilters(
+                    vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, topK, threshold, maxResults, domesticTypes, categories);
+        } else if (hasDomestic) {
+            results = clovaChunkRepository.findArticlesByTwoStageSearchWithDomesticFilter(
+                    vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, topK, threshold, maxResults, domesticTypes);
+        } else if (hasCategory) {
+            results = clovaChunkRepository.findArticlesByTwoStageSearchWithCategoryFilter(
+                    vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, topK, threshold, maxResults, categories);
+        } else {
+            results = clovaChunkRepository.findArticlesByTwoStageSearch(
+                    vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, topK, threshold, maxResults);
+        }
+
+        long totalTime = System.currentTimeMillis() - startTime;
+
+        Map<Long, Double> scoreMap = new HashMap<>();
+        for (Object[] row : results) {
+            Long articleId = ((Number) row[0]).longValue();
+            Double similarity = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
+            if (similarity != null) {
+                scoreMap.put(articleId, similarity);
+            }
+        }
+
+        log.info("Clova 2단계 검색 완료 - 총: {}ms, 결과: {}개", totalTime, scoreMap.size());
+
+        return scoreMap;
     }
 
     /**
@@ -283,7 +236,6 @@ public class ClovaSearchService {
         }
 
         try {
-            // 1. 키워드 임베딩 생성
             ModelEmbeddingResult embResult = clovaEmbeddingService.generateEmbedding(keyword, null);
 
             if (!embResult.isSuccess() || embResult.getEmbedding() == null) {
@@ -292,15 +244,11 @@ public class ClovaSearchService {
             }
 
             float[] queryEmbedding = embResult.getEmbedding();
-
-            // 2. PostgreSQL halfvec 포맷으로 변환
             String vectorString = formatVectorForPostgres(queryEmbedding);
 
-            // 3. 특정 Article들에 대한 유사도 계산 (halfvec)
             List<Object[]> results = clovaChunkRepository.computeSimilarityForArticleIds(
                     vectorString, articleIds, DEFAULT_TOP_K);
 
-            // 4. Article ID와 유사도 스코어 맵으로 변환
             Map<Long, Double> scoreMap = new HashMap<>();
             for (Object[] row : results) {
                 Long articleId = ((Number) row[0]).longValue();
@@ -334,14 +282,11 @@ public class ClovaSearchService {
         }
 
         try {
-            // PostgreSQL halfvec 포맷으로 변환
             String vectorString = formatVectorForPostgres(queryEmbedding);
 
-            // 특정 Article들에 대한 유사도 계산 (halfvec)
             List<Object[]> results = clovaChunkRepository.computeSimilarityForArticleIds(
                     vectorString, articleIds, DEFAULT_TOP_K);
 
-            // Article ID와 유사도 스코어 맵으로 변환
             Map<Long, Double> scoreMap = new HashMap<>();
             for (Object[] row : results) {
                 Long articleId = ((Number) row[0]).longValue();
