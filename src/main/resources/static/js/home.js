@@ -325,6 +325,11 @@ function setupDefaultThumbnails() {
 
 // 뷰 토글 버튼 초기화
 function initViewToggle() {
+    // ArticleManager가 이미 뷰 토글을 처리하므로 건너뜀
+    if (typeof articleManager !== 'undefined' && articleManager) {
+        return;
+    }
+
     const groupedViewBtn = document.getElementById('groupedViewBtn');
     const listViewBtn = document.getElementById('listViewBtn');
 
@@ -343,6 +348,11 @@ function initViewToggle() {
 
 // 지역 토글 버튼 초기화
 function initRegionToggle() {
+    // ArticleManager가 이미 지역 필터를 처리하므로 건너뜀
+    if (typeof articleManager !== 'undefined' && articleManager) {
+        return;
+    }
+
     const regionAllBtn = document.getElementById('regionAllBtn');
     const regionDomesticBtn = document.getElementById('regionDomesticBtn');
     const regionOverseasBtn = document.getElementById('regionOverseasBtn');

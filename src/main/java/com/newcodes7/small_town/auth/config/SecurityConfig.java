@@ -72,6 +72,8 @@ public class SecurityConfig {
 
                 // 글 목록 API는 모든 사용자 허용
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/articles/**").permitAll()
+                // 검색 API는 모든 사용자 허용
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/search/**").permitAll()
                 // 카테고리 목록 조회는 모든 사용자 허용
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/categories").permitAll()
                 

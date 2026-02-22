@@ -163,16 +163,29 @@ class ArticleManager {
 
     initViewBtnToggle() {
         const groupedViewBtn = document.getElementById('groupedViewBtn');
-        if (!groupedViewBtn) return;
+        const listViewBtn = document.getElementById('listViewBtn');
 
-        groupedViewBtn.addEventListener('click', () => {
-            const isGrouped = this.currentView === 'grouped';
-            // 상태 토글
-            this.currentView = isGrouped ? 'list' : 'grouped';
-            // 사용자가 명시적으로 뷰를 변경했음을 표시
-            this.userExplicitViewChange = true;
-            this.loadArticles();
-        });
+        if (groupedViewBtn) {
+            groupedViewBtn.addEventListener('click', () => {
+                if (this.currentView !== 'grouped') {
+                    this.currentView = 'grouped';
+                    this.userExplicitViewChange = true;
+                    this.currentPage = 0;
+                    this.loadArticles();
+                }
+            });
+        }
+
+        if (listViewBtn) {
+            listViewBtn.addEventListener('click', () => {
+                if (this.currentView !== 'list') {
+                    this.currentView = 'list';
+                    this.userExplicitViewChange = true;
+                    this.currentPage = 0;
+                    this.loadArticles();
+                }
+            });
+        }
     }
 
     initRegionFilters() {
@@ -182,6 +195,35 @@ class ArticleManager {
                 this.handleRegionChange();
             });
         });
+
+        // 지역 토글 버튼 이벤트
+        const regionAllBtn = document.getElementById('regionAllBtn');
+        const regionDomesticBtn = document.getElementById('regionDomesticBtn');
+        const regionOverseasBtn = document.getElementById('regionOverseasBtn');
+
+        if (regionAllBtn) {
+            regionAllBtn.addEventListener('click', () => {
+                this.currentRegions = [];
+                this.currentPage = 0;
+                this.loadArticles();
+            });
+        }
+
+        if (regionDomesticBtn) {
+            regionDomesticBtn.addEventListener('click', () => {
+                this.currentRegions = ['domestic'];
+                this.currentPage = 0;
+                this.loadArticles();
+            });
+        }
+
+        if (regionOverseasBtn) {
+            regionOverseasBtn.addEventListener('click', () => {
+                this.currentRegions = ['overseas'];
+                this.currentPage = 0;
+                this.loadArticles();
+            });
+        }
     }
 
     debounceSearch(callback, delay = 500) {
