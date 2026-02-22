@@ -89,7 +89,7 @@ public class EmbeddingApiService implements EmbeddingService {
             JsonNode embeddingNode = result.get("embedding");
 
             if (embeddingNode == null) {
-                throw new RuntimeException("Clova API 응답에 embedding이 없습니다: " + response.getBody());
+                throw new RuntimeException("Embedding API 응답에 embedding이 없습니다: " + response.getBody());
             }
 
             float[] embeddingVector = parseEmbeddingVector(embeddingNode);
