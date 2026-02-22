@@ -36,8 +36,8 @@ public class ClovaSearchService {
     // 평균 계산에 사용할 상위 청크 수
     private static final int DEFAULT_TOP_K = 3;
 
-    // Binary HNSW 후보 수 (Stage 1)
-    private static final int DEFAULT_CANDIDATE_LIMIT = 500;
+    // Binary HNSW 후보 수 (Stage 1) — hnsw.ef_search=250보다 작게 설정하여 recall 향상
+    private static final int DEFAULT_CANDIDATE_LIMIT = 200;
 
     // 2단계 검색 사용 여부 (Binary HNSW 인덱스 생성 후 true로 변경)
     private static final boolean USE_TWO_STAGE_SEARCH = true;
