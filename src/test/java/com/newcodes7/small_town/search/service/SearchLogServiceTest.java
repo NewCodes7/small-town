@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.global.service;
+package com.newcodes7.small_town.search.service;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -24,8 +24,8 @@ import com.newcodes7.small_town.auth.repository.ProviderRepository;
 import com.newcodes7.small_town.auth.repository.RoleRepository;
 import com.newcodes7.small_town.auth.repository.UserRepository;
 import com.newcodes7.small_town.auth.util.UserTestHelper;
-import com.newcodes7.small_town.global.entity.SearchLog;
-import com.newcodes7.small_town.global.repository.SearchLogRepository;
+import com.newcodes7.small_town.search.entity.SearchLog;
+import com.newcodes7.small_town.search.repository.SearchLogRepository;
 
 import jakarta.servlet.http.HttpServletRequest;
 

@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.service;
+package com.newcodes7.small_town.search.service;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -19,10 +19,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.newcodes7.small_town.article.dto.ArticleSearchResultDto;
+import com.newcodes7.small_town.search.dto.ArticleSearchResultDto;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.CorporationRepository;
-import com.newcodes7.small_town.embedding.service.ClovaSearchService;
+import com.newcodes7.small_town.search.service.ClovaSearchService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 
@@ -39,7 +39,7 @@ import static org.mockito.Mockito.*;
 public class ArticleSearchIntegrationTest {
 
     @Autowired
-    private ArticleService articleService;
+    private ArticleSearchService articleSearchService;
 
     @Autowired
     private ArticleRepository articleRepository;
@@ -139,7 +139,7 @@ public class ArticleSearchIntegrationTest {
                 .thenReturn(new HashMap<>());
 
         // when
-        Page<ArticleSearchResultDto> result = articleService.searchArticlesHybrid(
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
                 keyword, null, null, 0, 10, "latest", "127.0.0.1", null
         );
 
@@ -157,7 +157,7 @@ public class ArticleSearchIntegrationTest {
         String keyword = "Docker";
 
         // when - 따옴표 검색은 ILIKE 기반이므로 Vector mock 불필요
-        Page<ArticleSearchResultDto> result = articleService.searchArticlesExactMatch(
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesExactMatch(
                 keyword, null, null, 0, 10, "latest", "127.0.0.1", null
         );
 
@@ -184,7 +184,7 @@ public class ArticleSearchIntegrationTest {
                 .thenReturn(new HashMap<>());
 
         // when
-        Page<ArticleSearchResultDto> result = articleService.searchArticlesHybrid(
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
                 keyword, null, null, 0, 10, "latest", "127.0.0.1", null
         );
 
@@ -211,7 +211,7 @@ public class ArticleSearchIntegrationTest {
                 .thenReturn(new HashMap<>());
 
         // when
-        Page<ArticleSearchResultDto> result = articleService.searchArticlesHybrid(
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
                 keyword, regions, null, 0, 10, "latest", "127.0.0.1", null
         );
 
@@ -239,7 +239,7 @@ public class ArticleSearchIntegrationTest {
                 .thenReturn(new HashMap<>());
 
         // when - First page
-        Page<ArticleSearchResultDto> page1 = articleService.searchArticlesHybrid(
+        Page<ArticleSearchResultDto> page1 = articleSearchService.searchArticlesHybrid(
                 keyword, null, null, 0, 2, "latest", "127.0.0.1", null
         );
 
@@ -250,7 +250,7 @@ public class ArticleSearchIntegrationTest {
         
         if (page1.getTotalElements() > 2) {
             // when - Second page
-            Page<ArticleSearchResultDto> page2 = articleService.searchArticlesHybrid(
+            Page<ArticleSearchResultDto> page2 = articleSearchService.searchArticlesHybrid(
                     keyword, null, null, 1, 2, "latest", "127.0.0.1", null
             );
 
@@ -271,7 +271,7 @@ public class ArticleSearchIntegrationTest {
                 .thenThrow(new RuntimeException("Vector API failed"));
 
         // when - BM25만으로 검색 (H2 테스트에서는 BM25도 미지원이므로 빈 결과 가능)
-        Page<ArticleSearchResultDto> result = articleService.searchArticlesHybrid(
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
                 keyword, null, null, 0, 10, "latest", "127.0.0.1", null
         );
 
@@ -293,7 +293,7 @@ public class ArticleSearchIntegrationTest {
                 .thenReturn(vectorResult);
 
         // when
-        Page<ArticleSearchResultDto> result = articleService.searchArticlesHybrid(
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
                 keyword, null, null, 0, 10, "latest", "127.0.0.1", null
         );
 
@@ -319,7 +319,7 @@ public class ArticleSearchIntegrationTest {
                 .thenReturn(new HashMap<>());
 
         // when
-        Page<ArticleSearchResultDto> result = articleService.searchArticlesHybrid(
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
                 keyword, null, null, 0, 10, "popular", "127.0.0.1", null
         );
 
@@ -345,7 +345,7 @@ public class ArticleSearchIntegrationTest {
                 .thenReturn(new HashMap<>());
 
         // when
-        Page<ArticleSearchResultDto> result = articleService.searchArticlesHybrid(
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
                 keyword, null, null, 0, 10, "latest", "127.0.0.1", null
         );
 
@@ -371,7 +371,7 @@ public class ArticleSearchIntegrationTest {
                 .thenReturn(new HashMap<>());
 
         // when
-        Page<ArticleSearchResultDto> result = articleService.searchArticlesHybrid(
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
                 keyword, null, null, 0, 10, "relevance", "127.0.0.1", null
         );
 
@@ -403,7 +403,7 @@ public class ArticleSearchIntegrationTest {
 
         // when
         long startTime = System.currentTimeMillis();
-        Page<ArticleSearchResultDto> result = articleService.searchArticlesHybrid(
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
                 keyword, null, null, 0, 10, "latest", "127.0.0.1", null
         );
         long endTime = System.currentTimeMillis();

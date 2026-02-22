@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.service;
+package com.newcodes7.small_town.search.scorer;
 
 import static org.junit.jupiter.api.Assertions.*;
 
