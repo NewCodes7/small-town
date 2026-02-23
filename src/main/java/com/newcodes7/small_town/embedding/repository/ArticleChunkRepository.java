@@ -392,6 +392,50 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
     /**
      * 대표 Chunk 기반 관련 글 검색 (2단계: Binary HNSW → halfvec Reranking)
      *
+     * Stage 1: embedding_binary <~> 로 Hamming 거리 기반 후보 추출 (HNSW 인덱스 활용)
+     * Stage 2: embedding_normalized <#> 로 cosine 유사도 정밀 계산
+     *
+     * @param articleId 현재 Article ID (제외)
+     * @param queryEmbedding 현재 Article 대표 chunk의 L2-정규화된 halfvec 임베딩
+     * @param queryBinary 현재 Article 대표 chunk의 binary 임베딩 (bit string)
+     * @param candidateLimit Stage 1 후보 수
+     * @param threshold 최소 유사도 임계값
+     * @param limit 최종 결과 수
+     * @return Article ID와 유사도
+     */
+    @Query(value = """
+            WITH candidates AS (
+                SELECT
+                    cac.article_id,
+                    ccv.embedding_normalized
+                FROM clova_article_chunk cac
+                JOIN article a ON cac.article_id = a.id
+                JOIN clova_chunk_vectors ccv ON ccv.id = cac.id
+                WHERE a.deleted_at IS NULL
+                  AND cac.is_representative = true
+                  AND cac.article_id != :articleId
+                  AND cac.embedding_binary IS NOT NULL
+                ORDER BY cac.embedding_binary <~> CAST(:queryBinary AS bit(1024))
+                LIMIT :candidateLimit
+            )
+            SELECT article_id, -(embedding_normalized <#> CAST(:queryEmbedding AS halfvec)) AS similarity
+            FROM candidates
+            WHERE -(embedding_normalized <#> CAST(:queryEmbedding AS halfvec)) >= :threshold
+            ORDER BY similarity DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> findRelatedArticlesByTwoStageSearch(
+            @Param("articleId") Long articleId,
+            @Param("queryEmbedding") String queryEmbedding,
+            @Param("queryBinary") String queryBinary,
+            @Param("candidateLimit") int candidateLimit,
+            @Param("threshold") double threshold,
+            @Param("limit") int limit
+    );
+
+    /**
+     * 대표 Chunk 기반 관련 글 검색 (halfvec 직접 비교, binary 임베딩 없을 때 fallback)
+     *
      * @param articleId 현재 Article ID (제외)
      * @param queryEmbedding 현재 Article 대표 chunk의 embedding
      * @param limit 결과 수
