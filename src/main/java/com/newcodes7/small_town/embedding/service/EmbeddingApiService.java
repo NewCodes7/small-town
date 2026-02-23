@@ -22,9 +22,7 @@ import java.util.Map;
  * Naver Clova Embedding v2 서비스
  * Model: clova-embedding-v2
  * Dimension: 1024 (추정치 - 실제 값 확인 필요)
- * 가격: 약 $0.05 / 1M tokens (추정치 - 실제 값 확인 필요)
  *
- * NOTE: API 스펙은 Naver Cloud Platform 공식 문서를 참고하여 업데이트 필요
  * https://api.ncloud-docs.com/docs/clovastudio-embeddingv2
  */
 @Slf4j
