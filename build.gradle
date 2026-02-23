@@ -50,7 +50,7 @@ dependencies {
 
     // Selenium 관련 의존성
     implementation 'org.seleniumhq.selenium:selenium-java:4.41.0'
-    implementation 'io.github.bonigarcia:webdrivermanager:6.2.0'
+    implementation 'io.github.bonigarcia:webdrivermanager:6.3.3'
     
     // 스케줄링
     implementation 'org.springframework.boot:spring-boot-starter-quartz'
