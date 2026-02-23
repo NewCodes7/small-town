@@ -133,7 +133,7 @@ public class ArticleSearchIntegrationTest {
         vectorScores.put(testArticles.get(0).getId(), 0.95); // Spring Boot article
         VectorSearchService.VectorSearchResult vectorResult = 
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(vectorSearchService.searchByKeywordWithEmbedding(keyword))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class)))
                 .thenReturn(vectorResult);
         when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
                 .thenReturn(new HashMap<>());
@@ -178,7 +178,7 @@ public class ArticleSearchIntegrationTest {
         vectorScores.put(testArticles.get(1).getId(), 0.85); // Java
         VectorSearchService.VectorSearchResult vectorResult = 
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(vectorSearchService.searchByKeywordWithEmbedding(keyword))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class)))
                 .thenReturn(vectorResult);
         when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
                 .thenReturn(new HashMap<>());
@@ -205,7 +205,7 @@ public class ArticleSearchIntegrationTest {
         vectorScores.put(testArticles.get(1).getId(), 0.90);
         VectorSearchService.VectorSearchResult vectorResult = 
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(vectorSearchService.searchByKeywordWithEmbedding(keyword))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class)))
                 .thenReturn(vectorResult);
         when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
                 .thenReturn(new HashMap<>());
@@ -233,7 +233,7 @@ public class ArticleSearchIntegrationTest {
         }
         VectorSearchService.VectorSearchResult vectorResult = 
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(vectorSearchService.searchByKeywordWithEmbedding(keyword))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class)))
                 .thenReturn(vectorResult);
         when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
                 .thenReturn(new HashMap<>());
@@ -267,7 +267,7 @@ public class ArticleSearchIntegrationTest {
         String keyword = "Kubernetes";
 
         // Mock Vector search failure
-        when(vectorSearchService.searchByKeywordWithEmbedding(keyword))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class)))
                 .thenThrow(new RuntimeException("Vector API failed"));
 
         // when - BM25만으로 검색 (H2 테스트에서는 BM25도 미지원이므로 빈 결과 가능)
@@ -289,7 +289,7 @@ public class ArticleSearchIntegrationTest {
         Map<Long, Double> vectorScores = new HashMap<>();
         VectorSearchService.VectorSearchResult vectorResult = 
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(vectorSearchService.searchByKeywordWithEmbedding(keyword))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class)))
                 .thenReturn(vectorResult);
 
         // when
@@ -313,7 +313,7 @@ public class ArticleSearchIntegrationTest {
         vectorScores.put(testArticles.get(4).getId(), 0.80); // Kubernetes
         VectorSearchService.VectorSearchResult vectorResult = 
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(vectorSearchService.searchByKeywordWithEmbedding(keyword))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class)))
                 .thenReturn(vectorResult);
         when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
                 .thenReturn(new HashMap<>());
@@ -339,7 +339,7 @@ public class ArticleSearchIntegrationTest {
         vectorScores.put(testArticles.get(1).getId(), 0.85);
         VectorSearchService.VectorSearchResult vectorResult = 
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(vectorSearchService.searchByKeywordWithEmbedding(keyword))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class)))
                 .thenReturn(vectorResult);
         when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
                 .thenReturn(new HashMap<>());
@@ -365,7 +365,7 @@ public class ArticleSearchIntegrationTest {
         vectorScores.put(testArticles.get(1).getId(), 0.95); // Java article - high vector score
         VectorSearchService.VectorSearchResult vectorResult = 
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(vectorSearchService.searchByKeywordWithEmbedding(keyword))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class)))
                 .thenReturn(vectorResult);
         when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
                 .thenReturn(new HashMap<>());
@@ -396,7 +396,7 @@ public class ArticleSearchIntegrationTest {
         }
         VectorSearchService.VectorSearchResult vectorResult = 
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(vectorSearchService.searchByKeywordWithEmbedding(keyword))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class)))
                 .thenReturn(vectorResult);
         when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
                 .thenReturn(new HashMap<>());
