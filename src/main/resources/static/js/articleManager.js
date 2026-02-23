@@ -303,6 +303,10 @@ class ArticleManager {
             if (this.currentSort && this.currentSort !== 'latest') {
                 params.set('sort', this.currentSort);
             }
+            // keyword가 있을 때는 latest도 명시적으로 포함 (서버 기본값이 relevance이므로)
+            if (this.currentKeyword && !params.has('sort')) {
+                params.set('sort', this.currentSort || 'latest');
+            }
 
             this.currentRegions.forEach(region => {
                 params.append('regions', region);
@@ -786,17 +790,21 @@ class ArticleManager {
                 while (parent) {
                     if (parent.classList.contains('article-card') 
                         || parent.classList.contains('child')) {
-                        const titleLink = parent.querySelector('h5 a') || parent.querySelector('h6 a');
+                        const detailUrl = parent.getAttribute('data-detail-url');
                         const articleId = parent.getAttribute('data-article-id');
-                        window.open(titleLink.href, '_blank');
-                        fetch(`/api/articles/${articleId}/view`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            credentials: 'same-origin',
-                            redirect: 'manual'
-                        });
+                        if (detailUrl) {
+                            window.open(detailUrl, '_blank');
+                        }
+                        if (articleId) {
+                            fetch(`/api/articles/${articleId}/view`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                credentials: 'same-origin',
+                                redirect: 'manual'
+                            });
+                        }
                         break;
                     }
                     parent = parent.parentElement;

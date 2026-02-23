@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 public class SearchLogService {
 
     private final SearchLogRepository searchLogRepository;
+    private final com.newcodes7.small_town.auth.repository.UserRepository userRepository;
 
     /**
      * 검색 로그 저장 (비동기)
@@ -58,6 +59,33 @@ public class SearchLogService {
         try {
             String ipAddress = getClientIp(request);
             String userAgent = request.getHeader("User-Agent");
+
+            SearchLog searchLog = SearchLog.builder()
+                    .searchKeyword(keyword)
+                    .searchType(searchType)
+                    .targetId(targetId)
+                    .user(user)
+                    .ipAddress(ipAddress)
+                    .userAgent(userAgent)
+                    .build();
+
+            searchLogRepository.save(searchLog);
+        } catch (Exception e) {
+            log.error("검색 로그 저장 실패: keyword={}, type={}, targetId={}", keyword, searchType, targetId, e);
+        }
+    }
+
+    /**
+     * 검색 로그 저장 (사용자명 기반, 완전 비동기)
+     * 사용자 조회와 로그 저장을 모두 비동기로 처리하여 응답 속도에 영향을 주지 않음
+     */
+    @Async
+    @Transactional
+    public void logSearchAsync(String keyword, SearchLog.SearchType searchType, Long targetId,
+                               String username, String ipAddress, String userAgent) {
+        try {
+            User user = username != null ?
+                userRepository.findByUsernameAndDeletedAtIsNull(username).orElse(null) : null;
 
             SearchLog searchLog = SearchLog.builder()
                     .searchKeyword(keyword)
