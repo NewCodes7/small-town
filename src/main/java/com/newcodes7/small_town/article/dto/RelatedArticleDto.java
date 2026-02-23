@@ -21,10 +21,11 @@ public class RelatedArticleDto {
     private final String detailUrl;
     private final CorporationDto corporation;
     private final Double similarity;
+    private final String representativeChunkContent;
     private final LocalDateTime publishedAt;
     private final Integer likeCount;
 
-    public RelatedArticleDto(Article article, Double similarity) {
+    public RelatedArticleDto(Article article, Double similarity, String representativeChunkContent) {
         this.id = article.getId();
         this.title = article.getTitle();
         this.translatedTitle = article.getTranslatedTitle();
@@ -32,6 +33,7 @@ public class RelatedArticleDto {
         this.detailUrl = generateDetailUrl(article);
         this.corporation = new CorporationDto(article.getCorporation());
         this.similarity = similarity;
+        this.representativeChunkContent = representativeChunkContent;
         this.publishedAt = article.getPublishedAt();
         this.likeCount = article.getLikeCount() != null ? article.getLikeCount() : 0;
     }

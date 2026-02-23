@@ -11,6 +11,7 @@ import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.embedding.entity.ArticleChunk;
 import com.newcodes7.small_town.embedding.entity.ChunkVector;
 import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
+import com.newcodes7.small_town.embedding.repository.ChunkContentRepository;
 import com.newcodes7.small_town.embedding.repository.ChunkVectorRepository;
 import com.newcodes7.small_town.global.entity.Article;
 
@@ -28,6 +29,7 @@ public class RelatedArticleService {
 
     private final ArticleChunkRepository chunkRepository;
     private final ChunkVectorRepository chunkVectorRepository;
+    private final ChunkContentRepository chunkContentRepository;
     private final ArticleRepository articleRepository;
     private final RepresentativeChunkService representativeChunkService;
 
@@ -110,7 +112,10 @@ public class RelatedArticleService {
             articles.stream()
                     .filter(a -> a.getId().equals(id))
                     .findFirst()
-                    .ifPresent(article -> relatedArticles.add(new RelatedArticleDto(article, similarity)));
+                    .ifPresent(article -> {
+                        String chunkContent = chunkContentRepository.findRepresentativeContentByArticleId(article.getId());
+                        relatedArticles.add(new RelatedArticleDto(article, similarity, chunkContent));
+                    });
         }
 
         log.debug("Found {} related articles for article ID {}", relatedArticles.size(), articleId);
