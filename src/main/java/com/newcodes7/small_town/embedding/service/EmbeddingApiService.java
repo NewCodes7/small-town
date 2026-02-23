@@ -32,7 +32,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class EmbeddingApiService implements EmbeddingService {
 
-    @Value("${embedding.api-key}")
+    @Value("${clova.api-key}")
     private String apiKey;
 
     private static final String EMBEDDING_API_URL = "https://clovastudio.stream.ntruss.com/v1/api-tools/embedding/v2";
