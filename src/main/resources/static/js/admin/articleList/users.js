@@ -97,7 +97,7 @@ function loadAllArticleEmbeddingStatus() {
     });
 }
 
-// 개별 Article의 embedding 상태 조회 (OpenAI + Clova 동시 처리)
+// 개별 Article의 embedding 상태 조회
 function loadArticleEmbeddingStatus(articleId, cellElement) {
     fetch(`/admin/articles/${articleId}/embeddings`)
         .then(response => response.json())
@@ -135,18 +135,18 @@ function loadArticleEmbeddingStatus(articleId, cellElement) {
                     </span>
                 `;
 
-                // Clova 임베딩 상태도 함께 업데이트
-                updateClovaStatus(articleId, data);
+                // 임베딩 상태도 함께 업데이트
+                updateEmbeddingStatus(articleId, data);
             } else {
                 cellElement.innerHTML = `
                     <span class="badge bg-secondary">
                         <i class="fas fa-question-circle"></i> 확인 실패
                     </span>
                 `;
-                // Clova 셀도 업데이트
-                const clovaCell = document.querySelector(`.clova-status-cell[data-article-id="${articleId}"]`);
-                if (clovaCell) {
-                    clovaCell.innerHTML = `<span class="badge bg-secondary">-</span>`;
+                // Embedding 셀도 업데이트
+                const embeddingCell = document.querySelector(`.embedding-status-cell[data-article-id="${articleId}"]`);
+                if (embeddingCell) {
+                    embeddingCell.innerHTML = `<span class="badge bg-secondary">-</span>`;
                 }
             }
         })
@@ -157,30 +157,30 @@ function loadArticleEmbeddingStatus(articleId, cellElement) {
                     <i class="fas fa-exclamation-triangle"></i> 오류
                 </span>
             `;
-            // Clova 셀도 업데이트
-            const clovaCell = document.querySelector(`.clova-status-cell[data-article-id="${articleId}"]`);
-            if (clovaCell) {
-                clovaCell.innerHTML = `<span class="badge bg-secondary">-</span>`;
+            // Embedding 셀도 업데이트
+            const embeddingCell = document.querySelector(`.embedding-status-cell[data-article-id="${articleId}"]`);
+            if (embeddingCell) {
+                embeddingCell.innerHTML = `<span class="badge bg-secondary">-</span>`;
             }
         });
 }
 
-// Clova 임베딩 상태 업데이트 (API 응답 데이터 활용)
-function updateClovaStatus(articleId, data) {
-    const clovaCell = document.querySelector(`.clova-status-cell[data-article-id="${articleId}"]`);
-    if (!clovaCell) return;
+// 임베딩 상태 업데이트 (API 응답 데이터 활용)
+function updateEmbeddingStatus(articleId, data) {
+    const embeddingCell = document.querySelector(`.embedding-status-cell[data-article-id="${articleId}"]`);
+    if (!embeddingCell) return;
 
-    const hasClovaEmbedding = data.hasClovaEmbedding;
-    const clovaChunkCount = data.clovaChunkCount || 0;
+    const hasChunkEmbedding = data.hasChunkEmbedding;
+    const chunkCount = data.chunkCount || 0;
 
-    if (hasClovaEmbedding) {
-        clovaCell.innerHTML = `
-            <span class="badge bg-success" title="${clovaChunkCount}개 청크">
+    if (hasChunkEmbedding) {
+        embeddingCell.innerHTML = `
+            <span class="badge bg-success" title="${chunkCount}개 청크">
                 Y
             </span>
         `;
     } else {
-        clovaCell.innerHTML = `
+        embeddingCell.innerHTML = `
             <span class="badge bg-secondary">
                 N
             </span>

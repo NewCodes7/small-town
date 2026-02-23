@@ -36,19 +36,13 @@ public class ArticleServiceTest {
     private ArticleRepository articleRepository;
 
     @Mock
-    private com.newcodes7.small_town.article.repository.TermRepository termRepository;
+    private com.newcodes7.small_town.article.repository.CorporationRepository corporationRepository;
 
     @Mock
-    private com.newcodes7.small_town.article.repository.ArticleTermRepository articleTermRepository;
+    private com.newcodes7.small_town.search.service.ArticleSearchService articleSearchService;
 
     @Mock
-    private TermSynonymService termSynonymService;
-
-    @Mock
-    private com.newcodes7.small_town.global.service.MorphemeAnalyzer morphemeAnalyzer;
-
-    @Mock
-    private HybridSearchScorer hybridSearchScorer;
+    private UserLikeService userLikeService;
 
     @InjectMocks
     private ArticleService articleService;
@@ -78,8 +72,8 @@ public class ArticleServiceTest {
         List<Article> targetArticles = ArticleCreator.createArticlesWithId(List.of(1L));
         Page<Article> expect = new PageImpl<>(targetArticles, pageable, targetArticles.size());
 
-        // Mock morphemeAnalyzer to return empty map for any keyword
-        when(morphemeAnalyzer.extractTerms(anyString())).thenReturn(new HashMap<>());
+        // Mock articleSearchService to return empty list (no term-based matches)
+        when(articleSearchService.getArticleIdsByKeywordWithSynonyms(anyString())).thenReturn(new ArrayList<>());
 
         when(articleRepository.findArticlesWithFiltersWithoutTerms("%" + keyword.toLowerCase() + "%", null, null, null, pageable)).thenReturn(expect);
 
@@ -100,7 +94,7 @@ public class ArticleServiceTest {
         List<Article> articlesList = ArticleCreator.createArticlesWithId(List.of(1L, 1L));
         Page<Article> expect = new PageImpl<>(articlesList, pageable, articlesList.size());
 
-        when(morphemeAnalyzer.extractTerms(anyString())).thenReturn(new HashMap<>());
+        when(articleSearchService.getArticleIdsByKeywordWithSynonyms(anyString())).thenReturn(new ArrayList<>());
 
         when(articleRepository.findArticlesWithFiltersWithoutTerms("%" + keyword.toLowerCase() + "%", List.of(1), null, null, pageable)).thenReturn(expect);
 
@@ -121,7 +115,7 @@ public class ArticleServiceTest {
         List<Article> articlesList = ArticleCreator.createArticlesWithId(List.of(1L, 1L));
         Page<Article> expect = new PageImpl<>(articlesList, pageable, articlesList.size());
 
-        when(morphemeAnalyzer.extractTerms(anyString())).thenReturn(new HashMap<>());
+        when(articleSearchService.getArticleIdsByKeywordWithSynonyms(anyString())).thenReturn(new ArrayList<>());
 
         when(articleRepository.findArticlesWithFiltersWithoutTerms("%" + keyword.toLowerCase() + "%", List.of(0), null, null, pageable)).thenReturn(expect);
 
@@ -142,7 +136,7 @@ public class ArticleServiceTest {
         List<Article> articlesList = ArticleCreator.createArticlesWithId(List.of(1L, 1L));
         Page<Article> expect = new PageImpl<>(articlesList, pageable, articlesList.size());
 
-        when(morphemeAnalyzer.extractTerms(anyString())).thenReturn(new HashMap<>());
+        when(articleSearchService.getArticleIdsByKeywordWithSynonyms(anyString())).thenReturn(new ArrayList<>());
 
         when(articleRepository.findArticlesWithFiltersWithoutTerms("%" + keyword.toLowerCase() + "%", List.of(1, 0), null, null, pageable)).thenReturn(expect);
 
@@ -163,7 +157,7 @@ public class ArticleServiceTest {
         List<Article> targetArticles = ArticleCreator.createArticlesWithId(List.of(1L));
         Page<Article> expect = new PageImpl<>(targetArticles, pageable, targetArticles.size());
 
-        when(morphemeAnalyzer.extractTerms(anyString())).thenReturn(new HashMap<>());
+        when(articleSearchService.getArticleIdsByKeywordWithSynonyms(anyString())).thenReturn(new ArrayList<>());
 
         when(articleRepository.findArticlesWithFiltersWithoutTerms("%" + keyword.toLowerCase() + "%", List.of(1), null, null, pageable)).thenReturn(expect);
 

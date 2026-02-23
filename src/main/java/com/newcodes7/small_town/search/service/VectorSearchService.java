@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.embedding.service;
+package com.newcodes7.small_town.search.service;
 
 import java.util.HashMap;
 import java.util.List;
@@ -7,13 +7,14 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 
 import com.newcodes7.small_town.embedding.dto.ModelEmbeddingResult;
-import com.newcodes7.small_town.embedding.repository.ClovaArticleChunkRepository;
+import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
+import com.newcodes7.small_town.embedding.service.EmbeddingApiService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Clova Embedding 기반 벡터 검색 서비스
+ * 벡터 검색 서비스
  *
  * 2단계 검색:
  * - Stage 1: Binary HNSW (빠른 후보 필터링)
@@ -22,10 +23,10 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class ClovaSearchService {
+public class VectorSearchService {
 
-    private final NaverClovaEmbeddingService clovaEmbeddingService;
-    private final ClovaArticleChunkRepository clovaChunkRepository;
+    private final EmbeddingApiService embeddingApiService;
+    private final ArticleChunkRepository chunkRepository;
 
     // 기본 유사도 임계값
     private static final double DEFAULT_SIMILARITY_THRESHOLD = 0.52;
@@ -54,21 +55,21 @@ public class ClovaSearchService {
         }
 
         try {
-            ModelEmbeddingResult embResult = clovaEmbeddingService.generateEmbedding(keyword, null);
+            ModelEmbeddingResult embResult = embeddingApiService.generateEmbedding(keyword, null);
 
             if (!embResult.isSuccess() || embResult.getEmbedding() == null) {
-                log.warn("Clova 키워드 임베딩 생성 실패: {}", embResult.getErrorMessage());
+                log.warn("키워드 임베딩 생성 실패: {}", embResult.getErrorMessage());
                 return Map.of();
             }
 
             float[] queryEmbedding = embResult.getEmbedding();
-            log.debug("Clova 키워드 임베딩 생성 완료 - 차원: {}, 토큰: {}",
+            log.debug("키워드 임베딩 생성 완료 - 차원: {}, 토큰: {}",
                     queryEmbedding.length, embResult.getTokenUsage());
 
             return searchTwoStage(queryEmbedding, threshold, topK, maxResults, null, null);
 
         } catch (Exception e) {
-            log.error("Clova 벡터 검색 실패: {}", e.getMessage(), e);
+            log.error("벡터 검색 실패: {}", e.getMessage(), e);
             return Map.of();
         }
     }
@@ -113,16 +114,16 @@ public class ClovaSearchService {
 
         try {
             long embStart = System.currentTimeMillis();
-            ModelEmbeddingResult embResult = clovaEmbeddingService.generateEmbedding(keyword, null);
+            ModelEmbeddingResult embResult = embeddingApiService.generateEmbedding(keyword, null);
             long embeddingMs = System.currentTimeMillis() - embStart;
 
             if (!embResult.isSuccess() || embResult.getEmbedding() == null) {
-                log.warn("Clova 키워드 임베딩 생성 실패: {}", embResult.getErrorMessage());
+                log.warn("키워드 임베딩 생성 실패: {}", embResult.getErrorMessage());
                 return new VectorSearchResult(Map.of(), null);
             }
 
             float[] queryEmbedding = embResult.getEmbedding();
-            log.debug("Clova 키워드 임베딩 생성 완료 - 차원: {}, 토큰: {}",
+            log.debug("키워드 임베딩 생성 완료 - 차원: {}, 토큰: {}",
                     queryEmbedding.length, embResult.getTokenUsage());
 
             long queryStart = System.currentTimeMillis();
@@ -132,7 +133,7 @@ public class ClovaSearchService {
             return new VectorSearchResult(scores, queryEmbedding, embeddingMs, queryMs);
 
         } catch (Exception e) {
-            log.error("Clova 벡터 검색 실패: {}", e.getMessage(), e);
+            log.error("벡터 검색 실패: {}", e.getMessage(), e);
             return new VectorSearchResult(Map.of(), null);
         }
     }
@@ -155,16 +156,16 @@ public class ClovaSearchService {
 
         List<Object[]> results;
         if (hasDomestic && hasCategory) {
-            results = clovaChunkRepository.findArticlesByTwoStageSearchWithBothFilters(
+            results = chunkRepository.findArticlesByTwoStageSearchWithBothFilters(
                     vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, topK, threshold, maxResults, domesticTypes, categories);
         } else if (hasDomestic) {
-            results = clovaChunkRepository.findArticlesByTwoStageSearchWithDomesticFilter(
+            results = chunkRepository.findArticlesByTwoStageSearchWithDomesticFilter(
                     vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, topK, threshold, maxResults, domesticTypes);
         } else if (hasCategory) {
-            results = clovaChunkRepository.findArticlesByTwoStageSearchWithCategoryFilter(
+            results = chunkRepository.findArticlesByTwoStageSearchWithCategoryFilter(
                     vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, topK, threshold, maxResults, categories);
         } else {
-            results = clovaChunkRepository.findArticlesByTwoStageSearch(
+            results = chunkRepository.findArticlesByTwoStageSearch(
                     vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, topK, threshold, maxResults);
         }
 
@@ -179,7 +180,7 @@ public class ClovaSearchService {
             }
         }
 
-        log.info("Clova 2단계 검색 완료 - 총: {}ms, 결과: {}개", totalTime, scoreMap.size());
+        log.info("2단계 벡터 검색 완료 - 총: {}ms, 결과: {}개", totalTime, scoreMap.size());
 
         return scoreMap;
     }
@@ -236,17 +237,17 @@ public class ClovaSearchService {
         }
 
         try {
-            ModelEmbeddingResult embResult = clovaEmbeddingService.generateEmbedding(keyword, null);
+            ModelEmbeddingResult embResult = embeddingApiService.generateEmbedding(keyword, null);
 
             if (!embResult.isSuccess() || embResult.getEmbedding() == null) {
-                log.warn("Clova 키워드 임베딩 생성 실패: {}", embResult.getErrorMessage());
+                log.warn("키워드 임베딩 생성 실패: {}", embResult.getErrorMessage());
                 return Map.of();
             }
 
             float[] queryEmbedding = embResult.getEmbedding();
             String vectorString = formatVectorForPostgres(queryEmbedding);
 
-            List<Object[]> results = clovaChunkRepository.computeSimilarityForArticleIds(
+            List<Object[]> results = chunkRepository.computeSimilarityForArticleIds(
                     vectorString, articleIds, DEFAULT_TOP_K);
 
             Map<Long, Double> scoreMap = new HashMap<>();
@@ -258,12 +259,12 @@ public class ClovaSearchService {
                 }
             }
 
-            log.debug("Clova 특정 Article 유사도 계산 완료 - 키워드: '{}', 요청: {}개, 계산됨: {}개",
+            log.debug("특정 Article 유사도 계산 완료 - 키워드: '{}', 요청: {}개, 계산됨: {}개",
                     keyword, articleIds.size(), scoreMap.size());
             return scoreMap;
 
         } catch (Exception e) {
-            log.error("Clova 특정 Article 유사도 계산 실패: {}", e.getMessage(), e);
+            log.error("특정 Article 유사도 계산 실패: {}", e.getMessage(), e);
             return Map.of();
         }
     }
@@ -284,7 +285,7 @@ public class ClovaSearchService {
         try {
             String vectorString = formatVectorForPostgres(queryEmbedding);
 
-            List<Object[]> results = clovaChunkRepository.computeSimilarityForArticleIds(
+            List<Object[]> results = chunkRepository.computeSimilarityForArticleIds(
                     vectorString, articleIds, DEFAULT_TOP_K);
 
             Map<Long, Double> scoreMap = new HashMap<>();
@@ -296,12 +297,12 @@ public class ClovaSearchService {
                 }
             }
 
-            log.debug("Clova 특정 Article 유사도 계산 완료 (캐시된 임베딩) - 요청: {}개, 계산됨: {}개",
+            log.debug("특정 Article 유사도 계산 완료 (캐시된 임베딩) - 요청: {}개, 계산됨: {}개",
                     articleIds.size(), scoreMap.size());
             return scoreMap;
 
         } catch (Exception e) {
-            log.error("Clova 특정 Article 유사도 계산 실패: {}", e.getMessage(), e);
+            log.error("특정 Article 유사도 계산 실패: {}", e.getMessage(), e);
             return Map.of();
         }
     }

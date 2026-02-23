@@ -8,22 +8,22 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import com.newcodes7.small_town.embedding.entity.ClovaArticleChunk;
+import com.newcodes7.small_town.embedding.entity.ArticleChunk;
 
 /**
- * ClovaArticleChunk 리포지토리
+ * ArticleChunk 리포지토리
  *
  * 2단계 검색 지원:
  * - Stage 1: Binary HNSW (빠른 후보 필터링)
  * - Stage 2: halfvec Reranking (정밀 유사도 계산)
  */
 @Repository
-public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleChunk, Long> {
+public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long> {
 
     /**
      * 특정 Article의 모든 청크 조회
      */
-    List<ClovaArticleChunk> findByArticleIdOrderByChunkIndexAsc(Long articleId);
+    List<ArticleChunk> findByArticleIdOrderByChunkIndexAsc(Long articleId);
 
     /**
      * 특정 Article의 청크 삭제
@@ -34,7 +34,7 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
      * 여러 Article의 청크 벌크 삭제
      */
     @org.springframework.data.jpa.repository.Modifying
-    @Query("DELETE FROM ClovaArticleChunk c WHERE c.article.id IN :articleIds")
+    @Query("DELETE FROM ArticleChunk c WHERE c.article.id IN :articleIds")
     void deleteByArticleIdIn(@Param("articleIds") List<Long> articleIds);
 
     /**
@@ -50,7 +50,7 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
     /**
      * 임베딩이 있는 청크가 있는 Article ID 목록
      */
-    @Query("SELECT DISTINCT c.article.id FROM ClovaArticleChunk c WHERE c.embeddingBinary IS NOT NULL")
+    @Query("SELECT DISTINCT c.article.id FROM ArticleChunk c WHERE c.embeddingBinary IS NOT NULL")
     List<Long> findArticleIdsWithEmbedding();
 
     /**
@@ -118,25 +118,25 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
     /**
      * 임베딩이 없는 청크 조회
      */
-    @Query("SELECT c FROM ClovaArticleChunk c WHERE c.embeddingBinary IS NULL")
-    List<ClovaArticleChunk> findChunksWithoutEmbedding(Pageable pageable);
+    @Query("SELECT c FROM ArticleChunk c WHERE c.embeddingBinary IS NULL")
+    List<ArticleChunk> findChunksWithoutEmbedding(Pageable pageable);
 
     /**
      * 전체 청크 수
      */
-    @Query("SELECT COUNT(c) FROM ClovaArticleChunk c")
+    @Query("SELECT COUNT(c) FROM ArticleChunk c")
     long countAllChunks();
 
     /**
      * 임베딩이 있는 청크 수
      */
-    @Query("SELECT COUNT(c) FROM ClovaArticleChunk c WHERE c.embeddingBinary IS NOT NULL")
+    @Query("SELECT COUNT(c) FROM ArticleChunk c WHERE c.embeddingBinary IS NOT NULL")
     long countChunksWithEmbedding();
 
     /**
      * 임베딩이 있는 Article 수 (중복 제외)
      */
-    @Query("SELECT COUNT(DISTINCT c.article.id) FROM ClovaArticleChunk c WHERE c.embeddingBinary IS NOT NULL")
+    @Query("SELECT COUNT(DISTINCT c.article.id) FROM ArticleChunk c WHERE c.embeddingBinary IS NOT NULL")
     long countArticlesWithEmbedding();
 
     // ==================== 2단계 검색 (Binary HNSW → halfvec Reranking) ====================
@@ -351,13 +351,13 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
     /**
      * Binary embedding이 없는 청크 수
      */
-    @Query("SELECT COUNT(c) FROM ClovaArticleChunk c WHERE c.embeddingBinary IS NULL")
+    @Query("SELECT COUNT(c) FROM ArticleChunk c WHERE c.embeddingBinary IS NULL")
     long countChunksWithoutBinaryEmbedding();
 
     /**
      * Binary embedding이 있는 청크 수
      */
-    @Query("SELECT COUNT(c) FROM ClovaArticleChunk c WHERE c.embeddingBinary IS NOT NULL")
+    @Query("SELECT COUNT(c) FROM ArticleChunk c WHERE c.embeddingBinary IS NOT NULL")
     long countChunksWithBinaryEmbedding();
 
     // ==================== 대표 Chunk 관련 ====================
@@ -365,13 +365,13 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
     /**
      * 특정 Article의 대표 Chunk 조회
      */
-    @Query("SELECT c FROM ClovaArticleChunk c WHERE c.article.id = :articleId AND c.isRepresentative = true")
-    ClovaArticleChunk findRepresentativeByArticleId(@Param("articleId") Long articleId);
+    @Query("SELECT c FROM ArticleChunk c WHERE c.article.id = :articleId AND c.isRepresentative = true")
+    ArticleChunk findRepresentativeByArticleId(@Param("articleId") Long articleId);
 
     /**
      * 대표 Chunk가 있는 Article ID 목록
      */
-    @Query("SELECT DISTINCT c.article.id FROM ClovaArticleChunk c WHERE c.isRepresentative = true")
+    @Query("SELECT DISTINCT c.article.id FROM ArticleChunk c WHERE c.isRepresentative = true")
     List<Long> findArticleIdsWithRepresentativeChunk();
 
     /**
@@ -417,20 +417,20 @@ public interface ClovaArticleChunkRepository extends JpaRepository<ClovaArticleC
     /**
      * 대표 Chunk 플래그 초기화 (특정 Article)
      */
-    @Query("UPDATE ClovaArticleChunk c SET c.isRepresentative = false WHERE c.article.id = :articleId")
+    @Query("UPDATE ArticleChunk c SET c.isRepresentative = false WHERE c.article.id = :articleId")
     @org.springframework.data.jpa.repository.Modifying
     void resetRepresentativeFlag(@Param("articleId") Long articleId);
 
     /**
      * 대표 Chunk 설정
      */
-    @Query("UPDATE ClovaArticleChunk c SET c.isRepresentative = true WHERE c.id = :chunkId")
+    @Query("UPDATE ArticleChunk c SET c.isRepresentative = true WHERE c.id = :chunkId")
     @org.springframework.data.jpa.repository.Modifying
     void setRepresentativeFlag(@Param("chunkId") Long chunkId);
 
     /**
      * 대표 Chunk 수 조회
      */
-    @Query("SELECT COUNT(c) FROM ClovaArticleChunk c WHERE c.isRepresentative = true")
+    @Query("SELECT COUNT(c) FROM ArticleChunk c WHERE c.isRepresentative = true")
     long countRepresentativeChunks();
 }

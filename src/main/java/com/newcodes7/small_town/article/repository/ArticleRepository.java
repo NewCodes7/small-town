@@ -708,10 +708,10 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
             @Param("corporationId") Long corporationId,
             Pageable pageable);
 
-    // ===== Clova Embedding 관련 쿼리 =====
+    // ===== Embedding 관련 쿼리 =====
 
     /**
-     * content가 있고 Clova 청크 임베딩이 없는 Article 조회 (ID 내림차순)
+     * content가 있고 청크 임베딩이 없는 Article 조회 (ID 내림차순)
      * Native Query로 clova_article_chunk 테이블과 조인하여 효율적으로 조회
      * 빈 문자열 content도 제외 (무한 루프 방지)
      *
@@ -729,10 +729,10 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "ORDER BY a.id DESC " +
            "LIMIT :limit",
            nativeQuery = true)
-    List<Long> findArticleIdsWithoutClovaEmbedding(@Param("limit") int limit);
+    List<Long> findArticleIdsWithoutEmbedding(@Param("limit") int limit);
 
     /**
-     * content가 있고 Clova 청크 임베딩이 없는 Article 개수 조회
+     * content가 있고 청크 임베딩이 없는 Article 개수 조회
      * 빈 문자열 content도 제외
      */
     @Query(value = "SELECT COUNT(*) FROM article a " +
@@ -744,10 +744,10 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "    WHERE cac.article_id = a.id AND cac.embedding_binary IS NOT NULL" +
            ")",
            nativeQuery = true)
-    long countArticlesWithoutClovaEmbedding();
+    long countArticlesWithoutEmbedding();
 
     /**
-     * content가 있고 Clova 청크 임베딩이 없는 Article ID 조회 (페이징)
+     * content가 있고 청크 임베딩이 없는 Article ID 조회 (페이징)
      * 빈 문자열 content도 제외 (무한 루프 방지)
      *
      * @param offset 시작 위치
@@ -765,7 +765,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "ORDER BY a.id DESC " +
            "OFFSET :offset LIMIT :limit",
            nativeQuery = true)
-    List<Long> findArticleIdsWithoutClovaEmbeddingPaged(@Param("offset") int offset, @Param("limit") int limit);
+    List<Long> findArticleIdsWithoutEmbeddingPaged(@Param("offset") int offset, @Param("limit") int limit);
 
     // ===== Medium Content 백필 관련 쿼리 =====
 

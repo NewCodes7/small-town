@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.service;
+package com.newcodes7.small_town.search.service;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -19,10 +19,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.newcodes7.small_town.article.dto.ArticleSearchResultDto;
+import com.newcodes7.small_town.search.dto.ArticleSearchResultDto;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.CorporationRepository;
-import com.newcodes7.small_town.embedding.service.ClovaSearchService;
+import com.newcodes7.small_town.search.service.VectorSearchService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 
@@ -39,7 +39,7 @@ import static org.mockito.Mockito.*;
 public class ArticleSearchIntegrationTest {
 
     @Autowired
-    private ArticleService articleService;
+    private ArticleSearchService articleSearchService;
 
     @Autowired
     private ArticleRepository articleRepository;
@@ -49,7 +49,7 @@ public class ArticleSearchIntegrationTest {
     private CorporationRepository corporationRepository;
 
     @MockBean
-    private ClovaSearchService clovaSearchService;
+    private VectorSearchService vectorSearchService;
 
     private Corporation testCorporation;
     private List<Article> testArticles;
@@ -131,15 +131,15 @@ public class ArticleSearchIntegrationTest {
         // Mock Vector search result
         Map<Long, Double> vectorScores = new HashMap<>();
         vectorScores.put(testArticles.get(0).getId(), 0.95); // Spring Boot article
-        ClovaSearchService.VectorSearchResult vectorResult = 
-                new ClovaSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(clovaSearchService.searchByKeywordWithEmbedding(keyword))
+        VectorSearchService.VectorSearchResult vectorResult = 
+                new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
+        when(vectorSearchService.searchByKeywordWithEmbedding(keyword))
                 .thenReturn(vectorResult);
-        when(clovaSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
+        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
                 .thenReturn(new HashMap<>());
 
         // when
-        Page<ArticleSearchResultDto> result = articleService.searchArticlesHybrid(
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
                 keyword, null, null, 0, 10, "latest", "127.0.0.1", null
         );
 
@@ -157,7 +157,7 @@ public class ArticleSearchIntegrationTest {
         String keyword = "Docker";
 
         // when - 따옴표 검색은 ILIKE 기반이므로 Vector mock 불필요
-        Page<ArticleSearchResultDto> result = articleService.searchArticlesExactMatch(
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesExactMatch(
                 keyword, null, null, 0, 10, "latest", "127.0.0.1", null
         );
 
@@ -176,15 +176,15 @@ public class ArticleSearchIntegrationTest {
         Map<Long, Double> vectorScores = new HashMap<>();
         vectorScores.put(testArticles.get(0).getId(), 0.90); // Spring Boot
         vectorScores.put(testArticles.get(1).getId(), 0.85); // Java
-        ClovaSearchService.VectorSearchResult vectorResult = 
-                new ClovaSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(clovaSearchService.searchByKeywordWithEmbedding(keyword))
+        VectorSearchService.VectorSearchResult vectorResult = 
+                new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
+        when(vectorSearchService.searchByKeywordWithEmbedding(keyword))
                 .thenReturn(vectorResult);
-        when(clovaSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
+        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
                 .thenReturn(new HashMap<>());
 
         // when
-        Page<ArticleSearchResultDto> result = articleService.searchArticlesHybrid(
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
                 keyword, null, null, 0, 10, "latest", "127.0.0.1", null
         );
 
@@ -203,15 +203,15 @@ public class ArticleSearchIntegrationTest {
         // Mock Vector search
         Map<Long, Double> vectorScores = new HashMap<>();
         vectorScores.put(testArticles.get(1).getId(), 0.90);
-        ClovaSearchService.VectorSearchResult vectorResult = 
-                new ClovaSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(clovaSearchService.searchByKeywordWithEmbedding(keyword))
+        VectorSearchService.VectorSearchResult vectorResult = 
+                new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
+        when(vectorSearchService.searchByKeywordWithEmbedding(keyword))
                 .thenReturn(vectorResult);
-        when(clovaSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
+        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
                 .thenReturn(new HashMap<>());
 
         // when
-        Page<ArticleSearchResultDto> result = articleService.searchArticlesHybrid(
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
                 keyword, regions, null, 0, 10, "latest", "127.0.0.1", null
         );
 
@@ -231,15 +231,15 @@ public class ArticleSearchIntegrationTest {
         for (Article article : testArticles) {
             vectorScores.put(article.getId(), 0.80 + (Math.random() * 0.2));
         }
-        ClovaSearchService.VectorSearchResult vectorResult = 
-                new ClovaSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(clovaSearchService.searchByKeywordWithEmbedding(keyword))
+        VectorSearchService.VectorSearchResult vectorResult = 
+                new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
+        when(vectorSearchService.searchByKeywordWithEmbedding(keyword))
                 .thenReturn(vectorResult);
-        when(clovaSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
+        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
                 .thenReturn(new HashMap<>());
 
         // when - First page
-        Page<ArticleSearchResultDto> page1 = articleService.searchArticlesHybrid(
+        Page<ArticleSearchResultDto> page1 = articleSearchService.searchArticlesHybrid(
                 keyword, null, null, 0, 2, "latest", "127.0.0.1", null
         );
 
@@ -250,7 +250,7 @@ public class ArticleSearchIntegrationTest {
         
         if (page1.getTotalElements() > 2) {
             // when - Second page
-            Page<ArticleSearchResultDto> page2 = articleService.searchArticlesHybrid(
+            Page<ArticleSearchResultDto> page2 = articleSearchService.searchArticlesHybrid(
                     keyword, null, null, 1, 2, "latest", "127.0.0.1", null
             );
 
@@ -267,11 +267,11 @@ public class ArticleSearchIntegrationTest {
         String keyword = "Kubernetes";
 
         // Mock Vector search failure
-        when(clovaSearchService.searchByKeywordWithEmbedding(keyword))
+        when(vectorSearchService.searchByKeywordWithEmbedding(keyword))
                 .thenThrow(new RuntimeException("Vector API failed"));
 
         // when - BM25만으로 검색 (H2 테스트에서는 BM25도 미지원이므로 빈 결과 가능)
-        Page<ArticleSearchResultDto> result = articleService.searchArticlesHybrid(
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
                 keyword, null, null, 0, 10, "latest", "127.0.0.1", null
         );
 
@@ -287,13 +287,13 @@ public class ArticleSearchIntegrationTest {
         
         // Mock Vector search
         Map<Long, Double> vectorScores = new HashMap<>();
-        ClovaSearchService.VectorSearchResult vectorResult = 
-                new ClovaSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(clovaSearchService.searchByKeywordWithEmbedding(keyword))
+        VectorSearchService.VectorSearchResult vectorResult = 
+                new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
+        when(vectorSearchService.searchByKeywordWithEmbedding(keyword))
                 .thenReturn(vectorResult);
 
         // when
-        Page<ArticleSearchResultDto> result = articleService.searchArticlesHybrid(
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
                 keyword, null, null, 0, 10, "latest", "127.0.0.1", null
         );
 
@@ -311,15 +311,15 @@ public class ArticleSearchIntegrationTest {
         Map<Long, Double> vectorScores = new HashMap<>();
         vectorScores.put(testArticles.get(3).getId(), 0.85); // Docker
         vectorScores.put(testArticles.get(4).getId(), 0.80); // Kubernetes
-        ClovaSearchService.VectorSearchResult vectorResult = 
-                new ClovaSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(clovaSearchService.searchByKeywordWithEmbedding(keyword))
+        VectorSearchService.VectorSearchResult vectorResult = 
+                new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
+        when(vectorSearchService.searchByKeywordWithEmbedding(keyword))
                 .thenReturn(vectorResult);
-        when(clovaSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
+        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
                 .thenReturn(new HashMap<>());
 
         // when
-        Page<ArticleSearchResultDto> result = articleService.searchArticlesHybrid(
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
                 keyword, null, null, 0, 10, "popular", "127.0.0.1", null
         );
 
@@ -337,15 +337,15 @@ public class ArticleSearchIntegrationTest {
         // Mock Vector search
         Map<Long, Double> vectorScores = new HashMap<>();
         vectorScores.put(testArticles.get(1).getId(), 0.85);
-        ClovaSearchService.VectorSearchResult vectorResult = 
-                new ClovaSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(clovaSearchService.searchByKeywordWithEmbedding(keyword))
+        VectorSearchService.VectorSearchResult vectorResult = 
+                new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
+        when(vectorSearchService.searchByKeywordWithEmbedding(keyword))
                 .thenReturn(vectorResult);
-        when(clovaSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
+        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
                 .thenReturn(new HashMap<>());
 
         // when
-        Page<ArticleSearchResultDto> result = articleService.searchArticlesHybrid(
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
                 keyword, null, null, 0, 10, "latest", "127.0.0.1", null
         );
 
@@ -363,15 +363,15 @@ public class ArticleSearchIntegrationTest {
         // Mock Vector search with different scores
         Map<Long, Double> vectorScores = new HashMap<>();
         vectorScores.put(testArticles.get(1).getId(), 0.95); // Java article - high vector score
-        ClovaSearchService.VectorSearchResult vectorResult = 
-                new ClovaSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(clovaSearchService.searchByKeywordWithEmbedding(keyword))
+        VectorSearchService.VectorSearchResult vectorResult = 
+                new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
+        when(vectorSearchService.searchByKeywordWithEmbedding(keyword))
                 .thenReturn(vectorResult);
-        when(clovaSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
+        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
                 .thenReturn(new HashMap<>());
 
         // when
-        Page<ArticleSearchResultDto> result = articleService.searchArticlesHybrid(
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
                 keyword, null, null, 0, 10, "relevance", "127.0.0.1", null
         );
 
@@ -394,16 +394,16 @@ public class ArticleSearchIntegrationTest {
         for (Article article : testArticles) {
             vectorScores.put(article.getId(), 0.75 + (Math.random() * 0.2));
         }
-        ClovaSearchService.VectorSearchResult vectorResult = 
-                new ClovaSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(clovaSearchService.searchByKeywordWithEmbedding(keyword))
+        VectorSearchService.VectorSearchResult vectorResult = 
+                new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
+        when(vectorSearchService.searchByKeywordWithEmbedding(keyword))
                 .thenReturn(vectorResult);
-        when(clovaSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
+        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
                 .thenReturn(new HashMap<>());
 
         // when
         long startTime = System.currentTimeMillis();
-        Page<ArticleSearchResultDto> result = articleService.searchArticlesHybrid(
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
                 keyword, null, null, 0, 10, "latest", "127.0.0.1", null
         );
         long endTime = System.currentTimeMillis();

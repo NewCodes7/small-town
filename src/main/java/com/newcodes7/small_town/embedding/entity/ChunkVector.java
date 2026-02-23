@@ -24,7 +24,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class ClovaChunkVector {
+public class ChunkVector {
 
     @Id
     private Long id;
@@ -32,7 +32,7 @@ public class ClovaChunkVector {
     @OneToOne(fetch = FetchType.LAZY)
     @MapsId
     @JoinColumn(name = "id")
-    private ClovaArticleChunk chunk;
+    private ArticleChunk chunk;
 
     @Type(HalfVectorType.class)
     @Column(name = "embedding_normalized", columnDefinition = "halfvec(1024)")

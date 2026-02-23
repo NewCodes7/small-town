@@ -12,10 +12,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -37,19 +33,15 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.dto.ArticleResponseDto;
 import com.newcodes7.small_town.article.dto.CorporationDetailDto;
-import com.newcodes7.small_town.article.dto.TermAutocompleteDto;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.ArticleTermRepository;
-import com.newcodes7.small_town.article.repository.TermAutocompleteRepository;
-import com.newcodes7.small_town.corporation.repository.CorporationAutocompleteRepository;
-import com.newcodes7.small_town.corporation.dto.CorporationAutocompleteDto;
-import com.newcodes7.small_town.theme.repository.ThemeAutocompleteRepository;
-import com.newcodes7.small_town.theme.dto.ThemeAutocompleteDto;
 import com.newcodes7.small_town.article.service.ArticleService;
 import com.newcodes7.small_town.article.service.LikeService;
-import com.newcodes7.small_town.article.service.SemanticTermExpansionService;
 import com.newcodes7.small_town.article.service.UserLikeService;
 import com.newcodes7.small_town.article.service.ViewService;
+import com.newcodes7.small_town.search.service.ArticleSearchService;
+import com.newcodes7.small_town.search.service.AutocompleteService;
+import com.newcodes7.small_town.search.service.SemanticTermExpansionService;
 import com.newcodes7.small_town.auth.entity.User;
 import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
 import com.newcodes7.small_town.corporation.service.CorporationService;
@@ -61,10 +53,9 @@ import com.newcodes7.small_town.global.entity.Category;
 import com.newcodes7.small_town.crawler.repository.CategoryRepository;
 import com.newcodes7.small_town.video.repository.VideoRepository;
 import com.newcodes7.small_town.global.util.Client;
-import com.newcodes7.small_town.global.util.KoreanCharacterUtil;
-import com.newcodes7.small_town.global.entity.SearchLog;
-import com.newcodes7.small_town.global.service.SearchLogService;
-import com.newcodes7.small_town.global.repository.SearchLogRepository;
+import com.newcodes7.small_town.search.entity.SearchLog;
+import com.newcodes7.small_town.search.service.SearchLogService;
+import com.newcodes7.small_town.search.repository.SearchLogRepository;
 import com.newcodes7.small_town.theme.entity.Theme;
 import com.newcodes7.small_town.theme.repository.ThemeRepository;
 import com.newcodes7.small_town.embedding.service.RelatedArticleService;
@@ -85,8 +76,8 @@ import java.util.stream.Collectors;
 public class ArticleController {
 
     private final ArticleService articleService;
-    @Qualifier("autocompleteExecutor")
-    private final ExecutorService autocompleteExecutor;
+    private final ArticleSearchService articleSearchService;
+    private final AutocompleteService autocompleteService;
     private final LikeService likeService;
     private final UserLikeService userLikeService;
     private final ViewService viewService;
@@ -95,7 +86,6 @@ public class ArticleController {
     private final VideoRepository videoRepository;
     private final IndustryRepository industryRepository;
     private final ArticleTermRepository articleTermRepository;
-    private final TermAutocompleteRepository termAutocompleteRepository;
     private final SearchLogService searchLogService;
     private final SearchLogRepository searchLogRepository;
     private final ArticleRepository articleRepository;
@@ -106,8 +96,6 @@ public class ArticleController {
     private final com.newcodes7.small_town.video.service.VideoService videoService;
     private final com.newcodes7.small_town.theme.service.ThemeService themeService;
     private final ThemeRepository themeRepository;
-    private final CorporationAutocompleteRepository corporationAutocompleteRepository;
-    private final ThemeAutocompleteRepository themeAutocompleteRepository;
     private final RelatedArticleService relatedArticleService;
 
     @GetMapping("/articles")
@@ -173,7 +161,7 @@ public class ArticleController {
             // 따옴표 검색 감지: "키워드" 형식
             if (trimmedKeyword.startsWith("\"") && trimmedKeyword.endsWith("\"") && trimmedKeyword.length() > 2) {
                 String exactKeyword = trimmedKeyword.substring(1, trimmedKeyword.length() - 1).toLowerCase();
-                articles = articleService.searchArticlesExactMatch(
+                articles = articleSearchService.searchArticlesExactMatch(
                     exactKeyword,
                     regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
                     category == null || category.isEmpty() ? null : category.stream().sorted().toList(),
@@ -202,7 +190,7 @@ public class ArticleController {
                     }
                 }
 
-                articles = articleService.searchArticlesHybrid(
+                articles = articleSearchService.searchArticlesHybrid(
                     trimmedKeyword.toLowerCase(),
                     expandedTerms,
                     regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
@@ -739,116 +727,7 @@ public class ArticleController {
     @ResponseBody
     public ResponseEntity<List<Object>> getAutocompleteSuggestions(
             @RequestParam(name = "q", required = false) String query) {
-
-        long startTime = System.currentTimeMillis();
-        List<Object> suggestions = new ArrayList<>();
-
-        if (query == null || query.trim().isEmpty() || query.trim().length() < 1) {
-            return ResponseEntity.ok(suggestions);
-        }
-
-        String trimmedQuery = query.trim().toLowerCase();
-
-        // 검색어를 자모 분해 (예: "프로제" → "ㅍㅡㄹㅗㅈㅔ", "톳" → "ㅌㅗㅅ")
-        String decomposedQuery = KoreanCharacterUtil.decomposeHangul(trimmedQuery);
-        long prepTime = System.currentTimeMillis();
-        log.debug("[자동완성] 준비 시간: {}ms", prepTime - startTime);
-
-        // ===== 병렬 검색 (CompletableFuture 사용) =====
-        long parallelStartTime = System.currentTimeMillis();
-
-        // 검색 패턴 준비 (JdbcTemplate용)
-        String query1Param = trimmedQuery + "%";
-        String query2Param = decomposedQuery + "%";
-
-        // 1. Corporation 검색 (비동기, JdbcTemplate) - JPA 우회로 10배 이상 빠름
-        CompletableFuture<List<Object>> corporationFuture = CompletableFuture.supplyAsync(() -> {
-            long corpStartTime = System.currentTimeMillis();
-            List<Object> corpResults = new ArrayList<>();
-
-            // JdbcTemplate 기반 초고속 검색
-            List<CorporationAutocompleteDto> corporations = corporationAutocompleteRepository
-                .findAutocompleteCorporationsWithTwoPatterns(query1Param, query2Param, 2);
-
-            for (CorporationAutocompleteDto corp : corporations) {
-                String displayName = corp.getDisplayName(decomposedQuery);
-                // [0, name, id, logoUrl] - 명시적 배열 사용
-                corpResults.add(new Object[]{0, displayName, corp.getId(), corp.getEffectiveLogoUrl()});
-            }
-
-            long corpTime = System.currentTimeMillis() - corpStartTime;
-            log.debug("[자동완성] Corporation 검색 (JDBC): {}ms", corpTime);
-            return corpResults;
-        }, autocompleteExecutor).exceptionally(ex -> {
-            log.error("[자동완성] Corporation 검색 실패", ex);
-            return new ArrayList<>();
-        });
-
-        // 2. Theme 검색 (비동기, JdbcTemplate) - JPA 우회로 10배 이상 빠름
-        CompletableFuture<List<Object>> themeFuture = CompletableFuture.supplyAsync(() -> {
-            long themeStartTime = System.currentTimeMillis();
-            List<Object> themeResults = new ArrayList<>();
-
-            // JdbcTemplate 기반 초고속 검색 (단순 버전 사용)
-            List<ThemeAutocompleteDto> themes = themeAutocompleteRepository
-                .findAutocompleteThemesSimple(query1Param, query2Param, 2);
-
-            for (ThemeAutocompleteDto theme : themes) {
-                // [1, id, name] - 명시적 배열 사용
-                themeResults.add(new Object[]{1, theme.getId(), theme.getName()});
-            }
-
-            long themeTime = System.currentTimeMillis() - themeStartTime;
-            log.debug("[자동완성] Theme 검색 (JDBC): {}ms", themeTime);
-            return themeResults;
-        }, autocompleteExecutor).exceptionally(ex -> {
-            log.error("[자동완성] Theme 검색 실패", ex);
-            return new ArrayList<>();
-        });
-
-        // 3. Term 검색 (비동기, Covering Index 최적화) - 전용 executor 사용으로 cold start 방지
-        CompletableFuture<List<Object>> termFuture = CompletableFuture.supplyAsync(() -> {
-            long termStartTime = System.currentTimeMillis();
-            List<Object> termResults = new ArrayList<>();
-
-            // 한글 검색 패턴 생성 (예: "프롲" → ["프롲", "프로ㅈ"])
-            List<String> searchPatterns = KoreanCharacterUtil.generateSearchPatterns(trimmedQuery);
-            
-            // Term 검색 (최대 4개)
-            String termQuery = decomposedQuery.toLowerCase() + "%";
-            List<TermAutocompleteDto> termDtos = termAutocompleteRepository.findAutocompleteTerms(
-                termQuery, 4);
-
-            for (TermAutocompleteDto termDto : termDtos) {
-                // Just the term string
-                termResults.add(termDto.getTerm());
-            }
-
-            long termTime = System.currentTimeMillis() - termStartTime;
-            log.debug("[자동완성] Term 검색: {}ms", termTime);
-            return termResults;
-        }, autocompleteExecutor).exceptionally(ex -> {
-            log.error("[자동완성] Term 검색 실패", ex);
-            return new ArrayList<>();
-        });
-
-        // 모든 비동기 작업 완료 대기 및 결과 합치기
-        CompletableFuture.allOf(corporationFuture, themeFuture, termFuture).join();
-
-        // 순서대로 결과 추가 (Corporation → Theme → Term)
-        suggestions.addAll(corporationFuture.join());
-        suggestions.addAll(themeFuture.join());
-        suggestions.addAll(termFuture.join());
-
-        long parallelTime = System.currentTimeMillis() - parallelStartTime;
-        long totalTime = System.currentTimeMillis() - startTime;
-        log.info("[자동완성] 총 실행 시간: {}ms (준비: {}ms, 병렬검색: {}ms) - 검색어: '{}'",
-                totalTime,
-                prepTime - startTime,
-                parallelTime,
-                query);
-
-        return ResponseEntity.ok(suggestions);
+        return ResponseEntity.ok(autocompleteService.getAutocompleteSuggestions(query));
     }
 
     /**
@@ -1075,7 +954,7 @@ public class ArticleController {
         if (keyword != null && !keyword.trim().isEmpty()) {
             // Hybrid 검색 사용 (BM25 + ILIKE + Binary Boost)
             String clientIp = com.newcodes7.small_town.global.util.Client.getClientIpAddress(request);
-            articles = articleService.searchArticlesHybrid(
+            articles = articleSearchService.searchArticlesHybrid(
                 keyword.trim().toLowerCase(),
                 null,  // regions
                 null,  // category
@@ -1126,7 +1005,7 @@ public class ArticleController {
         String clientIp = com.newcodes7.small_town.global.util.Client.getClientIpAddress(httpRequest);
         String username = userDetails != null ? userDetails.getUsername() : null;
 
-        Map<Long, Boolean> likeStatusMap = articleService.getLikeStatusMap(articleIds, username, clientIp);
+        Map<Long, Boolean> likeStatusMap = articleSearchService.getLikeStatusMap(articleIds, username, clientIp);
 
         return ResponseEntity.ok(Map.of("likeStatus", likeStatusMap));
     }

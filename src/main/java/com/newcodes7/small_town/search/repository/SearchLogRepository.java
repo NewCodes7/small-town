@@ -1,7 +1,7 @@
-package com.newcodes7.small_town.global.repository;
+package com.newcodes7.small_town.search.repository;
 
 import com.newcodes7.small_town.auth.entity.User;
-import com.newcodes7.small_town.global.entity.SearchLog;
+import com.newcodes7.small_town.search.entity.SearchLog;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

@@ -35,7 +35,7 @@ import lombok.NoArgsConstructor;
         @Index(name = "idx_clova_embedding_failure_article_id", columnList = "article_id")
     }
 )
-public class ClovaEmbeddingFailure {
+public class EmbeddingFailure {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

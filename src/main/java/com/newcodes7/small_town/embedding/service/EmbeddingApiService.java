@@ -30,9 +30,9 @@ import java.util.Map;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class NaverClovaEmbeddingService implements EmbeddingService {
+public class EmbeddingApiService implements EmbeddingService {
 
-    @Value("${clova.api-key}")
+    @Value("${embedding.api-key}")
     private String apiKey;
 
     private static final String EMBEDDING_API_URL = "https://clovastudio.stream.ntruss.com/v1/api-tools/embedding/v2";
@@ -89,7 +89,7 @@ public class NaverClovaEmbeddingService implements EmbeddingService {
             JsonNode embeddingNode = result.get("embedding");
 
             if (embeddingNode == null) {
-                throw new RuntimeException("Clova API 응답에 embedding이 없습니다: " + response.getBody());
+                throw new RuntimeException("Embedding API 응답에 embedding이 없습니다: " + response.getBody());
             }
 
             float[] embeddingVector = parseEmbeddingVector(embeddingNode);
@@ -97,7 +97,7 @@ public class NaverClovaEmbeddingService implements EmbeddingService {
             // 비용 계산
             double cost = calculateCost(tokenUsage);
 
-            log.info("Clova embedding 생성 완료: {} tokens, {}ms, ${}",
+            log.info("임베딩 생성 완료: {} tokens, {}ms, ${}",
                      tokenUsage, responseTime, String.format("%.6f", cost));
 
             return ModelEmbeddingResult.builder()
@@ -113,7 +113,7 @@ public class NaverClovaEmbeddingService implements EmbeddingService {
 
         } catch (Exception e) {
             long responseTime = System.currentTimeMillis() - startTime;
-            log.error("Clova embedding 생성 실패: {}", e.getMessage(), e);
+            log.error("임베딩 생성 실패: {}", e.getMessage(), e);
 
             return ModelEmbeddingResult.builder()
                     .modelName(getModelName())
@@ -230,14 +230,14 @@ public class NaverClovaEmbeddingService implements EmbeddingService {
             JsonNode resultNode = rootNode.get("result");
 
             if (resultNode == null) {
-                throw new RuntimeException("Clova Segmentation API 응답에 result가 없습니다: " + response.getBody());
+                throw new RuntimeException("Segmentation API 응답에 result가 없습니다: " + response.getBody());
             }
 
             JsonNode topicSegNode = resultNode.get("topicSeg");
             JsonNode inputTokensNode = resultNode.get("inputTokens");
 
             if (topicSegNode == null || !topicSegNode.isArray()) {
-                throw new RuntimeException("Clova Segmentation API 응답에 topicSeg가 없거나 배열이 아닙니다");
+                throw new RuntimeException("Segmentation API 응답에 topicSeg가 없거나 배열이 아닙니다");
             }
 
             // topicSeg를 평탄화: Array<Array<String>> -> List<String>
@@ -257,14 +257,14 @@ public class NaverClovaEmbeddingService implements EmbeddingService {
 
             int inputTokens = inputTokensNode != null ? inputTokensNode.asInt() : 0;
 
-            log.info("Clova segmentation 완료: {}개 문단, {} tokens, {}ms",
+            log.info("Segmentation 완료: {}개 문단, {} tokens, {}ms",
                      segments.size(), inputTokens, responseTime);
 
             return new SegmentationResult(true, segments, inputTokens, responseTime, null);
 
         } catch (Exception e) {
             long responseTime = System.currentTimeMillis() - startTime;
-            log.error("Clova segmentation 실패: {}", e.getMessage(), e);
+            log.error("Segmentation 실패: {}", e.getMessage(), e);
 
             return new SegmentationResult(false, List.of(), 0, responseTime, e.getMessage());
         }

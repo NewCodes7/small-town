@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.global.entity;
+package com.newcodes7.small_town.search.entity;
 
 import com.newcodes7.small_town.auth.entity.User;
 import jakarta.persistence.*;

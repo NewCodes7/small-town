@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.global.config;
+package com.newcodes7.small_town.search.config;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;

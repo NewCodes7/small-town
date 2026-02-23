@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.embedding.controller;
+package com.newcodes7.small_town.admin.controller;
 
 import java.util.HashMap;
 import java.util.List;
@@ -16,55 +16,55 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.embedding.repository.ClovaArticleChunkRepository;
-import com.newcodes7.small_town.embedding.service.ClovaEmbeddingBatchService;
+import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
+import com.newcodes7.small_town.embedding.service.ChunkEmbeddingBatchService;
 import com.newcodes7.small_town.global.entity.Article;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Naver Clova Embedding 관리 Admin API
+ * 임베딩 관리 Admin API
  *
  * - 배치 임베딩 생성
  * - 단일 Article 임베딩 생성
  * - 임베딩 통계 조회
  */
 @Controller
-@RequestMapping("/admin/clova")
+@RequestMapping("/admin/embedding")
 @RequiredArgsConstructor
 @Slf4j
-public class AdminClovaEmbeddingController {
+public class AdminChunkEmbeddingController {
 
     private final ArticleRepository articleRepository;
-    private final ClovaArticleChunkRepository clovaChunkRepository;
-    private final ClovaEmbeddingBatchService clovaEmbeddingBatchService;
+    private final ArticleChunkRepository chunkRepository;
+    private final ChunkEmbeddingBatchService chunkEmbeddingBatchService;
 
     /**
-     * 모든 Article에 대해 Clova 임베딩 연속 생성 (10개씩 트랜잭션 분리)
+     * 모든 Article에 대해 임베딩 연속 생성 (10개씩 트랜잭션 분리)
      *
-     * content가 있고 Clova 임베딩이 없는 모든 Article을 처리
+     * content가 있고 임베딩이 없는 모든 Article을 처리
      * 10개씩 배치로 나눠서 각각 별도 트랜잭션으로 처리 (중간 실패 시에도 이전 배치는 저장됨)
      *
-     * Example: POST /admin/clova/articles/generate-all-embeddings
+     * Example: POST /admin/embedding/articles/generate-all-embeddings
      */
     @PostMapping("/articles/generate-all-embeddings")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> generateAllClovaEmbeddings() {
+    public ResponseEntity<Map<String, Object>> generateAllEmbeddings() {
         Map<String, Object> response = new HashMap<>();
 
         try {
             // 전체 개수 조회
-            long totalCount = clovaEmbeddingBatchService.countArticlesWithoutClovaEmbedding();
+            long totalCount = chunkEmbeddingBatchService.countArticlesWithoutEmbedding();
 
             if (totalCount == 0) {
                 response.put("success", true);
-                response.put("message", "처리할 Article이 없습니다. 모든 Article에 Clova 임베딩이 생성되었거나 content가 없습니다.");
+                response.put("message", "처리할 Article이 없습니다. 모든 Article에 임베딩이 생성되었거나 content가 없습니다.");
                 response.put("totalArticles", 0);
                 return ResponseEntity.ok(response);
             }
 
-            log.info("전체 Clova 임베딩 생성 시작 - 총 {}개 Article", totalCount);
+            log.info("전체 임베딩 생성 시작 - 총 {}개 Article", totalCount);
 
             int batchSize = 10;
             int offset = 0;
@@ -76,7 +76,7 @@ public class AdminClovaEmbeddingController {
             // 10개씩 배치 처리
             while (true) {
                 // 다음 배치 조회 (매번 새로 조회 - 이전 배치에서 처리된 것은 제외됨)
-                List<Long> articleIds = clovaEmbeddingBatchService.findArticleIdsWithoutClovaEmbedding(0, batchSize);
+                List<Long> articleIds = chunkEmbeddingBatchService.findArticleIdsWithoutEmbedding(0, batchSize);
 
                 if (articleIds.isEmpty()) {
                     log.info("더 이상 처리할 Article이 없습니다");
@@ -90,7 +90,7 @@ public class AdminClovaEmbeddingController {
                         articleIds.get(0));
 
                 // 10개씩 별도 트랜잭션으로 처리
-                Map<String, Object> batchResult = clovaEmbeddingBatchService.processEmbeddingBatch(articleIds);
+                Map<String, Object> batchResult = chunkEmbeddingBatchService.processEmbeddingBatch(articleIds);
 
                 int successCount = (int) batchResult.get("successCount");
                 int failureCount = (int) batchResult.get("failureCount");
@@ -118,17 +118,17 @@ public class AdminClovaEmbeddingController {
             response.put("failureArticles", totalFailure);
             response.put("totalChunksGenerated", totalChunks);
             response.put("message", String.format(
-                    "전체 Clova 임베딩 생성 완료: %d개 배치, 성공 %d/%d Articles, %d 청크",
+                    "전체 임베딩 생성 완료: %d개 배치, 성공 %d/%d Articles, %d 청크",
                     batchNumber, totalSuccess, totalSuccess + totalFailure, totalChunks
             ));
 
-            log.info("전체 Clova 임베딩 생성 완료 - 배치: {}, 성공: {}/{}, 청크: {}",
+            log.info("전체 임베딩 생성 완료 - 배치: {}, 성공: {}/{}, 청크: {}",
                     batchNumber, totalSuccess, totalSuccess + totalFailure, totalChunks);
 
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            log.error("전체 Clova 임베딩 생성 중 오류 발생", e);
+            log.error("전체 임베딩 생성 중 오류 발생", e);
             response.put("success", false);
             response.put("message", "전체 처리 중 오류 발생: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
@@ -136,18 +136,18 @@ public class AdminClovaEmbeddingController {
     }
 
     /**
-     * Clova 청크 임베딩 배치 생성
+     * 청크 임베딩 배치 생성
      *
-     * content가 있고 Clova 임베딩이 없는 Article을 ID 내림차순으로 처리
+     * content가 있고 임베딩이 없는 Article을 ID 내림차순으로 처리
      *
      * Query Parameters:
      * - count: 처리할 Article 수 (기본값: 10, 최대: 100)
      *
-     * Example: POST /admin/clova/articles/generate-embeddings-batch?count=20
+     * Example: POST /admin/embedding/articles/generate-embeddings-batch?count=20
      */
     @GetMapping("/articles/generate-embeddings-batch")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> generateClovaEmbeddingsBatch(
+    public ResponseEntity<Map<String, Object>> generateEmbeddingsBatch(
             @RequestParam(defaultValue = "10") int count) {
 
         Map<String, Object> response = new HashMap<>();
@@ -156,40 +156,40 @@ public class AdminClovaEmbeddingController {
             // 최대 100개로 제한
             int limitedCount = Math.min(count, 100);
 
-            log.info("Clova 배치 임베딩 생성 요청 - count: {}", limitedCount);
+            log.info("배치 임베딩 생성 요청 - count: {}", limitedCount);
 
             // 1. 임베딩이 없는 Article 조회 (ID 내림차순, content 있음)
-            List<Article> articles = clovaEmbeddingBatchService.findArticlesWithoutClovaEmbedding(limitedCount);
+            List<Article> articles = chunkEmbeddingBatchService.findArticlesWithoutEmbedding(limitedCount);
 
             if (articles.isEmpty()) {
                 response.put("success", true);
-                response.put("message", "처리할 Article이 없습니다. 모든 Article에 Clova 임베딩이 생성되었거나 content가 없습니다.");
+                response.put("message", "처리할 Article이 없습니다. 모든 Article에 임베딩이 생성되었거나 content가 없습니다.");
                 response.put("totalArticles", 0);
                 return ResponseEntity.ok(response);
             }
 
-            log.info("{}개 Article Clova 임베딩 생성 시작", articles.size());
+            log.info("{}개 Article 임베딩 생성 시작", articles.size());
 
             // 2. 배치 임베딩 생성
-            Map<String, Object> batchResult = clovaEmbeddingBatchService.generateClovaChunkEmbeddingsBatch(articles);
+            Map<String, Object> batchResult = chunkEmbeddingBatchService.generateChunkEmbeddingsBatch(articles);
 
             response.put("success", true);
             response.putAll(batchResult);
             response.put("message", String.format(
-                    "Clova 임베딩 생성 완료: %d/%d Articles, %d 청크",
+                    "임베딩 생성 완료: %d/%d Articles, %d 청크",
                     batchResult.get("successArticles"),
                     batchResult.get("totalArticles"),
                     batchResult.get("totalChunksGenerated")
             ));
 
-            log.info("Clova 배치 임베딩 생성 완료 - 성공: {}/{}",
+            log.info("배치 임베딩 생성 완료 - 성공: {}/{}",
                     batchResult.get("successArticles"),
                     batchResult.get("totalArticles"));
 
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            log.error("Clova 배치 임베딩 생성 중 오류 발생", e);
+            log.error("배치 임베딩 생성 중 오류 발생", e);
             response.put("success", false);
             response.put("message", "배치 처리 중 오류 발생: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
@@ -197,17 +197,17 @@ public class AdminClovaEmbeddingController {
     }
 
     /**
-     * 단일 Article의 Clova 청크 임베딩 생성
+     * 단일 Article의 청크 임베딩 생성
      *
-     * Example: POST /admin/clova/articles/123/generate-embeddings
+     * Example: POST /admin/embedding/articles/123/generate-embeddings
      */
     @PostMapping("/articles/{id}/generate-embeddings")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> generateClovaEmbeddingsForArticle(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> generateEmbeddingsForArticle(@PathVariable Long id) {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            log.info("Article {} Clova 임베딩 생성 요청", id);
+            log.info("Article {} 임베딩 생성 요청", id);
 
             Optional<Article> articleOpt = articleRepository.findById(id);
             if (articleOpt.isEmpty()) {
@@ -225,25 +225,25 @@ public class AdminClovaEmbeddingController {
             }
 
             // 임베딩 생성
-            int chunksGenerated = clovaEmbeddingBatchService.generateClovaChunkEmbeddingsForArticle(article);
+            int chunksGenerated = chunkEmbeddingBatchService.generateChunkEmbeddingsForArticle(article);
 
             if (chunksGenerated > 0) {
                 response.put("success", true);
                 response.put("articleId", id);
                 response.put("title", article.getTitle());
                 response.put("chunksGenerated", chunksGenerated);
-                response.put("message", chunksGenerated + "개 청크 Clova 임베딩 생성 완료");
+                response.put("message", chunksGenerated + "개 청크 임베딩 생성 완료");
 
-                log.info("Article {} - {}개 청크 Clova 임베딩 생성 완료", id, chunksGenerated);
+                log.info("Article {} - {}개 청크 임베딩 생성 완료", id, chunksGenerated);
             } else {
                 response.put("success", false);
-                response.put("message", "Clova 임베딩 생성에 실패했습니다. Segmentation 또는 Embedding API 오류");
+                response.put("message", "임베딩 생성에 실패했습니다. Segmentation 또는 Embedding API 오류");
             }
 
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            log.error("Article {} Clova 임베딩 생성 실패", id, e);
+            log.error("Article {} 임베딩 생성 실패", id, e);
             response.put("success", false);
             response.put("message", "임베딩 생성 중 오류 발생: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
@@ -251,17 +251,17 @@ public class AdminClovaEmbeddingController {
     }
 
     /**
-     * Clova 임베딩 통계 조회
+     * 임베딩 통계 조회
      *
-     * Example: GET /admin/clova/embedding-stats
+     * Example: GET /admin/embedding/embedding-stats
      */
     @GetMapping("/embedding-stats")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> getClovaEmbeddingStats() {
+    public ResponseEntity<Map<String, Object>> getEmbeddingStats() {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            Map<String, Object> stats = clovaEmbeddingBatchService.getClovaEmbeddingStats();
+            Map<String, Object> stats = chunkEmbeddingBatchService.getEmbeddingStats();
 
             response.put("success", true);
             response.putAll(stats);
@@ -269,7 +269,7 @@ public class AdminClovaEmbeddingController {
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            log.error("Clova 임베딩 통계 조회 중 오류 발생", e);
+            log.error("임베딩 통계 조회 중 오류 발생", e);
             response.put("success", false);
             response.put("message", "통계 조회 중 오류 발생: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
@@ -287,9 +287,9 @@ public class AdminClovaEmbeddingController {
      * - articleId: 이 ID 미만인 Article만 재분석 (미지정 시 가장 큰 ID부터)
      * - corporationId: 특정 회사의 Article만 재분석
      *
-     * Example: GET /admin/clova/articles/regenerate-embeddings
-     * Example: GET /admin/clova/articles/regenerate-embeddings?articleId=500
-     * Example: GET /admin/clova/articles/regenerate-embeddings?corporationId=3
+     * Example: GET /admin/embedding/articles/regenerate-embeddings
+     * Example: GET /admin/embedding/articles/regenerate-embeddings?articleId=500
+     * Example: GET /admin/embedding/articles/regenerate-embeddings?corporationId=3
      */
     @GetMapping("/articles/regenerate-embeddings")
     @ResponseBody
@@ -307,13 +307,13 @@ public class AdminClovaEmbeddingController {
             List<Long> targetIds;
 
             if (corporationId != null) {
-                targetIds = clovaChunkRepository.findArticleIdsWithEmbeddingByCorporationIdOrderByIdDesc(
+                targetIds = chunkRepository.findArticleIdsWithEmbeddingByCorporationIdOrderByIdDesc(
                         corporationId);
             } else if (articleId != null) {
-                targetIds = clovaChunkRepository.findArticleIdsWithEmbeddingLessThanOrderByIdDesc(
+                targetIds = chunkRepository.findArticleIdsWithEmbeddingLessThanOrderByIdDesc(
                         articleId);
             } else {
-                targetIds = clovaChunkRepository.findArticleIdsWithEmbeddingOrderByIdDesc();
+                targetIds = chunkRepository.findArticleIdsWithEmbeddingOrderByIdDesc();
             }
 
             if (targetIds.isEmpty()) {
@@ -327,7 +327,7 @@ public class AdminClovaEmbeddingController {
                     targetIds.size(), targetIds.get(0), targetIds.get(targetIds.size() - 1));
 
             // 10개씩 배치 분할하여 재분석 (프록시를 통한 호출로 @Transactional 적용)
-            int batchSize = clovaEmbeddingBatchService.getBatchSize();
+            int batchSize = chunkEmbeddingBatchService.getBatchSize();
             int totalSuccess = 0;
             int totalFailure = 0;
             int totalChunks = 0;
@@ -340,7 +340,7 @@ public class AdminClovaEmbeddingController {
                 log.info("재분석 배치 {} 처리 시작 - {}개 Article", batchNumber, batchIds.size());
 
                 try {
-                    Map<String, Object> batchResult = clovaEmbeddingBatchService.processRegenerateBatch(batchIds);
+                    Map<String, Object> batchResult = chunkEmbeddingBatchService.processRegenerateBatch(batchIds);
 
                     int successCount = (int) batchResult.get("successCount");
                     int failureCount = (int) batchResult.get("failureCount");
@@ -387,7 +387,7 @@ public class AdminClovaEmbeddingController {
      * 단건 임베딩 재분석
      * 특정 Article의 기존 임베딩을 삭제하고 재생성
      *
-     * Example: GET /admin/clova/articles/123/regenerate-embeddings
+     * Example: GET /admin/embedding/articles/123/regenerate-embeddings
      */
     @GetMapping("/articles/{id}/regenerate-embeddings")
     @ResponseBody
@@ -413,7 +413,7 @@ public class AdminClovaEmbeddingController {
             }
 
             // 단건 재분석 (기존 chunk 삭제 후 재생성)
-            Map<String, Object> result = clovaEmbeddingBatchService.processRegenerateBatch(List.of(id));
+            Map<String, Object> result = chunkEmbeddingBatchService.processRegenerateBatch(List.of(id));
 
             int successCount = (int) result.get("successCount");
             int totalChunks = (int) result.get("totalChunks");
@@ -440,10 +440,10 @@ public class AdminClovaEmbeddingController {
     }
 
     /**
-     * 특정 Article의 Clova 임베딩 미리보기 (테스트용)
+     * 특정 Article의 임베딩 미리보기 (테스트용)
      * 실제로 저장하지 않고 Segmentation 결과만 반환
      *
-     * Example: GET /admin/clova/articles/123/preview-segmentation
+     * Example: GET /admin/embedding/articles/123/preview-segmentation
      */
     @GetMapping("/articles/{id}/preview-segmentation")
     @ResponseBody
@@ -477,7 +477,7 @@ public class AdminClovaEmbeddingController {
             fullText.append(article.getContent());
 
             // Segmentation만 실행 (임베딩 없이)
-            // 참고: NaverClovaEmbeddingService.segmentDocument() 직접 호출 필요
+            // 참고: EmbeddingApiService.segmentDocument() 직접 호출 필요
             // 여기서는 서비스 의존성을 추가해야 함
 
             response.put("success", true);

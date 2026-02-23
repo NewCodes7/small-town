@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class ClovaChunkContent {
+public class ChunkContent {
 
     @Id
     private Long id;
@@ -28,7 +28,7 @@ public class ClovaChunkContent {
     @OneToOne(fetch = FetchType.LAZY)
     @MapsId
     @JoinColumn(name = "id")
-    private ClovaArticleChunk chunk;
+    private ArticleChunk chunk;
 
     @Column(columnDefinition = "TEXT", nullable = false)
     private String content;

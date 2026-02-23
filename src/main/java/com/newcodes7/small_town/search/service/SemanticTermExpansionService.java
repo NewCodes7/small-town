@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.service;
+package com.newcodes7.small_town.search.service;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -10,6 +10,8 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 import com.newcodes7.small_town.article.repository.TermRepository;
+import com.newcodes7.small_town.article.service.ArticleEmbeddingService;
+import com.newcodes7.small_town.article.service.TermSynonymService;
 import com.newcodes7.small_town.global.entity.Term;
 import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
 

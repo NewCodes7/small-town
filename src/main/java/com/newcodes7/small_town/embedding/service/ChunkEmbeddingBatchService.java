@@ -17,14 +17,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.embedding.dto.ModelEmbeddingResult;
-import com.newcodes7.small_town.embedding.entity.ClovaArticleChunk;
-import com.newcodes7.small_town.embedding.entity.ClovaChunkContent;
-import com.newcodes7.small_town.embedding.entity.ClovaChunkVector;
-import com.newcodes7.small_town.embedding.entity.ClovaEmbeddingFailure;
-import com.newcodes7.small_town.embedding.repository.ClovaArticleChunkRepository;
-import com.newcodes7.small_town.embedding.repository.ClovaChunkContentRepository;
-import com.newcodes7.small_town.embedding.repository.ClovaChunkVectorRepository;
-import com.newcodes7.small_town.embedding.repository.ClovaEmbeddingFailureRepository;
+import com.newcodes7.small_town.embedding.entity.ArticleChunk;
+import com.newcodes7.small_town.embedding.entity.ChunkContent;
+import com.newcodes7.small_town.embedding.entity.ChunkVector;
+import com.newcodes7.small_town.embedding.entity.EmbeddingFailure;
+import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
+import com.newcodes7.small_town.embedding.repository.ChunkContentRepository;
+import com.newcodes7.small_town.embedding.repository.ChunkVectorRepository;
+import com.newcodes7.small_town.embedding.repository.EmbeddingFailureRepository;
 import com.newcodes7.small_town.global.config.BitVectorType;
 import com.newcodes7.small_town.global.entity.Article;
 
@@ -32,23 +32,23 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Naver Clova Embedding 배치 생성 서비스
+ * 임베딩 배치 생성 서비스
  *
  * 1. Article의 content를 고정 크기 청크로 분할 (overlap 포함)
- * 2. 각 청크에 대해 Clova Embedding v2로 임베딩 생성
- * 3. ClovaArticleChunk 테이블에 저장
+ * 2. 각 청크에 대해 Embedding API로 임베딩 생성
+ * 3. ArticleChunk 테이블에 저장
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class ClovaEmbeddingBatchService {
+public class ChunkEmbeddingBatchService {
 
     private final ArticleRepository articleRepository;
-    private final ClovaArticleChunkRepository clovaChunkRepository;
-    private final ClovaChunkVectorRepository clovaChunkVectorRepository;
-    private final ClovaChunkContentRepository clovaChunkContentRepository;
-    private final ClovaEmbeddingFailureRepository clovaEmbeddingFailureRepository;
-    private final NaverClovaEmbeddingService clovaEmbeddingService;
+    private final ArticleChunkRepository chunkRepository;
+    private final ChunkVectorRepository chunkVectorRepository;
+    private final ChunkContentRepository chunkContentRepository;
+    private final EmbeddingFailureRepository embeddingFailureRepository;
+    private final EmbeddingApiService embeddingApiService;
     private final RepresentativeChunkService representativeChunkService;
 
     // API rate limit 대응을 위한 딜레이 (500ms)
@@ -74,16 +74,16 @@ public class ClovaEmbeddingBatchService {
     private static final Encoding ENCODING = REGISTRY.getEncoding(EncodingType.CL100K_BASE);
 
     /**
-     * Clova 청크 임베딩이 없는 Article 조회
-     * content가 있고, ClovaArticleChunk가 없는 Article을 ID 내림차순으로 조회
+     * 청크 임베딩이 없는 Article 조회
+     * content가 있고, ArticleChunk가 없는 Article을 ID 내림차순으로 조회
      *
      * @param limit 최대 조회 수
      * @return Article 리스트
      */
     @Transactional(readOnly = true)
-    public List<Article> findArticlesWithoutClovaEmbedding(int limit) {
+    public List<Article> findArticlesWithoutEmbedding(int limit) {
         // Native Query로 효율적으로 ID 조회 (ID 내림차순)
-        List<Long> articleIds = articleRepository.findArticleIdsWithoutClovaEmbedding(limit);
+        List<Long> articleIds = articleRepository.findArticleIdsWithoutEmbedding(limit);
 
         if (articleIds.isEmpty()) {
             return List.of();
@@ -94,13 +94,13 @@ public class ClovaEmbeddingBatchService {
     }
 
     /**
-     * 단일 Article의 Clova 청크 임베딩 생성
+     * 단일 Article의 청크 임베딩 생성
      *
      * @param article Article 엔티티
      * @return 생성된 청크 수
      */
     @Transactional
-    public int generateClovaChunkEmbeddingsForArticle(Article article) {
+    public int generateChunkEmbeddingsForArticle(Article article) {
         if (article.getContent() == null || article.getContent().trim().isEmpty()) {
             log.warn("Article {}의 본문이 비어있어 청크를 생성하지 않습니다", article.getId());
             recordFailure(article, "본문이 비어있음");
@@ -108,7 +108,7 @@ public class ClovaEmbeddingBatchService {
         }
 
         // 기존 청크 삭제 (재생성 시)
-        clovaChunkRepository.deleteByArticleId(article.getId());
+        chunkRepository.deleteByArticleId(article.getId());
 
         // 1. content 기준 청크 분할 (overlap 포함)
         String fullText = buildFullText(article);
@@ -124,7 +124,7 @@ public class ClovaEmbeddingBatchService {
                 article.getId(), segments.size(), CHUNK_SIZE_TOKENS, CHUNK_OVERLAP_TOKENS);
 
         // 2. 각 청크에 대해 임베딩 생성
-        List<ClovaArticleChunk> chunks = new ArrayList<>();
+        List<ArticleChunk> chunks = new ArrayList<>();
         List<float[]> normalizedList = new ArrayList<>();
         int successCount = 0;
 
@@ -132,11 +132,11 @@ public class ClovaEmbeddingBatchService {
             String segmentContent = segments.get(i);
 
             try {
-                // Clova Embedding 생성
-                ModelEmbeddingResult embResult = clovaEmbeddingService.generateEmbedding(
+                // Embedding 생성
+                ModelEmbeddingResult embResult = embeddingApiService.generateEmbedding(
                         segmentContent, fullText);
 
-                ClovaArticleChunk chunk = ClovaArticleChunk.builder()
+                ArticleChunk chunk = ArticleChunk.builder()
                         .article(article)
                         .chunkIndex(i)
                         .build();
@@ -172,26 +172,26 @@ public class ClovaEmbeddingBatchService {
 
         // 3. 청크 저장
         if (!chunks.isEmpty()) {
-            clovaChunkRepository.saveAll(chunks);
+            chunkRepository.saveAll(chunks);
 
-            List<ClovaChunkContent> contentList = new ArrayList<>();
-            List<ClovaChunkVector> vectors = new ArrayList<>();
+            List<ChunkContent> contentList = new ArrayList<>();
+            List<ChunkVector> vectors = new ArrayList<>();
             for (int i = 0; i < chunks.size(); i++) {
-                contentList.add(ClovaChunkContent.builder()
+                contentList.add(ChunkContent.builder()
                         .chunk(chunks.get(i))
                         .content(segments.get(i))
                         .build());
                 float[] norm = normalizedList.get(i);
                 if (norm != null) {
-                    vectors.add(ClovaChunkVector.builder()
+                    vectors.add(ChunkVector.builder()
                             .chunk(chunks.get(i))
                             .embeddingNormalized(norm)
                             .build());
                 }
             }
-            clovaChunkContentRepository.saveAll(contentList);
+            chunkContentRepository.saveAll(contentList);
             if (!vectors.isEmpty()) {
-                clovaChunkVectorRepository.saveAll(vectors);
+                chunkVectorRepository.saveAll(vectors);
             }
         }
 
@@ -207,7 +207,7 @@ public class ClovaEmbeddingBatchService {
             }
         }
 
-        log.info("Article {} - Clova 임베딩 완료: {}/{}개 청크",
+        log.info("Article {} - 임베딩 완료: {}/{}개 청크",
                 article.getId(), successCount, segments.size());
 
         if (successCount > 0) {
@@ -350,23 +350,23 @@ public class ClovaEmbeddingBatchService {
     }
 
     /**
-     * 여러 Article의 Clova 청크 임베딩 배치 생성
+     * 여러 Article의 청크 임베딩 배치 생성
      *
      * @param articles Article 리스트
      * @return 결과 통계
      */
     @Transactional
-    public Map<String, Object> generateClovaChunkEmbeddingsBatch(List<Article> articles) {
+    public Map<String, Object> generateChunkEmbeddingsBatch(List<Article> articles) {
         int successArticleCount = 0;
         int failureArticleCount = 0;
         int totalChunksGenerated = 0;
         List<Map<String, Object>> results = new ArrayList<>();
 
-        log.info("Clova 배치 임베딩 생성 시작 - 총 {}개 Article", articles.size());
+        log.info("배치 임베딩 생성 시작 - 총 {}개 Article", articles.size());
 
         for (Article article : articles) {
             try {
-                int chunksGenerated = generateClovaChunkEmbeddingsForArticle(article);
+                int chunksGenerated = generateChunkEmbeddingsForArticle(article);
 
                 Map<String, Object> result = new HashMap<>();
                 result.put("articleId", article.getId());
@@ -390,7 +390,7 @@ public class ClovaEmbeddingBatchService {
                 // 진행 상황 로깅 (5개마다)
                 int processed = successArticleCount + failureArticleCount;
                 if (processed % 5 == 0) {
-                    log.info("Clova 임베딩 진행: {}/{} Articles (성공: {}, 총 청크: {})",
+                    log.info("임베딩 진행: {}/{} Articles (성공: {}, 총 청크: {})",
                             processed, articles.size(), successArticleCount, totalChunksGenerated);
                 }
 
@@ -404,7 +404,7 @@ public class ClovaEmbeddingBatchService {
             }
         }
 
-        log.info("Clova 배치 임베딩 완료 - 성공: {}/{}, 총 청크: {}",
+        log.info("배치 임베딩 완료 - 성공: {}/{}, 총 청크: {}",
                 successArticleCount, articles.size(), totalChunksGenerated);
 
         Map<String, Object> summary = new HashMap<>();
@@ -418,13 +418,13 @@ public class ClovaEmbeddingBatchService {
     }
 
     /**
-     * 모든 Article의 Clova 청크 임베딩 생성을 위한 전체 개수 조회
+     * 모든 Article의 청크 임베딩 생성을 위한 전체 개수 조회
      *
      * @return 임베딩이 없는 Article 개수
      */
     @Transactional(readOnly = true)
-    public long countArticlesWithoutClovaEmbedding() {
-        return articleRepository.countArticlesWithoutClovaEmbedding();
+    public long countArticlesWithoutEmbedding() {
+        return articleRepository.countArticlesWithoutEmbedding();
     }
 
     /**
@@ -435,8 +435,8 @@ public class ClovaEmbeddingBatchService {
      * @return Article ID 리스트
      */
     @Transactional(readOnly = true)
-    public List<Long> findArticleIdsWithoutClovaEmbedding(int offset, int limit) {
-        return articleRepository.findArticleIdsWithoutClovaEmbeddingPaged(offset, limit);
+    public List<Long> findArticleIdsWithoutEmbedding(int offset, int limit) {
+        return articleRepository.findArticleIdsWithoutEmbeddingPaged(offset, limit);
     }
 
     /**
@@ -457,7 +457,7 @@ public class ClovaEmbeddingBatchService {
 
         for (Article article : articles) {
             try {
-                int chunksGenerated = generateClovaChunkEmbeddingsForArticle(article);
+                int chunksGenerated = generateChunkEmbeddingsForArticle(article);
 
                 Map<String, Object> result = new HashMap<>();
                 result.put("articleId", article.getId());
@@ -498,17 +498,17 @@ public class ClovaEmbeddingBatchService {
     }
 
     /**
-     * Clova 임베딩 통계 조회
+     * 임베딩 통계 조회
      */
-    public Map<String, Object> getClovaEmbeddingStats() {
+    public Map<String, Object> getEmbeddingStats() {
         long totalArticles = articleRepository.countByDeletedAtIsNull();
         long articlesWithContent = articleRepository.countArticlesWithContent();
-        long articlesWithClovaEmbedding = clovaChunkRepository.countArticlesWithEmbedding();
-        long totalChunks = clovaChunkRepository.countAllChunks();
-        long chunksWithEmbedding = clovaChunkRepository.countChunksWithEmbedding();
+        long articlesWithEmbedding = chunkRepository.countArticlesWithEmbedding();
+        long totalChunks = chunkRepository.countAllChunks();
+        long chunksWithEmbedding = chunkRepository.countChunksWithEmbedding();
 
         double articleCoverage = articlesWithContent > 0
-                ? (double) articlesWithClovaEmbedding / articlesWithContent * 100
+                ? (double) articlesWithEmbedding / articlesWithContent * 100
                 : 0.0;
         double chunkCoverage = totalChunks > 0
                 ? (double) chunksWithEmbedding / totalChunks * 100
@@ -517,9 +517,9 @@ public class ClovaEmbeddingBatchService {
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalArticles", totalArticles);
         stats.put("articlesWithContent", articlesWithContent);
-        stats.put("articlesWithClovaEmbedding", articlesWithClovaEmbedding);
+        stats.put("articlesWithEmbedding", articlesWithEmbedding);
         stats.put("articleCoverage", String.format("%.2f%%", articleCoverage));
-        stats.put("totalClovaChunks", totalChunks);
+        stats.put("totalChunks", totalChunks);
         stats.put("chunksWithEmbedding", chunksWithEmbedding);
         stats.put("chunkCoverage", String.format("%.2f%%", chunkCoverage));
 
@@ -540,7 +540,7 @@ public class ClovaEmbeddingBatchService {
     @Transactional
     public Map<String, Object> processRegenerateBatch(List<Long> articleIds) {
         // 1. 기존 chunk 벌크 삭제
-        clovaChunkRepository.deleteByArticleIdIn(articleIds);
+        chunkRepository.deleteByArticleIdIn(articleIds);
         log.info("기존 chunk 삭제 완료 - {}개 Article", articleIds.size());
 
         // 2. 각 Article별 재생성
@@ -598,7 +598,7 @@ public class ClovaEmbeddingBatchService {
         log.info("Article {} - 재분석: {}개 청크 생성됨", article.getId(), segments.size());
 
         // 2. 각 청크에 대해 임베딩 생성 (1초 간격)
-        List<ClovaArticleChunk> chunks = new ArrayList<>();
+        List<ArticleChunk> chunks = new ArrayList<>();
         List<float[]> normalizedList = new ArrayList<>();
         int successCount = 0;
 
@@ -606,10 +606,10 @@ public class ClovaEmbeddingBatchService {
             String segmentContent = segments.get(i);
 
             try {
-                ModelEmbeddingResult embResult = clovaEmbeddingService.generateEmbedding(
+                ModelEmbeddingResult embResult = embeddingApiService.generateEmbedding(
                         segmentContent, fullText);
 
-                ClovaArticleChunk chunk = ClovaArticleChunk.builder()
+                ArticleChunk chunk = ArticleChunk.builder()
                         .article(article)
                         .chunkIndex(i)
                         .build();
@@ -644,26 +644,26 @@ public class ClovaEmbeddingBatchService {
 
         // 3. 청크 저장
         if (!chunks.isEmpty()) {
-            clovaChunkRepository.saveAll(chunks);
+            chunkRepository.saveAll(chunks);
 
-            List<ClovaChunkContent> contentList = new ArrayList<>();
-            List<ClovaChunkVector> vectors = new ArrayList<>();
+            List<ChunkContent> contentList = new ArrayList<>();
+            List<ChunkVector> vectors = new ArrayList<>();
             for (int i = 0; i < chunks.size(); i++) {
-                contentList.add(ClovaChunkContent.builder()
+                contentList.add(ChunkContent.builder()
                         .chunk(chunks.get(i))
                         .content(segments.get(i))
                         .build());
                 float[] norm = normalizedList.get(i);
                 if (norm != null) {
-                    vectors.add(ClovaChunkVector.builder()
+                    vectors.add(ChunkVector.builder()
                             .chunk(chunks.get(i))
                             .embeddingNormalized(norm)
                             .build());
                 }
             }
-            clovaChunkContentRepository.saveAll(contentList);
+            chunkContentRepository.saveAll(contentList);
             if (!vectors.isEmpty()) {
-                clovaChunkVectorRepository.saveAll(vectors);
+                chunkVectorRepository.saveAll(vectors);
             }
         }
 
@@ -693,12 +693,12 @@ public class ClovaEmbeddingBatchService {
 
     private void recordFailure(Article article, String reason) {
         try {
-            clovaEmbeddingFailureRepository.deleteByArticleId(article.getId());
-            ClovaEmbeddingFailure failure = ClovaEmbeddingFailure.builder()
+            embeddingFailureRepository.deleteByArticleId(article.getId());
+            EmbeddingFailure failure = EmbeddingFailure.builder()
                     .article(article)
                     .reason(reason)
                     .build();
-            clovaEmbeddingFailureRepository.save(failure);
+            embeddingFailureRepository.save(failure);
         } catch (Exception e) {
             log.error("Article {} - 실패 기록 저장 오류: {}", article.getId(), e.getMessage());
         }
@@ -706,7 +706,7 @@ public class ClovaEmbeddingBatchService {
 
     private void clearFailure(Long articleId) {
         try {
-            clovaEmbeddingFailureRepository.deleteByArticleId(articleId);
+            embeddingFailureRepository.deleteByArticleId(articleId);
         } catch (Exception e) {
             log.error("Article {} - 실패 기록 삭제 오류: {}", articleId, e.getMessage());
         }

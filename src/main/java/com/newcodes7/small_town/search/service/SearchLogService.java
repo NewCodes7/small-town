@@ -1,8 +1,8 @@
-package com.newcodes7.small_town.global.service;
+package com.newcodes7.small_town.search.service;
 
 import com.newcodes7.small_town.auth.entity.User;
-import com.newcodes7.small_town.global.entity.SearchLog;
-import com.newcodes7.small_town.global.repository.SearchLogRepository;
+import com.newcodes7.small_town.search.entity.SearchLog;
+import com.newcodes7.small_town.search.repository.SearchLogRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

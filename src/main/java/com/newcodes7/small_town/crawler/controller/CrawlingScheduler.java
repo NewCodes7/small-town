@@ -10,7 +10,7 @@ import com.newcodes7.small_town.crawler.integration.analytics.GoogleAnalyticsSer
 import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
 import com.newcodes7.small_town.crawler.service.CrawlingService;
 import com.newcodes7.small_town.crawler.integration.translation.TitleTranslationService;
-import com.newcodes7.small_town.embedding.service.ClovaEmbeddingBatchService;
+import com.newcodes7.small_town.embedding.service.ChunkEmbeddingBatchService;
 import com.newcodes7.small_town.global.entity.Article;
 
 import lombok.RequiredArgsConstructor;
@@ -39,7 +39,7 @@ public class CrawlingScheduler {
     private final WebDriverConfig webDriverConfig;
     private final MediumBlogCrawler mediumBlogCrawler;
     private final DefaultBlogCrawler defaultBlogCrawler;
-    private final ClovaEmbeddingBatchService clovaEmbeddingBatchService;
+    private final ChunkEmbeddingBatchService chunkEmbeddingBatchService;
 
     private static final int MAX_CONTENT_LENGTH = 200;
     private static final int BATCH_SIZE = 400;
@@ -80,8 +80,8 @@ public class CrawlingScheduler {
                         log.warn("블로그 크롤링 실패 - 기업: {}, 오류: {}", corpName, result.getErrorMessage());
                     });
 
-            // 신규 글에 대해 Clova 임베딩 생성
-            generateClovaEmbeddingsForNewArticles(results);
+            // 신규 글에 대해 임베딩 생성
+            generateEmbeddingsForNewArticles(results);
 
         } catch (Exception e) {
             log.error("스케줄된 블로그 크롤링 작업 중 오류 발생", e);
@@ -327,10 +327,10 @@ public class CrawlingScheduler {
     }
 
     /**
-     * 신규 크롤링된 Article에 대해 Clova 임베딩 생성
+     * 신규 크롤링된 Article에 대해 임베딩 생성
      * content가 있는 Article만 처리
      */
-    private void generateClovaEmbeddingsForNewArticles(List<CrawlResult> results) {
+    private void generateEmbeddingsForNewArticles(List<CrawlResult> results) {
         try {
             // 성공한 결과에서 content가 있는 신규 Article 수집
             List<Article> newArticles = results.stream()
@@ -340,11 +340,11 @@ public class CrawlingScheduler {
                     .toList();
 
             if (newArticles.isEmpty()) {
-                log.info("Clova 임베딩 생성 대상 신규 Article이 없습니다.");
+                log.info("임베딩 생성 대상 신규 Article이 없습니다.");
                 return;
             }
 
-            log.info("신규 Article {}개에 대해 Clova 임베딩 생성 시작", newArticles.size());
+            log.info("신규 Article {}개에 대해 임베딩 생성 시작", newArticles.size());
 
             int successCount = 0;
             int failureCount = 0;
@@ -352,26 +352,26 @@ public class CrawlingScheduler {
 
             for (Article article : newArticles) {
                 try {
-                    int chunksGenerated = clovaEmbeddingBatchService.generateClovaChunkEmbeddingsForArticle(article);
+                    int chunksGenerated = chunkEmbeddingBatchService.generateChunkEmbeddingsForArticle(article);
                     if (chunksGenerated > 0) {
                         successCount++;
                         totalChunks += chunksGenerated;
-                        log.debug("Article {} Clova 임베딩 생성 완료: {}개 청크", article.getId(), chunksGenerated);
+                        log.debug("Article {} 임베딩 생성 완료: {}개 청크", article.getId(), chunksGenerated);
                     } else {
                         failureCount++;
-                        log.warn("Article {} Clova 임베딩 생성 실패 (청크 0개)", article.getId());
+                        log.warn("Article {} 임베딩 생성 실패 (청크 0개)", article.getId());
                     }
                 } catch (Exception e) {
                     failureCount++;
-                    log.error("Article {} Clova 임베딩 생성 실패: {}", article.getId(), e.getMessage());
+                    log.error("Article {} 임베딩 생성 실패: {}", article.getId(), e.getMessage());
                 }
             }
 
-            log.info("Clova 임베딩 생성 완료 - 성공: {}개, 실패: {}개, 총 청크: {}개",
+            log.info("임베딩 생성 완료 - 성공: {}개, 실패: {}개, 총 청크: {}개",
                     successCount, failureCount, totalChunks);
 
         } catch (Exception e) {
-            log.error("Clova 임베딩 생성 중 오류 발생", e);
+            log.error("임베딩 생성 중 오류 발생", e);
         }
     }
 }

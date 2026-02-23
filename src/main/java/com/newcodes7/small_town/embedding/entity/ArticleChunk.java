@@ -29,8 +29,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Naver Clova Embedding을 사용한 Article 청크
- * 차원: 1024 (Clova Embedding v2)
+ * Article 청크 (임베딩용)
+ * 차원: 1024
  *
  * - bit (binary quantization): HNSW 빠른 검색용 (embedding_binary)
  * - L2-정규화 벡터: clova_chunk_vectors 테이블로 분리 (TOAST I/O 방지)
@@ -50,7 +50,7 @@ import lombok.Setter;
         @Index(name = "idx_clova_chunk_article_embedding", columnList = "article_id, embedding_generated_at")
     }
 )
-public class ClovaArticleChunk {
+public class ArticleChunk {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -82,7 +82,7 @@ public class ClovaArticleChunk {
     private LocalDateTime embeddingGeneratedAt;
 
     /**
-     * 토큰 수 (Clova API 응답 기준)
+     * 토큰 수
      */
     @Column(name = "token_count")
     private Integer tokenCount;
