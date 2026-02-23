@@ -14,6 +14,7 @@
 // - embeddings.js: 임베딩 관리 및 배치 처리
 // - keywords.js: 관련 글 키워드 관리
 // - users.js: 회원 관리
+// - crawlinglogs.js: 크롤링 실행 로그
 // ============================================
 
 console.log('Admin Article List modules loaded successfully');

@@ -3,6 +3,9 @@ package com.newcodes7.small_town.crawler.persistence;
 import com.newcodes7.small_town.crawler.crawler.BlogCrawler;
 import com.newcodes7.small_town.crawler.integration.openai.OpenaiService;
 import com.newcodes7.small_town.crawler.integration.deepl.DeeplService;
+import com.newcodes7.small_town.crawler.service.CrawlingRunService;
+import com.newcodes7.small_town.crawler.entity.CrawlingStepStatus;
+import com.newcodes7.small_town.crawler.entity.CrawlingStepType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -36,6 +39,7 @@ public class ArticlePersistenceService {
     private final CategoryRepository categoryRepository;
     private final OpenaiService openaiService;
     private final DeeplService deeplService;
+    private final CrawlingRunService crawlingRunService;
 
     /**
      * 개별 Article 저장 및 AI 분석
@@ -65,6 +69,8 @@ public class ArticlePersistenceService {
         // article 저장
         crawlerArticleRepository.save(article);
 
+        crawlingRunService.ensureArticleLogForCurrentRun(article);
+
         // 해외 기업의 영어 제목 자동 번역
         translateTitleIfNeeded(article, corporation);
 
@@ -76,8 +82,10 @@ public class ArticlePersistenceService {
             article.setCategory(category);
             crawlerArticleRepository.save(article);
             log.debug("OpenAI 분석 완료 - Article: {}, Category: {}", article.getTitle(), category.getName());
+            crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CATEGORY_ANALYSIS, CrawlingStepStatus.SUCCESS, null);
         } catch (Exception e) {
             log.warn("OpenAI 분석 실패 - Article: {}, 오류: {}", article.getTitle(), e.getMessage());
+            crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CATEGORY_ANALYSIS, CrawlingStepStatus.FAILURE, e.getMessage());
         }
     }
 

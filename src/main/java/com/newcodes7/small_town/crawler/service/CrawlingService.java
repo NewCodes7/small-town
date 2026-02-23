@@ -24,6 +24,8 @@ import com.newcodes7.small_town.crawler.crawler.VideoCrawler;
 import com.newcodes7.small_town.crawler.dto.CrawlResult;
 import com.newcodes7.small_town.crawler.dto.CrawlingStats;
 import com.newcodes7.small_town.crawler.dto.VideoCrawlResult;
+import com.newcodes7.small_town.crawler.entity.CrawlingStepStatus;
+import com.newcodes7.small_town.crawler.entity.CrawlingStepType;
 import com.newcodes7.small_town.crawler.exception.CorporationCrawlingException;
 import com.newcodes7.small_town.crawler.exception.CrawlerException;
 import com.newcodes7.small_town.crawler.exception.CrawlerNotFoundException;
@@ -33,6 +35,7 @@ import com.newcodes7.small_town.crawler.persistence.VideoPersistenceService;
 import com.newcodes7.small_town.crawler.repository.CrawlerArticleRepository;
 import com.newcodes7.small_town.crawler.repository.CrawlerCorporationRepository;
 import com.newcodes7.small_town.crawler.repository.CrawlerVideoRepository;
+import com.newcodes7.small_town.crawler.service.CrawlingRunService;
 import com.newcodes7.small_town.global.cache.NginxCachePurgeService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.ArticleTerm;
@@ -64,6 +67,7 @@ public class CrawlingService {
     private final ArticleTermRepository articleTermRepository;
     private final ArticleContentExtractionService articleContentExtractionService;
     private final ArticleRepository articleRepository;
+    private final CrawlingRunService crawlingRunService;
 
     // Term 추출 설정
     @Value("${term.extraction.max-terms:7}")
@@ -458,6 +462,8 @@ public class CrawlingService {
 
             if (content == null || content.trim().isEmpty()) {
                 log.warn("Content 추출 건너뜀 - 본문이 비어있음: {}", article.getTitle());
+                crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CONTENT_EXTRACTION, CrawlingStepStatus.FAILURE, "본문이 비어있음");
+                crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.TERM_ANALYSIS, CrawlingStepStatus.SKIPPED, "본문 없음");
                 return;
             }
 
@@ -465,10 +471,14 @@ public class CrawlingService {
 
             articleContentExtractionService.updateArticleContent(article.getId(), content);
             log.info("Article 본문 DB 저장 완료 - Article: {}", article.getTitle());
+            crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CONTENT_EXTRACTION, CrawlingStepStatus.SUCCESS, null);
+            crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.TERM_ANALYSIS, CrawlingStepStatus.SKIPPED, "Content-only 크롤링");
 
         } catch (Exception e) {
             log.error("Content 추출 및 저장 중 오류 발생 - Article: {}, 오류: {}",
                     article.getTitle(), e.getMessage(), e);
+            crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CONTENT_EXTRACTION, CrawlingStepStatus.FAILURE, e.getMessage());
+            crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.TERM_ANALYSIS, CrawlingStepStatus.SKIPPED, "Content 추출 실패");
         }
     }
 
@@ -483,10 +493,13 @@ public class CrawlingService {
             // 본문 추출 결과 확인
             if (content == null || content.trim().isEmpty()) {
                 log.warn("Term 추출 건너뜀 - 본문이 비어있음: {}", article.getTitle());
+                crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CONTENT_EXTRACTION, CrawlingStepStatus.FAILURE, "본문이 비어있음");
+                crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.TERM_ANALYSIS, CrawlingStepStatus.SKIPPED, "본문 없음");
                 return;
             }
 
             log.info("본문 추출 성공 - Article: {}, 본문 길이: {}자", article.getTitle(), content.length());
+            crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CONTENT_EXTRACTION, CrawlingStepStatus.SUCCESS, null);
 
             // 추출된 본문을 DB에 저장 (독립 트랜잭션) + 인메모리 객체에도 반영
             article.setContent(content);
@@ -496,6 +509,7 @@ public class CrawlingService {
             } catch (Exception e) {
                 log.error("Article 본문 DB 저장 실패 - Article: {}, 오류: {}",
                         article.getTitle(), e.getMessage(), e);
+                crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CONTENT_EXTRACTION, CrawlingStepStatus.FAILURE, e.getMessage());
                 // 본문 저장 실패해도 Term 추출은 계속 진행
             }
 
@@ -503,6 +517,7 @@ public class CrawlingService {
             Map<String, MorphemeAnalyzer.TermInfo> termInfoMap = morphemeAnalyzer.extractTerms(content);
             if (termInfoMap.isEmpty()) {
                 log.warn("Term 추출 결과 없음 - Article: {}", article.getTitle());
+                crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.TERM_ANALYSIS, CrawlingStepStatus.FAILURE, "추출 결과 없음");
                 return;
             }
 
@@ -565,11 +580,13 @@ public class CrawlingService {
                 articleTermRepository.saveAll(articleTerms);
                 log.info("ArticleTerm 저장 완료 - Article: {}, 저장된 Term 수: {}개",
                         article.getTitle(), articleTerms.size());
+                crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.TERM_ANALYSIS, CrawlingStepStatus.SUCCESS, null);
             }
 
         } catch (Exception e) {
             log.error("Term 추출 및 저장 중 오류 발생 - Article: {}, 오류: {}",
                     article.getTitle(), e.getMessage(), e);
+            crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.TERM_ANALYSIS, CrawlingStepStatus.FAILURE, e.getMessage());
             // Term 추출 실패는 크롤링을 중단시키지 않음
         }
     }

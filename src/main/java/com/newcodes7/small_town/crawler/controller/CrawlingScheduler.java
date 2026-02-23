@@ -4,12 +4,20 @@ import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.crawler.config.WebDriverConfig;
 import com.newcodes7.small_town.crawler.crawler.DefaultBlogCrawler;
 import com.newcodes7.small_town.crawler.crawler.MediumBlogCrawler;
+import com.newcodes7.small_town.crawler.entity.CrawlingJobType;
+import com.newcodes7.small_town.crawler.entity.CrawlingRunStatus;
+import com.newcodes7.small_town.crawler.entity.CrawlingSchedulerRun;
+import com.newcodes7.small_town.crawler.entity.CrawlingStepStatus;
+import com.newcodes7.small_town.crawler.entity.CrawlingStepType;
 import com.newcodes7.small_town.global.entity.BlogType;
 import com.newcodes7.small_town.crawler.dto.CrawlResult;
 import com.newcodes7.small_town.crawler.integration.analytics.GoogleAnalyticsService;
 import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
 import com.newcodes7.small_town.crawler.service.CrawlingService;
+import com.newcodes7.small_town.crawler.service.CrawlingRunContext;
+import com.newcodes7.small_town.crawler.service.CrawlingRunService;
 import com.newcodes7.small_town.crawler.integration.translation.TitleTranslationService;
+import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
 import com.newcodes7.small_town.embedding.service.ChunkEmbeddingBatchService;
 import com.newcodes7.small_town.global.entity.Article;
 
@@ -40,6 +48,9 @@ public class CrawlingScheduler {
     private final MediumBlogCrawler mediumBlogCrawler;
     private final DefaultBlogCrawler defaultBlogCrawler;
     private final ChunkEmbeddingBatchService chunkEmbeddingBatchService;
+    private final ArticleChunkRepository articleChunkRepository;
+    private final CrawlingRunService crawlingRunService;
+    private final CrawlingRunContext crawlingRunContext;
 
     private static final int MAX_CONTENT_LENGTH = 200;
     private static final int BATCH_SIZE = 400;
@@ -53,6 +64,9 @@ public class CrawlingScheduler {
     @Scheduled(cron = "${crawler.schedule.blog.cron:0 0 4 * * ?}", zone = "Asia/Seoul")
     public void scheduledBlogCrawling() {
         log.info("스케줄된 블로그 크롤링 작업 시작");
+
+        CrawlingSchedulerRun run = crawlingRunService.startRun(CrawlingJobType.BLOG);
+        crawlingRunContext.setRunId(run.getId());
 
         try {
             List<CrawlResult> results = crawlingService.crawlAllBlogs();
@@ -83,8 +97,16 @@ public class CrawlingScheduler {
             // 신규 글에 대해 임베딩 생성
             generateEmbeddingsForNewArticles(results);
 
+            CrawlingRunStatus status = failureCount == 0
+                    ? CrawlingRunStatus.SUCCESS
+                    : (successCount == 0 ? CrawlingRunStatus.FAILURE : CrawlingRunStatus.PARTIAL_SUCCESS);
+            crawlingRunService.finishRun(run.getId(), status, (int) successCount, (int) failureCount, (int) totalNewArticles, null);
+
         } catch (Exception e) {
             log.error("스케줄된 블로그 크롤링 작업 중 오류 발생", e);
+            crawlingRunService.finishRun(run.getId(), CrawlingRunStatus.FAILURE, 0, 0, 0, e.getMessage());
+        } finally {
+            crawlingRunContext.clear();
         }
     }
 
@@ -95,6 +117,9 @@ public class CrawlingScheduler {
     @Scheduled(cron = "${crawler.schedule.youtube.cron:0 30 4 * * ?}", zone = "Asia/Seoul")
     public void scheduledYouTubeCrawling() {
         log.info("스케줄된 YouTube 크롤링 작업 시작");
+
+        CrawlingSchedulerRun run = crawlingRunService.startRun(CrawlingJobType.YOUTUBE);
+        crawlingRunContext.setRunId(run.getId());
 
         try {
             List<com.newcodes7.small_town.crawler.dto.VideoCrawlResult> results = crawlingService.crawlAllYouTube();
@@ -122,8 +147,16 @@ public class CrawlingScheduler {
                         log.warn("YouTube 크롤링 실패 - 기업: {}, 오류: {}", corpName, result.getErrorMessage());
                     });
 
+            CrawlingRunStatus status = failureCount == 0
+                    ? CrawlingRunStatus.SUCCESS
+                    : (successCount == 0 ? CrawlingRunStatus.FAILURE : CrawlingRunStatus.PARTIAL_SUCCESS);
+            crawlingRunService.finishRun(run.getId(), status, (int) successCount, (int) failureCount, (int) totalNewVideos, null);
+
         } catch (Exception e) {
             log.error("스케줄된 YouTube 크롤링 작업 중 오류 발생", e);
+            crawlingRunService.finishRun(run.getId(), CrawlingRunStatus.FAILURE, 0, 0, 0, e.getMessage());
+        } finally {
+            crawlingRunContext.clear();
         }
     }
 
@@ -134,6 +167,9 @@ public class CrawlingScheduler {
     // @Scheduled(cron = "${crawler.schedule.fullpage.cron:0 30 * * * ?}", zone = "Asia/Seoul")
     public void scheduledFullPageCrawling() {
         log.info("스케줄된 전체 페이지 크롤링 작업 시작");
+
+        CrawlingSchedulerRun run = crawlingRunService.startRun(CrawlingJobType.FULL_PAGE);
+        crawlingRunContext.setRunId(run.getId());
 
         try {
             List<CrawlResult> results = crawlingService.scheduledFullPageCrawling();
@@ -161,8 +197,16 @@ public class CrawlingScheduler {
                         log.warn("전체 페이지 크롤링 실패 - 기업: {}, 오류: {}", corpName, result.getErrorMessage());
                     });
 
+            CrawlingRunStatus status = failureCount == 0
+                    ? CrawlingRunStatus.SUCCESS
+                    : (successCount == 0 ? CrawlingRunStatus.FAILURE : CrawlingRunStatus.PARTIAL_SUCCESS);
+            crawlingRunService.finishRun(run.getId(), status, (int) successCount, (int) failureCount, (int) totalNewArticles, null);
+
         } catch (Exception e) {
             log.error("스케줄된 전체 페이지 크롤링 작업 중 오류 발생", e);
+            crawlingRunService.finishRun(run.getId(), CrawlingRunStatus.FAILURE, 0, 0, 0, e.getMessage());
+        } finally {
+            crawlingRunContext.clear();
         }
     }
 
@@ -357,13 +401,24 @@ public class CrawlingScheduler {
                         successCount++;
                         totalChunks += chunksGenerated;
                         log.debug("Article {} 임베딩 생성 완료: {}개 청크", article.getId(), chunksGenerated);
+                        crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.EMBEDDING, CrawlingStepStatus.SUCCESS, null);
+
+                        if (articleChunkRepository.findRepresentativeByArticleId(article.getId()) != null) {
+                            crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.REPRESENTATIVE_CHUNK, CrawlingStepStatus.SUCCESS, null);
+                        } else {
+                            crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.REPRESENTATIVE_CHUNK, CrawlingStepStatus.FAILURE, "대표 chunk 없음");
+                        }
                     } else {
                         failureCount++;
                         log.warn("Article {} 임베딩 생성 실패 (청크 0개)", article.getId());
+                        crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.EMBEDDING, CrawlingStepStatus.FAILURE, "청크 0개");
+                        crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.REPRESENTATIVE_CHUNK, CrawlingStepStatus.SKIPPED, "임베딩 실패");
                     }
                 } catch (Exception e) {
                     failureCount++;
                     log.error("Article {} 임베딩 생성 실패: {}", article.getId(), e.getMessage());
+                    crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.EMBEDDING, CrawlingStepStatus.FAILURE, e.getMessage());
+                    crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.REPRESENTATIVE_CHUNK, CrawlingStepStatus.SKIPPED, "임베딩 실패");
                 }
             }
 

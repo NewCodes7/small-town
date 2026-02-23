@@ -14,6 +14,8 @@ import com.newcodes7.small_town.article.repository.ArticleTermRepository;
 import com.newcodes7.small_town.auth.repository.UserRepository;
 import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
 import com.newcodes7.small_town.corporation.service.CorporationService;
+import com.newcodes7.small_town.crawler.entity.CrawlingSchedulerRun;
+import com.newcodes7.small_town.crawler.repository.CrawlingSchedulerRunRepository;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.search.entity.SearchLog;
 import com.newcodes7.small_town.global.entity.Video;
@@ -46,6 +48,7 @@ public class AdminArticleListService {
     private final SearchLogService searchLogService;
     private final UserRepository userRepository;
     private final com.newcodes7.small_town.article.repository.LikeLogRepository likeLogRepository;
+    private final CrawlingSchedulerRunRepository crawlingSchedulerRunRepository;
 
     /**
      * Article List 페이지 데이터 DTO
@@ -69,6 +72,7 @@ public class AdminArticleListService {
         private Page<SearchLog> searchLogs;
         private Page<com.newcodes7.small_town.auth.entity.User> users;
         private Page<com.newcodes7.small_town.article.entity.LikeLog> likeLogs;
+        private Page<CrawlingSchedulerRun> crawlingRuns;
     }
 
     /**
@@ -116,6 +120,7 @@ public class AdminArticleListService {
                 .searchLogs(getSearchLogs(tab, page, size))
                 .users(getUsers(tab, search, page, size))
                 .likeLogs(getLikeLogs(tab, page, size))
+                .crawlingRuns(getCrawlingRuns(tab, page, size))
                 .build();
     }
 
@@ -238,6 +243,14 @@ public class AdminArticleListService {
 
         Pageable searchLogPageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         return searchLogService.getAllSearchLogs(searchLogPageable);
+    }
+
+    private Page<CrawlingSchedulerRun> getCrawlingRuns(String tab, int page, int size) {
+        if (!tab.equals("crawlinglogs")) {
+            return Page.empty();
+        }
+        Pageable pageable = PageRequest.of(page, size, Sort.by("startedAt").descending());
+        return crawlingSchedulerRunRepository.findAll(pageable);
     }
 
     private Page<com.newcodes7.small_town.auth.entity.User> getUsers(String tab, String search, int page, int size) {
