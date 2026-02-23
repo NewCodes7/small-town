@@ -29,6 +29,7 @@ services:
       - GITHUB_REDIRECT_URI=${GITHUB_REDIRECT_URI}
       - GA_PROPERTY_ID=${GA_PROPERTY_ID}
       - GA_CREDENTIALS_PATH=/app/credentials/ga-credentials.json
+      - CLOVA_API_KEY=${CLOVA_API_KEY}
     expose:
       - "8080"
     healthcheck:
