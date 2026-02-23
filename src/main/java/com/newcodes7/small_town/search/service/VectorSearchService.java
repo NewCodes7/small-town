@@ -6,9 +6,8 @@ import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
-import com.newcodes7.small_town.embedding.dto.ModelEmbeddingResult;
 import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
-import com.newcodes7.small_town.embedding.service.EmbeddingApiService;
+import com.newcodes7.small_town.search.service.SearchQueryEmbeddingService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,8 +24,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class VectorSearchService {
 
-    private final EmbeddingApiService embeddingApiService;
     private final ArticleChunkRepository chunkRepository;
+    private final SearchQueryEmbeddingService searchQueryEmbeddingService;
 
     // 기본 유사도 임계값
     private static final double DEFAULT_SIMILARITY_THRESHOLD = 0.52;
@@ -55,16 +54,12 @@ public class VectorSearchService {
         }
 
         try {
-            ModelEmbeddingResult embResult = embeddingApiService.generateEmbedding(keyword, null);
-
-            if (!embResult.isSuccess() || embResult.getEmbedding() == null) {
-                log.warn("키워드 임베딩 생성 실패: {}", embResult.getErrorMessage());
+            float[] queryEmbedding = searchQueryEmbeddingService.getOrCreateEmbedding(keyword);
+            if (queryEmbedding == null) {
+                log.warn("키워드 임베딩 생성 실패: {}", keyword);
                 return Map.of();
             }
-
-            float[] queryEmbedding = embResult.getEmbedding();
-            log.debug("키워드 임베딩 생성 완료 - 차원: {}, 토큰: {}",
-                    queryEmbedding.length, embResult.getTokenUsage());
+            log.debug("키워드 임베딩 생성 완료 - 차원: {}", queryEmbedding.length);
 
             return searchTwoStage(queryEmbedding, threshold, topK, maxResults, null, null);
 
@@ -113,24 +108,25 @@ public class VectorSearchService {
         }
 
         try {
-            long embStart = System.currentTimeMillis();
-            ModelEmbeddingResult embResult = embeddingApiService.generateEmbedding(keyword, null);
-            long embeddingMs = System.currentTimeMillis() - embStart;
+            SearchQueryEmbeddingService.CachedEmbeddingResult cachedEmbedding =
+                    searchQueryEmbeddingService.getEmbeddingWithCacheInfo(keyword, null);
+            float[] queryEmbedding = cachedEmbedding.getEmbedding();
+            long embeddingMs = cachedEmbedding.getEmbeddingMs();
+            boolean cacheHit = cachedEmbedding.isCacheHit();
+            long cacheLookupMs = cachedEmbedding.getCacheLookupMs();
 
-            if (!embResult.isSuccess() || embResult.getEmbedding() == null) {
-                log.warn("키워드 임베딩 생성 실패: {}", embResult.getErrorMessage());
+            if (queryEmbedding == null) {
+                log.warn("키워드 임베딩 생성 실패: {}", keyword);
                 return new VectorSearchResult(Map.of(), null);
             }
-
-            float[] queryEmbedding = embResult.getEmbedding();
             log.debug("키워드 임베딩 생성 완료 - 차원: {}, 토큰: {}",
-                    queryEmbedding.length, embResult.getTokenUsage());
+                    queryEmbedding.length, 0);
 
             long queryStart = System.currentTimeMillis();
             Map<Long, Double> scores = searchTwoStage(queryEmbedding, DEFAULT_SIMILARITY_THRESHOLD, DEFAULT_TOP_K, DEFAULT_MAX_RESULTS, domesticTypes, categories);
             long queryMs = System.currentTimeMillis() - queryStart;
 
-            return new VectorSearchResult(scores, queryEmbedding, embeddingMs, queryMs);
+            return new VectorSearchResult(scores, queryEmbedding, embeddingMs, queryMs, cacheHit, cacheLookupMs);
 
         } catch (Exception e) {
             log.error("벡터 검색 실패: {}", e.getMessage(), e);
@@ -193,17 +189,21 @@ public class VectorSearchService {
         private final float[] queryEmbedding;
         private final long embeddingMs;
         private final long queryMs;
+        private final boolean cacheHit;
+        private final long cacheLookupMs;
 
         public VectorSearchResult(Map<Long, Double> scores, float[] queryEmbedding,
-                                   long embeddingMs, long queryMs) {
+                                   long embeddingMs, long queryMs, boolean cacheHit, long cacheLookupMs) {
             this.scores = scores;
             this.queryEmbedding = queryEmbedding;
             this.embeddingMs = embeddingMs;
             this.queryMs = queryMs;
+            this.cacheHit = cacheHit;
+            this.cacheLookupMs = cacheLookupMs;
         }
 
         public VectorSearchResult(Map<Long, Double> scores, float[] queryEmbedding) {
-            this(scores, queryEmbedding, 0, 0);
+            this(scores, queryEmbedding, 0, 0, false, 0);
         }
 
         public Map<Long, Double> getScores() {
@@ -221,6 +221,14 @@ public class VectorSearchService {
         public long getQueryMs() {
             return queryMs;
         }
+
+        public boolean isCacheHit() {
+            return cacheHit;
+        }
+
+        public long getCacheLookupMs() {
+            return cacheLookupMs;
+        }
     }
 
     /**
@@ -237,14 +245,11 @@ public class VectorSearchService {
         }
 
         try {
-            ModelEmbeddingResult embResult = embeddingApiService.generateEmbedding(keyword, null);
-
-            if (!embResult.isSuccess() || embResult.getEmbedding() == null) {
-                log.warn("키워드 임베딩 생성 실패: {}", embResult.getErrorMessage());
+            float[] queryEmbedding = searchQueryEmbeddingService.getOrCreateEmbedding(keyword);
+            if (queryEmbedding == null) {
+                log.warn("키워드 임베딩 생성 실패: {}", keyword);
                 return Map.of();
             }
-
-            float[] queryEmbedding = embResult.getEmbedding();
             String vectorString = formatVectorForPostgres(queryEmbedding);
 
             List<Object[]> results = chunkRepository.computeSimilarityForArticleIds(

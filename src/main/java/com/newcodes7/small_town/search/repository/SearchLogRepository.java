@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface SearchLogRepository extends JpaRepository<SearchLog, Long> {
@@ -59,4 +60,6 @@ public interface SearchLogRepository extends JpaRepository<SearchLog, Long> {
      * 사용자별 검색 로그 개수 조회
      */
     long countByUser(User user);
+
+    Optional<SearchLog> findFirstBySearchKeywordOrderByCreatedAtDesc(String searchKeyword);
 }

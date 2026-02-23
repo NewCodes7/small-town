@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 public class SearchLogService {
 
     private final SearchLogRepository searchLogRepository;
+    private final SearchQueryEmbeddingService searchQueryEmbeddingService;
 
     /**
      * 검색 로그 저장 (비동기)
@@ -44,6 +45,7 @@ public class SearchLogService {
                     .build();
 
             searchLogRepository.save(searchLog);
+            searchQueryEmbeddingService.updateSearchLogIfExists(keyword, searchLog);
         } catch (Exception e) {
             log.error("검색 로그 저장 실패: keyword={}, type={}", keyword, searchType, e);
         }
@@ -69,6 +71,7 @@ public class SearchLogService {
                     .build();
 
             searchLogRepository.save(searchLog);
+            searchQueryEmbeddingService.updateSearchLogIfExists(keyword, searchLog);
         } catch (Exception e) {
             log.error("검색 로그 저장 실패: keyword={}, type={}, targetId={}", keyword, searchType, targetId, e);
         }

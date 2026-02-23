@@ -328,10 +328,14 @@ public class ArticleSearchService {
         }
 
         long totalEndTime = System.currentTimeMillis();
-        log.info("[검색] keyword='{}' | BM25: {}ms ({}개), Vector: {}ms (embedding: {}ms, query: {}ms) ({}개), Rerank(NSF): {}ms ({}개) | 총: {}ms",
+        String embeddingCacheInfo = vectorSearchResult.isCacheHit()
+                ? String.format("hit(%dms)", vectorSearchResult.getCacheLookupMs())
+                : String.format("miss(%dms, lookup %dms)", vectorSearchResult.getEmbeddingMs(), vectorSearchResult.getCacheLookupMs());
+
+        log.info("[검색] keyword='{}' | BM25: {}ms ({}개), Vector: {}ms (embedding: {}, query: {}ms) ({}개), Rerank(NSF): {}ms ({}개) | 총: {}ms",
             keyword,
             bm25EndTime - bm25StartTime, originalBm25Count,
-            vectorElapsedMs.get(), vectorSearchResult.getEmbeddingMs(), vectorSearchResult.getQueryMs(), originalVectorCount,
+            vectorElapsedMs.get(), embeddingCacheInfo, vectorSearchResult.getQueryMs(), originalVectorCount,
             rerankEndTime - rerankStartTime, nsfScores.size(),
             totalEndTime - totalStartTime);
 
