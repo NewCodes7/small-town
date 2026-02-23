@@ -6,7 +6,7 @@ import org.hibernate.annotations.Type;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-import com.newcodes7.small_town.global.config.VectorType;
+import com.newcodes7.small_town.global.config.HalfVectorType;
 
 import jakarta.persistence.Basic;
 import jakarta.persistence.Column;
@@ -62,8 +62,8 @@ public class SearchQueryEmbedding {
     private SearchLog searchLog;
 
     @Basic(fetch = FetchType.LAZY)
-    @Type(VectorType.class)
-    @Column(name = "embedding", columnDefinition = "vector(1536)")
+    @Type(HalfVectorType.class)
+    @Column(name = "embedding", columnDefinition = "halfvec(1024)")
     private float[] embedding;
 
     @Column(name = "embedding_generated_at")
