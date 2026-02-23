@@ -13,6 +13,7 @@ import com.newcodes7.small_town.embedding.entity.ChunkVector;
 import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
 import com.newcodes7.small_town.embedding.repository.ChunkContentRepository;
 import com.newcodes7.small_town.embedding.repository.ChunkVectorRepository;
+import com.newcodes7.small_town.global.config.BitVectorType;
 import com.newcodes7.small_town.global.entity.Article;
 
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,10 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * 관련 글 추천 서비스
  * 대표 Chunk의 embedding을 기반으로 유사한 글을 추천
+ *
+ * 검색 전략:
+ * - Binary 임베딩이 있으면 2단계 검색 (Binary HNSW → halfvec Reranking)
+ * - Binary 임베딩이 없으면 halfvec 직접 비교 (fallback)
  */
 @Service
 @RequiredArgsConstructor
@@ -34,7 +39,9 @@ public class RelatedArticleService {
     private final RepresentativeChunkService representativeChunkService;
 
     private static final int DEFAULT_LIMIT = 3;
-    private static final double MINIMUM_SIMILARITY = 0.3;
+    private static final double MINIMUM_SIMILARITY = 0.5;
+    /** Stage 1 Binary HNSW 후보 수 (대표 청크 기준, 아티클 1개당 1청크) */
+    private static final int CANDIDATE_LIMIT = 100;
 
     /**
      * 관련 글 조회
@@ -48,16 +55,7 @@ public class RelatedArticleService {
         int resultLimit = limit != null ? limit : DEFAULT_LIMIT;
 
         // 1. 현재 Article의 대표 chunk 조회
-        ArticleChunk representativeChunk = chunkRepository.findRepresentativeByArticleId(articleId);
-
-        if (representativeChunk == null) {
-            log.debug("Article ID {} has no representative chunk, attempting to select one", articleId);
-            // 대표 chunk가 없으면 선정 시도
-            Long chunkId = representativeChunkService.selectRepresentativeChunk(articleId);
-            if (chunkId != null) {
-                representativeChunk = chunkRepository.findById(chunkId).orElse(null);
-            }
-        }
+        ArticleChunk representativeChunk = getOrSelectRepresentativeChunk(articleId);
 
         if (representativeChunk == null) {
             log.debug("Article ID {} has no representative chunk", articleId);
@@ -72,27 +70,32 @@ public class RelatedArticleService {
         }
         String embeddingStr = convertToPostgresArray(chunkVector.getEmbeddingNormalized());
 
-        // 3. 대표 chunk 기반 유사도 검색
-        List<Object[]> results = chunkRepository.findRelatedArticlesByRepresentativeChunk(
-                articleId, embeddingStr, resultLimit + 5);  // 여유있게 조회
+        // 3. 유사도 검색: binary 임베딩 있으면 2단계 검색, 없으면 halfvec 직접 비교 (fallback)
+        List<Object[]> results;
+        if (representativeChunk.getEmbeddingBinary() != null) {
+            String binaryStr = BitVectorType.toPostgresBitString(representativeChunk.getEmbeddingBinary(), 1024);
+            results = chunkRepository.findRelatedArticlesByTwoStageSearch(
+                    articleId, embeddingStr, binaryStr, CANDIDATE_LIMIT, MINIMUM_SIMILARITY, resultLimit);
+        } else {
+            log.debug("Article ID {} has no binary embedding, falling back to direct halfvec search", articleId);
+            results = chunkRepository.findRelatedArticlesByRepresentativeChunk(
+                    articleId, embeddingStr, resultLimit + 5);
+            results = results.stream()
+                    .filter(row -> ((Number) row[1]).doubleValue() >= MINIMUM_SIMILARITY)
+                    .toList();
+        }
 
         if (results.isEmpty()) {
             log.debug("No related articles found for article ID {}", articleId);
             return List.of();
         }
 
-        // 4. Article ID 목록 추출 및 유사도 맵 생성
+        // 4. Article ID 목록 및 유사도 추출
         List<Long> relatedArticleIds = new ArrayList<>();
         List<Double> similarities = new ArrayList<>();
-
         for (Object[] row : results) {
-            Long relatedId = ((Number) row[0]).longValue();
-            Double similarity = ((Number) row[1]).doubleValue();
-
-            if (similarity >= MINIMUM_SIMILARITY) {
-                relatedArticleIds.add(relatedId);
-                similarities.add(similarity);
-            }
+            relatedArticleIds.add(((Number) row[0]).longValue());
+            similarities.add(((Number) row[1]).doubleValue());
         }
 
         if (relatedArticleIds.isEmpty()) {
@@ -123,6 +126,33 @@ public class RelatedArticleService {
     }
 
     /**
+     * 메인 Article의 대표 chunk 정보 조회 (Admin 디버그 표시용)
+     */
+    @Transactional(readOnly = true)
+    public RepresentativeChunkInfo getRepresentativeChunkInfo(Long articleId) {
+        ArticleChunk representativeChunk = getOrSelectRepresentativeChunk(articleId);
+        if (representativeChunk == null) {
+            return null;
+        }
+
+        String content = chunkContentRepository.findRepresentativeContentByArticleId(articleId);
+        return new RepresentativeChunkInfo(representativeChunk.getChunkIndex(), content);
+    }
+
+    private ArticleChunk getOrSelectRepresentativeChunk(Long articleId) {
+        ArticleChunk representativeChunk = chunkRepository.findRepresentativeByArticleId(articleId);
+
+        if (representativeChunk == null) {
+            log.debug("Article ID {} has no representative chunk, attempting to select one", articleId);
+            Long chunkId = representativeChunkService.selectRepresentativeChunk(articleId);
+            if (chunkId != null) {
+                representativeChunk = chunkRepository.findById(chunkId).orElse(null);
+            }
+        }
+        return representativeChunk;
+    }
+
+    /**
      * float 배열을 PostgreSQL halfvec 포맷으로 변환
      */
     private String convertToPostgresArray(float[] embedding) {
@@ -133,5 +163,8 @@ public class RelatedArticleService {
         }
         sb.append("]");
         return sb.toString();
+    }
+
+    public record RepresentativeChunkInfo(Integer chunkIndex, String content) {
     }
 }

@@ -481,6 +481,7 @@ public class ArticleController {
 
         ArticleListResponseDto articleDto = new ArticleListResponseDto(article);
         model.addAttribute("article", articleDto);
+        model.addAttribute("mainRepresentativeChunkInfo", relatedArticleService.getRepresentativeChunkInfo(id));
 
         return "article-detail";
     }
