@@ -47,7 +47,7 @@ public class RepresentativeChunkService {
      * @param articleId Article ID
      * @return 선정된 대표 Chunk ID (없으면 null)
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Long selectRepresentativeChunk(Long articleId) {
         // 1. Article의 모든 chunk 조회
         List<ArticleChunk> chunks = chunkRepository.findByArticleIdOrderByChunkIndexAsc(articleId);

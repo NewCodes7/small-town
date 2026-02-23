@@ -107,7 +107,9 @@ public class ChunkEmbeddingBatchService {
             return 0;
         }
 
-        // 기존 청크 삭제 (재생성 시)
+        // 기존 청크 삭제 (재생성 시) - FK 순서: content/vector 먼저 삭제 후 chunk 삭제
+        chunkContentRepository.deleteByChunkArticleId(article.getId());
+        chunkVectorRepository.deleteByChunkArticleId(article.getId());
         chunkRepository.deleteByArticleId(article.getId());
 
         // 1. content 기준 청크 분할 (overlap 포함)
@@ -539,7 +541,9 @@ public class ChunkEmbeddingBatchService {
      */
     @Transactional
     public Map<String, Object> processRegenerateBatch(List<Long> articleIds) {
-        // 1. 기존 chunk 벌크 삭제
+        // 1. 기존 chunk 벌크 삭제 - FK 순서: content/vector 먼저 삭제 후 chunk 삭제
+        chunkContentRepository.deleteByChunkArticleIdIn(articleIds);
+        chunkVectorRepository.deleteByChunkArticleIdIn(articleIds);
         chunkRepository.deleteByArticleIdIn(articleIds);
         log.info("기존 chunk 삭제 완료 - {}개 Article", articleIds.size());
 
