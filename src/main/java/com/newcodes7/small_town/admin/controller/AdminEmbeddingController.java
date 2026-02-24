@@ -813,6 +813,45 @@ public class AdminEmbeddingController {
     }
 
     /**
+     * 대표 Chunk가 0번인 Article 및 대표 Chunk가 없는 Article 재선정
+     *
+     * @param limit 처리할 최대 Article 수 (기본값: 0, 0이면 전체)
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/articles/reselect-representative-chunks-index-zero")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> reselectRepresentativeChunksWithIndexZero(
+            @RequestParam(required = false, defaultValue = "0") Integer limit) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            log.info("대표 Chunk가 0번이거나 미선정인 Article 재선정 요청 (limit={})", limit);
+
+            RepresentativeChunkService.BatchResult result =
+                representativeChunkService.reselectRepresentativeChunksWithIndexZero(limit);
+
+            response.put("success", true);
+            response.put("successCount", result.getSuccess());
+            response.put("skippedCount", result.getSkipped());
+            response.put("failedCount", result.getFailed());
+            response.put("totalProcessed", result.getTotal());
+            response.put("remainingCount", result.getRemainingCount());
+            response.put("processingTimeMs", result.getProcessingTimeMs());
+            response.put("message", String.format(
+                "대표 Chunk 재선정(0번/미선정 대상) 완료: 성공=%d, 스킵=%d, 실패=%d, 남은 Article=%d, 소요시간=%dms",
+                result.getSuccess(), result.getSkipped(), result.getFailed(),
+                result.getRemainingCount(), result.getProcessingTimeMs()));
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("대표 Chunk가 0번인 Article 재선정 중 오류 발생", e);
+            response.put("success", false);
+            response.put("message", "재선정 처리 중 오류 발생: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
      * 대표 Chunk 통계 조회
      */
     @GetMapping("/articles/representative-chunk-stats")

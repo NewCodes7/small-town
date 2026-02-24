@@ -436,6 +436,58 @@ public class RepresentativeChunkService {
     }
 
     /**
+     * 대표 Chunk가 0번인 Article만 재선정
+     * 10개씩 묶어서 별도 트랜잭션으로 저장
+     */
+    @Transactional
+    public BatchResult reselectRepresentativeChunksWithIndexZero(int limit) {
+        log.info("Starting re-selection for articles with representative chunk index 0 or missing representative (limit={})...",
+                limit > 0 ? limit : "all");
+        long startTime = System.currentTimeMillis();
+
+        List<Long> withIndexZero = chunkRepository.findArticleIdsWithRepresentativeChunkIndexZero();
+        List<Long> withoutRepresentative = chunkRepository.findArticleIdsWithoutRepresentativeChunk();
+
+        List<Long> allArticleIds = new ArrayList<>();
+        allArticleIds.addAll(withIndexZero);
+        allArticleIds.addAll(withoutRepresentative);
+
+        List<Long> uniqueArticleIds = allArticleIds.stream()
+                .distinct()
+                .toList();
+
+        List<Long> articleIds = uniqueArticleIds.stream()
+                .limit(limit > 0 ? limit : Long.MAX_VALUE)
+                .toList();
+
+        log.info("Found {} articles with representative chunk index 0 or missing representative, processing {} articles",
+                uniqueArticleIds.size(), articleIds.size());
+
+        BatchResult result = new BatchResult();
+        result.setRemainingCount(uniqueArticleIds.size() - articleIds.size());
+
+        for (int i = 0; i < articleIds.size(); i += BATCH_SIZE) {
+            int endIndex = Math.min(i + BATCH_SIZE, articleIds.size());
+            List<Long> batchIds = articleIds.subList(i, endIndex);
+
+            BatchResult batchResult = processBatch(batchIds);
+            result.merge(batchResult);
+
+            log.info("Progress: {}/{} articles processed (batch {}/{})",
+                    result.getTotal(), articleIds.size(),
+                    (i / BATCH_SIZE) + 1, (int) Math.ceil((double) articleIds.size() / BATCH_SIZE));
+        }
+
+        result.setProcessingTimeMs(System.currentTimeMillis() - startTime);
+
+        log.info("Re-selection for index 0 completed: success={}, skipped={}, failed={}, remaining={}, time={}ms",
+                result.getSuccess(), result.getSkipped(), result.getFailed(),
+                result.getRemainingCount(), result.getProcessingTimeMs());
+
+        return result;
+    }
+
+    /**
      * 배치 처리 결과
      */
     public static class BatchResult {

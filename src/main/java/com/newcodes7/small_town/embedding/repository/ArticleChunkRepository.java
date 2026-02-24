@@ -375,6 +375,12 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
     List<Long> findArticleIdsWithRepresentativeChunk();
 
     /**
+     * 대표 Chunk가 0번인 Article ID 목록
+     */
+    @Query("SELECT DISTINCT c.article.id FROM ArticleChunk c WHERE c.isRepresentative = true AND c.chunkIndex = 0")
+    List<Long> findArticleIdsWithRepresentativeChunkIndexZero();
+
+    /**
      * 대표 Chunk가 없는 Article ID 목록 (청크는 있지만 대표가 선정되지 않은 것)
      */
     @Query(value = """
