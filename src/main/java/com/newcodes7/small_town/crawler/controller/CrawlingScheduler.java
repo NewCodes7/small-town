@@ -7,19 +7,16 @@ import com.newcodes7.small_town.crawler.crawler.MediumBlogCrawler;
 import com.newcodes7.small_town.crawler.entity.CrawlingJobType;
 import com.newcodes7.small_town.crawler.entity.CrawlingRunStatus;
 import com.newcodes7.small_town.crawler.entity.CrawlingSchedulerRun;
-import com.newcodes7.small_town.crawler.entity.CrawlingStepStatus;
-import com.newcodes7.small_town.crawler.entity.CrawlingStepType;
+import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.BlogType;
 import com.newcodes7.small_town.crawler.dto.CrawlResult;
 import com.newcodes7.small_town.crawler.integration.analytics.GoogleAnalyticsService;
 import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
-import com.newcodes7.small_town.crawler.service.CrawlingService;
 import com.newcodes7.small_town.crawler.service.CrawlingRunContext;
 import com.newcodes7.small_town.crawler.service.CrawlingRunService;
+import com.newcodes7.small_town.crawler.service.CrawlingService;
+import com.newcodes7.small_town.crawler.service.YouTubeCrawlingService;
 import com.newcodes7.small_town.crawler.integration.translation.TitleTranslationService;
-import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
-import com.newcodes7.small_town.embedding.service.ChunkEmbeddingBatchService;
-import com.newcodes7.small_town.global.entity.Article;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +37,7 @@ import java.util.List;
 public class CrawlingScheduler {
 
     private final CrawlingService crawlingService;
+    private final YouTubeCrawlingService youtubeCrawlingService;
     private final TitleTranslationService titleTranslationService;
     private final ArticlePersistenceService articlePersistenceService;
     private final GoogleAnalyticsService googleAnalyticsService;
@@ -47,8 +45,6 @@ public class CrawlingScheduler {
     private final WebDriverConfig webDriverConfig;
     private final MediumBlogCrawler mediumBlogCrawler;
     private final DefaultBlogCrawler defaultBlogCrawler;
-    private final ChunkEmbeddingBatchService chunkEmbeddingBatchService;
-    private final ArticleChunkRepository articleChunkRepository;
     private final CrawlingRunService crawlingRunService;
     private final CrawlingRunContext crawlingRunContext;
 
@@ -94,9 +90,6 @@ public class CrawlingScheduler {
                         log.warn("블로그 크롤링 실패 - 기업: {}, 오류: {}", corpName, result.getErrorMessage());
                     });
 
-            // 신규 글에 대해 임베딩 생성
-            generateEmbeddingsForNewArticles(results);
-
             CrawlingRunStatus status = failureCount == 0
                     ? CrawlingRunStatus.SUCCESS
                     : (successCount == 0 ? CrawlingRunStatus.FAILURE : CrawlingRunStatus.PARTIAL_SUCCESS);
@@ -122,7 +115,7 @@ public class CrawlingScheduler {
         crawlingRunContext.setRunId(run.getId());
 
         try {
-            List<com.newcodes7.small_town.crawler.dto.VideoCrawlResult> results = crawlingService.crawlAllYouTube();
+            List<com.newcodes7.small_town.crawler.dto.VideoCrawlResult> results = youtubeCrawlingService.crawlAllYouTube();
 
             long successCount = results.stream()
                     .filter(com.newcodes7.small_town.crawler.dto.VideoCrawlResult::isSuccess)
@@ -370,63 +363,4 @@ public class CrawlingScheduler {
         log.debug("Article {} content 업데이트 완료", articleId);
     }
 
-    /**
-     * 신규 크롤링된 Article에 대해 임베딩 생성
-     * content가 있는 Article만 처리
-     */
-    private void generateEmbeddingsForNewArticles(List<CrawlResult> results) {
-        try {
-            // 성공한 결과에서 content가 있는 신규 Article 수집
-            List<Article> newArticles = results.stream()
-                    .filter(CrawlResult::hasNewArticles)
-                    .flatMap(result -> result.getArticles().stream())
-                    .filter(article -> article.getContent() != null && !article.getContent().isBlank())
-                    .toList();
-
-            if (newArticles.isEmpty()) {
-                log.info("임베딩 생성 대상 신규 Article이 없습니다.");
-                return;
-            }
-
-            log.info("신규 Article {}개에 대해 임베딩 생성 시작", newArticles.size());
-
-            int successCount = 0;
-            int failureCount = 0;
-            int totalChunks = 0;
-
-            for (Article article : newArticles) {
-                try {
-                    int chunksGenerated = chunkEmbeddingBatchService.generateChunkEmbeddingsForArticle(article);
-                    if (chunksGenerated > 0) {
-                        successCount++;
-                        totalChunks += chunksGenerated;
-                        log.debug("Article {} 임베딩 생성 완료: {}개 청크", article.getId(), chunksGenerated);
-                        crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.EMBEDDING, CrawlingStepStatus.SUCCESS, null);
-
-                        if (articleChunkRepository.findRepresentativeByArticleId(article.getId()) != null) {
-                            crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.REPRESENTATIVE_CHUNK, CrawlingStepStatus.SUCCESS, null);
-                        } else {
-                            crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.REPRESENTATIVE_CHUNK, CrawlingStepStatus.FAILURE, "대표 chunk 없음");
-                        }
-                    } else {
-                        failureCount++;
-                        log.warn("Article {} 임베딩 생성 실패 (청크 0개)", article.getId());
-                        crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.EMBEDDING, CrawlingStepStatus.FAILURE, "청크 0개");
-                        crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.REPRESENTATIVE_CHUNK, CrawlingStepStatus.SKIPPED, "임베딩 실패");
-                    }
-                } catch (Exception e) {
-                    failureCount++;
-                    log.error("Article {} 임베딩 생성 실패: {}", article.getId(), e.getMessage());
-                    crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.EMBEDDING, CrawlingStepStatus.FAILURE, e.getMessage());
-                    crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.REPRESENTATIVE_CHUNK, CrawlingStepStatus.SKIPPED, "임베딩 실패");
-                }
-            }
-
-            log.info("임베딩 생성 완료 - 성공: {}개, 실패: {}개, 총 청크: {}개",
-                    successCount, failureCount, totalChunks);
-
-        } catch (Exception e) {
-            log.error("임베딩 생성 중 오류 발생", e);
-        }
-    }
 }

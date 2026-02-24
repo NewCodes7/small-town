@@ -79,18 +79,20 @@ public class RepresentativeChunkService {
             }
         }
 
-        if (termBm25Scores.isEmpty()) {
-            log.debug("Article ID {} has no BM25 scores for terms", articleId);
-            return setFirstChunkAsRepresentative(articleId, chunks);
-        }
-
-        log.debug("Article ID {} - BM25 scores: {}", articleId, termBm25Scores);
-
-        // 4. 각 chunk의 점수 계산
+        // 4. chunk content 조회 (BM25 및 term 빈도수 기반 모두 필요)
         List<Long> chunkIds = chunks.stream().map(ArticleChunk::getId).toList();
         Map<Long, String> contentMap = chunkContentRepository.findAllById(chunkIds).stream()
                 .collect(Collectors.toMap(ChunkContent::getId, ChunkContent::getContent));
 
+        // BM25 점수 미사용 시 (article_search_view 미갱신 등): term 빈도수 기반 선정
+        if (termBm25Scores.isEmpty()) {
+            log.debug("Article ID {} - BM25 scores unavailable, using term frequency", articleId);
+            return selectByTermFrequency(articleId, chunks, topTerms, contentMap);
+        }
+
+        log.debug("Article ID {} - BM25 scores: {}", articleId, termBm25Scores);
+
+        // 5. 각 chunk의 BM25 가중 점수 계산
         Long bestChunkId = null;
         double bestScore = -1;
 
@@ -105,7 +107,7 @@ public class RepresentativeChunkService {
             }
         }
 
-        // 5. 대표 chunk 설정
+        // 6. 대표 chunk 설정
         if (bestChunkId != null) {
             chunkRepository.resetRepresentativeFlag(articleId);
             chunkRepository.setRepresentativeFlag(bestChunkId);
@@ -255,6 +257,48 @@ public class RepresentativeChunkService {
             count++;
         }
         return count;
+    }
+
+    /**
+     * Term 빈도수 기반으로 대표 Chunk 선정 (BM25 점수 미사용 시 fallback)
+     * article_search_view 미갱신 등으로 BM25 점수를 얻지 못할 때 사용
+     */
+    private Long selectByTermFrequency(Long articleId, List<ArticleChunk> chunks,
+            List<ArticleTerm> topTerms, Map<Long, String> contentMap) {
+        List<String> termTexts = topTerms.stream()
+                .map(at -> at.getTerm().getTerm().toLowerCase())
+                .toList();
+
+        Long bestChunkId = null;
+        int bestCount = -1;
+
+        for (ArticleChunk chunk : chunks) {
+            String content = contentMap.get(chunk.getId());
+            if (content == null || content.isEmpty()) continue;
+
+            String lowerContent = content.toLowerCase();
+            int count = 0;
+            for (String term : termTexts) {
+                count += countTermOccurrences(lowerContent, term);
+            }
+
+            log.debug("Chunk {} (index {}) term-frequency count: {}", chunk.getId(), chunk.getChunkIndex(), count);
+
+            if (count > bestCount) {
+                bestCount = count;
+                bestChunkId = chunk.getId();
+            }
+        }
+
+        if (bestChunkId != null) {
+            chunkRepository.resetRepresentativeFlag(articleId);
+            chunkRepository.setRepresentativeFlag(bestChunkId);
+            log.info("Article ID {} - Representative chunk selected by term frequency (BM25 N/A): {} (count: {})",
+                    articleId, bestChunkId, bestCount);
+            return bestChunkId;
+        }
+
+        return setFirstChunkAsRepresentative(articleId, chunks);
     }
 
     /**

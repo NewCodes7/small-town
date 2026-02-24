@@ -3,27 +3,18 @@ package com.newcodes7.small_town.crawler.service;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.openqa.selenium.WebDriver;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.article.repository.ArticleTermRepository;
-import com.newcodes7.small_town.article.repository.TermRepository;
+import com.newcodes7.small_town.article.service.ArticleTermService;
 import com.newcodes7.small_town.crawler.config.WebDriverConfig;
 import com.newcodes7.small_town.crawler.crawler.BlogCrawler;
-import com.newcodes7.small_town.crawler.crawler.DefaultBlogCrawler;
-import com.newcodes7.small_town.crawler.crawler.MediumBlogCrawler;
-import com.newcodes7.small_town.crawler.crawler.VideoCrawler;
 import com.newcodes7.small_town.crawler.dto.CrawlResult;
 import com.newcodes7.small_town.crawler.dto.CrawlingStats;
-import com.newcodes7.small_town.crawler.dto.VideoCrawlResult;
 import com.newcodes7.small_town.crawler.entity.CrawlingStepStatus;
 import com.newcodes7.small_town.crawler.entity.CrawlingStepType;
 import com.newcodes7.small_town.crawler.exception.CorporationCrawlingException;
@@ -31,19 +22,13 @@ import com.newcodes7.small_town.crawler.exception.CrawlerException;
 import com.newcodes7.small_town.crawler.exception.CrawlerNotFoundException;
 import com.newcodes7.small_town.crawler.integration.robotstxt.RobotsTxtService;
 import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
-import com.newcodes7.small_town.crawler.persistence.VideoPersistenceService;
 import com.newcodes7.small_town.crawler.repository.CrawlerArticleRepository;
 import com.newcodes7.small_town.crawler.repository.CrawlerCorporationRepository;
-import com.newcodes7.small_town.crawler.repository.CrawlerVideoRepository;
-import com.newcodes7.small_town.crawler.service.CrawlingRunService;
+import com.newcodes7.small_town.embedding.service.ChunkEmbeddingBatchService;
+import com.newcodes7.small_town.embedding.service.RepresentativeChunkService;
 import com.newcodes7.small_town.global.cache.NginxCachePurgeService;
 import com.newcodes7.small_town.global.entity.Article;
-import com.newcodes7.small_town.global.entity.ArticleTerm;
 import com.newcodes7.small_town.global.entity.Corporation;
-import com.newcodes7.small_town.global.entity.Term;
-import com.newcodes7.small_town.global.entity.Video;
-import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
-import com.newcodes7.small_town.crawler.service.ArticleContentExtractionService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -55,54 +40,48 @@ public class CrawlingService {
 
     private final CrawlerCorporationRepository crawlerCorporationRepository;
     private final CrawlerArticleRepository crawlerArticleRepository;
-    private final CrawlerVideoRepository crawlerVideoRepository;
     private final ApplicationContext applicationContext;
     private final RobotsTxtService robotsTxtService;
     private final WebDriverConfig webDriverConfig;
     private final ArticlePersistenceService articlePersistenceService;
-    private final VideoPersistenceService videoPersistenceService;
     private final NginxCachePurgeService nginxCachePurgeService;
-    private final MorphemeAnalyzer morphemeAnalyzer;
-    private final TermRepository termRepository;
-    private final ArticleTermRepository articleTermRepository;
     private final ArticleContentExtractionService articleContentExtractionService;
     private final ArticleRepository articleRepository;
     private final CrawlingRunService crawlingRunService;
-
-    // Term 추출 설정
-    @Value("${term.extraction.max-terms:7}")
-    private int maxTermsPerArticle;
-
-    @Value("${term.extraction.min-frequency:2}")
-    private int minTermFrequency;
+    private final ArticleTermService articleTermService;
+    private final ChunkEmbeddingBatchService chunkEmbeddingBatchService;
+    private final RepresentativeChunkService representativeChunkService;
 
     /**
-     * 모든 기업의 블로그만 크롤링 (동기 처리)
+     * 모든 기업 블로그 크롤링 (배치)
+     *
+     * 기업별: crawlSingleBlog (새 글 수집 → 본문/Term 분석 → Embedding 생성)
+     * 전체 완료 후: BM25 인덱스 갱신 (1회) → 대표 Chunk 선택
+     * BM25 인덱스 갱신을 마지막으로 미루는 이유: REFRESH MATERIALIZED VIEW는 비용이 크므로
+     * 기업별로 반복 호출하지 않고 모든 Term이 저장된 후 1회만 실행
      */
     public List<CrawlResult> crawlAllBlogs() {
         List<Corporation> corporations = crawlerCorporationRepository.findAllWithBlogLink();
         log.info("블로그 크롤링 시작 - 대상 기업: {}개", corporations.size());
 
         List<CrawlResult> results = new ArrayList<>();
+        List<Article> allNewArticles = new ArrayList<>();
 
-        // 기업별로 WebDriver를 새로 생성하여 메모리 누적 방지
         for (Corporation corporation : corporations) {
             WebDriver driver = null;
+            CrawlResult result = null;
             try {
                 driver = webDriverConfig.createWebDriver();
-                CrawlResult result = crawlSingleBlog(corporation.getId(), driver);
-                results.add(result);
-
-                log.info("기업 크롤링 완료 - {}: {} 진행", corporation.getName(),
-                    results.size() + "/" + corporations.size());
-
+                result = crawlSingleBlog(corporation.getId(), driver);
+                allNewArticles.addAll(result.getArticles());
+                log.info("기업 크롤링 완료 - {}: {}/{} 진행", corporation.getName(),
+                    results.size() + 1, corporations.size());
             } catch (Exception e) {
                 log.error("기업 ID {} 크롤링 중 오류 발생: {}", corporation.getId(), e.getMessage(), e);
-                results.add(CrawlResult.failure(corporation, "크롤링 실행 실패: " + e.getMessage()));
+                result = CrawlResult.failure(corporation, "크롤링 실행 실패: " + e.getMessage());
             } finally {
                 if (driver != null) {
                     webDriverConfig.forceCloseWebDriver(driver);
-                    // 메모리 정리를 위한 대기 시간
                     try {
                         Thread.sleep(1000);
                     } catch (InterruptedException ie) {
@@ -111,157 +90,27 @@ public class CrawlingService {
                     }
                 }
             }
+            results.add(result);
         }
 
         log.info("블로그 크롤링 완료 - 처리된 기업: {}개", results.size());
 
-        // BM25 검색 인덱스 갱신 (ArticleTerm이 업데이트되었으므로)
-        refreshBM25SearchIndex(results);
+        if (!allNewArticles.isEmpty()) {
+            refreshSearchIndex();
+            selectRepresentativeChunksForArticles(allNewArticles);
+            purgeCacheForCrawlResults(results);
+        }
 
-        // 크롤링 완료 후 선택적 캐시 purge
-        purgeCacheForCrawlResults(results);
 
         return results;
     }
 
     /**
-     * 모든 기업의 YouTube만 크롤링 (동기 처리)
-     * YouTube는 API를 사용하므로 WebDriver 불필요
-     */
-    public List<VideoCrawlResult> crawlAllYouTube() {
-        List<Corporation> corporations = crawlerCorporationRepository.findAllWithYoutubeChannel();
-        log.info("YouTube 크롤링 시작 - 대상 기업: {}개", corporations.size());
-
-        List<VideoCrawlResult> results = new ArrayList<>();
-
-        for (Corporation corporation : corporations) {
-            try {
-                VideoCrawlResult result = crawlSingleYouTube(corporation.getId(), null);
-                results.add(result);
-
-                log.info("YouTube 크롤링 완료 - {}: {}/{} 진행", corporation.getName(),
-                    results.size(), corporations.size());
-
-            } catch (Exception e) {
-                log.error("기업 ID {} YouTube 크롤링 중 오류 발생: {}", corporation.getId(), e.getMessage(), e);
-                results.add(VideoCrawlResult.failure(corporation, "YouTube 크롤링 실행 실패: " + e.getMessage()));
-            }
-        }
-
-        log.info("YouTube 크롤링 완료 - 처리된 기업: {}개", results.size());
-
-        // 크롤링 완료 후 선택적 캐시 purge
-        purgeCacheForVideoCrawlResults(results);
-
-        return results;
-    }
-
-    /**
-     * 크롤링 결과에 따라 선택적으로 캐시 purge
-     * - 신규 글이 추가된 corporation만 개별 purge
-     * - 전체적으로 신규 글이 1개 이상이면 home 페이지 purge
-     */
-    private void purgeCacheForCrawlResults(List<CrawlResult> results) {
-        try {
-            // 신규 글이 추가된 corporation 찾기
-            List<Long> corporationIdsWithNewArticles = results.stream()
-                    .filter(CrawlResult::hasNewArticles)
-                    .map(result -> result.getCorporation().getId())
-                    .toList();
-
-            if (corporationIdsWithNewArticles.isEmpty()) {
-                log.info("신규 글이 없어 캐시 purge를 건너뜁니다.");
-                return;
-            }
-
-            log.info("신규 글이 추가된 기업 {}개에 대해 캐시 purge 시작", corporationIdsWithNewArticles.size());
-
-            // 신규 글이 있는 corporation 페이지만 purge
-            nginxCachePurgeService.purgeCorporationPages(corporationIdsWithNewArticles);
-
-            // 전체적으로 신규 글이 있으면 home 페이지도 purge
-            nginxCachePurgeService.purgeHomePages();
-
-            log.info("크롤링 후 캐시 purge 완료");
-        } catch (Exception e) {
-            log.error("크롤링 후 캐시 purge 중 오류 발생: {}", e.getMessage(), e);
-            // 캐시 purge 실패는 크롤링 자체를 실패시키지 않음
-        }
-    }
-
-    /**
-     * 비디오 크롤링 결과에 따라 선택적으로 캐시 purge
-     * - 신규 영상이 추가된 corporation만 개별 purge
-     * - 전체적으로 신규 영상이 1개 이상이면 home 페이지 purge
-     */
-    private void purgeCacheForVideoCrawlResults(List<VideoCrawlResult> results) {
-        try {
-            // 신규 영상이 추가된 corporation 찾기
-            List<Long> corporationIdsWithNewVideos = results.stream()
-                    .filter(VideoCrawlResult::hasNewVideos)
-                    .map(result -> result.getCorporation().getId())
-                    .toList();
-
-            if (corporationIdsWithNewVideos.isEmpty()) {
-                log.info("신규 영상이 없어 캐시 purge를 건너뜁니다.");
-                return;
-            }
-
-            log.info("신규 영상이 추가된 기업 {}개에 대해 캐시 purge 시작", corporationIdsWithNewVideos.size());
-
-            // 신규 영상이 있는 corporation 페이지만 purge
-            nginxCachePurgeService.purgeCorporationPages(corporationIdsWithNewVideos);
-
-            // 전체적으로 신규 영상이 있으면 home 페이지도 purge
-            nginxCachePurgeService.purgeHomePages();
-
-            log.info("비디오 크롤링 후 캐시 purge 완료");
-        } catch (Exception e) {
-            log.error("비디오 크롤링 후 캐시 purge 중 오류 발생: {}", e.getMessage(), e);
-            // 캐시 purge 실패는 크롤링 자체를 실패시키지 않음
-        }
-    }
-
-    /**
-     * BM25 검색 인덱스 갱신 (Materialized View REFRESH)
-     * 신규 Article이 추가되었거나 ArticleTerm이 업데이트된 경우 호출
-     */
-    private void refreshBM25SearchIndex(List<CrawlResult> results) {
-        try {
-            // 신규 글이 추가된 경우에만 REFRESH
-            boolean hasNewArticles = results.stream()
-                    .anyMatch(CrawlResult::hasNewArticles);
-
-            if (!hasNewArticles) {
-                log.info("신규 글이 없어 BM25 인덱스 갱신을 건너뜁니다.");
-                return;
-            }
-
-            log.info("BM25 검색 인덱스 갱신 시작 (Materialized View REFRESH)");
-            long startTime = System.currentTimeMillis();
-
-            articleRepository.refreshArticleSearchIndex();
-
-            long elapsedTime = System.currentTimeMillis() - startTime;
-            log.info("BM25 검색 인덱스 갱신 완료 ({}ms)", elapsedTime);
-
-            // Term 자동완성 Materialized View 갱신
-            log.info("Term 자동완성 인덱스 갱신 시작");
-            long termStartTime = System.currentTimeMillis();
-
-            articleRepository.refreshTermAutocompleteIndex();
-
-            long termElapsedTime = System.currentTimeMillis() - termStartTime;
-            log.info("Term 자동완성 인덱스 갱신 완료 ({}ms)", termElapsedTime);
-
-        } catch (Exception e) {
-            log.error("BM25 검색 인덱스 갱신 중 오류 발생: {}", e.getMessage(), e);
-            // 인덱스 갱신 실패는 크롤링 자체를 실패시키지 않음
-        }
-    }
-
-    /**
-     * 특정 기업 블로그만 크롤링 (WebDriver 관리 + 예외 처리)
+     * 특정 기업 블로그 크롤링 (기업 단위 처리)
+     *
+     * 새 글 수집 → 본문/Term 분석 → Embedding 생성
+     * BM25 인덱스 갱신과 대표 Chunk 선택은 포함하지 않음.
+     * 단일 기업 즉시 실행 시 crawlAllBlogs를 통해 호출하거나, 호출 후 별도 처리 필요.
      */
     public CrawlResult crawlSingleBlog(Long corporationId, WebDriver driver) {
         Corporation corporation = crawlerCorporationRepository.findByIdAndNotDeleted(corporationId);
@@ -280,7 +129,17 @@ public class CrawlingService {
         }
 
         try {
-            return crawlAndSaveBlogArticles(corporation, driver);
+            CrawlResult result = fetchAndPersistNewArticles(corporation, driver);
+            if (!result.hasNewArticles()) {
+                return result;
+            }
+
+            List<Article> newArticles = result.getArticles();
+            extractContentAndTermsForArticles(newArticles, driver);
+            generateEmbeddingsForArticles(newArticles);
+
+            return result;
+
         } catch (CrawlerException e) {
             log.error("블로그 크롤링 실패 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
             throw e;
@@ -295,36 +154,10 @@ public class CrawlingService {
     }
 
     /**
-     * 특정 기업 YouTube만 크롤링
-     * YouTube는 API를 사용하므로 WebDriver 불필요
+     * 블로그 크롤링 및 신규 Article 저장
+     * 본문/Term 추출은 이후 단계에서 별도 처리
      */
-    public VideoCrawlResult crawlSingleYouTube(Long corporationId, WebDriver driver) {
-        Corporation corporation = crawlerCorporationRepository.findByIdAndNotDeleted(corporationId);
-        if (corporation == null) {
-            throw new CorporationCrawlingException(corporationId);
-        }
-
-        boolean hasYoutubeChannel = corporation.getYoutubeChannelId() != null && !corporation.getYoutubeChannelId().trim().isEmpty();
-        if (!hasYoutubeChannel) {
-            throw new CorporationCrawlingException(corporationId, "empty or null YouTube channel ID");
-        }
-
-        try {
-            return crawlAndSaveYouTubeVideos(corporation, driver);
-        } catch (CrawlerException e) {
-            log.error("YouTube 크롤링 실패 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
-            throw e;
-        } catch (Exception e) {
-            log.error("예상치 못한 YouTube 크롤링 오류 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
-            throw new CrawlerException("CRAWLER_UNEXPECTED_ERROR", "Unexpected error during YouTube crawling for corporation: " + corporation.getName(), e) {};
-        }
-    }
-
-    /**
-     * 블로그 크롤링 및 Article 저장
-     */
-    private CrawlResult crawlAndSaveBlogArticles(Corporation corporation, WebDriver driver) throws IOException {
-        List<Article> crawledArticles = new ArrayList<>();
+    private CrawlResult fetchAndPersistNewArticles(Corporation corporation, WebDriver driver) throws IOException {
         List<Article> newArticles = new ArrayList<>();
 
         BlogCrawler blogCrawler = selectCrawler(corporation);
@@ -340,7 +173,6 @@ public class CrawlingService {
         }
 
         List<Article> blogArticles = blogCrawler.crawlWithRobotsCheck(driver, corporation, robotsTxtService);
-        crawledArticles.addAll(blogArticles);
 
         // 중복 제거 및 저장 (link 또는 title이 같으면 중복)
         for (Article article : blogArticles) {
@@ -348,46 +180,146 @@ public class CrawlingService {
             boolean isDuplicateByTitle = crawlerArticleRepository.existsByTitleAndCorporationIdAndDeletedAtIsNull(article.getTitle(), corporation.getId());
 
             if (!isDuplicateByLink && !isDuplicateByTitle) {
-                // Article 저장 및 AI 분석
                 articlePersistenceService.saveArticleWithAnalysis(article, corporation, blogCrawler);
-
-                // 본문에서 Term 추출 및 저장
-                extractAndSaveTerms(article, blogCrawler, driver);
-
                 newArticles.add(article);
             }
         }
 
-        log.info("블로그 크롤링 완료 - 기업: {}, 조회: {}개, 신규: {}개",
+        log.info("새 글 수집 완료 - 기업: {}, 조회: {}개, 신규: {}개",
                  corporation.getName(), blogArticles.size(), newArticles.size());
 
         return CrawlResult.success(corporation, newArticles, newArticles.size());
     }
 
     /**
-     * YouTube 크롤링 및 Video 저장
+     * 본문 추출 + Term 분석 및 저장
+     * 본문 추출 실패 시 title 기반 term 분석으로 fallback
      */
-    private VideoCrawlResult crawlAndSaveYouTubeVideos(Corporation corporation, WebDriver driver) throws IOException {
-        List<Video> newVideos = new ArrayList<>();
+    private void extractContentAndTermsForArticles(List<Article> articles, WebDriver driver) {
+        for (Article article : articles) {
+            try {
+                String content = articleContentExtractionService.extractContent(article, driver);
 
-        VideoCrawler youtubeCrawler = selectVideoCrawler("https://www.youtube.com/channel/" + corporation.getYoutubeChannelId());
-        log.info("YouTube 크롤링 시작 - 기업: {}, 크롤러: {}", corporation.getName(), youtubeCrawler.getProviderName());
+                if (content == null || content.trim().isEmpty()) {
+                    log.warn("본문 추출 실패 - 본문이 비어있음: {}", article.getTitle());
+                    crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CONTENT_EXTRACTION, CrawlingStepStatus.FAILURE, "본문이 비어있음");
+                    try {
+                        int termCount = articleTermService.extractAndSaveTermsForArticle(article);
+                        log.info("Title 기반 Term 추출 완료 - Article: {}, Term 수: {}개", article.getTitle(), termCount);
+                        crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.TERM_ANALYSIS, CrawlingStepStatus.SUCCESS, null);
+                    } catch (Exception e) {
+                        log.error("Title 기반 Term 추출 실패 - Article: {}, 오류: {}", article.getTitle(), e.getMessage(), e);
+                        crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.TERM_ANALYSIS, CrawlingStepStatus.FAILURE, e.getMessage());
+                    }
+                    continue;
+                }
 
-        List<Video> youtubeVideos = youtubeCrawler.crawl(driver, corporation);
+                log.info("본문 추출 성공 - Article: {}, 본문 길이: {}자", article.getTitle(), content.length());
+                article.setContent(content);
+                articleContentExtractionService.updateArticleContent(article.getId(), content);
+                crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CONTENT_EXTRACTION, CrawlingStepStatus.SUCCESS, null);
 
-        // 중복 제거 및 저장
-        for (Video video : youtubeVideos) {
-            if (!crawlerVideoRepository.findFirstByLinkAndDeletedAtIsNull(video.getLink()).isPresent()) {
-                // VideoPersistenceService를 통해 저장 (이미지 업로드, 번역, 캐시 evict 포함)
-                videoPersistenceService.saveVideoWithTranslation(video, corporation, youtubeCrawler);
-                newVideos.add(video);
+                try {
+                    int termCount = articleTermService.extractAndSaveTermsForArticle(article);
+                    log.info("Term 추출 완료 - Article: {}, Term 수: {}개", article.getTitle(), termCount);
+                    crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.TERM_ANALYSIS, CrawlingStepStatus.SUCCESS, null);
+                } catch (Exception e) {
+                    log.error("Term 추출 실패 - Article: {}, 오류: {}", article.getTitle(), e.getMessage(), e);
+                    crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.TERM_ANALYSIS, CrawlingStepStatus.FAILURE, e.getMessage());
+                }
+
+            } catch (Exception e) {
+                log.error("본문/Term 추출 중 오류 발생 - Article: {}, 오류: {}", article.getTitle(), e.getMessage(), e);
+                crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CONTENT_EXTRACTION, CrawlingStepStatus.FAILURE, e.getMessage());
+                crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.TERM_ANALYSIS, CrawlingStepStatus.SKIPPED, "본문 추출 실패");
+            }
+        }
+    }
+
+    /**
+     * BM25 검색 인덱스 갱신 (Materialized View REFRESH)
+     * Term 저장 후 호출 → 대표 Chunk 선정 시 BM25 쿼리에 신규 Term이 반영됨
+     */
+    private void refreshSearchIndex() {
+        try {
+            log.info("BM25 검색 인덱스 갱신 시작 (Materialized View REFRESH)");
+            long startTime = System.currentTimeMillis();
+
+            articleRepository.refreshArticleSearchIndex();
+
+            log.info("BM25 검색 인덱스 갱신 완료 ({}ms)", System.currentTimeMillis() - startTime);
+
+            log.info("Term 자동완성 인덱스 갱신 시작");
+            long termStartTime = System.currentTimeMillis();
+
+            articleRepository.refreshTermAutocompleteIndex();
+
+            log.info("Term 자동완성 인덱스 갱신 완료 ({}ms)", System.currentTimeMillis() - termStartTime);
+
+        } catch (Exception e) {
+            log.error("BM25 검색 인덱스 갱신 중 오류 발생: {}", e.getMessage(), e);
+            // 인덱스 갱신 실패는 크롤링 자체를 실패시키지 않음
+        }
+    }
+
+    /**
+     * Embedding 생성. content가 있는 Article만 처리
+     */
+    private void generateEmbeddingsForArticles(List<Article> articles) {
+        List<Article> targets = articles.stream()
+                .filter(a -> a.getContent() != null && !a.getContent().isBlank())
+                .toList();
+
+        if (targets.isEmpty()) {
+            log.info("Embedding 생성 대상 Article이 없습니다 (본문 없음).");
+            return;
+        }
+
+        log.info("Embedding 생성 시작 - {}개 Article", targets.size());
+        int successCount = 0;
+        int failureCount = 0;
+
+        for (Article article : targets) {
+            try {
+                int chunksGenerated = chunkEmbeddingBatchService.generateChunkEmbeddingsForArticle(article);
+                if (chunksGenerated > 0) {
+                    successCount++;
+                    log.debug("Article {} Embedding 생성 완료: {}개 청크", article.getId(), chunksGenerated);
+                    crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.EMBEDDING, CrawlingStepStatus.SUCCESS, null);
+                } else {
+                    failureCount++;
+                    log.warn("Article {} Embedding 생성 실패 (청크 0개)", article.getId());
+                    crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.EMBEDDING, CrawlingStepStatus.FAILURE, "청크 0개");
+                }
+            } catch (Exception e) {
+                failureCount++;
+                log.error("Article {} Embedding 생성 실패: {}", article.getId(), e.getMessage(), e);
+                crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.EMBEDDING, CrawlingStepStatus.FAILURE, e.getMessage());
             }
         }
 
-        log.info("YouTube 크롤링 완료 - 기업: {}, 조회: {}개, 신규: {}개",
-                 corporation.getName(), youtubeVideos.size(), newVideos.size());
+        log.info("Embedding 생성 완료 - 성공: {}개, 실패: {}개", successCount, failureCount);
+    }
 
-        return VideoCrawlResult.success(corporation, newVideos, newVideos.size());
+    /**
+     * 대표 Chunk 선택. BM25 인덱스 갱신 후 호출해야 정확한 선정 가능
+     * Embedding이 없는 Article은 selectRepresentativeChunk 내부에서 null 반환 처리
+     */
+    private void selectRepresentativeChunksForArticles(List<Article> articles) {
+        for (Article article : articles) {
+            try {
+                Long chunkId = representativeChunkService.selectRepresentativeChunk(article.getId());
+                if (chunkId != null) {
+                    crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.REPRESENTATIVE_CHUNK, CrawlingStepStatus.SUCCESS, null);
+                } else {
+                    log.warn("Article {} 대표 Chunk 선정 실패 (결과 없음)", article.getId());
+                    crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.REPRESENTATIVE_CHUNK, CrawlingStepStatus.FAILURE, "대표 chunk 없음");
+                }
+            } catch (Exception e) {
+                log.error("Article {} 대표 Chunk 선정 실패: {}", article.getId(), e.getMessage(), e);
+                crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.REPRESENTATIVE_CHUNK, CrawlingStepStatus.FAILURE, e.getMessage());
+            }
+        }
     }
 
     /**
@@ -414,25 +346,6 @@ public class CrawlingService {
     }
 
     /**
-     * URL에 따라 적절한 비디오 크롤러 선택
-     */
-    private VideoCrawler selectVideoCrawler(String url) {
-        List<VideoCrawler> crawlers = applicationContext.getBeansOfType(VideoCrawler.class)
-                .values()
-                .stream()
-                .toList();
-
-        // 적절한 크롤러 선택
-        for (VideoCrawler crawler : crawlers) {
-            if (crawler.canHandle(url)) {
-                return crawler;
-            }
-        }
-
-        throw new CrawlerNotFoundException(url);
-    }
-    
-    /**
      * 크롤링 통계 조회
      */
     public CrawlingStats getCrawlingStats() {
@@ -454,7 +367,7 @@ public class CrawlingService {
     }
 
     /**
-     * 본문만 추출하여 저장 (Term 분석 생략, 성능 최적화용)
+     * 본문만 추출하여 저장 (Admin 전체 페이지 크롤링용, Term/Embedding 생략)
      */
     private void extractContentOnly(Article article, WebDriver driver) {
         try {
@@ -483,111 +396,60 @@ public class CrawlingService {
     }
 
     /**
-     * 본문에서 Term을 추출하여 저장
+     * 크롤링 결과에 따라 선택적으로 캐시 purge
      */
-    private void extractAndSaveTerms(Article article, BlogCrawler crawler, WebDriver driver) {
+    private void purgeCacheForCrawlResults(List<CrawlResult> results) {
         try {
-            // 본문 추출 (기존 driver 재사용)
-            String content = articleContentExtractionService.extractContent(article, driver);
+            List<Long> corporationIdsWithNewArticles = results.stream()
+                    .filter(CrawlResult::hasNewArticles)
+                    .map(result -> result.getCorporation().getId())
+                    .toList();
 
-            // 본문 추출 결과 확인
-            if (content == null || content.trim().isEmpty()) {
-                log.warn("Term 추출 건너뜀 - 본문이 비어있음: {}", article.getTitle());
-                crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CONTENT_EXTRACTION, CrawlingStepStatus.FAILURE, "본문이 비어있음");
-                crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.TERM_ANALYSIS, CrawlingStepStatus.SKIPPED, "본문 없음");
+            if (corporationIdsWithNewArticles.isEmpty()) {
+                log.info("신규 글이 없어 캐시 purge를 건너뜁니다.");
                 return;
             }
 
-            log.info("본문 추출 성공 - Article: {}, 본문 길이: {}자", article.getTitle(), content.length());
-            crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CONTENT_EXTRACTION, CrawlingStepStatus.SUCCESS, null);
+            log.info("신규 글이 추가된 기업 {}개에 대해 캐시 purge 시작", corporationIdsWithNewArticles.size());
 
-            // 추출된 본문을 DB에 저장 (독립 트랜잭션) + 인메모리 객체에도 반영
-            article.setContent(content);
-            try {
-                articleContentExtractionService.updateArticleContent(article.getId(), content);
-                log.info("Article 본문 DB 저장 완료 - Article: {}", article.getTitle());
-            } catch (Exception e) {
-                log.error("Article 본문 DB 저장 실패 - Article: {}, 오류: {}",
-                        article.getTitle(), e.getMessage(), e);
-                crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CONTENT_EXTRACTION, CrawlingStepStatus.FAILURE, e.getMessage());
-                // 본문 저장 실패해도 Term 추출은 계속 진행
-            }
+            nginxCachePurgeService.purgeCorporationPages(corporationIdsWithNewArticles);
+            nginxCachePurgeService.purgeHomePages();
 
-            // 형태소 분석을 통해 Term 추출
-            Map<String, MorphemeAnalyzer.TermInfo> termInfoMap = morphemeAnalyzer.extractTerms(content);
-            if (termInfoMap.isEmpty()) {
-                log.warn("Term 추출 결과 없음 - Article: {}", article.getTitle());
-                crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.TERM_ANALYSIS, CrawlingStepStatus.FAILURE, "추출 결과 없음");
+            log.info("크롤링 후 캐시 purge 완료");
+        } catch (Exception e) {
+            log.error("크롤링 후 캐시 purge 중 오류 발생: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * BM25 검색 인덱스 갱신 (Admin 전체 페이지 크롤링용)
+     * scheduledFullPageCrawling에서 배치 완료 후 1회 호출
+     */
+    private void refreshBM25SearchIndex(List<CrawlResult> results) {
+        try {
+            boolean hasNewArticles = results.stream().anyMatch(CrawlResult::hasNewArticles);
+
+            if (!hasNewArticles) {
+                log.info("신규 글이 없어 BM25 인덱스 갱신을 건너뜁니다.");
                 return;
             }
 
-            log.info("형태소 분석 완료 - Article: {}, 추출된 Term 수: {}개", article.getTitle(), termInfoMap.size());
+            log.info("BM25 검색 인덱스 갱신 시작 (Materialized View REFRESH)");
+            long startTime = System.currentTimeMillis();
 
-            // 빈도수 기반 점수 계산 (최댓값 기준 정규화)
-            int maxFrequency = termInfoMap.values().stream()
-                    .mapToInt(MorphemeAnalyzer.TermInfo::getFrequency)
-                    .max()
-                    .orElse(1);
+            articleRepository.refreshArticleSearchIndex();
 
-            // 최소 빈도수 이상 & 점수 내림차순 정렬 후 상위 N개 선택
-            List<MorphemeAnalyzer.TermInfo> topTerms = termInfoMap.values().stream()
-                    .filter(termInfo -> termInfo.getFrequency() >= minTermFrequency)  // 최소 빈도수 필터
-                    .sorted(Comparator.comparingInt(MorphemeAnalyzer.TermInfo::getFrequency).reversed())
-                    .limit(maxTermsPerArticle)  // 설정 가능한 최대 개수
-                    .collect(Collectors.toList());
+            log.info("BM25 검색 인덱스 갱신 완료 ({}ms)", System.currentTimeMillis() - startTime);
 
-            log.info("상위 {}개 Term 선택 완료 (최소 빈도: {}) - Article: {}",
-                    topTerms.size(), minTermFrequency, article.getTitle());
+            log.info("Term 자동완성 인덱스 갱신 시작");
+            long termStartTime = System.currentTimeMillis();
 
-            // ArticleTerm 생성 및 저장
-            List<ArticleTerm> articleTerms = new ArrayList<>();
-            for (MorphemeAnalyzer.TermInfo termInfo : topTerms) {
-                try {
-                    // Term 조회 또는 생성
-                    Term term = termRepository.findByTermAndTermType(termInfo.getTerm(), termInfo.getTermType())
-                            .orElseGet(() -> {
-                                Term newTerm = Term.builder()
-                                        .term(termInfo.getTerm())
-                                        .termType(termInfo.getTermType())
-                                        .build();
-                                return termRepository.save(newTerm);
-                            });
+            articleRepository.refreshTermAutocompleteIndex();
 
-                    // 정규화된 점수 계산 (0~1 사이)
-                    double score = (double) termInfo.getFrequency() / maxFrequency;
-
-                    // ArticleTerm 생성
-                    ArticleTerm articleTerm = ArticleTerm.builder()
-                            .article(article)
-                            .term(term)
-                            .frequency(termInfo.getFrequency())
-                            .score(score)
-                            .build();
-
-                    articleTerms.add(articleTerm);
-
-                    log.debug("ArticleTerm 생성 - Term: {}, Frequency: {}, Score: {:.2f}",
-                            termInfo.getTerm(), termInfo.getFrequency(), score);
-
-                } catch (Exception e) {
-                    log.error("ArticleTerm 생성 실패 - Term: {}, 오류: {}",
-                            termInfo.getTerm(), e.getMessage(), e);
-                }
-            }
-
-            // 배치 저장
-            if (!articleTerms.isEmpty()) {
-                articleTermRepository.saveAll(articleTerms);
-                log.info("ArticleTerm 저장 완료 - Article: {}, 저장된 Term 수: {}개",
-                        article.getTitle(), articleTerms.size());
-                crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.TERM_ANALYSIS, CrawlingStepStatus.SUCCESS, null);
-            }
+            log.info("Term 자동완성 인덱스 갱신 완료 ({}ms)", System.currentTimeMillis() - termStartTime);
 
         } catch (Exception e) {
-            log.error("Term 추출 및 저장 중 오류 발생 - Article: {}, 오류: {}",
-                    article.getTitle(), e.getMessage(), e);
-            crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.TERM_ANALYSIS, CrawlingStepStatus.FAILURE, e.getMessage());
-            // Term 추출 실패는 크롤링을 중단시키지 않음
+            log.error("BM25 검색 인덱스 갱신 중 오류 발생: {}", e.getMessage(), e);
         }
     }
 

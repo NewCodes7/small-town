@@ -4,8 +4,9 @@ import com.newcodes7.small_town.crawler.dto.CrawlingStats;
 import com.newcodes7.small_town.crawler.dto.CrawlResult;
 import com.newcodes7.small_town.crawler.dto.VideoCrawlResult;
 import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
-import com.newcodes7.small_town.crawler.service.CrawlingService;
 import com.newcodes7.small_town.crawler.persistence.VideoPersistenceService;
+import com.newcodes7.small_town.crawler.service.CrawlingService;
+import com.newcodes7.small_town.crawler.service.YouTubeCrawlingService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,7 @@ import java.util.Map;
 public class CrawlingController {
 
     private final CrawlingService crawlingService;
+    private final YouTubeCrawlingService youtubeCrawlingService;
     private final ArticlePersistenceService articlePersistenceService;
     private final VideoPersistenceService videoPersistenceService;
 
@@ -67,7 +69,7 @@ public class CrawlingController {
     public ResponseEntity<Map<String, Object>> crawlAllYouTube() {
         try {
             log.info("YouTube 전용 크롤링 API 호출");
-            List<com.newcodes7.small_town.crawler.dto.VideoCrawlResult> results = crawlingService.crawlAllYouTube();
+            List<com.newcodes7.small_town.crawler.dto.VideoCrawlResult> results = youtubeCrawlingService.crawlAllYouTube();
 
             long successCount = results.stream()
                     .filter(com.newcodes7.small_town.crawler.dto.VideoCrawlResult::isSuccess)
@@ -134,7 +136,7 @@ public class CrawlingController {
     public ResponseEntity<Map<String, Object>> crawlSingleYouTube(@PathVariable("corporationId") Long corporationId) {
         try {
             log.info("개별 YouTube 크롤링 API 호출 - corporationId: {}", corporationId);
-            VideoCrawlResult result = crawlingService.crawlSingleYouTube(corporationId, null);
+            VideoCrawlResult result = youtubeCrawlingService.crawlSingleYouTube(corporationId, null);
 
             if (result.isSuccess()) {
                 return ResponseEntity.ok(Map.of(

@@ -49,7 +49,6 @@ public class ChunkEmbeddingBatchService {
     private final ChunkContentRepository chunkContentRepository;
     private final EmbeddingFailureRepository embeddingFailureRepository;
     private final EmbeddingApiService embeddingApiService;
-    private final RepresentativeChunkService representativeChunkService;
 
     // API rate limit 대응을 위한 딜레이 (500ms)
     private static final long RATE_LIMIT_DELAY_MS = 500;
@@ -194,18 +193,6 @@ public class ChunkEmbeddingBatchService {
             chunkContentRepository.saveAll(contentList);
             if (!vectors.isEmpty()) {
                 chunkVectorRepository.saveAll(vectors);
-            }
-        }
-
-        // 4. 대표 chunk 선정
-        if (successCount > 0) {
-            try {
-                Long representativeChunkId = representativeChunkService.selectRepresentativeChunk(article.getId());
-                if (representativeChunkId != null) {
-                    log.debug("Article {} - 대표 chunk 선정 완료: {}", article.getId(), representativeChunkId);
-                }
-            } catch (Exception e) {
-                log.warn("Article {} - 대표 chunk 선정 실패: {}", article.getId(), e.getMessage());
             }
         }
 
@@ -671,19 +658,7 @@ public class ChunkEmbeddingBatchService {
             }
         }
 
-        // 4. 대표 chunk 선정
-        if (successCount > 0) {
-            try {
-                Long representativeChunkId = representativeChunkService.selectRepresentativeChunk(article.getId());
-                if (representativeChunkId != null) {
-                    log.debug("Article {} - 대표 chunk 재선정 완료: {}", article.getId(), representativeChunkId);
-                }
-            } catch (Exception e) {
-                log.warn("Article {} - 대표 chunk 선정 실패: {}", article.getId(), e.getMessage());
-            }
-        }
-
-        log.info("Article {} - 재분석 완료: {}/{}개 청크",
+        log.info("Article {} - 재분析 완료: {}/{}개 청크",
                 article.getId(), successCount, segments.size());
 
         if (successCount > 0) {
