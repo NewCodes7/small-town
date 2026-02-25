@@ -35,7 +35,7 @@ public class TermAutocompleteRepository {
      */
     public List<TermAutocompleteDto> findAutocompleteTerms(String query, int limit) {
         String sql = """
-            SELECT DISTINCT term, total_frequency
+            SELECT term, MAX(total_frequency) AS total_frequency
             FROM (
                 SELECT term, total_frequency FROM term
                 WHERE LOWER(term) LIKE ? AND total_frequency > 0
@@ -46,6 +46,7 @@ public class TermAutocompleteRepository {
                 SELECT term, total_frequency FROM term
                 WHERE LOWER(chosung) LIKE ? AND total_frequency > 0
             ) AS combined
+            GROUP BY term
             ORDER BY total_frequency DESC
             LIMIT ?
             """;
