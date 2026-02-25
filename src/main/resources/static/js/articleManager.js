@@ -163,16 +163,29 @@ class ArticleManager {
 
     initViewBtnToggle() {
         const groupedViewBtn = document.getElementById('groupedViewBtn');
-        if (!groupedViewBtn) return;
+        const listViewBtn = document.getElementById('listViewBtn');
 
-        groupedViewBtn.addEventListener('click', () => {
-            const isGrouped = this.currentView === 'grouped';
-            // 상태 토글
-            this.currentView = isGrouped ? 'list' : 'grouped';
-            // 사용자가 명시적으로 뷰를 변경했음을 표시
-            this.userExplicitViewChange = true;
-            this.loadArticles();
-        });
+        if (groupedViewBtn) {
+            groupedViewBtn.addEventListener('click', () => {
+                if (this.currentView !== 'grouped') {
+                    this.currentView = 'grouped';
+                    this.userExplicitViewChange = true;
+                    this.currentPage = 0;
+                    this.loadArticles();
+                }
+            });
+        }
+
+        if (listViewBtn) {
+            listViewBtn.addEventListener('click', () => {
+                if (this.currentView !== 'list') {
+                    this.currentView = 'list';
+                    this.userExplicitViewChange = true;
+                    this.currentPage = 0;
+                    this.loadArticles();
+                }
+            });
+        }
     }
 
     initRegionFilters() {
@@ -182,6 +195,35 @@ class ArticleManager {
                 this.handleRegionChange();
             });
         });
+
+        // 지역 토글 버튼 이벤트
+        const regionAllBtn = document.getElementById('regionAllBtn');
+        const regionDomesticBtn = document.getElementById('regionDomesticBtn');
+        const regionOverseasBtn = document.getElementById('regionOverseasBtn');
+
+        if (regionAllBtn) {
+            regionAllBtn.addEventListener('click', () => {
+                this.currentRegions = [];
+                this.currentPage = 0;
+                this.loadArticles();
+            });
+        }
+
+        if (regionDomesticBtn) {
+            regionDomesticBtn.addEventListener('click', () => {
+                this.currentRegions = ['domestic'];
+                this.currentPage = 0;
+                this.loadArticles();
+            });
+        }
+
+        if (regionOverseasBtn) {
+            regionOverseasBtn.addEventListener('click', () => {
+                this.currentRegions = ['overseas'];
+                this.currentPage = 0;
+                this.loadArticles();
+            });
+        }
     }
 
     debounceSearch(callback, delay = 500) {
@@ -239,7 +281,7 @@ class ArticleManager {
         this.loadArticles();
     }
 
-    // 게시글을 로드하는 핵심 함수
+    // 게시글을 로드하는 핵심 함수 (CSR: fetch API로 JSON 데이터 로드)
     async loadArticles() {
         if (this.isLoading) return;
 
@@ -261,6 +303,10 @@ class ArticleManager {
             if (this.currentSort && this.currentSort !== 'latest') {
                 params.set('sort', this.currentSort);
             }
+            // keyword가 있을 때는 latest도 명시적으로 포함 (서버 기본값이 relevance이므로)
+            if (this.currentKeyword && !params.has('sort')) {
+                params.set('sort', this.currentSort || 'latest');
+            }
 
             this.currentRegions.forEach(region => {
                 params.append('regions', region);
@@ -278,20 +324,47 @@ class ArticleManager {
             });
 
             // 뷰 파라미터 설정
-            // 사용자가 명시적으로 뷰를 변경한 경우, 키워드나 카테고리가 있어도 선택한 뷰 유지
             if (this.userExplicitViewChange) {
-                // 명시적으로 뷰를 변경한 경우 현재 뷰 유지
                 params.set('view', this.currentView);
             } else if (this.currentKeyword || currentCategories.length > 0) {
-                // 키워드나 카테고리가 있고 명시적 변경이 없으면 자동으로 list로
                 this.currentView = 'list';
                 params.set('view', 'list');
             } else {
-                // 그 외의 경우 현재 뷰 설정
                 params.set('view', this.currentView);
             }
 
-            window.location.href = `?${params}`;
+            // CSR: fetch API로 JSON 데이터 로드
+            const response = await fetch(`/api/search/articles?${params.toString()}`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+
+            // UI 업데이트
+            if (data.view === 'grouped') {
+                this.renderGroupedArticles(data.content);
+            } else {
+                this.renderArticles(data.content);
+            }
+            this.renderPagination(data);
+            this.updateEmptyState(data);
+            this.updateURL();
+
+            // 뷰 토글 버튼 상태 업데이트
+            const groupedViewBtn = document.getElementById('groupedViewBtn');
+            const listViewBtn = document.getElementById('listViewBtn');
+            if (groupedViewBtn) {
+                groupedViewBtn.classList.toggle('active', this.currentView === 'grouped');
+            }
+            if (listViewBtn) {
+                listViewBtn.classList.toggle('active', this.currentView !== 'grouped');
+            }
+
+            // 정렬 드롭다운 표시/숨김 (검색어가 있을 때만 표시)
+            const sortControls = document.querySelector('.sort-controls');
+            if (sortControls) {
+                sortControls.style.display = (this.currentKeyword && this.currentKeyword.trim() !== '') ? '' : 'none';
+            }
 
         } catch (error) {
             console.error('Error loading articles:', error);
@@ -303,43 +376,221 @@ class ArticleManager {
     }
 
     renderGroupedArticles(groups) {
-        const container = document.querySelector('#article-grouped-container');
-        if (!container) return;
+        // Switch containers: show grouped, hide list
+        let groupedContainer = document.querySelector('#article-grouped-container');
+        const listContainer = document.querySelector('#article-list-container');
+        if (listContainer) listContainer.style.display = 'none';
+
+        if (!groupedContainer) {
+            // Create grouped container if it doesn't exist
+            groupedContainer = document.createElement('div');
+            groupedContainer.id = 'article-grouped-container';
+            groupedContainer.className = 'grouped-view';
+            const paginationContainer = document.getElementById('paginationContainer');
+            if (paginationContainer) {
+                paginationContainer.parentNode.insertBefore(groupedContainer, paginationContainer);
+            }
+        }
+        groupedContainer.style.display = '';
 
         if (groups.length === 0) {
-            this.showEmptyState();
+            groupedContainer.innerHTML = '';
             return;
         }
 
-        container.innerHTML = groups.map(group => {
-            const firstArticle = group.articles[0];
-            const childArticles = this.generateChildArticleHTML(group.articles.slice(1));
-            return this.generateArticleHTML(firstArticle, childArticles);
-        }).join('');
+        groupedContainer.innerHTML = '<div class="articles-container">' +
+            groups.map(group => {
+                const firstArticle = group.articles[0];
+                const childArticles = group.articles.slice(1);
+                return this.generateGroupedArticleHTML(group.corporation, firstArticle, childArticles);
+            }).join('') + '</div>';
 
         this.bindArticleEvents();
-
-        // 상대 시간 업데이트
         this.updateRelativeTimes();
+        this.loadLikeStatuses();
     }
 
     renderArticles(articles) {
-        const container = document.querySelector('.articles-list-container');
-        if (!container) return;
+        // Switch containers: show list, hide grouped
+        const groupedContainer = document.querySelector('#article-grouped-container');
+        if (groupedContainer) groupedContainer.style.display = 'none';
+
+        let listContainer = document.querySelector('#article-list-container');
+        if (!listContainer) {
+            // Create list container if it doesn't exist
+            listContainer = document.createElement('div');
+            listContainer.id = 'article-list-container';
+            const paginationContainer = document.getElementById('paginationContainer');
+            if (paginationContainer) {
+                paginationContainer.parentNode.insertBefore(listContainer, paginationContainer);
+            }
+        }
+        listContainer.style.display = '';
 
         if (articles.length === 0) {
-            this.showEmptyState();
+            listContainer.innerHTML = '';
             return;
         }
 
-        container.innerHTML = articles.map(article => this.generateArticleHTML(article)).join('');
+        listContainer.innerHTML = '<div class="articles-list-container">' +
+            articles.map(article => this.generateListArticleHTML(article)).join('') + '</div>';
+
         this.bindArticleEvents();
-        
-        // 상대 시간 업데이트
         this.updateRelativeTimes();
-        
-        // 좋아요 상태 로드
-        // this.loadLikeStatuses();
+        this.loadLikeStatuses();
+    }
+
+    generateListArticleHTML(article) {
+        const title = article.translatedTitle && article.translatedTitle.length > 0
+            ? article.translatedTitle : article.title;
+        const thumbnailHTML = article.thumbnailImage
+            ? `<img src="${this.escapeHtml(article.thumbnailImage)}" alt="${this.escapeHtml(article.title)}" width="300" height="155" class="article-thumbnail">`
+            : `<div class="article-thumbnail default-thumbnail"><div class="default-thumbnail-content"><i class="fas fa-code"></i><div class="thumbnail-pattern"></div></div></div>`;
+        const logoHTML = article.corporation && article.corporation.effectiveLogoUrl
+            ? `<img width="20px;" src="${this.escapeHtml(article.corporation.effectiveLogoUrl)}" alt="${this.escapeHtml(article.corporation.name)}" class="company-logo me-2" style="border-radius: 4px;">`
+            : '';
+        const corpName = article.corporation ? article.corporation.name : '';
+        const corpId = article.corporation ? article.corporation.id : '';
+        const isLiked = article.isLiked === true;
+
+        return `<div class="article-card-wrapper">
+            <div class="article-card" data-article-id="${article.id}" data-detail-url="${this.escapeHtml(article.detailUrl || '')}"
+                 style="cursor: pointer;">
+                <div class="article-content">
+                    <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
+                        <span class="title-link">${this.escapeHtml(title)}</span>
+                    </h5>
+                    <div class="d-flex align-items-center flex-wrap">
+                        <div class="d-flex align-items-center me-4">
+                            <a href="/corporations/${corpId}" class="d-flex align-items-center text-decoration-none company-link" onclick="event.stopPropagation()">
+                                ${logoHTML}
+                                <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;">${this.escapeHtml(corpName)}</span>
+                            </a>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <small class="text-muted relative-time" data-date="${article.publishedAt || ''}" title="${article.publishedAt || ''}" style="white-space: nowrap;">${article.publishedAt || ''}</small>
+                            <button class="like-button" data-article-id="${article.id}" data-liked="${isLiked}" onclick="event.stopPropagation()">
+                                <i class="fas fa-heart like-icon"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="article-thumbnail-container">${thumbnailHTML}</div>
+            </div>
+        </div>`;
+    }
+
+    generateGroupedArticleHTML(corporation, firstArticle, childArticles) {
+        const title = firstArticle.translatedTitle && firstArticle.translatedTitle.length > 0
+            ? firstArticle.translatedTitle : firstArticle.title;
+        const thumbnailHTML = firstArticle.thumbnailImage
+            ? `<img src="${this.escapeHtml(firstArticle.thumbnailImage)}" alt="${this.escapeHtml(firstArticle.title)}" width="300" height="155" class="article-thumbnail">`
+            : `<div class="article-thumbnail default-thumbnail"><div class="default-thumbnail-content"><i class="fas fa-code"></i><div class="thumbnail-pattern"></div></div></div>`;
+        const logoHTML = corporation && corporation.effectiveLogoUrl
+            ? `<img width="20px;" src="${this.escapeHtml(corporation.effectiveLogoUrl)}" alt="${this.escapeHtml(corporation.name)}" class="company-logo me-2" style="border-radius: 4px;">`
+            : '';
+        const corpName = corporation ? corporation.name : '';
+        const corpId = corporation ? corporation.id : '';
+        const isLiked = firstArticle.isLiked === true;
+
+        let childHTML = '';
+        if (childArticles && childArticles.length > 0) {
+            const childItems = childArticles.map(child => {
+                const childTitle = child.translatedTitle && child.translatedTitle.length > 0
+                    ? child.translatedTitle : child.title;
+                const childIsLiked = child.isLiked === true;
+                return `<div class="child" data-article-id="${child.id}" data-detail-url="${this.escapeHtml(child.detailUrl || '')}"
+                             onclick="event.stopPropagation(); window.location.href=this.getAttribute('data-detail-url')" style="cursor: pointer;">
+                    <h6 class="fw-bold d-flex align-items-center" style="margin: 0;">
+                        <span class="title-link">${this.escapeHtml(childTitle)}</span>
+                    </h6>
+                    <span class="child-date d-flex align-items-center flex-wrap">
+                        <span class="d-flex align-items-center gap-2">
+                            <small class="text-muted relative-time" data-date="${child.publishedAt || ''}" title="${child.publishedAt || ''}" style="white-space: nowrap;">${child.publishedAt || ''}</small>
+                            <button class="like-button" data-article-id="${child.id}" data-liked="${childIsLiked}" onclick="event.stopPropagation()">
+                                <i class="fas fa-heart like-icon"></i>
+                                <span class="like-count">${child.likeCount || 0}</span>
+                            </button>
+                        </span>
+                    </span>
+                </div>`;
+            }).join('');
+
+            childHTML = `<div class="child-container">
+                ${childItems}
+                <div class="child more-corporation-articles" onclick="event.stopPropagation()">
+                    <a href="/corporations/${corpId}" class="me-2 d-flex align-items-center text-decoration-none">
+                        <span class="fw-bold me-2" style="font-size: 1rem;">더보기</span>
+                    </a>
+                </div>
+            </div>`;
+        }
+
+        return `<div class="article-card-wrapper">
+            <div class="article-card" data-article-id="${firstArticle.id}" data-detail-url="${this.escapeHtml(firstArticle.detailUrl || '')}"
+                 style="cursor: pointer;">
+                <div class="article-content">
+                    <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
+                        <span class="title-link">${this.escapeHtml(title)}</span>
+                    </h5>
+                    <div class="d-flex align-items-center flex-wrap">
+                        <div class="d-flex align-items-center me-4">
+                            <a href="/corporations/${corpId}" class="d-flex align-items-center text-decoration-none company-link" onclick="event.stopPropagation()">
+                                ${logoHTML}
+                                <span class="fw-bold me-2" style="color: var(--primary-green); font-size: 0.9rem;">${this.escapeHtml(corpName)}</span>
+                            </a>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <small class="text-muted relative-time" data-date="${firstArticle.publishedAt || ''}" title="${firstArticle.publishedAt || ''}" style="white-space: nowrap;">${firstArticle.publishedAt || ''}</small>
+                            <button class="like-button" data-article-id="${firstArticle.id}" data-liked="${isLiked}" onclick="event.stopPropagation()">
+                                <i class="fas fa-heart like-icon"></i>
+                                <span class="like-count">${firstArticle.likeCount || 0}</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="article-thumbnail-container">${thumbnailHTML}</div>
+                ${childHTML}
+            </div>
+        </div>`;
+    }
+
+    updateEmptyState(data) {
+        // Remove any existing empty state
+        const existingEmptyState = document.querySelector('.hero-section');
+        if (existingEmptyState && existingEmptyState.closest('#article-list-container, #article-grouped-container')) {
+            existingEmptyState.closest('.text-center').remove();
+        }
+
+        if (data.content.length === 0) {
+            const isSearch = this.currentKeyword && this.currentKeyword.trim() !== '';
+            const emptyHTML = `<div class="text-center py-5">
+                <div class="hero-section">
+                    <i class="fas fa-${isSearch ? 'search' : 'seedling'} fa-4x mb-4" style="color: var(--primary-green); opacity: 0.5;"></i>
+                    <h4 class="mb-3" style="color: var(--text-dark); font-weight: 700;">
+                        ${isSearch ? "'" + this.escapeHtml(this.currentKeyword) + "' 검색 결과가 없어요" : '아직 등록된 글이 없어요'}
+                    </h4>
+                    <p class="text-muted mb-4">
+                        ${isSearch ? '다른 키워드로 검색하거나 <a href="/articles" class="text-decoration-none">전체 글 목록</a>을 확인해보세요.' : '새로운 기술 블로그 글이 곧 업데이트될 예정입니다.'}
+                    </p>
+                </div>
+            </div>`;
+
+            // Insert empty state in the appropriate container
+            const activeContainer = this.currentView === 'grouped'
+                ? document.querySelector('#article-grouped-container')
+                : document.querySelector('#article-list-container');
+            if (activeContainer) {
+                activeContainer.innerHTML = emptyHTML;
+            }
+        }
+    }
+
+    escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.appendChild(document.createTextNode(text));
+        return div.innerHTML;
     }
 
     renderPagination(data) {
@@ -445,32 +696,42 @@ class ArticleManager {
 
     showLoadingState() {
         const loadingState = document.getElementById('loadingState');
-        const articlesContainer = document.querySelector('.articles-container');
+        const listContainer = document.querySelector('#article-list-container');
+        const groupedContainer = document.querySelector('#article-grouped-container');
         
         if (loadingState) {
             loadingState.classList.remove('d-none');
         }
-        if (articlesContainer) {
-            articlesContainer.style.opacity = '0.5';
+        if (listContainer) {
+            listContainer.style.opacity = '0.5';
+        }
+        if (groupedContainer) {
+            groupedContainer.style.opacity = '0.5';
         }
     }
 
     hideLoadingState() {
         const loadingState = document.getElementById('loadingState');
-        const articlesContainer = document.querySelector('.articles-container');
+        const listContainer = document.querySelector('#article-list-container');
+        const groupedContainer = document.querySelector('#article-grouped-container');
         
         if (loadingState) {
             loadingState.classList.add('d-none');
         }
-        if (articlesContainer) {
-            articlesContainer.style.opacity = '1';
+        if (listContainer) {
+            listContainer.style.opacity = '1';
+        }
+        if (groupedContainer) {
+            groupedContainer.style.opacity = '1';
         }
     }
 
     showErrorState() {
-        const container = document.querySelector('.articles-container');
-        if (container) {
-            container.innerHTML = `
+        const activeContainer = this.currentView === 'grouped'
+            ? document.querySelector('#article-grouped-container')
+            : document.querySelector('#article-list-container');
+        if (activeContainer) {
+            activeContainer.innerHTML = `
                 <div class="alert alert-warning text-center">
                     <i class="fas fa-exclamation-triangle mb-2"></i>
                     <p>글을 불러오는 중 오류가 발생했습니다.</p>
@@ -483,11 +744,13 @@ class ArticleManager {
     }
 
     showEmptyState() {
-        const container = document.querySelector('.articles-container');
-        if (container) {
+        const activeContainer = this.currentView === 'grouped'
+            ? document.querySelector('#article-grouped-container')
+            : document.querySelector('#article-list-container');
+        if (activeContainer) {
             const isSearch = this.currentKeyword && this.currentKeyword.trim() !== '';
             
-            container.innerHTML = `
+            activeContainer.innerHTML = `
                 <div class="text-center py-5">
                     <div class="hero-section">
                         <i class="fas fa-${isSearch ? 'search' : 'seedling'} fa-4x mb-4" style="color: var(--primary-green); opacity: 0.5;"></i>
@@ -527,17 +790,21 @@ class ArticleManager {
                 while (parent) {
                     if (parent.classList.contains('article-card') 
                         || parent.classList.contains('child')) {
-                        const titleLink = parent.querySelector('h5 a') || parent.querySelector('h6 a');
+                        const detailUrl = parent.getAttribute('data-detail-url');
                         const articleId = parent.getAttribute('data-article-id');
-                        window.open(titleLink.href, '_blank');
-                        fetch(`/api/articles/${articleId}/view`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            credentials: 'same-origin',
-                            redirect: 'manual'
-                        });
+                        if (detailUrl) {
+                            window.open(detailUrl, '_blank');
+                        }
+                        if (articleId) {
+                            fetch(`/api/articles/${articleId}/view`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                credentials: 'same-origin',
+                                redirect: 'manual'
+                            });
+                        }
                         break;
                     }
                     parent = parent.parentElement;

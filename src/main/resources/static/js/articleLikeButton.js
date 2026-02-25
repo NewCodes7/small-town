@@ -1,37 +1,38 @@
-// 좋아요 버튼 클릭 이벤트
+// 좋아요 버튼 클릭 이벤트 (이벤트 위임으로 CSR 렌더링된 요소도 처리)
 function likeButton() {
-    document.querySelectorAll('.like-button').forEach(btn => {
-        btn.addEventListener('click', async function(e) {
-            e.preventDefault();
-            e.stopPropagation();
+    document.addEventListener('click', async function(e) {
+        const btn = e.target.closest('.like-button');
+        if (!btn) return;
 
-            const articleId = this.getAttribute('data-article-id');
+        e.preventDefault();
+        e.stopPropagation();
 
-            try {
-                const response = await fetch(`/api/articles/${articleId}/like`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    credentials: 'same-origin'
-                });
+        const articleId = btn.getAttribute('data-article-id');
 
-                if (response.ok) {
-                    const data = await response.json();
+        try {
+            const response = await fetch(`/api/articles/${articleId}/like`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin'
+            });
 
-                    // 좋아요 상태에 따른 스타일 변경 및 localStorage 동기화
-                    if (data.isLiked) {
-                        this.classList.add('liked');
-                        addToLikedArticles(articleId);
-                    } else {
-                        this.classList.remove('liked');
-                        removeFromLikedArticles(articleId);
-                    }
+            if (response.ok) {
+                const data = await response.json();
+
+                // 좋아요 상태에 따른 스타일 변경 및 localStorage 동기화
+                if (data.isLiked) {
+                    btn.classList.add('liked');
+                    addToLikedArticles(articleId);
+                } else {
+                    btn.classList.remove('liked');
+                    removeFromLikedArticles(articleId);
                 }
-            } catch (error) {
-                console.error('좋아요 처리 중 오류 발생:', error);
             }
-        });
+        } catch (error) {
+            console.error('좋아요 처리 중 오류 발생:', error);
+        }
     });
 }
 

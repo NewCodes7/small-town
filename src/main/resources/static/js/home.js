@@ -325,6 +325,11 @@ function setupDefaultThumbnails() {
 
 // 뷰 토글 버튼 초기화
 function initViewToggle() {
+    // ArticleManager가 이미 뷰 토글을 처리하므로 건너뜀
+    if (typeof articleManager !== 'undefined' && articleManager) {
+        return;
+    }
+
     const groupedViewBtn = document.getElementById('groupedViewBtn');
     const listViewBtn = document.getElementById('listViewBtn');
 
@@ -343,6 +348,11 @@ function initViewToggle() {
 
 // 지역 토글 버튼 초기화
 function initRegionToggle() {
+    // ArticleManager가 이미 지역 필터를 처리하므로 건너뜀
+    if (typeof articleManager !== 'undefined' && articleManager) {
+        return;
+    }
+
     const regionAllBtn = document.getElementById('regionAllBtn');
     const regionDomesticBtn = document.getElementById('regionDomesticBtn');
     const regionOverseasBtn = document.getElementById('regionOverseasBtn');
@@ -366,27 +376,36 @@ function initRegionToggle() {
     }
 }
 
-// 뷰 파라미터 업데이트 및 페이지 리다이렉트
+// 뷰 파라미터 업데이트 및 CSR 로드
 function updateViewParam(viewType) {
-    const url = new URL(window.location.href);
-    url.searchParams.set('view', viewType);
-    // 페이지를 처음으로 리셋
-    url.searchParams.set('page', '0');
-    window.location.href = url.toString();
+    if (typeof articleManager !== 'undefined' && articleManager) {
+        articleManager.currentView = viewType;
+        articleManager.userExplicitViewChange = true;
+        articleManager.currentPage = 0;
+        articleManager.loadArticles();
+    } else {
+        const url = new URL(window.location.href);
+        url.searchParams.set('view', viewType);
+        url.searchParams.set('page', '0');
+        window.location.href = url.toString();
+    }
 }
 
-// 지역 파라미터 업데이트 및 페이지 리다이렉트
+// 지역 파라미터 업데이트 및 CSR 로드
 function updateRegionParam(region) {
-    const url = new URL(window.location.href);
-    // 기존 regions 파라미터 삭제
-    url.searchParams.delete('regions');
-    // 새 지역 파라미터 설정 (전체가 아닌 경우에만)
-    if (region) {
-        url.searchParams.set('regions', region);
+    if (typeof articleManager !== 'undefined' && articleManager) {
+        articleManager.currentRegions = region ? [region] : [];
+        articleManager.currentPage = 0;
+        articleManager.loadArticles();
+    } else {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('regions');
+        if (region) {
+            url.searchParams.set('regions', region);
+        }
+        url.searchParams.set('page', '0');
+        window.location.href = url.toString();
     }
-    // 페이지를 처음으로 리셋
-    url.searchParams.set('page', '0');
-    window.location.href = url.toString();
 }
 
 // 정렬 드롭다운 초기화
@@ -430,13 +449,37 @@ function initSortDropdown() {
     });
 }
 
-// 정렬 파라미터 업데이트 및 페이지 리다이렉트
+// 정렬 파라미터 업데이트 및 CSR 로드
 function updateSortParam(sortType) {
-    const url = new URL(window.location.href);
-    url.searchParams.set('sort', sortType);
-    // 페이지를 처음으로 리셋
-    url.searchParams.set('page', '0');
-    window.location.href = url.toString();
+    if (typeof articleManager !== 'undefined' && articleManager) {
+        articleManager.currentSort = sortType;
+        articleManager.currentPage = 0;
+        articleManager.loadArticles();
+
+        // 정렬 UI 업데이트
+        const sortLabel = document.getElementById('sortLabel');
+        const sortLabels = {
+            'relevance': '적합도순',
+            'latest': '최신순',
+            'popular': '인기순',
+            'oldest': '오래된순'
+        };
+        if (sortLabel) {
+            sortLabel.textContent = sortLabels[sortType] || '최신순';
+        }
+        document.querySelectorAll('.sort-option').forEach(option => {
+            if (option.getAttribute('data-sort') === sortType) {
+                option.classList.add('active');
+            } else {
+                option.classList.remove('active');
+            }
+        });
+    } else {
+        const url = new URL(window.location.href);
+        url.searchParams.set('sort', sortType);
+        url.searchParams.set('page', '0');
+        window.location.href = url.toString();
+    }
 }
 
 // OAuth 알림창 닫기
@@ -461,6 +504,9 @@ function initOAuthNotice() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    // CSR을 위한 ArticleManager 초기화
+    articleManager = new ArticleManager();
+
     bindArticleEvents();
     initViewToggle();
     initRegionToggle();
