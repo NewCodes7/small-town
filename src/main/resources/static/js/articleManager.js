@@ -455,7 +455,7 @@ class ArticleManager {
 
         return `<div class="article-card-wrapper">
             <div class="article-card" data-article-id="${article.id}" data-detail-url="${this.escapeHtml(article.detailUrl || '')}"
-                 onclick="window.location.href=this.getAttribute('data-detail-url')" style="cursor: pointer;">
+                 style="cursor: pointer;">
                 <div class="article-content">
                     <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
                         <span class="title-link">${this.escapeHtml(title)}</span>
@@ -528,7 +528,7 @@ class ArticleManager {
 
         return `<div class="article-card-wrapper">
             <div class="article-card" data-article-id="${firstArticle.id}" data-detail-url="${this.escapeHtml(firstArticle.detailUrl || '')}"
-                 onclick="window.location.href=this.getAttribute('data-detail-url')" style="cursor: pointer;">
+                 style="cursor: pointer;">
                 <div class="article-content">
                     <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
                         <span class="title-link">${this.escapeHtml(title)}</span>
