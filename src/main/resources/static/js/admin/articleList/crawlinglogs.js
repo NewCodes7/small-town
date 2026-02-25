@@ -26,6 +26,7 @@
 
     const statusClassMap = {
         SUCCESS: 'bg-success',
+        WARNING: 'bg-warning text-dark',
         FAILURE: 'bg-danger',
         SKIPPED: 'bg-secondary'
     };

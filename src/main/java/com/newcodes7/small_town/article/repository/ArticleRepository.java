@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.global.entity.Article;
 
@@ -595,6 +596,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
      * BM25 검색용 Materialized View 갱신
      * 크롤링 후 또는 ArticleTerm 업데이트 후 호출
      */
+    @Transactional
     @Modifying
     @Query(value = "REFRESH MATERIALIZED VIEW CONCURRENTLY article_search_view", nativeQuery = true)
     void refreshArticleSearchIndex();
@@ -603,6 +605,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
      * Term total_frequency 업데이트 (자동완성 최적화용)
      * 크롤링 후 또는 ArticleTerm 업데이트 후 호출
      */
+    @Transactional
     @Modifying
     @Query(value = """
         UPDATE term t

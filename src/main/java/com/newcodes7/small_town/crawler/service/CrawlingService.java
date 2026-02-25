@@ -96,8 +96,8 @@ public class CrawlingService {
         log.info("블로그 크롤링 완료 - 처리된 기업: {}개", results.size());
 
         if (!allNewArticles.isEmpty()) {
-            refreshSearchIndex();
-            selectRepresentativeChunksForArticles(allNewArticles);
+            boolean bm25RefreshSucceeded = refreshSearchIndex();
+            selectRepresentativeChunksForArticles(allNewArticles, bm25RefreshSucceeded);
             purgeCacheForCrawlResults(results);
         }
 
@@ -239,8 +239,10 @@ public class CrawlingService {
     /**
      * BM25 검색 인덱스 갱신 (Materialized View REFRESH)
      * Term 저장 후 호출 → 대표 Chunk 선정 시 BM25 쿼리에 신규 Term이 반영됨
+     *
+     * @return true if refresh succeeded, false otherwise
      */
-    private void refreshSearchIndex() {
+    private boolean refreshSearchIndex() {
         try {
             log.info("BM25 검색 인덱스 갱신 시작 (Materialized View REFRESH)");
             long startTime = System.currentTimeMillis();
@@ -256,9 +258,11 @@ public class CrawlingService {
 
             log.info("Term 자동완성 인덱스 갱신 완료 ({}ms)", System.currentTimeMillis() - termStartTime);
 
+            return true;
         } catch (Exception e) {
             log.error("BM25 검색 인덱스 갱신 중 오류 발생: {}", e.getMessage(), e);
             // 인덱스 갱신 실패는 크롤링 자체를 실패시키지 않음
+            return false;
         }
     }
 
@@ -304,13 +308,19 @@ public class CrawlingService {
     /**
      * 대표 Chunk 선택. BM25 인덱스 갱신 후 호출해야 정확한 선정 가능
      * Embedding이 없는 Article은 selectRepresentativeChunk 내부에서 null 반환 처리
+     *
+     * @param bm25RefreshSucceeded BM25 인덱스 갱신 성공 여부. false이면 term frequency fallback으로 선정되었음을 WARNING으로 기록
      */
-    private void selectRepresentativeChunksForArticles(List<Article> articles) {
+    private void selectRepresentativeChunksForArticles(List<Article> articles, boolean bm25RefreshSucceeded) {
         for (Article article : articles) {
             try {
                 Long chunkId = representativeChunkService.selectRepresentativeChunk(article.getId());
                 if (chunkId != null) {
-                    crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.REPRESENTATIVE_CHUNK, CrawlingStepStatus.SUCCESS, null);
+                    if (!bm25RefreshSucceeded) {
+                        crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.REPRESENTATIVE_CHUNK, CrawlingStepStatus.WARNING, "BM25 인덱스 갱신 실패로 인해 term frequency 기반으로 선정됨");
+                    } else {
+                        crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.REPRESENTATIVE_CHUNK, CrawlingStepStatus.SUCCESS, null);
+                    }
                 } else {
                     log.warn("Article {} 대표 Chunk 선정 실패 (결과 없음)", article.getId());
                     crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.REPRESENTATIVE_CHUNK, CrawlingStepStatus.FAILURE, "대표 chunk 없음");
@@ -424,14 +434,16 @@ public class CrawlingService {
     /**
      * BM25 검색 인덱스 갱신 (Admin 전체 페이지 크롤링용)
      * scheduledFullPageCrawling에서 배치 완료 후 1회 호출
+     *
+     * @return true if refresh succeeded (or skipped due to no new articles), false on error
      */
-    private void refreshBM25SearchIndex(List<CrawlResult> results) {
+    private boolean refreshBM25SearchIndex(List<CrawlResult> results) {
         try {
             boolean hasNewArticles = results.stream().anyMatch(CrawlResult::hasNewArticles);
 
             if (!hasNewArticles) {
                 log.info("신규 글이 없어 BM25 인덱스 갱신을 건너뜁니다.");
-                return;
+                return true;
             }
 
             log.info("BM25 검색 인덱스 갱신 시작 (Materialized View REFRESH)");
@@ -448,8 +460,10 @@ public class CrawlingService {
 
             log.info("Term 자동완성 인덱스 갱신 완료 ({}ms)", System.currentTimeMillis() - termStartTime);
 
+            return true;
         } catch (Exception e) {
             log.error("BM25 검색 인덱스 갱신 중 오류 발생: {}", e.getMessage(), e);
+            return false;
         }
     }
 
