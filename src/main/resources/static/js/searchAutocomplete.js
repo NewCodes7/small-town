@@ -220,6 +220,8 @@ class SearchAutocomplete {
         if (query.length > 0 && this.searchHistory && !this.isAuthenticated) {
             this.searchHistory.saveHistory(query);
         }
+        this.autocompleteDropdown.style.display = 'none';
+        this.selectedIndex = -1;
     }
 
     /**
