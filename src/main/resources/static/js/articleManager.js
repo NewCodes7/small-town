@@ -16,6 +16,7 @@ class ArticleManager {
         this.isLoading = false;
         this.debounceTimer = null;
         this.userExplicitViewChange = false; // 사용자가 명시적으로 뷰를 변경했는지 추적
+        this.isAdmin = false;
         this.init();
     }
 
@@ -340,6 +341,9 @@ class ArticleManager {
             }
             const data = await response.json();
 
+            // admin 여부 갱신
+            this.isAdmin = data.isAdmin === true;
+
             // UI 업데이트
             if (data.view === 'grouped') {
                 this.renderGroupedArticles(data.content);
@@ -440,6 +444,37 @@ class ArticleManager {
         this.loadLikeStatuses();
     }
 
+    generateAdminScorePanelHTML(article) {
+        if (!this.isAdmin || article.finalScore == null) return '';
+        const fmt4 = v => v != null ? v.toFixed(4) : '-';
+        const fmt2 = v => v != null ? v.toFixed(2) : '-';
+        const fmt1 = v => v != null ? v.toFixed(1) : '-';
+        const bmNorm = fmt2(article.normalizedBm25Score);
+        const vecNorm = fmt2(article.normalizedVectorScore);
+        return `<div class="admin-score-panel" onclick="event.stopPropagation()">
+            <div class="admin-score-final"><i class="fas fa-star"></i> Final ${fmt4(article.finalScore)}</div>
+            <table class="admin-score-table">
+                <thead><tr><th></th><th>raw</th><th>norm</th><th>w</th><th>#</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td class="admin-label-bm25">BM25</td>
+                        <td>${fmt1(article.bm25Score)}</td>
+                        <td>${bmNorm}</td>
+                        <td>0.5</td>
+                        <td>${article.bm25Rank != null ? article.bm25Rank : '-'}</td>
+                    </tr>
+                    <tr>
+                        <td class="admin-label-vec">Vector</td>
+                        <td>${fmt2(article.vectorScore)}</td>
+                        <td>${vecNorm}</td>
+                        <td>0.5</td>
+                        <td>${article.vectorRank != null ? article.vectorRank : '-'}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>`;
+    }
+
     generateListArticleHTML(article) {
         const title = article.translatedTitle && article.translatedTitle.length > 0
             ? article.translatedTitle : article.title;
@@ -452,6 +487,7 @@ class ArticleManager {
         const corpName = article.corporation ? article.corporation.name : '';
         const corpId = article.corporation ? article.corporation.id : '';
         const isLiked = article.isLiked === true;
+        const adminScoreHTML = this.generateAdminScorePanelHTML(article);
 
         return `<div class="article-card-wrapper">
             <div class="article-card" data-article-id="${article.id}" data-detail-url="${this.escapeHtml(article.detailUrl || '')}"
@@ -476,6 +512,7 @@ class ArticleManager {
                     </div>
                 </div>
                 <div class="article-thumbnail-container">${thumbnailHTML}</div>
+                ${adminScoreHTML}
             </div>
         </div>`;
     }
@@ -493,12 +530,23 @@ class ArticleManager {
         const corpId = corporation ? corporation.id : '';
         const isLiked = firstArticle.isLiked === true;
 
+        const adminScoreHTML = this.generateAdminScorePanelHTML(firstArticle);
+
         let childHTML = '';
         if (childArticles && childArticles.length > 0) {
             const childItems = childArticles.map(child => {
                 const childTitle = child.translatedTitle && child.translatedTitle.length > 0
                     ? child.translatedTitle : child.title;
                 const childIsLiked = child.isLiked === true;
+                const childAdminScoreHTML = (this.isAdmin && child.finalScore != null)
+                    ? `<div class="admin-score-panel compact" onclick="event.stopPropagation()">
+                        <span class="admin-score-final"><i class="fas fa-star"></i> ${child.finalScore.toFixed(4)}</span>
+                        <span class="admin-score-inline">
+                            <span class="admin-label-bm25">BM</span>${child.bm25Score != null ? child.bm25Score.toFixed(1) : '-'}
+                            <span class="admin-label-vec">Vec</span>${child.vectorScore != null ? child.vectorScore.toFixed(2) : '-'}
+                        </span>
+                    </div>`
+                    : '';
                 return `<div class="child" data-article-id="${child.id}" data-detail-url="${this.escapeHtml(child.detailUrl || '')}"
                              onclick="event.stopPropagation(); window.location.href=this.getAttribute('data-detail-url')" style="cursor: pointer;">
                     <h6 class="fw-bold d-flex align-items-center" style="margin: 0;">
@@ -507,6 +555,7 @@ class ArticleManager {
                     <span class="child-date d-flex align-items-center flex-wrap">
                         <span class="d-flex align-items-center gap-2">
                             <small class="text-muted relative-time" data-date="${child.publishedAt || ''}" title="${child.publishedAt || ''}" style="white-space: nowrap;">${child.publishedAt || ''}</small>
+                            ${childAdminScoreHTML}
                             <button class="like-button" data-article-id="${child.id}" data-liked="${childIsLiked}" onclick="event.stopPropagation()">
                                 <i class="fas fa-heart like-icon"></i>
                                 <span class="like-count">${child.likeCount || 0}</span>
@@ -551,6 +600,7 @@ class ArticleManager {
                 </div>
                 <div class="article-thumbnail-container">${thumbnailHTML}</div>
                 ${childHTML}
+                ${adminScoreHTML}
             </div>
         </div>`;
     }

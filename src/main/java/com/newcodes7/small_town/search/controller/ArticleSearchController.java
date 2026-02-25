@@ -9,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -112,6 +113,9 @@ public class ArticleSearchController {
             );
         }
 
+        boolean isAdmin = userDetails != null &&
+                userDetails.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_ADMIN"));
+
         Map<String, Object> response = new HashMap<>();
         response.put("content", articles.getContent());
         response.put("currentPage", page);
@@ -123,6 +127,7 @@ public class ArticleSearchController {
         response.put("keyword", keyword);
         response.put("selectedRegions", regions != null ? regions : new ArrayList<>());
         response.put("view", view);
+        response.put("isAdmin", isAdmin);
 
         // 검색 로그 비동기 저장 (응답 속도 우선: 사용자 조회 + 로그 저장 모두 비동기)
         if (keyword != null && !keyword.trim().isEmpty()) {
