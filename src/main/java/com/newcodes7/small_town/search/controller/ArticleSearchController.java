@@ -16,9 +16,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.newcodes7.small_town.article.dto.ArticleResponseDto;
 import com.newcodes7.small_town.article.service.ArticleService;
-import com.newcodes7.small_town.article.service.SemanticTermExpansionService;
-import com.newcodes7.small_town.global.entity.SearchLog;
-import com.newcodes7.small_town.global.service.SearchLogService;
+import com.newcodes7.small_town.search.service.ArticleSearchService;
+import com.newcodes7.small_town.search.service.SemanticTermExpansionService;
+import com.newcodes7.small_town.search.entity.SearchLog;
+import com.newcodes7.small_town.search.service.SearchLogService;
 import com.newcodes7.small_town.global.util.Client;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -32,6 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ArticleSearchController {
 
     private final ArticleService articleService;
+    private final ArticleSearchService articleSearchService;
     private final SemanticTermExpansionService semanticExpansionService;
     private final SearchLogService searchLogService;
 
@@ -71,7 +73,7 @@ public class ArticleSearchController {
             // 따옴표 검색 감지: "키워드" 형식
             if (trimmedKeyword.startsWith("\"") && trimmedKeyword.endsWith("\"") && trimmedKeyword.length() > 2) {
                 String exactKeyword = trimmedKeyword.substring(1, trimmedKeyword.length() - 1).toLowerCase();
-                articles = articleService.searchArticlesExactMatch(
+                articles = articleSearchService.searchArticlesExactMatch(
                     exactKeyword,
                     regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
                     category == null || category.isEmpty() ? null : category.stream().sorted().toList(),
@@ -85,7 +87,7 @@ public class ArticleSearchController {
                 // 일반 Hybrid 검색 (BM25 + Vector)
                 Map<String, Double> expandedTerms = semanticExpansionService.expandSearchTerms(trimmedKeyword.toLowerCase());
 
-                articles = articleService.searchArticlesHybrid(
+                articles = articleSearchService.searchArticlesHybrid(
                     trimmedKeyword.toLowerCase(),
                     expandedTerms,
                     regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
