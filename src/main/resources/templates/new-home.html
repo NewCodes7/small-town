@@ -59,22 +59,21 @@
                 </div>
 
                 <div class="popular-carousel-wrapper">
-                    <button class="popular-nav-btn popular-prev" onclick="slidePopular(-1)" aria-label="이전">
+                    <button class="popular-nav-btn popular-prev" aria-label="이전">
                         <i class="fas fa-chevron-left"></i>
                     </button>
                     <div class="popular-carousel">
                         <div class="popular-track">
                         <div th:each="article, iterStat : ${popularArticles}"
                              class="popular-card"
-                             th:attr="data-detail-url=${article.detailUrl}"
-                             onclick="window.location.href=this.getAttribute('data-detail-url')"
-                             style="cursor: pointer;">
+                             th:attr="data-detail-url=${article.detailUrl}">
                             <span class="popular-rank" th:classappend="${iterStat.index < 3 ? ' top-rank' : ''}"
                                   th:text="${iterStat.index + 1}">1</span>
                             <div th:if="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}"
                                  class="popular-card-thumbnail">
                                 <img th:src="${article.thumbnailImage}"
                                      alt=""
+                                     loading="lazy"
                                      class="popular-card-thumbnail-image">
                             </div>
                             <div th:unless="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}"
@@ -87,11 +86,11 @@
                             <div class="popular-card-content">
                                 <div class="popular-card-company">
                                     <a th:href="@{/corporations/{id}(id=${article.corporation.id})}"
-                                       class="popular-card-company-link"
-                                       onclick="event.stopPropagation()">
+                                       class="popular-card-company-link">
                                         <img th:if="${article.corporation.effectiveLogoUrl != null}"
                                              th:src="${article.corporation.effectiveLogoUrl}"
                                              th:alt="${article.corporation.name}"
+                                             loading="lazy"
                                              class="popular-card-company-logo">
                                         <span class="popular-card-company-name" th:text="${article.corporation.name}">Corporation</span>
                                     </a>
@@ -109,7 +108,7 @@
                         </div>
                     </div>
                     </div>
-                    <button class="popular-nav-btn popular-next" onclick="slidePopular(1)" aria-label="다음">
+                    <button class="popular-nav-btn popular-next" aria-label="다음">
                         <i class="fas fa-chevron-right"></i>
                     </button>
                 </div>

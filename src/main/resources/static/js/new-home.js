@@ -44,11 +44,6 @@ window.addEventListener('resize', function() {
     slidePopular(0); // Update button states
 });
 
-// Initialize button states on load
-document.addEventListener('DOMContentLoaded', function() {
-    slidePopular(0);
-});
-
 // 아티클 상세 페이지로 이동 (조회수 증가는 상세 페이지에서 처리)
 function goToArticleDetail(articleId) {
     if (articleId) {
@@ -366,6 +361,25 @@ function incrementThemeViewCount(themeId, element) {
 
 // 페이지 로드 시 상대 시간 적용 및 좋아요 상태 로드
 document.addEventListener('DOMContentLoaded', function() {
+    // 인기글 캐러셀 초기화
+    const prevBtn = document.querySelector('.popular-prev');
+    const nextBtn = document.querySelector('.popular-next');
+    if (prevBtn) prevBtn.addEventListener('click', function() { slidePopular(-1); });
+    if (nextBtn) nextBtn.addEventListener('click', function() { slidePopular(1); });
+
+    const popularTrack = document.querySelector('.popular-track');
+    if (popularTrack) {
+        popularTrack.addEventListener('click', function(e) {
+            if (e.target.closest('.popular-card-company-link')) return;
+            const card = e.target.closest('.popular-card');
+            if (card) {
+                const url = card.getAttribute('data-detail-url');
+                if (url) window.location.href = url;
+            }
+        });
+    }
+    slidePopular(0);
+
     // 상대 시간 표시
     document.querySelectorAll('.relative-time').forEach(element => {
         const dateString = element.getAttribute('data-date');

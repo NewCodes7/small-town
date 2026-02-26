@@ -25,7 +25,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Pageable;
 
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.dto.ArticleResponseDto;

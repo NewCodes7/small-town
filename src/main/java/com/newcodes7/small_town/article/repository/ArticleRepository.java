@@ -36,7 +36,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "JOIN FETCH a.corporation c " +
            "WHERE a.deletedAt IS NULL " +
            "AND a.publishedAt >= :since " +
-           "ORDER BY COALESCE(a.viewCount, 0) DESC, a.publishedAt DESC")
+           "ORDER BY (COALESCE(a.viewCount, 0) * 0.6 + COALESCE(a.likeCount, 0) * 0.3) DESC, a.publishedAt DESC")
     List<Article> findWeeklyPopularArticles(@Param("since") LocalDateTime since, Pageable pageable);
     
     @Query("SELECT a FROM Article a " +
