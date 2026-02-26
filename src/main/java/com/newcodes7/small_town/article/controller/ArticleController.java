@@ -1080,11 +1080,15 @@ public class ArticleController {
             .limit(8)
             .toList();
 
+        // 이번 주 인기글 조회 (최근 7일, 조회수 순, 최대 8개)
+        List<ArticleListResponseDto> popularArticles = articleService.getWeeklyPopularArticles(8);
+
         model.addAttribute("articles", latestArticles);
         model.addAttribute("videos", latestVideos);
         model.addAttribute("corporations", corporationsWithLogos);
         model.addAttribute("totalElements", totalElements);
         model.addAttribute("themes", themes);
+        model.addAttribute("popularArticles", popularArticles);
 
         return "new-home";
     }

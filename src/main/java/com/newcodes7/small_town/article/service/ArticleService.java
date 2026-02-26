@@ -209,6 +209,22 @@ public class ArticleService {
         return articles.map(ArticleListResponseDto::new);
     }
 
+    /**
+     * 이번 주 인기글 조회 (최근 7일 발행 기준, 인기도 순)
+     * 향후 별도 API로 분리 가능하도록 독립적인 메서드로 구현
+     */
+    @Cacheable(value = "weeklyPopularArticles", key = "#limit")
+    public List<ArticleListResponseDto> getWeeklyPopularArticles(int limit) {
+        if (limit <= 0 || limit > 100) {
+            throw new InvalidParameterException("limit", limit, "limit은 1-100 사이여야 합니다");
+        }
+        LocalDateTime since = LocalDateTime.now().minusDays(7);
+        List<Article> articles = articleRepository.findWeeklyPopularArticles(since, PageRequest.of(0, limit));
+        return articles.stream()
+                .map(ArticleListResponseDto::new)
+                .collect(Collectors.toList());
+    }
+
     public CorporationDetailDto getCorporationDetail(Long corporationId) {
         if (corporationId == null || corporationId <= 0) {
             throw new InvalidParameterException("corporationId", corporationId);

@@ -1,3 +1,49 @@
+// 이번 주 인기글 캐러셀
+let popularCurrentPage = 0;
+
+function getPopularItemsPerPage() {
+    const width = window.innerWidth;
+    if (width <= 768) return 2;
+    if (width <= 1024) return 3;
+    return 4;
+}
+
+function slidePopular(direction) {
+    const track = document.querySelector('.popular-track');
+    if (!track) return;
+
+    const totalItems = track.children.length;
+    if (totalItems === 0) return;
+
+    const itemsPerPage = getPopularItemsPerPage();
+    const maxPage = Math.max(0, Math.ceil(totalItems / itemsPerPage) - 1);
+
+    popularCurrentPage += direction;
+    if (popularCurrentPage < 0) popularCurrentPage = 0;
+    if (popularCurrentPage > maxPage) popularCurrentPage = maxPage;
+
+    const style = window.getComputedStyle(track);
+    const gap = parseFloat(style.gap) || 0;
+    const cardWithGap = track.children[0].offsetWidth + gap;
+    track.style.transform = `translateX(-${popularCurrentPage * itemsPerPage * cardWithGap}px)`;
+
+    // Update button states
+    const prevBtn = document.querySelector('.popular-prev');
+    const nextBtn = document.querySelector('.popular-next');
+    if (prevBtn) prevBtn.disabled = (popularCurrentPage === 0);
+    if (nextBtn) nextBtn.disabled = (popularCurrentPage >= maxPage);
+}
+
+// Reset carousel on window resize
+window.addEventListener('resize', function() {
+    popularCurrentPage = 0;
+    const track = document.querySelector('.popular-track');
+    if (track) {
+        track.style.transform = 'translateX(0)';
+    }
+    slidePopular(0); // Update button states
+});
+
 // 아티클 상세 페이지로 이동 (조회수 증가는 상세 페이지에서 처리)
 function goToArticleDetail(articleId) {
     if (articleId) {
@@ -315,6 +361,25 @@ function incrementThemeViewCount(themeId, element) {
 
 // 페이지 로드 시 상대 시간 적용 및 좋아요 상태 로드
 document.addEventListener('DOMContentLoaded', function() {
+    // 인기글 캐러셀 초기화
+    const prevBtn = document.querySelector('.popular-prev');
+    const nextBtn = document.querySelector('.popular-next');
+    if (prevBtn) prevBtn.addEventListener('click', function() { slidePopular(-1); });
+    if (nextBtn) nextBtn.addEventListener('click', function() { slidePopular(1); });
+
+    const popularTrack = document.querySelector('.popular-track');
+    if (popularTrack) {
+        popularTrack.addEventListener('click', function(e) {
+            if (e.target.closest('.popular-card-company-link')) return;
+            const card = e.target.closest('.popular-card');
+            if (card) {
+                const url = card.getAttribute('data-detail-url');
+                if (url) window.location.href = url;
+            }
+        });
+    }
+    slidePopular(0);
+
     // 상대 시간 표시
     document.querySelectorAll('.relative-time').forEach(element => {
         const dateString = element.getAttribute('data-date');

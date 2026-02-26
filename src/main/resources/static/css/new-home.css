@@ -896,12 +896,217 @@
             to { transform: scale(1); opacity: 1; }
         }
 
+        /* Popular Articles Carousel */
+        .popular-section {
+            margin-bottom: 80px;
+        }
+
+        .popular-icon {
+            background: #ef4444 !important;
+        }
+
+        .popular-carousel-wrapper {
+            display: flex;
+            align-items: stretch;
+            gap: 12px;
+        }
+
+        .popular-nav-btn {
+            width: 40px;
+            min-width: 40px;
+            border-radius: 12px;
+            border: 2px solid var(--border-light);
+            background: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-dark);
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+
+        .popular-nav-btn:hover {
+            background: var(--primary-green);
+            border-color: var(--primary-green);
+            color: white;
+        }
+
+        .popular-nav-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .popular-nav-btn:disabled:hover {
+            background: white;
+            border-color: var(--border-light);
+            color: var(--text-dark);
+        }
+
+        .popular-carousel {
+            overflow: hidden;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .popular-track {
+            display: flex;
+            gap: 20px;
+            transition: transform 0.4s ease;
+        }
+
+        .popular-card {
+            min-width: calc(25% - 15px);
+            max-width: calc(25% - 15px);
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 2px solid var(--border-light);
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 12px rgba(3, 199, 90, 0.08);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .popular-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(3, 199, 90, 0.15);
+            border-color: var(--primary-green);
+        }
+
+        .popular-rank {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            font-weight: 700;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+        }
+
+        .popular-rank.top-rank {
+            background: #ef4444;
+        }
+
+        .popular-card-thumbnail {
+            width: 100%;
+            height: 160px;
+            background: linear-gradient(135deg, var(--secondary-green) 0%, #F0F8F0 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .popular-card-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+        .popular-card:hover .popular-card-thumbnail img {
+            transform: scale(1.05);
+        }
+
+        .popular-card-content {
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .popular-card-company {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .popular-card-company-logo {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            object-fit: contain;
+            background: white;
+            border: 1px solid var(--border-light);
+        }
+
+        .popular-card-company-name {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--primary-green);
+        }
+
+        .popular-card-company-link {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+            color: inherit;
+            transition: opacity 0.2s ease;
+        }
+
+        .popular-card-company-link:hover {
+            opacity: 0.7;
+        }
+
+        .popular-card-title {
+            font-size: 1.0rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 10px;
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            min-height: 3.8rem;
+        }
+
+        .popular-card-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.8rem;
+            color: var(--text-light);
+            margin-top: auto;
+            padding-top: 10px;
+            border-top: 1px solid var(--border-light);
+        }
+
+        .popular-card-date {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .popular-card-date i {
+            font-size: 0.75rem;
+        }
+
         /* Responsive Design */
         @media (max-width: 1024px) {
             .blog-grid,
             .video-grid,
             .theme-grid {
                 grid-template-columns: repeat(3, minmax(0, 300px));
+            }
+
+            .popular-card {
+                min-width: calc(33.333% - 14px);
+                max-width: calc(33.333% - 14px);
             }
         }
 
@@ -1017,6 +1222,11 @@
 
             .mobile-view-all {
                 display: block;
+            }
+
+            .popular-card {
+                min-width: calc(50% - 10px);
+                max-width: calc(50% - 10px);
             }
         }
 

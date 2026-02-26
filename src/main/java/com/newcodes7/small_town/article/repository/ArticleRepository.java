@@ -1,5 +1,6 @@
 package com.newcodes7.small_town.article.repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -30,6 +31,13 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            " COALESCE(a.likeCount, 0) * 0.3) DESC, " +
            "a.publishedAt DESC")
     Page<Article> findPopularArticlesWithDetails(Pageable pageable);
+
+    @Query("SELECT a FROM Article a " +
+           "JOIN FETCH a.corporation c " +
+           "WHERE a.deletedAt IS NULL " +
+           "AND a.publishedAt >= :since " +
+           "ORDER BY (COALESCE(a.viewCount, 0) * 0.6 + COALESCE(a.likeCount, 0) * 0.3) DESC, a.publishedAt DESC")
+    List<Article> findWeeklyPopularArticles(@Param("since") LocalDateTime since, Pageable pageable);
     
     @Query("SELECT a FROM Article a " +
            "JOIN FETCH a.corporation c " +
