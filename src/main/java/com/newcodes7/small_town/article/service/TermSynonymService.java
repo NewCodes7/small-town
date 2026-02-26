@@ -2,6 +2,7 @@ package com.newcodes7.small_town.article.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -324,6 +325,13 @@ public class TermSynonymService {
      */
     public boolean existsSynonym(Long termId1, Long termId2) {
         return termSynonymRepository.existsByTermIds(termId1, termId2);
+    }
+
+    /**
+     * 두 term ID로 유의어 관계 조회
+     */
+    public Optional<TermSynonym> findSynonymByTermIds(Long termId1, Long termId2) {
+        return termSynonymRepository.findByTermIds(termId1, termId2);
     }
 
     /**

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+    <div th:fragment="content" class="card">
+        <div class="card-body">
+            <div class="mb-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-language me-2"></i>번역 관리 (DeepL)
+                </h5>
+                <button class="btn btn-outline-secondary btn-sm" onclick="loadTranslatedTerms()">
+                    <i class="fas fa-sync me-1"></i>새로고침
+                </button>
+            </div>
+
+            <!-- 요약 카드 -->
+            <div class="row mb-4" id="translatedTermsStats">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body text-center py-2">
+                            <h6 class="mb-1">전체 번역 수</h6>
+                            <h3 class="mb-0" id="statTotalCount">-</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body text-center py-2">
+                            <h6 class="mb-1">Synonym 연결됨</h6>
+                            <h3 class="mb-0" id="statSynonymCount">-</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body text-center py-2">
+                            <h6 class="mb-1">Synonym 없음</h6>
+                            <h3 class="mb-0" id="statNoSynonymCount">-</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body text-center py-2">
+                            <h6 class="mb-1">Term 존재</h6>
+                            <h3 class="mb-0" id="statHasTermCount">-</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 검색 -->
+            <div class="mb-3">
+                <input type="text" class="form-control" id="translatedTermsSearch"
+                       placeholder="한국어 번역 또는 영어 원본으로 검색..."
+                       oninput="filterTranslatedTerms()">
+            </div>
+
+            <!-- 테이블 -->
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th style="width: 5%;">ID</th>
+                            <th style="width: 22%;">한국어 번역</th>
+                            <th style="width: 22%;">영어 원본</th>
+                            <th style="width: 10%;">Term 존재</th>
+                            <th style="width: 10%;">Synonym</th>
+                            <th style="width: 16%;">등록일</th>
+                            <th style="width: 15%;">액션</th>
+                        </tr>
+                    </thead>
+                    <tbody id="translatedTermsTableBody">
+                        <tr>
+                            <td colspan="7" class="text-center text-muted">로딩 중...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

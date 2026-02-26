@@ -1408,6 +1408,192 @@ public class AdminTermController {
         }
     }
 
+    // ========== DeepL 번역 Term 모니터링 ==========
+
+    /**
+     * DeepL 번역 항목 목록 조회 API
+     */
+    @GetMapping("/translated-terms")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getTranslatedTerms() {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            List<com.newcodes7.small_town.global.entity.UserDictionary> entries =
+                    userDictionaryRepository.findDeeplTranslatedEntries();
+
+            List<Map<String, Object>> items = new ArrayList<>();
+            for (com.newcodes7.small_town.global.entity.UserDictionary entry : entries) {
+                String koreanTerm = entry.getWord();
+                String englishTerm = entry.getReason().replace("DeepL translation of: ", "");
+
+                Optional<com.newcodes7.small_town.global.entity.Term> koreanTermEntity =
+                        termRepository.findByTermAndTermType(koreanTerm, "NNG");
+                Optional<com.newcodes7.small_town.global.entity.Term> englishTermEntity =
+                        termRepository.findByTermAndTermType(englishTerm, "NNG");
+
+                boolean hasTermEntity = koreanTermEntity.isPresent();
+                Long termId = hasTermEntity ? koreanTermEntity.get().getId() : null;
+
+                boolean hasSynonym = false;
+                Long synonymId = null;
+                if (koreanTermEntity.isPresent() && englishTermEntity.isPresent()) {
+                    Optional<com.newcodes7.small_town.global.entity.TermSynonym> synonym =
+                            termSynonymService.findSynonymByTermIds(
+                                    koreanTermEntity.get().getId(),
+                                    englishTermEntity.get().getId());
+                    if (synonym.isPresent()) {
+                        hasSynonym = true;
+                        synonymId = synonym.get().getId();
+                    }
+                }
+
+                Map<String, Object> item = new HashMap<>();
+                item.put("id", entry.getId());
+                item.put("koreanTerm", koreanTerm);
+                item.put("englishTerm", englishTerm);
+                item.put("hasTermEntity", hasTermEntity);
+                item.put("termId", termId);
+                item.put("hasSynonym", hasSynonym);
+                item.put("synonymId", synonymId);
+                item.put("createdAt", entry.getCreatedAt());
+                items.add(item);
+            }
+
+            response.put("success", true);
+            response.put("items", items);
+            response.put("totalCount", items.size());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("DeepL 번역 항목 조회 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "번역 항목 조회 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * DeepL 번역 항목 수정 API
+     */
+    @PutMapping("/translated-terms/{id}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> updateTranslatedTerm(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> request) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            com.newcodes7.small_town.global.entity.UserDictionary userDict =
+                    userDictionaryRepository.findById(id)
+                            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 번역 항목입니다. ID: " + id));
+
+            String oldKoreanTerm = userDict.getWord();
+            String englishTerm = userDict.getReason().replace("DeepL translation of: ", "");
+            String newKoreanTerm = request.get("newKoreanTerm");
+
+            if (newKoreanTerm == null || newKoreanTerm.trim().isEmpty()) {
+                response.put("success", false);
+                response.put("message", "새 한국어 번역이 필요합니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+            newKoreanTerm = newKoreanTerm.trim();
+
+            // 기존 Synonym 삭제
+            Optional<com.newcodes7.small_town.global.entity.Term> oldKoreanTermEntity =
+                    termRepository.findByTermAndTermType(oldKoreanTerm, "NNG");
+            Optional<com.newcodes7.small_town.global.entity.Term> englishTermEntity =
+                    termRepository.findByTermAndTermType(englishTerm, "NNG");
+
+            if (oldKoreanTermEntity.isPresent() && englishTermEntity.isPresent()) {
+                Optional<com.newcodes7.small_town.global.entity.TermSynonym> existingSynonym =
+                        termSynonymService.findSynonymByTermIds(
+                                oldKoreanTermEntity.get().getId(),
+                                englishTermEntity.get().getId());
+                existingSynonym.ifPresent(s -> termSynonymService.deleteSynonym(s.getId()));
+            }
+
+            // UserDictionary 업데이트
+            userDict.updateWord(newKoreanTerm);
+            userDictionaryRepository.save(userDict);
+
+            // 새 Synonym 생성 (Term auto-create 포함)
+            termSynonymService.addSynonymByTermString(newKoreanTerm, englishTerm);
+
+            response.put("success", true);
+            response.put("message", String.format("번역이 '%s'에서 '%s'로 수정되었습니다.", oldKoreanTerm, newKoreanTerm));
+
+            log.info("DeepL 번역 항목 수정: {} → {} (영어: {})", oldKoreanTerm, newKoreanTerm, englishTerm);
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+
+        } catch (Exception e) {
+            log.error("DeepL 번역 항목 수정 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "번역 항목 수정 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * DeepL 번역 항목 삭제 API
+     */
+    @DeleteMapping("/translated-terms/{id}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> deleteTranslatedTerm(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            com.newcodes7.small_town.global.entity.UserDictionary userDict =
+                    userDictionaryRepository.findById(id)
+                            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 번역 항목입니다. ID: " + id));
+
+            String koreanTerm = userDict.getWord();
+            String englishTerm = userDict.getReason().replace("DeepL translation of: ", "");
+
+            // Synonym 삭제
+            Optional<com.newcodes7.small_town.global.entity.Term> koreanTermEntity =
+                    termRepository.findByTermAndTermType(koreanTerm, "NNG");
+            Optional<com.newcodes7.small_town.global.entity.Term> englishTermEntity =
+                    termRepository.findByTermAndTermType(englishTerm, "NNG");
+
+            if (koreanTermEntity.isPresent() && englishTermEntity.isPresent()) {
+                termSynonymService.findSynonymByTermIds(
+                        koreanTermEntity.get().getId(),
+                        englishTermEntity.get().getId())
+                        .ifPresent(s -> termSynonymService.deleteSynonym(s.getId()));
+            }
+
+            // UserDictionary 삭제 (Term 엔티티는 유지)
+            userDictionaryRepository.delete(userDict);
+
+            response.put("success", true);
+            response.put("message", String.format("번역 항목 '%s' (%s)이 삭제되었습니다.", koreanTerm, englishTerm));
+
+            log.info("DeepL 번역 항목 삭제: {} ({}) ID: {}", koreanTerm, englishTerm, id);
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+
+        } catch (Exception e) {
+            log.error("DeepL 번역 항목 삭제 중 오류 발생: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "번역 항목 삭제 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
     /**
      * StackOverflow 태그 미리보기 (실제 저장하지 않음)
      *

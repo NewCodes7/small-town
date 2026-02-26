@@ -65,4 +65,8 @@ public class UserDictionary {
     @CreatedDate
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    public void updateWord(String newWord) {
+        this.word = newWord;
+    }
 }

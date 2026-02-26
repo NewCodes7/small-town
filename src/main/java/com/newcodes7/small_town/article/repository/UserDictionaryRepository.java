@@ -29,4 +29,10 @@ public interface UserDictionaryRepository extends JpaRepository<UserDictionary, 
      */
     @Query("SELECT u FROM UserDictionary u ORDER BY u.createdAt DESC")
     List<UserDictionary> findAllOrderByCreatedAtDesc();
+
+    /**
+     * DeepL 번역 항목만 조회 (최신순)
+     */
+    @Query("SELECT u FROM UserDictionary u WHERE u.reason LIKE 'DeepL translation of: %' ORDER BY u.createdAt DESC")
+    List<UserDictionary> findDeeplTranslatedEntries();
 }

@@ -129,6 +129,12 @@
                             <i class="fas fa-bookmark me-2"></i>테마 조회수
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" th:classappend="${currentTab == 'translations'} ? 'active'"
+                           th:href="@{/admin/articles(tab='translations')}">
+                            <i class="fas fa-language me-2"></i>번역 관리
+                        </a>
+                    </li>
                 </ul>
 
                 <!-- 검색 폼 -->
@@ -217,6 +223,11 @@
                 <div th:if="${currentTab == 'themes'}">
                     <div th:replace="~{admin/article/tabs/themes::content}"></div>
                 </div>
+
+                <!-- Translations 탭 -->
+                <div th:if="${currentTab == 'translations'}">
+                    <div th:replace="~{admin/article/tabs/translated-terms::content}"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -237,5 +248,6 @@
     <script th:src="@{/js/admin/articleList/users.js}"></script>
     <script th:src="@{/js/admin/articleList/crawlinglogs.js}"></script>
     <script th:src="@{/js/admin/articleList/main.js}"></script>
+    <script th:src="@{/js/admin/articleList/translated-terms.js}"></script>
 </body>
 </html>
