@@ -76,8 +76,10 @@
                             <span class="popular-rank" th:classappend="${iterStat.index < 3 ? ' top-rank' : ''}"
                                   th:text="${iterStat.index + 1}">1</span>
                             <div th:if="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}"
-                                 class="popular-card-thumbnail"
-                                 th:style="'background-image: url(' + ${article.thumbnailImage} + '); background-size: cover; background-position: center;'">
+                                 class="popular-card-thumbnail">
+                                <img th:src="${article.thumbnailImage}"
+                                     alt=""
+                                     class="popular-card-thumbnail-image">
                             </div>
                             <div th:unless="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}"
                                  class="popular-card-thumbnail default-thumbnail">
@@ -100,10 +102,6 @@
                                 </div>
                                 <h3 class="popular-card-title" th:text="${article.translatedTitle != null ? article.translatedTitle : article.title}">Article Title</h3>
                                 <div class="popular-card-meta">
-                                    <span class="popular-card-views">
-                                        <i class="fas fa-eye"></i>
-                                        <span th:text="${article.viewCount}">0</span>
-                                    </span>
                                     <span class="popular-card-date">
                                         <i class="far fa-clock"></i>
                                         <span class="relative-time"

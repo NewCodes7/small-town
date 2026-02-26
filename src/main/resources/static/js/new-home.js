@@ -22,7 +22,9 @@ function slidePopular(direction) {
     if (popularCurrentPage < 0) popularCurrentPage = 0;
     if (popularCurrentPage > maxPage) popularCurrentPage = maxPage;
 
-    const cardWithGap = track.children[0].offsetWidth + 20; // card width + gap
+    const style = window.getComputedStyle(track);
+    const gap = parseFloat(style.gap) || 0;
+    const cardWithGap = track.children[0].offsetWidth + gap;
     track.style.transform = `translateX(-${popularCurrentPage * itemsPerPage * cardWithGap}px)`;
 
     // Update button states

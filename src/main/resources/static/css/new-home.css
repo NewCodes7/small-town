@@ -1081,14 +1081,12 @@
             border-top: 1px solid var(--border-light);
         }
 
-        .popular-card-views,
         .popular-card-date {
             display: flex;
             align-items: center;
             gap: 4px;
         }
 
-        .popular-card-views i,
         .popular-card-date i {
             font-size: 0.75rem;
         }

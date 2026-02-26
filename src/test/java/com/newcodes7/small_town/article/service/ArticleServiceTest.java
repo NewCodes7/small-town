@@ -1,9 +1,13 @@
 package com.newcodes7.small_town.article.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -13,6 +17,7 @@ import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -20,11 +25,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Pageable;
 
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.dto.ArticleResponseDto;
 import com.newcodes7.small_town.article.dto.CorporationDto;
 import com.newcodes7.small_town.article.dto.GroupedArticlesDto;
+import com.newcodes7.small_town.article.exception.InvalidParameterException;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.utils.ArticleCreator;
@@ -244,6 +251,40 @@ public class ArticleServiceTest {
 
         //then
         assertGroupedEquals(expected, result);
+    }
+
+    @Test
+    public void 이번주_인기글_조회() {
+        //given
+        List<Article> articlesList = ArticleCreator.createArticlesWithId(List.of(1L, 2L, 3L));
+        when(articleRepository.findWeeklyPopularArticles(any(LocalDateTime.class), any(Pageable.class)))
+                .thenReturn(articlesList);
+
+        //when
+        List<ArticleListResponseDto> result = articleService.getWeeklyPopularArticles(8);
+
+        //then
+        assertEquals(3, result.size());
+        assertEquals(articlesList.get(0).getId(), result.get(0).getId());
+        assertEquals(articlesList.get(1).getId(), result.get(1).getId());
+        assertEquals(articlesList.get(2).getId(), result.get(2).getId());
+
+        ArgumentCaptor<LocalDateTime> sinceCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(articleRepository).findWeeklyPopularArticles(sinceCaptor.capture(), pageableCaptor.capture());
+
+        LocalDateTime capturedSince = sinceCaptor.getValue();
+        LocalDateTime expectedSince = LocalDateTime.now().minusDays(7);
+        assertEquals(expectedSince.getDayOfYear(), capturedSince.getDayOfYear());
+        assertEquals(8, pageableCaptor.getValue().getPageSize());
+    }
+
+    @Test
+    public void 이번주_인기글_조회_잘못된_limit() {
+        //given & when & then
+        assertThrows(InvalidParameterException.class, () -> articleService.getWeeklyPopularArticles(0));
+        assertThrows(InvalidParameterException.class, () -> articleService.getWeeklyPopularArticles(-1));
+        assertThrows(InvalidParameterException.class, () -> articleService.getWeeklyPopularArticles(101));
     }
 
     private void assertGroupedEquals(Page<GroupedArticlesDto> expectedPage, Page<ArticleResponseDto> actualPage) {
