@@ -1224,9 +1224,26 @@
                 display: block;
             }
 
+            .popular-nav-btn {
+                display: none;
+            }
+
+            .popular-carousel {
+                overflow-x: auto;
+                scroll-snap-type: x mandatory;
+                scrollbar-width: none;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .popular-carousel::-webkit-scrollbar {
+                display: none;
+            }
+
             .popular-card {
-                min-width: calc(50% - 10px);
-                max-width: calc(50% - 10px);
+                min-width: 82%;
+                max-width: 82%;
+                scroll-snap-align: start;
+                flex-shrink: 0;
             }
         }
 
@@ -1367,6 +1384,11 @@
 
             .theme-cta {
                 font-size: 0.75rem;
+            }
+
+            .popular-card {
+                min-width: 90%;
+                max-width: 90%;
             }
         }
 

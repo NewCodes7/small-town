@@ -9,6 +9,7 @@ function getPopularItemsPerPage() {
 }
 
 function slidePopular(direction) {
+    if (window.innerWidth <= 768) return;
     const track = document.querySelector('.popular-track');
     if (!track) return;
 
