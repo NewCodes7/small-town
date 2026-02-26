@@ -13,6 +13,8 @@ function slidePopular(direction) {
     if (!track) return;
 
     const totalItems = track.children.length;
+    if (totalItems === 0) return;
+
     const itemsPerPage = getPopularItemsPerPage();
     const maxPage = Math.max(0, Math.ceil(totalItems / itemsPerPage) - 1);
 
