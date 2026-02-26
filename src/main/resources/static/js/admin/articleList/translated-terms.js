@@ -59,7 +59,7 @@ function renderTranslatedTermsTable(items) {
             ? '<span class="badge bg-success">✓</span>'
             : '<span class="badge bg-secondary">✗</span>';
 
-        return `<tr>
+        return `<tr data-id="${item.id}">
             <td>${item.id}</td>
             <td>${escapeHtml(item.koreanTerm)}</td>
             <td>${escapeHtml(item.englishTerm)}</td>
@@ -137,7 +137,16 @@ function deleteTranslatedTerm(id, koreanTerm, englishTerm) {
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                loadTranslatedTerms();
+                const row = document.querySelector(`#translatedTermsTableBody tr[data-id="${id}"]`);
+                if (row) row.remove();
+
+                allTranslatedTerms = allTranslatedTerms.filter(i => i.id !== id);
+                updateTranslatedTermsStats(allTranslatedTerms);
+
+                const tbody = document.getElementById('translatedTermsTableBody');
+                if (tbody && tbody.children.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">번역 항목이 없습니다.</td></tr>';
+                }
             } else {
                 alert('삭제 실패: ' + (data.message || '오류'));
             }
