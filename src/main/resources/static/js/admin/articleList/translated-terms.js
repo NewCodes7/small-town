@@ -100,7 +100,7 @@ function openEditTranslatedTermModal(id, koreanTerm, englishTerm) {
 }
 
 function saveTranslatedTerm() {
-    const id = document.getElementById('editTranslatedTermId').value;
+    const id = parseInt(document.getElementById('editTranslatedTermId').value);
     const newKoreanTerm = document.getElementById('editTranslatedTermKorean').value.trim();
 
     if (!newKoreanTerm) {
@@ -117,7 +117,28 @@ function saveTranslatedTerm() {
         .then(data => {
             if (data.success) {
                 bootstrap.Modal.getInstance(document.getElementById('editTranslatedTermModal')).hide();
-                loadTranslatedTerms();
+
+                const row = document.querySelector(`#translatedTermsTableBody tr[data-id="${id}"]`);
+                if (row) {
+                    row.cells[1].textContent = newKoreanTerm;
+                    // 수정 후 term auto-create + synonym 생성되므로 항상 ✓
+                    row.cells[3].innerHTML = '<span class="badge bg-success">✓</span>';
+                    row.cells[4].innerHTML = '<span class="badge bg-success">✓</span>';
+
+                    const englishTerm = allTranslatedTerms.find(i => i.id === id)?.englishTerm || '';
+                    const editBtn = row.querySelector('.btn-outline-primary');
+                    if (editBtn) editBtn.setAttribute('onclick', `openEditTranslatedTermModal(${id}, '${escapeJs(newKoreanTerm)}', '${escapeJs(englishTerm)}')`);
+                    const deleteBtn = row.querySelector('.btn-outline-danger');
+                    if (deleteBtn) deleteBtn.setAttribute('onclick', `deleteTranslatedTerm(${id}, '${escapeJs(newKoreanTerm)}', '${escapeJs(englishTerm)}')`);
+                }
+
+                const item = allTranslatedTerms.find(i => i.id === id);
+                if (item) {
+                    item.koreanTerm = newKoreanTerm;
+                    item.hasTermEntity = true;
+                    item.hasSynonym = true;
+                }
+                updateTranslatedTermsStats(allTranslatedTerms);
             } else {
                 alert('수정 실패: ' + (data.message || '오류'));
             }
