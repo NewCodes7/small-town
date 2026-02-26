@@ -905,15 +905,16 @@
             background: #ef4444 !important;
         }
 
-        .popular-nav {
+        .popular-carousel-wrapper {
             display: flex;
-            gap: 8px;
+            align-items: stretch;
+            gap: 12px;
         }
 
         .popular-nav-btn {
             width: 40px;
-            height: 40px;
-            border-radius: 50%;
+            min-width: 40px;
+            border-radius: 12px;
             border: 2px solid var(--border-light);
             background: white;
             cursor: pointer;
@@ -923,6 +924,7 @@
             color: var(--text-dark);
             transition: all 0.3s ease;
             font-size: 0.9rem;
+            flex-shrink: 0;
         }
 
         .popular-nav-btn:hover {
@@ -944,6 +946,8 @@
 
         .popular-carousel {
             overflow: hidden;
+            flex: 1;
+            min-width: 0;
         }
 
         .popular-track {

@@ -56,18 +56,14 @@
                         </span>
                         이번 주 인기글
                     </h2>
-                    <div class="popular-nav">
-                        <button class="popular-nav-btn popular-prev" onclick="slidePopular(-1)" aria-label="이전">
-                            <i class="fas fa-chevron-left"></i>
-                        </button>
-                        <button class="popular-nav-btn popular-next" onclick="slidePopular(1)" aria-label="다음">
-                            <i class="fas fa-chevron-right"></i>
-                        </button>
-                    </div>
                 </div>
 
-                <div class="popular-carousel">
-                    <div class="popular-track">
+                <div class="popular-carousel-wrapper">
+                    <button class="popular-nav-btn popular-prev" onclick="slidePopular(-1)" aria-label="이전">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <div class="popular-carousel">
+                        <div class="popular-track">
                         <div th:each="article, iterStat : ${popularArticles}"
                              class="popular-card"
                              th:attr="data-detail-url=${article.detailUrl}"
@@ -112,6 +108,10 @@
                             </div>
                         </div>
                     </div>
+                    </div>
+                    <button class="popular-nav-btn popular-next" onclick="slidePopular(1)" aria-label="다음">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
                 </div>
             </section>
 
