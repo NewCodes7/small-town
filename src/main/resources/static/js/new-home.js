@@ -1,3 +1,50 @@
+// 이번 주 인기글 캐러셀
+let popularCurrentPage = 0;
+
+function getPopularItemsPerPage() {
+    const width = window.innerWidth;
+    if (width <= 768) return 2;
+    if (width <= 1024) return 3;
+    return 4;
+}
+
+function slidePopular(direction) {
+    const track = document.querySelector('.popular-track');
+    if (!track) return;
+
+    const totalItems = track.children.length;
+    const itemsPerPage = getPopularItemsPerPage();
+    const maxPage = Math.max(0, Math.ceil(totalItems / itemsPerPage) - 1);
+
+    popularCurrentPage += direction;
+    if (popularCurrentPage < 0) popularCurrentPage = 0;
+    if (popularCurrentPage > maxPage) popularCurrentPage = maxPage;
+
+    const cardWithGap = track.children[0].offsetWidth + 20; // card width + gap
+    track.style.transform = `translateX(-${popularCurrentPage * itemsPerPage * cardWithGap}px)`;
+
+    // Update button states
+    const prevBtn = document.querySelector('.popular-prev');
+    const nextBtn = document.querySelector('.popular-next');
+    if (prevBtn) prevBtn.disabled = (popularCurrentPage === 0);
+    if (nextBtn) nextBtn.disabled = (popularCurrentPage >= maxPage);
+}
+
+// Reset carousel on window resize
+window.addEventListener('resize', function() {
+    popularCurrentPage = 0;
+    const track = document.querySelector('.popular-track');
+    if (track) {
+        track.style.transform = 'translateX(0)';
+    }
+    slidePopular(0); // Update button states
+});
+
+// Initialize button states on load
+document.addEventListener('DOMContentLoaded', function() {
+    slidePopular(0);
+});
+
 // 아티클 상세 페이지로 이동 (조회수 증가는 상세 페이지에서 처리)
 function goToArticleDetail(articleId) {
     if (articleId) {
