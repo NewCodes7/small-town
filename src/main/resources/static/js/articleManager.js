@@ -16,6 +16,7 @@ class ArticleManager {
         this.isLoading = false;
         this.debounceTimer = null;
         this.userExplicitViewChange = false; // 사용자가 명시적으로 뷰를 변경했는지 추적
+        this.userExplicitSortChange = false; // 사용자가 명시적으로 정렬을 변경했는지 추적
         this.isAdmin = false;
         this.init();
     }
@@ -31,7 +32,9 @@ class ArticleManager {
         const params = new URLSearchParams(window.location.search);
         this.currentPage = (parseInt(params.get('page')) - 1) || 0;
         if (this.currentPage < 0) this.currentPage = 0;
-        this.currentSort = params.get('sort') || 'latest';
+        const sortFromURL = params.get('sort');
+        const hasKeyword = !!(params.get('keyword') && params.get('keyword').trim() !== '');
+        this.currentSort = sortFromURL || (hasKeyword ? 'relevance' : 'latest');
         this.currentKeyword = params.get('keyword') || '';
         this.currentRegions = params.getAll('regions') || [];
         this.currentContentTypes = params.getAll('contentTypes') || [];
@@ -235,18 +238,26 @@ class ArticleManager {
     handleSearch() {
         const searchInput = document.getElementById('searchInput');
         if (searchInput) {
-            this.currentKeyword = searchInput.value.trim();
+            const newKeyword = searchInput.value.trim();
+
+            // 사용자가 명시적으로 sort를 변경하지 않았다면, keyword 유무에 따라 서버 기본값 적용
+            if (!this.userExplicitSortChange) {
+                this.currentSort = newKeyword ? 'relevance' : 'latest';
+            }
+
+            this.currentKeyword = newKeyword;
             this.currentPage = 0;
 
             // 키워드 검색 시 리스트 뷰로 자동 전환
             // 단, 사용자가 명시적으로 뷰를 변경한 경우는 예외
-            if (this.currentKeyword && this.currentKeyword.length > 0 && !this.userExplicitViewChange) {
+            if (this.currentKeyword && !this.userExplicitViewChange) {
                 this.currentView = 'list';
             }
 
-            // 검색어가 비어있으면 명시적 뷰 변경 플래그 초기화
+            // 검색어가 비어있으면 명시적 변경 플래그 초기화
             if (!this.currentKeyword || this.currentKeyword.length === 0) {
                 this.userExplicitViewChange = false;
+                this.userExplicitSortChange = false;
             }
 
             this.loadArticles();
@@ -256,6 +267,7 @@ class ArticleManager {
     handleSortChange(sort) {
         if (this.currentSort !== sort) {
             this.currentSort = sort;
+            this.userExplicitSortChange = true;
             this.currentPage = 0;
             this.loadArticles();
         } else {
@@ -300,14 +312,8 @@ class ArticleManager {
                 params.set('keyword', this.currentKeyword);
             }
 
-            // sort 파라미터 추가
-            if (this.currentSort && this.currentSort !== 'latest') {
-                params.set('sort', this.currentSort);
-            }
-            // keyword가 있을 때는 latest도 명시적으로 포함 (서버 기본값이 relevance이므로)
-            if (this.currentKeyword && !params.has('sort')) {
-                params.set('sort', this.currentSort || 'latest');
-            }
+            // sort 파라미터 추가 (항상 명시적으로 전송하여 서버 기본값과 불일치 방지)
+            params.set('sort', this.currentSort);
 
             this.currentRegions.forEach(region => {
                 params.append('regions', region);
@@ -706,7 +712,8 @@ class ArticleManager {
     updateURL() {
         const params = new URLSearchParams();
         if (this.currentPage > 0) params.set('page', this.currentPage + 1);
-        if (this.currentSort !== 'latest') params.set('sort', this.currentSort);
+        const defaultSort = this.currentKeyword ? 'relevance' : 'latest';
+        if (this.currentSort !== defaultSort) params.set('sort', this.currentSort);
         if (this.currentKeyword) params.set('keyword', this.currentKeyword);
         this.currentRegions.forEach(region => params.append('regions', region));
         this.currentContentTypes.forEach(contentType => params.append('contentTypes', contentType));
