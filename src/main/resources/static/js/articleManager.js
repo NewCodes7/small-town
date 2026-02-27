@@ -33,8 +33,7 @@ class ArticleManager {
         this.currentPage = (parseInt(params.get('page')) - 1) || 0;
         if (this.currentPage < 0) this.currentPage = 0;
         const sortFromURL = params.get('sort');
-        const hasKeyword = !!(params.get('keyword') && params.get('keyword').trim() !== '');
-        this.currentSort = sortFromURL || (hasKeyword ? 'relevance' : 'latest');
+        this.currentSort = sortFromURL || ((params.get('keyword') || '').trim() !== '' ? 'relevance' : 'latest');
         this.currentKeyword = params.get('keyword') || '';
         this.currentRegions = params.getAll('regions') || [];
         this.currentContentTypes = params.getAll('contentTypes') || [];
