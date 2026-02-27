@@ -149,9 +149,10 @@ public class FeedbackService {
         }
     }
 
-    public Page<Feedback> getFeedbacks(FeedbackStatus status, String type, 
+    public Page<Feedback> getFeedbacks(FeedbackStatus status, String type,
                                         int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
-        return feedbackRepository.findFeedbacks(status, type, pageable);
+        String normalizedType = (type != null && type.isBlank()) ? null : type;
+        return feedbackRepository.findFeedbacks(status, normalizedType, pageable);
     }
 }

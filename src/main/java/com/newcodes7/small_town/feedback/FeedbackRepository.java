@@ -24,13 +24,18 @@ public interface FeedbackRepository extends JpaRepository<Feedback, Long> {
     // 최신순으로 모든 피드백 조회
     Page<Feedback> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
-    @Query("""
+    @Query(value = """
         SELECT f FROM Feedback f
         LEFT JOIN FETCH f.user
         WHERE (:status IS NULL OR f.status = :status)
           AND (:type IS NULL OR f.type = :type)
         ORDER BY f.createdAt DESC
-    """)
+        """,
+        countQuery = """
+        SELECT count(f) FROM Feedback f
+        WHERE (:status IS NULL OR f.status = :status)
+          AND (:type IS NULL OR f.type = :type)
+        """)
     Page<Feedback> findFeedbacks(
         @Param("status") FeedbackStatus status,
         @Param("type") String type,
