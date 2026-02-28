@@ -410,23 +410,28 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
      * @return Article ID와 유사도
      */
     @Query(value = """
-            WITH candidates AS (
-                SELECT
-                    cac.article_id,
-                    ccv.embedding_normalized
+            WITH stage1 AS (
+                SELECT cac.article_id
                 FROM clova_article_chunk cac
                 JOIN article a ON cac.article_id = a.id
-                JOIN clova_chunk_vectors ccv ON ccv.id = cac.id
                 WHERE a.deleted_at IS NULL
                   AND cac.is_representative = true
                   AND cac.article_id != :articleId
                   AND cac.embedding_binary IS NOT NULL
                 ORDER BY cac.embedding_binary <~> CAST(:queryBinary AS bit(1024))
                 LIMIT :candidateLimit
+            ),
+            all_chunks AS (
+                SELECT cac.article_id,
+                       -(ccv.embedding_normalized <#> CAST(:queryEmbedding AS halfvec)) AS similarity
+                FROM clova_article_chunk cac
+                JOIN clova_chunk_vectors ccv ON ccv.id = cac.id
+                WHERE cac.article_id = ANY(ARRAY(SELECT article_id FROM stage1))
             )
-            SELECT article_id, -(embedding_normalized <#> CAST(:queryEmbedding AS halfvec)) AS similarity
-            FROM candidates
-            WHERE -(embedding_normalized <#> CAST(:queryEmbedding AS halfvec)) >= :threshold
+            SELECT article_id, MAX(similarity) AS similarity
+            FROM all_chunks
+            WHERE similarity >= :threshold
+            GROUP BY article_id
             ORDER BY similarity DESC
             LIMIT :limit
             """, nativeQuery = true)
@@ -448,14 +453,15 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
      * @return Article ID와 유사도
      */
     @Query(value = """
-            SELECT cac.article_id, -(ccv.embedding_normalized <#> CAST(:queryEmbedding AS halfvec)) as similarity
+            SELECT cac.article_id, MAX(-(ccv.embedding_normalized <#> CAST(:queryEmbedding AS halfvec))) AS similarity
             FROM clova_article_chunk cac
-            JOIN article a ON cac.article_id = a.id
             JOIN clova_chunk_vectors ccv ON ccv.id = cac.id
-            WHERE cac.is_representative = true
-              AND a.deleted_at IS NULL
-              AND cac.article_id != :articleId
-            ORDER BY ccv.embedding_normalized <#> CAST(:queryEmbedding AS halfvec)
+            WHERE cac.article_id != :articleId
+              AND cac.article_id IN (
+                  SELECT id FROM article WHERE deleted_at IS NULL
+              )
+            GROUP BY cac.article_id
+            ORDER BY similarity DESC
             LIMIT :limit
             """, nativeQuery = true)
     List<Object[]> findRelatedArticlesByRepresentativeChunk(

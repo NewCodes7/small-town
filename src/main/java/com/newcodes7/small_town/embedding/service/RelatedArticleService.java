@@ -41,7 +41,7 @@ public class RelatedArticleService {
     private static final int DEFAULT_LIMIT = 3;
     private static final double MINIMUM_SIMILARITY = 0.5;
     /** Stage 1 Binary HNSW 후보 수 (대표 청크 기준, 아티클 1개당 1청크) */
-    private static final int CANDIDATE_LIMIT = 100;
+    private static final int CANDIDATE_LIMIT = 200;
 
     /**
      * 관련 글 조회
