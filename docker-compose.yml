@@ -141,6 +141,17 @@ services:
       - '--path.rootfs=/host'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
 
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: postgres_exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://exporter:EXPORTER_STRONG_PASSWORD@ip-10-0-32-222.ap-northeast-2.compute.internal:5432/small_town?sslmode=disable"
+    networks:
+      - app-network
+    expose:
+      - "9187"  
+
   nginx:
     build:
       context: ./nginx
