@@ -42,6 +42,8 @@ public class RelatedArticleService {
     private static final double MINIMUM_SIMILARITY = 0.5;
     /** Stage 1 Binary HNSW 후보 수 (대표 청크 기준, 아티클 1개당 1청크) */
     private static final int CANDIDATE_LIMIT = 200;
+    /** AVG 계산에 사용할 상위 청크 수 (청크 수가 적은 글도 커버) */
+    private static final int TOP_K_CHUNKS = 3;
 
     /**
      * 관련 글 조회
@@ -75,11 +77,11 @@ public class RelatedArticleService {
         if (representativeChunk.getEmbeddingBinary() != null) {
             String binaryStr = BitVectorType.toPostgresBitString(representativeChunk.getEmbeddingBinary(), 1024);
             results = chunkRepository.findRelatedArticlesByTwoStageSearch(
-                    articleId, embeddingStr, binaryStr, CANDIDATE_LIMIT, MINIMUM_SIMILARITY, resultLimit);
+                    articleId, embeddingStr, binaryStr, CANDIDATE_LIMIT, TOP_K_CHUNKS, MINIMUM_SIMILARITY, resultLimit);
         } else {
             log.debug("Article ID {} has no binary embedding, falling back to direct halfvec search", articleId);
             results = chunkRepository.findRelatedArticlesByRepresentativeChunk(
-                    articleId, embeddingStr, resultLimit + 5);
+                    articleId, embeddingStr, TOP_K_CHUNKS, resultLimit + 5);
             results = results.stream()
                     .filter(row -> ((Number) row[1]).doubleValue() >= MINIMUM_SIMILARITY)
                     .toList();
