@@ -12,6 +12,7 @@ import com.newcodes7.small_town.global.entity.BlogType;
 import com.newcodes7.small_town.crawler.dto.CrawlResult;
 import com.newcodes7.small_town.crawler.integration.analytics.GoogleAnalyticsService;
 import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
+import com.newcodes7.small_town.crawler.service.IndexPrewarmService;
 import com.newcodes7.small_town.crawler.service.CrawlingRunContext;
 import com.newcodes7.small_town.crawler.service.CrawlingRunService;
 import com.newcodes7.small_town.crawler.service.CrawlingService;
@@ -47,6 +48,7 @@ public class CrawlingScheduler {
     private final DefaultBlogCrawler defaultBlogCrawler;
     private final CrawlingRunService crawlingRunService;
     private final CrawlingRunContext crawlingRunContext;
+    private final IndexPrewarmService indexPrewarmService;
 
     private static final int MAX_CONTENT_LENGTH = 200;
     private static final int BATCH_SIZE = 400;
@@ -99,6 +101,7 @@ public class CrawlingScheduler {
             log.error("스케줄된 블로그 크롤링 작업 중 오류 발생", e);
             crawlingRunService.finishRun(run.getId(), CrawlingRunStatus.FAILURE, 0, 0, 0, e.getMessage());
         } finally {
+            indexPrewarmService.prewarmChunkEmbeddingIndex();
             crawlingRunContext.clear();
         }
     }
