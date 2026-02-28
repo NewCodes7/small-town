@@ -59,6 +59,7 @@ class SearchAutocomplete {
         this.lastInputValue = '';
         this.programmaticChange = false;
         this.isAuthenticated = false;
+        this.suppressSuggestions = false;
 
         // SearchHistory 인스턴스
         this.searchHistory = null;
@@ -134,6 +135,9 @@ class SearchAutocomplete {
             clearTimeout(this.debounceTimer);
             return;
         }
+
+        // 사용자가 다시 입력을 시작하면 자동완성 표시 재개
+        this.suppressSuggestions = false;
 
         const query = e.target.value.trim();
         this.lastInputValue = e.target.value;
@@ -219,6 +223,13 @@ class SearchAutocomplete {
         const query = this.searchInput.value.trim();
         if (query.length > 0 && this.searchHistory && !this.isAuthenticated) {
             this.searchHistory.saveHistory(query);
+        }
+        // submit 이후 지연된 자동완성 응답으로 드롭다운이 다시 열리는 것을 방지
+        this.suppressSuggestions = true;
+        clearTimeout(this.debounceTimer);
+        if (this.abortController) {
+            this.abortController.abort();
+            this.abortController = null;
         }
         this.autocompleteDropdown.style.display = 'none';
         this.selectedIndex = -1;
@@ -341,6 +352,9 @@ class SearchAutocomplete {
      * 자동완성 API 호출
      */
     _fetchSuggestions(query) {
+        if (this.suppressSuggestions) {
+            return;
+        }
         // 이전 요청 취소
         if (this.abortController) {
             this.abortController.abort();
@@ -352,6 +366,9 @@ class SearchAutocomplete {
         })
             .then(response => response.json())
             .then(data => {
+                if (this.suppressSuggestions) {
+                    return;
+                }
                 this.suggestions = data.slice(0, this.options.maxSuggestions);
                 this._displaySuggestions(query, this.suggestions);
             })

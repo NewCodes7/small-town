@@ -5,9 +5,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 사용자 정보 로드
     // await loadUserInfo();
 
-    // ArticleManager 초기화
-    articleManager = new ArticleManager();
-
     // Floating logos 위치 고정 초기화
     initializeFloatingLogos();
 });
