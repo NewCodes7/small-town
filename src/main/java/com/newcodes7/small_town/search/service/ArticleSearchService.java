@@ -750,38 +750,9 @@ public class ArticleSearchService {
      * @return BM25 쿼리 문자열
      */
     private String buildBM25SearchQueryFromExpandedTerms(Map<String, Double> expandedTerms) {
-        if (expandedTerms == null || expandedTerms.isEmpty()) {
-            return null;
-        }
-
-        // 직접 매칭 Term과 확장 Term 분리
-        List<String> directMatchTerms = new ArrayList<>();
-        Map<String, Double> expandedOnlyTerms = new LinkedHashMap<>();
-
-        for (Map.Entry<String, Double> entry : expandedTerms.entrySet()) {
-            if (entry.getValue() == 1.0) {
-                directMatchTerms.add(entry.getKey());
-            } else {
-                expandedOnlyTerms.put(entry.getKey(), entry.getValue());
-            }
-        }
-
-        // 가중치 기반 BM25 쿼리 생성
-        StringBuilder queryBuilder = new StringBuilder();
-
-        // 개별 직접 매칭 Term (OR 절, 높은 우선순위)
-        for (String term : directMatchTerms) {
-            hybridSearchScorer.appendBoostedTerm(queryBuilder, term, "2.0");
-        }
-
-        // 유의어 및 임베딩 유사어 (OR 절, 낮은 우선순위)
-        for (Map.Entry<String, Double> entry : expandedOnlyTerms.entrySet()) {
-            String boostValue = String.format("%.1f", entry.getValue() * 2.0);
-            hybridSearchScorer.appendBoostedTerm(queryBuilder, entry.getKey(), boostValue);
-        }
-
-        log.debug("BM25 검색 쿼리 생성 완료 - 직접 Term: {}, 확장 Term: {}", directMatchTerms, expandedOnlyTerms.keySet());
-        return queryBuilder.toString();
+        String query = hybridSearchScorer.buildBM25Query(expandedTerms);
+        log.debug("BM25 검색 쿼리 생성 완료 - Term 수: {}", expandedTerms != null ? expandedTerms.size() : 0);
+        return query;
     }
 
     /**

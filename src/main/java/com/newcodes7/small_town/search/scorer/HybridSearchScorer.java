@@ -1,7 +1,10 @@
 package com.newcodes7.small_town.search.scorer;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -129,6 +132,32 @@ public class HybridSearchScorer {
         }
 
         return normalized;
+    }
+
+    /**
+     * 가중치 맵으로 BM25 쿼리 문자열 생성
+     * weight >= 1.0 → boost 2.0 (직접 매칭), weight < 1.0 → boost weight*2.0
+     *
+     * @param termWeights term → 가중치 맵
+     * @return BM25 쿼리 문자열, 입력이 비어있으면 null
+     */
+    public String buildBM25Query(Map<String, Double> termWeights) {
+        if (termWeights == null || termWeights.isEmpty()) return null;
+
+        List<String> directTerms = new ArrayList<>();
+        Map<String, Double> expandedTerms = new LinkedHashMap<>();
+
+        for (Map.Entry<String, Double> e : termWeights.entrySet()) {
+            if (e.getValue() >= 1.0) directTerms.add(e.getKey());
+            else expandedTerms.put(e.getKey(), e.getValue());
+        }
+
+        StringBuilder qb = new StringBuilder();
+        for (String term : directTerms) appendBoostedTerm(qb, term, "2.0");
+        for (Map.Entry<String, Double> e : expandedTerms.entrySet())
+            appendBoostedTerm(qb, e.getKey(), String.format("%.1f", e.getValue() * 2.0));
+
+        return qb.isEmpty() ? null : qb.toString();
     }
 
     /**
