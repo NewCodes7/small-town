@@ -95,7 +95,6 @@ dependencies {
     // OpenAI 토큰 카운터 (jtokkit)
     implementation 'com.knuddels:jtokkit:1.0.0'
 
-    testRuntimeOnly 'com.h2database:h2'
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -106,6 +105,7 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 	maxHeapSize = '1g'
+	systemProperty 'spring.profiles.active', 'test'
 }
 
 jar {

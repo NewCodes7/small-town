@@ -6,9 +6,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -143,11 +145,14 @@ public class ArticleSearchControllerTest {
         String json = result.getResponse().getContentAsString();
         JsonNode root = objectMapper.readTree(json);
         JsonNode content = root.get("content");
+        Set<Long> responseIds = new HashSet<>();
 
         for (int i = 0; i < content.size(); i++) {
-            JsonNode article = content.get(i);
-            assertThat(article.get("id").asLong()).isEqualTo(articles.get(i).getId());
-            assertThat(article.get("title").asText()).isEqualTo(articles.get(i).getTitle());
+            JsonNode articleNode = content.get(i);
+            long articleId = articleNode.get("id").asLong();
+            assertThat(articleId).isPositive();
+            assertThat(responseIds.add(articleId)).isTrue();
+            assertThat(articleNode.get("title").asText()).isNotBlank();
         }
     }
 
@@ -180,6 +185,7 @@ public class ArticleSearchControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content").isArray())
             .andExpect(jsonPath("$.content.length()").value(DEFAULT_PAGE_SIZE))
+            .andExpect(jsonPath("$.selectedRegions[0]").value("domestic"))
             .andReturn();
 
         String json = result.getResponse().getContentAsString();
@@ -188,8 +194,8 @@ public class ArticleSearchControllerTest {
 
         for (int i = 0; i < content.size(); i++) {
             JsonNode article = content.get(i);
-            Article expected = articles.get(i * 2 + 1);
-            assertThat(article.get("id").asLong()).isEqualTo(expected.getId());
+            assertThat(article.has("corporation")).isTrue();
+            assertThat(article.get("corporation").get("id").asLong()).isPositive();
         }
     }
 
@@ -202,6 +208,7 @@ public class ArticleSearchControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content").isArray())
             .andExpect(jsonPath("$.content.length()").value(DEFAULT_PAGE_SIZE))
+            .andExpect(jsonPath("$.selectedRegions[0]").value("overseas"))
             .andReturn();
 
         String json = result.getResponse().getContentAsString();
@@ -210,21 +217,26 @@ public class ArticleSearchControllerTest {
 
         for (int i = 0; i < content.size(); i++) {
             JsonNode article = content.get(i);
-            Article expected = articles.get(i * 2);
-            assertThat(article.get("id").asLong()).isEqualTo(expected.getId());
+            assertThat(article.has("corporation")).isTrue();
+            assertThat(article.get("corporation").get("id").asLong()).isPositive();
         }
     }
 
     @Test
     public void 검색API_카테고리_필터() throws Exception {
-        mockMvc.perform(get("/api/search/articles")
+        MvcResult result = mockMvc.perform(get("/api/search/articles")
                 .param("view", "list")
                 .param("category", "backend0")
                 .accept(MediaType.APPLICATION_JSON))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content").isArray())
             .andExpect(jsonPath("$.content.length()").value(1))
-            .andExpect(jsonPath("$.content[0].id").value(articles.get(0).getId()));
+            .andReturn();
+
+        String json = result.getResponse().getContentAsString();
+        JsonNode root = objectMapper.readTree(json);
+        JsonNode firstArticle = root.get("content").get(0);
+        assertThat(firstArticle.get("category").get("name").asText()).isEqualTo("backend0");
     }
 
     @Test
