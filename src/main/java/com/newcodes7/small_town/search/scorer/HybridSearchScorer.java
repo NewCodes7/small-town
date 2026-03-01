@@ -54,13 +54,30 @@ public class HybridSearchScorer {
      * 각 검색 방법의 점수를 min-max 정규화 후,
      * 가중 합산하고 가중치 합으로 나누어 [0, 1] 범위의 최종 스코어를 산출.
      *
-     * @param bm25Scores BM25 검색 점수 맵
+     * @param bm25Scores   BM25 검색 점수 맵
      * @param vectorScores 벡터 검색 유사도 점수 맵
      * @return NSFResult (최종 스코어 + 각 검색 방법의 정규화 점수)
      */
     public NSFResult calculateNSFScores(
             Map<Long, Double> bm25Scores,
             Map<Long, Double> vectorScores) {
+        return calculateNSFScores(bm25Scores, vectorScores, NSF_WEIGHT_BM25, NSF_WEIGHT_VECTOR);
+    }
+
+    /**
+     * NSF 스코어 계산 (쿼리 복잡도에 따른 적응형 가중치)
+     *
+     * @param bm25Scores   BM25 검색 점수 맵
+     * @param vectorScores 벡터 검색 유사도 점수 맵
+     * @param bm25Weight   BM25 가중치 (쿼리 복잡도에 따라 다름)
+     * @param vectorWeight 벡터 가중치 (쿼리 복잡도에 따라 다름)
+     * @return NSFResult (최종 스코어 + 각 검색 방법의 정규화 점수)
+     */
+    public NSFResult calculateNSFScores(
+            Map<Long, Double> bm25Scores,
+            Map<Long, Double> vectorScores,
+            double bm25Weight,
+            double vectorWeight) {
 
         // 각 검색 방법의 min-max 정규화
         Map<Long, Double> normalizedBm25 = minMaxNormalize(bm25Scores);
@@ -77,17 +94,17 @@ public class HybridSearchScorer {
         // NSF 스코어 계산 (정규화된 점수의 가중 합산, 가중치 합 정규화)
         // BM25와 Vector 가중치는 해당 article에 점수가 없어도 항상 분모에 포함하여,
         // 1개 검색 방법에서만 발견된 article이 과대평가되는 것을 방지
-        double weightSum = NSF_WEIGHT_BM25 + NSF_WEIGHT_VECTOR;
+        double weightSum = bm25Weight + vectorWeight;
 
         for (Long articleId : allArticleIds) {
             double weightedSum = 0.0;
 
             if (normalizedBm25.containsKey(articleId)) {
-                weightedSum += NSF_WEIGHT_BM25 * normalizedBm25.get(articleId);
+                weightedSum += bm25Weight * normalizedBm25.get(articleId);
             }
 
             if (normalizedVector.containsKey(articleId)) {
-                weightedSum += NSF_WEIGHT_VECTOR * normalizedVector.get(articleId);
+                weightedSum += vectorWeight * normalizedVector.get(articleId);
             }
 
             // 가중치 합으로 나누어 최종 스코어를 [0, 1] 범위로 정규화
@@ -135,13 +152,25 @@ public class HybridSearchScorer {
     }
 
     /**
-     * 가중치 맵으로 BM25 쿼리 문자열 생성
+     * 가중치 맵으로 BM25 쿼리 문자열 생성 (기본 title 배수 1.5x 사용)
      * weight >= 1.0 → boost 2.0 (직접 매칭), weight < 1.0 → boost weight*2.0
      *
      * @param termWeights term → 가중치 맵
      * @return BM25 쿼리 문자열, 입력이 비어있으면 null
      */
     public String buildBM25Query(Map<String, Double> termWeights) {
+        return buildBM25Query(termWeights, 1.5);
+    }
+
+    /**
+     * 가중치 맵으로 BM25 쿼리 문자열 생성 (쿼리 복잡도에 따른 적응형 title 배수)
+     * weight >= 1.0 → boost 2.0 (직접 매칭), weight < 1.0 → boost weight*2.0
+     *
+     * @param termWeights     term → 가중치 맵
+     * @param titleMultiplier title_terms 부스트 배수 (복잡도별: SIMPLE=4.0, MODERATE=2.5, COMPLEX=1.5)
+     * @return BM25 쿼리 문자열, 입력이 비어있으면 null
+     */
+    public String buildBM25Query(Map<String, Double> termWeights, double titleMultiplier) {
         if (termWeights == null || termWeights.isEmpty()) return null;
 
         List<String> directTerms = new ArrayList<>();
@@ -153,9 +182,9 @@ public class HybridSearchScorer {
         }
 
         StringBuilder qb = new StringBuilder();
-        for (String term : directTerms) appendBoostedTerm(qb, term, "2.0");
+        for (String term : directTerms) appendBoostedTerm(qb, term, "2.0", titleMultiplier);
         for (Map.Entry<String, Double> e : expandedTerms.entrySet())
-            appendBoostedTerm(qb, e.getKey(), String.format("%.1f", e.getValue() * 2.0));
+            appendBoostedTerm(qb, e.getKey(), String.format("%.1f", e.getValue() * 2.0), titleMultiplier);
 
         return qb.isEmpty() ? null : qb.toString();
     }
@@ -180,20 +209,32 @@ public class HybridSearchScorer {
     }
 
     /**
-     * BM25 쿼리에 부스트된 term 추가
+     * BM25 쿼리에 부스트된 term 추가 (기본 title 배수 1.5x)
      * ParadeDB parse()는 column:term 형식 필수
-     * title_terms에 1.5배 가중치 부여하여 제목 매칭 우선
      *
      * @param queryBuilder 쿼리 문자열 빌더
-     * @param term 검색 용어
-     * @param boostValue 기본 부스트 값
+     * @param term         검색 용어
+     * @param boostValue   기본 부스트 값
      */
     public void appendBoostedTerm(StringBuilder queryBuilder, String term, String boostValue) {
+        appendBoostedTerm(queryBuilder, term, boostValue, 1.5);
+    }
+
+    /**
+     * BM25 쿼리에 부스트된 term 추가 (쿼리 복잡도에 따른 적응형 title 배수)
+     * ParadeDB parse()는 column:term 형식 필수
+     *
+     * @param queryBuilder    쿼리 문자열 빌더
+     * @param term            검색 용어
+     * @param boostValue      기본 부스트 값
+     * @param titleMultiplier title_terms 부스트 배수 (복잡도별: SIMPLE=4.0, MODERATE=2.5, COMPLEX=1.5)
+     */
+    public void appendBoostedTerm(StringBuilder queryBuilder, String term, String boostValue, double titleMultiplier) {
         String quotedTerm = quoteTerm(term);
         if (queryBuilder.length() > 0) {
             queryBuilder.append(" OR ");
         }
-        String titleBoost = String.format("%.1f", Double.parseDouble(boostValue) * 1.5);
+        String titleBoost = String.format("%.1f", Double.parseDouble(boostValue) * titleMultiplier);
         queryBuilder.append(String.format(
             "title_terms:%s^%s OR content_terms:%s^%s",
             quotedTerm, titleBoost, quotedTerm, boostValue

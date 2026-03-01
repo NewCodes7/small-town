@@ -27,6 +27,16 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class SemanticTermExpansionService {
 
+    /**
+     * 쿼리 복잡도 분류
+     * 직접 매칭 term 수(형태소 분석 결과)를 기준으로 분류
+     */
+    public enum QueryComplexity {
+        SIMPLE,   // 직접 매칭 term 1개 (예: "mysql", "kubernetes")
+        MODERATE, // 직접 매칭 term 2~3개 (예: "mysql 최적화", "spring boot 설정")
+        COMPLEX   // 직접 매칭 term 4개 이상 (예: "mysql 인덱스 설계 모범 사례")
+    }
+
     private final TermRepository termRepository;
     private final ArticleEmbeddingService embeddingService;
     private final TermSynonymService termSynonymService;
@@ -98,6 +108,24 @@ public class SemanticTermExpansionService {
                 keyword, expandedTerms.size(), termMap.size(), expandedTerms.size() - termMap.size());
 
         return expandedTerms;
+    }
+
+    /**
+     * 확장된 검색어 맵을 기반으로 쿼리 복잡도 분류
+     * 직접 매칭 term(weight >= 1.0)의 수로 결정
+     *
+     * @param expandedTerms expandSearchTerms() 결과
+     * @return QueryComplexity (SIMPLE / MODERATE / COMPLEX)
+     */
+    public QueryComplexity classifyQueryComplexity(Map<String, Double> expandedTerms) {
+        long directTermCount = (expandedTerms == null) ? 0 :
+                expandedTerms.entrySet().stream()
+                        .filter(e -> e.getValue() >= 1.0)
+                        .count();
+
+        if (directTermCount <= 1) return QueryComplexity.SIMPLE;
+        if (directTermCount <= 3) return QueryComplexity.MODERATE;
+        return QueryComplexity.COMPLEX;
     }
 
     /**

@@ -190,16 +190,42 @@ public class ArticleSearchService {
 
         long totalStartTime = System.currentTimeMillis();
 
-        // 1. BM25 검색 쿼리 생성 (나중에 Vector-only article들의 BM25 점수 계산에 재사용)
+        // 1. 쿼리 복잡도 감지 → 적응형 BM25 title 배수 및 NSF 가중치 결정
+        SemanticTermExpansionService.QueryComplexity complexity =
+                semanticExpansionService.classifyQueryComplexity(expandedTerms);
+        double titleMultiplier;
+        double bm25NsfWeight;
+        double vectorNsfWeight;
+        switch (complexity) {
+            case SIMPLE:
+                titleMultiplier = 4.0;
+                bm25NsfWeight   = 0.65;
+                vectorNsfWeight = 0.35;
+                break;
+            case MODERATE:
+                titleMultiplier = 2.5;
+                bm25NsfWeight   = 0.55;
+                vectorNsfWeight = 0.45;
+                break;
+            default: // COMPLEX
+                titleMultiplier = 1.5;
+                bm25NsfWeight   = 0.5;
+                vectorNsfWeight = 0.5;
+                break;
+        }
+        log.info("[검색] keyword='{}' 쿼리 복잡도: {} (titleMultiplier={}, BM25={}, Vector={})",
+                keyword, complexity, titleMultiplier, bm25NsfWeight, vectorNsfWeight);
+
+        // 2. BM25 검색 쿼리 생성 (나중에 Vector-only article들의 BM25 점수 계산에 재사용)
         String bm25SearchQuery = (expandedTerms != null && !expandedTerms.isEmpty())
-                ? buildBM25SearchQueryFromExpandedTerms(expandedTerms)
-                : buildBM25SearchQuery(keyword);
+                ? buildBM25SearchQueryFromExpandedTerms(expandedTerms, titleMultiplier)
+                : buildBM25SearchQuery(keyword, titleMultiplier);
         if (bm25SearchQuery == null || bm25SearchQuery.isEmpty()) {
             log.warn("BM25 검색 쿼리 생성 실패: '{}'", keyword);
             return Page.empty();
         }
 
-        // 2. BM25와 Vector 검색을 병렬 실행
+        // 3. BM25와 Vector 검색을 병렬 실행
         // Vector 검색을 별도 스레드에서 비동기 실행 (임베딩 API 호출이 대부분의 시간)
         List<Integer> vectorDomesticTypes = convertRegionsToTypes(regions);
         List<String> vectorCategories = (category != null && !category.isEmpty()) ? category : null;
@@ -315,7 +341,8 @@ public class ArticleSearchService {
         long rerankStartTime = System.currentTimeMillis();
         final Map<Long, Integer> bm25Ranks = calculateRanks(finalBm25Results);
         final Map<Long, Integer> vectorRanks = calculateRanks(finalVectorResults);
-        HybridSearchScorer.NSFResult nsfResult = hybridSearchScorer.calculateNSFScores(finalBm25Results, finalVectorResults);
+        HybridSearchScorer.NSFResult nsfResult = hybridSearchScorer.calculateNSFScores(
+                finalBm25Results, finalVectorResults, bm25NsfWeight, vectorNsfWeight);
         Map<Long, Double> nsfScores = nsfResult.getNsfScores();
         final Map<Long, Double> normalizedBm25Map = nsfResult.getNormalizedBm25();
         final Map<Long, Double> normalizedVectorMap = nsfResult.getNormalizedVector();
@@ -719,13 +746,25 @@ public class ArticleSearchService {
     }
 
     /**
-     * BM25 검색 쿼리 문자열 생성
+     * BM25 검색 쿼리 문자열 생성 (기본 title 배수 사용)
      * 검색어를 의미적으로 확장하여 BM25 쿼리 문자열 반환
      *
      * @param keyword 검색 키워드
      * @return BM25 쿼리 문자열
      */
     private String buildBM25SearchQuery(String keyword) {
+        return buildBM25SearchQuery(keyword, 1.5);
+    }
+
+    /**
+     * BM25 검색 쿼리 문자열 생성 (적응형 title 배수)
+     * 검색어를 의미적으로 확장하여 BM25 쿼리 문자열 반환
+     *
+     * @param keyword         검색 키워드
+     * @param titleMultiplier title_terms 부스트 배수
+     * @return BM25 쿼리 문자열
+     */
+    private String buildBM25SearchQuery(String keyword, double titleMultiplier) {
         try {
             Map<String, Double> expandedTerms = semanticExpansionService.expandSearchTerms(keyword);
 
@@ -734,7 +773,7 @@ public class ArticleSearchService {
                 return null;
             }
 
-            return buildBM25SearchQueryFromExpandedTerms(expandedTerms);
+            return buildBM25SearchQueryFromExpandedTerms(expandedTerms, titleMultiplier);
 
         } catch (Exception e) {
             log.error("BM25 검색 쿼리 생성 실패: {}", e.getMessage(), e);
@@ -743,14 +782,26 @@ public class ArticleSearchService {
     }
 
     /**
-     * 이미 확장된 검색어로 BM25 검색 쿼리 문자열 생성
+     * 이미 확장된 검색어로 BM25 검색 쿼리 문자열 생성 (기본 title 배수)
      * Controller에서 expandSearchTerms를 이미 호출한 경우, 중복 호출을 방지하기 위해 사용
      *
      * @param expandedTerms 확장된 검색어와 가중치 맵
      * @return BM25 쿼리 문자열
      */
     private String buildBM25SearchQueryFromExpandedTerms(Map<String, Double> expandedTerms) {
-        String query = hybridSearchScorer.buildBM25Query(expandedTerms);
+        return buildBM25SearchQueryFromExpandedTerms(expandedTerms, 1.5);
+    }
+
+    /**
+     * 이미 확장된 검색어로 BM25 검색 쿼리 문자열 생성 (적응형 title 배수)
+     * Controller에서 expandSearchTerms를 이미 호출한 경우, 중복 호출을 방지하기 위해 사용
+     *
+     * @param expandedTerms   확장된 검색어와 가중치 맵
+     * @param titleMultiplier title_terms 부스트 배수
+     * @return BM25 쿼리 문자열
+     */
+    private String buildBM25SearchQueryFromExpandedTerms(Map<String, Double> expandedTerms, double titleMultiplier) {
+        String query = hybridSearchScorer.buildBM25Query(expandedTerms, titleMultiplier);
         log.debug("BM25 검색 쿼리 생성 완료 - Term 수: {}", expandedTerms != null ? expandedTerms.size() : 0);
         return query;
     }
