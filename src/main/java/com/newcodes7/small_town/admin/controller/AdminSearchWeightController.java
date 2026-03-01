@@ -5,19 +5,20 @@ import java.util.Map;
 import java.util.Set;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.ResponseBody;
 
 import com.newcodes7.small_town.search.service.SearchWeightConfigService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-@RestController
+@Controller
 @RequestMapping("/admin/search/weights")
 @RequiredArgsConstructor
 @Slf4j
@@ -27,7 +28,13 @@ public class AdminSearchWeightController {
 
     private final SearchWeightConfigService searchWeightConfigService;
 
+    @GetMapping("/page")
+    public String page() {
+        return "admin/search-weights";
+    }
+
     @GetMapping
+    @ResponseBody
     public ResponseEntity<Map<String, Object>> getAllWeights() {
         Map<String, Object> response = new HashMap<>();
         try {
@@ -43,6 +50,7 @@ public class AdminSearchWeightController {
     }
 
     @PutMapping("/{complexity}")
+    @ResponseBody
     public ResponseEntity<Map<String, Object>> updateWeights(
             @PathVariable String complexity,
             @RequestBody UpdateWeightsRequest request) {

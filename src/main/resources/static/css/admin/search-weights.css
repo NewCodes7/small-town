@@ -1,0 +1,20 @@
+.card-header {
+    font-size: 1rem;
+}
+
+.nsf-sum-hint {
+    font-size: 0.8rem;
+}
+
+.nsf-sum-hint.text-danger {
+    color: #dc3545 !important;
+}
+
+.nsf-sum-hint.text-success {
+    color: #198754 !important;
+}
+
+input[type="number"]:focus {
+    border-color: #6ea8fe;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
