@@ -70,19 +70,14 @@ update_nginx_upstream() {
     log "nginx 업스트림 설정 업데이트: $active_server로 전환"
 
     if [ "$active_server" = "blue" ]; then
-        # Blue로 전환
-        sed -i 's/# server newcodes-backend-blue:8080/server newcodes-backend-blue:8080/g' $nginx_config
-        sed -i 's/server newcodes-backend-green:8080/# server newcodes-backend-green:8080/g' $nginx_config
+        sed -i 's|set \$backend "http://newcodes-backend-green:8080"|set \$backend "http://newcodes-backend-blue:8080"|' $nginx_config
     else
-        # Green으로 전환
-        sed -i 's/# server newcodes-backend-green:8080/server newcodes-backend-green:8080/g' $nginx_config
-        sed -i 's/server newcodes-backend-blue:8080/# server newcodes-backend-blue:8080/g' $nginx_config
+        sed -i 's|set \$backend "http://newcodes-backend-blue:8080"|set \$backend "http://newcodes-backend-green:8080"|' $nginx_config
     fi
 
-    # nginx 설정 리로드
-    # docker exec newcodes-nginx nginx -t && docker exec newcodes-nginx nginx -s reload
-    docker restart newcodes-nginx && docker exec newcodes-nginx nginx -t
-    log "nginx 재시작 완료"
+    # 설정 검증 후 무중단 리로드 (restart 대신 reload로 다운타임 없음)
+    docker exec newcodes-nginx nginx -t && docker exec newcodes-nginx nginx -s reload
+    log "nginx 리로드 완료"
 }
 
 # 이전 버전 컨테이너 정리
