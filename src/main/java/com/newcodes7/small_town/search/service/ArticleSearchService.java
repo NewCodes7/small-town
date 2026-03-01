@@ -55,6 +55,7 @@ public class ArticleSearchService {
     private final UserLikeService userLikeService;
     private final MorphemeAnalyzer morphemeAnalyzer;
     private final ExecutorService searchExecutor;
+    private final SearchWeightConfigService weightConfig;
 
     public ArticleSearchService(ArticleRepository articleRepository,
                                 ArticleTermRepository articleTermRepository,
@@ -66,7 +67,8 @@ public class ArticleSearchService {
                                 TermSynonymService termSynonymService,
                                 UserLikeService userLikeService,
                                 MorphemeAnalyzer morphemeAnalyzer,
-                                @Qualifier("searchExecutor") ExecutorService searchExecutor) {
+                                @Qualifier("searchExecutor") ExecutorService searchExecutor,
+                                SearchWeightConfigService weightConfig) {
         this.articleRepository = articleRepository;
         this.articleTermRepository = articleTermRepository;
         this.termRepository = termRepository;
@@ -78,6 +80,7 @@ public class ArticleSearchService {
         this.userLikeService = userLikeService;
         this.morphemeAnalyzer = morphemeAnalyzer;
         this.searchExecutor = searchExecutor;
+        this.weightConfig = weightConfig;
     }
 
     /**
@@ -193,26 +196,10 @@ public class ArticleSearchService {
         // 1. 쿼리 복잡도 감지 → 적응형 BM25 title 배수 및 NSF 가중치 결정
         SemanticTermExpansionService.QueryComplexity complexity =
                 semanticExpansionService.classifyQueryComplexity(keyword);
-        double titleMultiplier;
-        double bm25NsfWeight;
-        double vectorNsfWeight;
-        switch (complexity) {
-            case SIMPLE:
-                titleMultiplier = 4.0;
-                bm25NsfWeight   = 0.65;
-                vectorNsfWeight = 0.35;
-                break;
-            case MODERATE:
-                titleMultiplier = 2.5;
-                bm25NsfWeight   = 0.55;
-                vectorNsfWeight = 0.45;
-                break;
-            default: // COMPLEX
-                titleMultiplier = 1.5;
-                bm25NsfWeight   = 0.5;
-                vectorNsfWeight = 0.5;
-                break;
-        }
+        SearchWeightConfigService.WeightEntry weights = weightConfig.getWeights(complexity);
+        double titleMultiplier = weights.titleMultiplier();
+        double bm25NsfWeight   = weights.bm25NsfWeight();
+        double vectorNsfWeight = weights.vectorNsfWeight();
         log.info("[검색] keyword='{}' 쿼리 복잡도: {} (titleMultiplier={}, BM25={}, Vector={})",
                 keyword, complexity, titleMultiplier, bm25NsfWeight, vectorNsfWeight);
 
