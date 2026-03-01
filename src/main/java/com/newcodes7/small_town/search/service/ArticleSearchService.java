@@ -198,7 +198,7 @@ public class ArticleSearchService {
         double vectorNsfWeight;
         switch (complexity) {
             case SIMPLE:
-                titleMultiplier = 6.0;
+                titleMultiplier = 30.0;
                 bm25NsfWeight   = 0.65;
                 vectorNsfWeight = 0.35;
                 break;
