@@ -33,8 +33,8 @@ public class SemanticTermExpansionService {
      */
     public enum QueryComplexity {
         SIMPLE,   // 단어 1개 (예: "mysql", "kubernetes")
-        MODERATE, // 단어 2~3개 (예: "mysql 최적화", "spring boot 설정")
-        COMPLEX   // 단어 4개 이상 (예: "mysql 인덱스 설계 모범 사례")
+        MODERATE, // 단어 2개 (예: "mysql 최적화", "spring boot")
+        COMPLEX   // 단어 3개 이상 (예: "mysql 인덱스 설계", "검색 성능 개선")
     }
 
     private final TermRepository termRepository;
@@ -122,7 +122,7 @@ public class SemanticTermExpansionService {
         int wordCount = keyword.trim().split("\\s+").length;
 
         if (wordCount <= 1) return QueryComplexity.SIMPLE;
-        if (wordCount <= 3) return QueryComplexity.MODERATE;
+        if (wordCount <= 2) return QueryComplexity.MODERATE;
         return QueryComplexity.COMPLEX;
     }
 
