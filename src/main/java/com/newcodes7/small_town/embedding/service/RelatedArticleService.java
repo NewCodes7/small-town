@@ -59,6 +59,8 @@ public class RelatedArticleService {
     private static final int BM25_LIMIT = 100;
     /** title term 최대 수 */
     private static final int TOP_TITLE_TERMS = 10;
+    /** BM25 title_terms 부스트 배수 (관련 글 추천은 제목 유사도가 중요) */
+    private static final double BM25_TITLE_MULTIPLIER = 3.0;
 
     /**
      * 관련 글 조회
@@ -173,7 +175,7 @@ public class RelatedArticleService {
                 termWeights.put(at.getTerm().getTerm(), 1.0);
             }
 
-            String bm25Query = hybridSearchScorer.buildBM25Query(termWeights);
+            String bm25Query = hybridSearchScorer.buildBM25Query(termWeights, BM25_TITLE_MULTIPLIER);
             if (bm25Query == null) {
                 return new HashMap<>();
             }
