@@ -192,7 +192,7 @@ public class ArticleSearchService {
 
         // 1. 쿼리 복잡도 감지 → 적응형 BM25 title 배수 및 NSF 가중치 결정
         SemanticTermExpansionService.QueryComplexity complexity =
-                semanticExpansionService.classifyQueryComplexity(expandedTerms);
+                semanticExpansionService.classifyQueryComplexity(keyword);
         double titleMultiplier;
         double bm25NsfWeight;
         double vectorNsfWeight;

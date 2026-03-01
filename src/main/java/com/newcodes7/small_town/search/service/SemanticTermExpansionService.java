@@ -29,12 +29,12 @@ public class SemanticTermExpansionService {
 
     /**
      * 쿼리 복잡도 분류
-     * 직접 매칭 term 수(형태소 분석 결과)를 기준으로 분류
+     * 사용자가 입력한 원본 키워드의 공백 기준 단어 수로 분류
      */
     public enum QueryComplexity {
-        SIMPLE,   // 직접 매칭 term 1개 (예: "mysql", "kubernetes")
-        MODERATE, // 직접 매칭 term 2~3개 (예: "mysql 최적화", "spring boot 설정")
-        COMPLEX   // 직접 매칭 term 4개 이상 (예: "mysql 인덱스 설계 모범 사례")
+        SIMPLE,   // 단어 1개 (예: "mysql", "kubernetes")
+        MODERATE, // 단어 2~3개 (예: "mysql 최적화", "spring boot 설정")
+        COMPLEX   // 단어 4개 이상 (예: "mysql 인덱스 설계 모범 사례")
     }
 
     private final TermRepository termRepository;
@@ -111,20 +111,18 @@ public class SemanticTermExpansionService {
     }
 
     /**
-     * 확장된 검색어 맵을 기반으로 쿼리 복잡도 분류
-     * 직접 매칭 term(weight >= 1.0)의 수로 결정
+     * 사용자가 입력한 원본 키워드 기준으로 쿼리 복잡도 분류
+     * 공백으로 구분된 단어 수로 결정 (형태소 분석 결과 아님)
      *
-     * @param expandedTerms expandSearchTerms() 결과
+     * @param keyword 사용자 입력 키워드
      * @return QueryComplexity (SIMPLE / MODERATE / COMPLEX)
      */
-    public QueryComplexity classifyQueryComplexity(Map<String, Double> expandedTerms) {
-        long directTermCount = (expandedTerms == null) ? 0 :
-                expandedTerms.entrySet().stream()
-                        .filter(e -> e.getValue() >= 1.0)
-                        .count();
+    public QueryComplexity classifyQueryComplexity(String keyword) {
+        if (keyword == null || keyword.trim().isEmpty()) return QueryComplexity.SIMPLE;
+        int wordCount = keyword.trim().split("\\s+").length;
 
-        if (directTermCount <= 1) return QueryComplexity.SIMPLE;
-        if (directTermCount <= 3) return QueryComplexity.MODERATE;
+        if (wordCount <= 1) return QueryComplexity.SIMPLE;
+        if (wordCount <= 3) return QueryComplexity.MODERATE;
         return QueryComplexity.COMPLEX;
     }
 
