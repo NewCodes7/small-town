@@ -176,7 +176,7 @@ public class VectorSearchService {
             }
         }
 
-        log.info("2단계 벡터 검색 완료 - 총: {}ms, 결과: {}개", totalTime, scoreMap.size());
+        log.debug("2단계 벡터 검색 완료 - 총: {}ms, 결과: {}개", totalTime, scoreMap.size());
 
         return scoreMap;
     }

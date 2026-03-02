@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
+    <!-- Prewarm 컨텍스트에서 INFO 이하 로그 억제 -->
+    <turboFilter class="com.newcodes7.small_town.global.logging.PrewarmLogFilter"/>
+
     <!-- Spring Boot 기본 설정 포함 -->
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
     <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>

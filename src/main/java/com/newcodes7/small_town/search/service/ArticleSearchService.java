@@ -929,7 +929,7 @@ public class ArticleSearchService {
         }
 
         List<Object[]> results = executeBM25Search(searchQuery, regions, category);
-        log.info("BM25 raw 검색 완료 - 키워드: '{}', 결과 수: {}", keyword, results.size());
+        log.debug("BM25 raw 검색 완료 - 키워드: '{}', 결과 수: {}", keyword, results.size());
         return results;
     }
 
@@ -953,7 +953,7 @@ public class ArticleSearchService {
             scoreMap.put(articleId, score);
         }
 
-        log.info("BM25 검색 완료 - 키워드: '{}', 결과 수: {}", keyword, scoreMap.size());
+        log.debug("BM25 검색 완료 - 키워드: '{}', 결과 수: {}", keyword, scoreMap.size());
         return scoreMap;
     }
 
@@ -1032,7 +1032,7 @@ public class ArticleSearchService {
                 scoreMap.put(articleId, score);
             }
 
-            log.info("BM25 검색 완료 - 확장된 Term 수: {}, 결과 수: {}",
+            log.debug("BM25 검색 완료 - 확장된 Term 수: {}, 결과 수: {}",
                     expandedTerms.size(), scoreMap.size());
 
             return scoreMap;
