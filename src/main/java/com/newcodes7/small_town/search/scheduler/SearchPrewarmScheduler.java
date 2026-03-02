@@ -13,6 +13,7 @@ import com.newcodes7.small_town.embedding.service.EmbeddingApiService;
 import com.newcodes7.small_town.search.repository.SearchQueryEmbeddingRepository;
 import com.newcodes7.small_town.search.service.ArticleSearchService;
 import com.newcodes7.small_town.search.service.AutocompleteService;
+import com.newcodes7.small_town.search.service.SearchQueryEmbeddingService;
 import com.newcodes7.small_town.search.service.SemanticTermExpansionService;
 
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,7 @@ public class SearchPrewarmScheduler {
     private final SemanticTermExpansionService semanticExpansionService;
     private final ArticleSearchService articleSearchService;
     private final EmbeddingApiService embeddingApiService;
+    private final SearchQueryEmbeddingService searchQueryEmbeddingService;
     private final SearchQueryEmbeddingRepository searchQueryEmbeddingRepository;
 
     private final AtomicReference<String> warmKeyword = new AtomicReference<>(null);
@@ -56,9 +58,10 @@ public class SearchPrewarmScheduler {
     /**
      * 5분마다 전체 검색 시나리오 prewarm
      *
+     * Step 0. 임베딩 조회 경로 → search_query_embedding DB 캐시 히트 (Clova API 호출 없음)
      * Step 1. 자동완성 → autocompleteExecutor 스레드 + Corp/Term/Theme covering index warm
      * Step 2. 검색어 확장 → Lucene/Nori JIT + termRepository warm
-     * Step 3. 하이브리드 검색 → search_query_embedding DB 캐시, binary HNSW, halfvec reranking, BM25 pg_search warm
+     * Step 3. 하이브리드 검색 → binary HNSW, halfvec reranking, BM25 pg_search warm
      *
      * ArticleSearchService를 직접 호출하므로 SearchLogService를 거치지 않아 search_log 미저장 보장.
      */
@@ -72,6 +75,11 @@ public class SearchPrewarmScheduler {
         try {
             log.debug("[Prewarm] 검색 파이프라인 prewarm 시작: keyword='{}'", keyword);
             long start = System.currentTimeMillis();
+
+            // Step 0. 임베딩 조회 경로 prewarm
+            // warm 키워드는 search_query_embedding에 캐시된 키워드 → DB 캐시 히트 → Clova API 호출 없음
+            // SearchQueryEmbeddingService → findByNormalizedKeyword → embedding 반환 경로를 JIT-warm
+            searchQueryEmbeddingService.getEmbeddingWithCacheInfo(keyword, null);
 
             // Step 1. 자동완성
             String autocompleteQuery = keyword.length() >= 2 ? keyword.substring(0, 2) : keyword;
