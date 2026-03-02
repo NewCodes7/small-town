@@ -95,6 +95,9 @@ dependencies {
     // OpenAI 토큰 카운터 (jtokkit)
     implementation 'com.knuddels:jtokkit:1.0.0'
 
+    // Apache HttpClient 5 (Clova API 커넥션 풀 keepalive)
+    implementation 'org.apache.httpcomponents.client5:httpclient5:5.3.1'
+
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
