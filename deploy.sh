@@ -41,10 +41,6 @@ update_backend_line_in_place() {
     local nginx_config="nginx/default.conf"
     local tmp_file
 
-    if [ ! -w "$nginx_config" ]; then
-        error "쓰기 권한이 없어 nginx 설정을 갱신할 수 없습니다: $nginx_config"
-    fi
-
     tmp_file=$(mktemp)
 
     if ! awk -v target="$backend_url" '
@@ -67,8 +63,11 @@ update_backend_line_in_place() {
         error "nginx/default.conf에서 'set \\$backend ...' 라인을 찾지 못해 전환을 중단합니다"
     fi
 
-    # cat > file 방식으로 동일 inode를 유지하여 파일 단위 bind mount stale 가능성 최소화
-    cat "$tmp_file" > "$nginx_config"
+    # sudo tee로 파일 소유자와 무관하게 동일 inode 갱신 (bind mount stale 방지)
+    if ! sudo tee "$nginx_config" < "$tmp_file" > /dev/null; then
+        rm -f "$tmp_file"
+        error "쓰기 권한이 없어 nginx 설정을 갱신할 수 없습니다: $nginx_config"
+    fi
     rm -f "$tmp_file"
 }
 
