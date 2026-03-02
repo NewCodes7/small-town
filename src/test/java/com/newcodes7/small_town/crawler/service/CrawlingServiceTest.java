@@ -12,7 +12,6 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -133,8 +132,8 @@ class CrawlingServiceTest {
             return List.of(article);
         });
 
-        when(crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(anyString())).thenReturn(Optional.empty());
-        when(crawlerArticleRepository.existsByTitleAndCorporationIdAndDeletedAtIsNull(anyString(), anyLong())).thenReturn(false);
+        when(crawlerArticleRepository.findExistingLinksByLinksIn(any())).thenReturn(List.of());
+        when(crawlerArticleRepository.findExistingTitlesByTitlesInAndCorporationId(any(), anyLong())).thenReturn(List.of());
 
         WebDriver driver = mock(WebDriver.class);
         when(webDriverConfig.createWebDriver()).thenReturn(driver);
@@ -177,8 +176,8 @@ class CrawlingServiceTest {
         article.setId(10L);
         when(blogCrawler.crawlWithRobotsCheck(any(), any(), any())).thenReturn(List.of(article));
 
-        when(crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(anyString())).thenReturn(Optional.empty());
-        when(crawlerArticleRepository.existsByTitleAndCorporationIdAndDeletedAtIsNull(anyString(), anyLong())).thenReturn(false);
+        when(crawlerArticleRepository.findExistingLinksByLinksIn(any())).thenReturn(List.of());
+        when(crawlerArticleRepository.findExistingTitlesByTitlesInAndCorporationId(any(), anyLong())).thenReturn(List.of());
 
         doNothing().when(articlePersistenceService).saveArticleWithAnalysis(any(), any(), any());
         when(articleContentExtractionService.extractContent(any(), any())).thenReturn("");
