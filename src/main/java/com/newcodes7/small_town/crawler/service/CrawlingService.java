@@ -3,7 +3,9 @@ package com.newcodes7.small_town.crawler.service;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.openqa.selenium.WebDriver;
 import org.springframework.context.ApplicationContext;
@@ -171,12 +173,12 @@ public class CrawlingService {
 
         List<Article> blogArticles = blogCrawler.crawlWithRobotsCheck(driver, corporation, robotsTxtService);
 
-        // 중복 제거 및 저장 (link 또는 title이 같으면 중복)
-        for (Article article : blogArticles) {
-            boolean isDuplicateByLink = crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(article.getLink()).isPresent();
-            boolean isDuplicateByTitle = crawlerArticleRepository.existsByTitleAndCorporationIdAndDeletedAtIsNull(article.getTitle(), corporation.getId());
+        // 중복 제거 및 저장 (link 또는 title이 같으면 중복) - 배치 조회로 N+1 방지
+        Set<String> existingLinks = loadExistingLinks(blogArticles);
+        Set<String> existingTitles = loadExistingTitles(blogArticles, corporation.getId());
 
-            if (!isDuplicateByLink && !isDuplicateByTitle) {
+        for (Article article : blogArticles) {
+            if (!existingLinks.contains(article.getLink()) && !existingTitles.contains(article.getTitle())) {
                 articlePersistenceService.saveArticleWithAnalysis(article, corporation, blogCrawler);
                 newArticles.add(article);
             }
@@ -353,6 +355,28 @@ public class CrawlingService {
     }
 
     /**
+     * 주어진 아티클 목록의 링크 중 DB에 이미 존재하는 것을 Set으로 반환 (배치 조회)
+     */
+    private Set<String> loadExistingLinks(List<Article> articles) {
+        if (articles.isEmpty()) {
+            return Set.of();
+        }
+        List<String> links = articles.stream().map(Article::getLink).toList();
+        return new HashSet<>(crawlerArticleRepository.findExistingLinksByLinksIn(links));
+    }
+
+    /**
+     * 주어진 아티클 목록의 제목 중 해당 기업에 이미 존재하는 것을 Set으로 반환 (배치 조회)
+     */
+    private Set<String> loadExistingTitles(List<Article> articles, Long corporationId) {
+        if (articles.isEmpty()) {
+            return Set.of();
+        }
+        List<String> titles = articles.stream().map(Article::getTitle).toList();
+        return new HashSet<>(crawlerArticleRepository.findExistingTitlesByTitlesInAndCorporationId(titles, corporationId));
+    }
+
+    /**
      * 크롤링 통계 조회
      */
     public CrawlingStats getCrawlingStats() {
@@ -463,18 +487,14 @@ public class CrawlingService {
             List<Article> articles = crawler.crawlAllPages(driver, corporation);
             List<Article> newArticles = new ArrayList<>();
 
-            // 중복 체크 및 저장 (link 또는 title이 같으면 중복, 캐시 작업 없이)
+            // 중복 체크 및 저장 (link 또는 title이 같으면 중복, 캐시 작업 없이) - 배치 조회로 N+1 방지
+            Set<String> existingLinks = loadExistingLinks(articles);
+            Set<String> existingTitles = loadExistingTitles(articles, corporation.getId());
+
             for (Article article : articles) {
-                boolean isDuplicateByLink = crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(article.getLink()).isPresent();
-                boolean isDuplicateByTitle = crawlerArticleRepository.existsByTitleAndCorporationIdAndDeletedAtIsNull(article.getTitle(), corporation.getId());
-
-                if (!isDuplicateByLink && !isDuplicateByTitle) {
-                    // Article 저장 및 AI 분석 (캐시 작업 없음)
+                if (!existingLinks.contains(article.getLink()) && !existingTitles.contains(article.getTitle())) {
                     articlePersistenceService.saveArticleWithAnalysisNoCache(article, corporation, crawler);
-
-                    // Content 추출 및 저장 (Term 분석은 생략)
                     extractContentOnly(article, driver);
-
                     newArticles.add(article);
                 }
             }
@@ -568,17 +588,14 @@ public class CrawlingService {
                 List<Article> articles = crawler.crawlAllPages(driver, corporation);
                 List<Article> newArticles = new ArrayList<>();
 
-                // 중복 체크 및 저장 (link 또는 title이 같으면 중복)
+                // 중복 체크 및 저장 (link 또는 title이 같으면 중복) - 배치 조회로 N+1 방지
+                Set<String> existingLinks = loadExistingLinks(articles);
+                Set<String> existingTitles = loadExistingTitles(articles, corporation.getId());
+
                 for (Article article : articles) {
-                    boolean isDuplicateByLink = crawlerArticleRepository.findFirstByLinkAndDeletedAtIsNull(article.getLink()).isPresent();
-                    boolean isDuplicateByTitle = crawlerArticleRepository.existsByTitleAndCorporationIdAndDeletedAtIsNull(article.getTitle(), corporation.getId());
-
-                    if (!isDuplicateByLink && !isDuplicateByTitle) {
+                    if (!existingLinks.contains(article.getLink()) && !existingTitles.contains(article.getTitle())) {
                         articlePersistenceService.saveArticleWithAnalysisNoCache(article, corporation, crawler);
-
-                        // Content 추출 및 저장 (Term 분석은 생략)
                         extractContentOnly(article, driver);
-
                         newArticles.add(article);
                     }
                 }

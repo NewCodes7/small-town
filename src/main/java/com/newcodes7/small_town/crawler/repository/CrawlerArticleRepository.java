@@ -1,6 +1,7 @@
 package com.newcodes7.small_town.crawler.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,6 +23,12 @@ public interface CrawlerArticleRepository extends JpaRepository<Article, Long> {
     Optional<Article> findFirstByLinkAndDeletedAtIsNull(String link);
 
     boolean existsByTitleAndCorporationIdAndDeletedAtIsNull(String title, Long corporationId);
+
+    @Query("SELECT a.link FROM Article a WHERE a.link IN :links AND a.deletedAt IS NULL")
+    List<String> findExistingLinksByLinksIn(@Param("links") Collection<String> links);
+
+    @Query("SELECT a.title FROM Article a WHERE a.title IN :titles AND a.corporation.id = :corporationId AND a.deletedAt IS NULL")
+    List<String> findExistingTitlesByTitlesInAndCorporationId(@Param("titles") Collection<String> titles, @Param("corporationId") Long corporationId);
 
     @Query("SELECT a FROM Article a WHERE a.corporation.id = :corporationId AND a.deletedAt IS NULL ORDER BY a.publishedAt DESC")
     List<Article> findByCorporationIdAndNotDeleted(@Param("corporationId") Long corporationId);
