@@ -127,6 +127,8 @@ health_check() {
     done
 
     warn "헬스체크 실패: $container_name"
+    warn "$container_name 최근 로그(마지막 100줄):"
+    docker logs --tail 100 "$container_name" || true
     return 1
 }
 
@@ -343,14 +345,37 @@ status() {
     done
 }
 
+# 로그 확인 함수
+logs() {
+    local target=${1-}
+    local container_name
+
+    if [ -n "$target" ]; then
+        if [ "$target" != "blue" ] && [ "$target" != "green" ]; then
+            error "로그 대상은 'blue' 또는 'green'만 가능합니다: $target"
+        fi
+        container_name="newcodes-backend-$target"
+    else
+        container_name=$(docker ps --format "{{.Names}}" | grep -E "^newcodes-backend-(blue|green)$" | head -n 1 || true)
+    fi
+
+    if [ -z "$container_name" ]; then
+        error "실행 중인 백엔드 컨테이너가 없습니다"
+    fi
+
+    log "로그 확인 대상: $container_name"
+    docker logs -f --tail 200 "$container_name"
+}
+
 # 사용법 출력
 usage() {
-    echo "Usage: $0 {deploy [blue|green]|rollback|status}"
+    echo "Usage: $0 {deploy [blue|green]|rollback|status|logs [blue|green]}"
     echo ""
     echo "Commands:"
     echo "  deploy [blue|green] - 새 버전으로 무중단 배포 (대상 미지정 시 자동 선택)"
     echo "  rollback - 이전 버전으로 롤백"
     echo "  status   - 현재 배포 상태 확인"
+    echo "  logs [blue|green] - 백엔드 컨테이너 로그 확인(-f)"
     exit 1
 }
 
@@ -364,6 +389,9 @@ case "$1" in
         ;;
     status)
         status
+        ;;
+    logs)
+        logs "${2-}"
         ;;
     *)
         usage
