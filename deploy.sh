@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Blue-Green 무중단 배포 스크립트
-set -e
+set -euo pipefail
 
 # 색상 출력용
 RED='\033[0;31m'
@@ -23,11 +23,75 @@ error() {
     exit 1
 }
 
+# 컨테이너 실행 여부 확인
+is_container_running() {
+    local container_name=$1
+    docker ps --format "{{.Names}}" | grep -Fxq "$container_name"
+}
+
+# nginx 컨테이너 내부에서 백엔드 DNS 해석 가능 여부 확인
+can_nginx_resolve_backend() {
+    local backend_name=$1
+    docker exec newcodes-nginx getent hosts "$backend_name" >/dev/null 2>&1
+}
+
+# default.conf의 backend 라인을 같은 inode로 갱신
+update_backend_line_in_place() {
+    local backend_url=$1
+    local nginx_config="nginx/default.conf"
+    local tmp_file
+
+    tmp_file=$(mktemp)
+
+    if ! awk -v target="$backend_url" '
+        BEGIN { updated = 0 }
+        {
+            if ($0 ~ /^[[:space:]]*set[[:space:]]+\$backend[[:space:]]+"/) {
+                print "    set $backend \"" target "\";";
+                updated = 1;
+            } else {
+                print $0;
+            }
+        }
+        END {
+            if (!updated) {
+                exit 42;
+            }
+        }
+    ' "$nginx_config" > "$tmp_file"; then
+        rm -f "$tmp_file"
+        error "nginx/default.conf에서 'set \\$backend ...' 라인을 찾지 못해 전환을 중단합니다"
+    fi
+
+    # cat > file 방식으로 동일 inode를 유지하여 파일 단위 bind mount stale 가능성 최소화
+    cat "$tmp_file" > "$nginx_config"
+    rm -f "$tmp_file"
+}
+
+# 컨테이너 내부 설정에 원하는 backend가 반영되었는지 확인
+is_runtime_backend_applied() {
+    local backend_url=$1
+    docker exec newcodes-nginx sh -lc "grep -Fq 'set \$backend \"$backend_url\";' /etc/nginx/conf.d/default.conf"
+}
+
+# nginx 컨테이너 재시작 후 설정 확인
+restart_nginx_and_verify() {
+    local backend_url=$1
+
+    warn "Nginx 컨테이너 설정 불일치 감지: 컨테이너 재시작으로 bind mount 재동기화를 시도합니다"
+    docker restart newcodes-nginx >/dev/null
+    docker exec newcodes-nginx nginx -t >/dev/null
+
+    if ! is_runtime_backend_applied "$backend_url"; then
+        error "Nginx 재시작 후에도 backend 설정이 반영되지 않았습니다: $backend_url"
+    fi
+}
+
 # 현재 활성 서버 확인
 get_active_server() {
-    if docker ps --format "table {{.Names}}" | grep -q "newcodes-backend-blue"; then
+    if is_container_running "newcodes-backend-blue"; then
         container_ip=$(docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' newcodes-backend-blue 2>/dev/null)
-        if [ -n "$container_ip" ] && curl -f -s http://$container_ip:8080/actuator/health >/dev/null 2>&1; then
+        if [ -n "$container_ip" ] && curl -f -s "http://$container_ip:8080/actuator/health" >/dev/null 2>&1; then
             echo "blue"
         else
             echo "green"
@@ -47,9 +111,9 @@ health_check() {
 
     while [ $attempt -le $max_attempts ]; do
         # 컨테이너 IP 주소 가져오기
-        container_ip=$(docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $container_name 2>/dev/null)
+        container_ip=$(docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$container_name" 2>/dev/null)
 
-        if [ -n "$container_ip" ] && curl -f -s http://$container_ip:8080/actuator/health >/dev/null 2>&1; then
+        if [ -n "$container_ip" ] && curl -f -s "http://$container_ip:8080/actuator/health" >/dev/null 2>&1; then
             log "헬스체크 성공: $container_name (${attempt}/${max_attempts})"
             return 0
         fi
@@ -65,18 +129,43 @@ health_check() {
 # nginx 설정 업데이트
 update_nginx_upstream() {
     local active_server=$1
-    local nginx_config="nginx/default.conf"
+    local backend_name
+    local backend_url
 
     log "nginx 업스트림 설정 업데이트: $active_server로 전환"
 
     if [ "$active_server" = "blue" ]; then
-        sed -i 's|set \$backend "http://newcodes-backend-green:8080"|set \$backend "http://newcodes-backend-blue:8080"|' $nginx_config
+        backend_name="newcodes-backend-blue"
+        backend_url="http://newcodes-backend-blue:8080"
     else
-        sed -i 's|set \$backend "http://newcodes-backend-blue:8080"|set \$backend "http://newcodes-backend-green:8080"|' $nginx_config
+        backend_name="newcodes-backend-green"
+        backend_url="http://newcodes-backend-green:8080"
     fi
 
-    # 설정 검증 후 무중단 리로드 (restart 대신 reload로 다운타임 없음)
-    docker exec newcodes-nginx nginx -t && docker exec newcodes-nginx nginx -s reload
+    # 존재하지 않는 백엔드로 전환되는 실수를 사전 차단
+    if ! is_container_running "$backend_name"; then
+        error "전환 대상 컨테이너가 실행 중이 아닙니다: $backend_name"
+    fi
+
+    update_backend_line_in_place "$backend_url"
+
+    if ! grep -Fq "set \$backend \"$backend_url\";" nginx/default.conf; then
+        error "호스트 nginx/default.conf 반영 검증 실패: $backend_url"
+    fi
+
+    if ! can_nginx_resolve_backend "$backend_name"; then
+        error "Nginx 컨테이너 내부 DNS에서 backend를 해석할 수 없습니다: $backend_name"
+    fi
+
+    # 설정 검증 후 무중단 리로드
+    docker exec newcodes-nginx nginx -t >/dev/null
+    docker exec newcodes-nginx nginx -s reload >/dev/null
+
+    # stale bind mount 등으로 컨테이너 내부 파일이 다른 경우 자동 복구 시도
+    if ! is_runtime_backend_applied "$backend_url"; then
+        restart_nginx_and_verify "$backend_url"
+    fi
+
     log "nginx 리로드 완료"
 }
 
@@ -84,10 +173,10 @@ update_nginx_upstream() {
 cleanup_old_container() {
     local container_name=$1
 
-    if docker ps -a --format "table {{.Names}}" | grep -q "$container_name"; then
+    if docker ps -a --format "{{.Names}}" | grep -Fxq "$container_name"; then
         log "이전 컨테이너 정리: $container_name"
-        docker stop $container_name || true
-        docker rm $container_name || true
+        docker stop "$container_name" || true
+        docker rm "$container_name" || true
     fi
 }
 
@@ -110,13 +199,19 @@ reset_swap() {
 
 # 메인 배포 함수
 deploy() {
-    local target=$1
+    local target=${1-}
+    local CURRENT_ACTIVE
+    local NEW_ACTIVE
+    local NEW_CONTAINER
+    local OLD_CONTAINER
 
     log "=== git 변경 내용 가져오기 ==="
     sudo git restore nginx/default.conf
     git pull origin main
 
     log "=== Blue-Green 무중단 배포 시작 ==="
+
+    CURRENT_ACTIVE=$(get_active_server)
 
     if [ -n "$target" ]; then
         if [ "$target" != "blue" ] && [ "$target" != "green" ]; then
@@ -125,7 +220,6 @@ deploy() {
         NEW_ACTIVE="$target"
     else
         # 대상 미지정 시 현재 활성 서버의 반대쪽 자동 선택
-        CURRENT_ACTIVE=$(get_active_server)
         if [ "$CURRENT_ACTIVE" = "blue" ]; then
             NEW_ACTIVE="green"
         else
@@ -156,14 +250,14 @@ deploy() {
     fi
 
     # 2. 헬스체크 대기
-    health_check $NEW_CONTAINER
+    health_check "$NEW_CONTAINER"
 
     # 3. nginx 업스트림 전환
-    update_nginx_upstream $NEW_ACTIVE
+    update_nginx_upstream "$NEW_ACTIVE"
 
     # 4. 이전 컨테이너 정리 (옵션)
     log "이전 컨테이너($OLD_CONTAINER)를 제거하겠습니다." 
-    cleanup_old_container $OLD_CONTAINER
+    cleanup_old_container "$OLD_CONTAINER"
     log "이전 컨테이너 제거 완료"
 
     log "=== 배포 완료 ==="
@@ -179,6 +273,9 @@ deploy() {
 
 # 롤백 함수
 rollback() {
+    local CURRENT_ACTIVE
+    local ROLLBACK_TO
+
     log "=== 롤백 시작 ==="
 
     CURRENT_ACTIVE=$(get_active_server)
@@ -192,12 +289,12 @@ rollback() {
     log "롤백 대상: $ROLLBACK_TO"
 
     # 이전 컨테이너가 실행 중인지 확인
-    if ! docker ps --format "table {{.Names}}" | grep -q "newcodes-backend-$ROLLBACK_TO"; then
+    if ! is_container_running "newcodes-backend-$ROLLBACK_TO"; then
         error "롤백할 컨테이너(newcodes-backend-$ROLLBACK_TO)가 실행 중이지 않습니다"
     fi
 
     # nginx 업스트림 전환
-    update_nginx_upstream $ROLLBACK_TO
+    update_nginx_upstream "$ROLLBACK_TO"
 
     log "=== 롤백 완료 ==="
     log "활성 서버: $ROLLBACK_TO"
@@ -205,6 +302,11 @@ rollback() {
 
 # 상태 확인 함수
 status() {
+    local CURRENT_ACTIVE
+    local container
+    local container_ip
+    local health_status
+
     log "=== 현재 상태 ==="
 
     CURRENT_ACTIVE=$(get_active_server)
@@ -219,9 +321,9 @@ status() {
     echo ""
     echo "헬스체크 상태:"
     for container in "newcodes-backend-blue" "newcodes-backend-green"; do
-        if docker ps --format "table {{.Names}}" | grep -q "$container"; then
-            container_ip=$(docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $container 2>/dev/null)
-            if [ -n "$container_ip" ] && curl -f -s http://$container_ip:8080/actuator/health >/dev/null 2>&1; then
+        if is_container_running "$container"; then
+            container_ip=$(docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$container" 2>/dev/null)
+            if [ -n "$container_ip" ] && curl -f -s "http://$container_ip:8080/actuator/health" >/dev/null 2>&1; then
                 health_status="healthy"
             else
                 health_status="unhealthy"
@@ -247,7 +349,7 @@ usage() {
 # 메인 실행부
 case "$1" in
     deploy)
-        deploy "$2"
+        deploy "${2-}"
         ;;
     rollback)
         rollback
