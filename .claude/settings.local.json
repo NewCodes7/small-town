@@ -8,7 +8,8 @@
       "Bash(git -C /workspaces/small-town log --all --oneline)",
       "Bash(git -C /workspaces/small-town log --all --full-history --oneline -- \"V1_3*\" -- \"V1_4*\")",
       "Bash(git -C /workspaces/small-town show 0337b02 --stat)",
-      "Bash(git -C /workspaces/small-town show:*)"
+      "Bash(git -C /workspaces/small-town show:*)",
+      "Bash(git fetch:*)"
     ]
   }
 }
