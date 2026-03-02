@@ -27,7 +27,6 @@ import com.newcodes7.small_town.corporation.repository.IndustryRepository;
 import com.newcodes7.small_town.crawler.entity.ParsingSelector;
 import com.newcodes7.small_town.crawler.repository.ParsingSelectorRepository;
 import com.newcodes7.small_town.crawler.integration.youtube.YouTubeService;
-import com.newcodes7.small_town.global.cache.NginxCachePurgeService;
 import com.newcodes7.small_town.global.entity.BlogType;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.util.KoreanCharacterUtil;
@@ -45,7 +44,6 @@ public class CorporationService {
     private final IndustryRepository industryRepository;
     private final FileUploadService fileUploadService;
     private final ParsingSelectorRepository parsingSelectorRepository;
-    private final NginxCachePurgeService nginxCachePurgeService;
     private final YouTubeService youtubeService;
     
     /**
@@ -266,9 +264,6 @@ public class CorporationService {
         parsingSelector.setMaxPages(dto.getMaxPages());
         parsingSelectorRepository.save(parsingSelector);
 
-        // Nginx 캐시 purge
-        purgeCorporationCache(id);
-
         return CorporationResponseDto.from(corporation, parsingSelector);
     }
 
@@ -285,8 +280,6 @@ public class CorporationService {
 
         parsingSelectorRepository.deleteByCorporationId(id);
 
-        // Nginx 캐시 purge
-        purgeCorporationCache(id);
     }
     
     public long getTotalCorporationCount() {
@@ -540,9 +533,6 @@ public class CorporationService {
         parsingSelector.setMaxPages(dto.getMaxPages());
         parsingSelectorRepository.save(parsingSelector);
 
-        // Nginx 캐시 purge
-        purgeCorporationCache(id);
-
         return CorporationResponseDto.from(corporation, parsingSelector);
     }
 
@@ -601,30 +591,6 @@ public class CorporationService {
 
         log.info("기업 {} 의 글 삭제 완료 - 총 {}개", corporation.getName(), articles.size());
 
-        // Nginx 캐시 purge
-        purgeCorporationCache(corporationId);
-    }
-
-    /**
-     * Corporation 관련 Nginx 캐시를 purge합니다.
-     * - 해당 corporation 상세 페이지 캐시 삭제
-     * - home 페이지 캐시 삭제 (기업 목록에 영향)
-     */
-    private void purgeCorporationCache(Long corporationId) {
-        try {
-            log.info("Corporation 캐시 purge 시작 - ID: {}", corporationId);
-
-            // Corporation 상세 페이지 캐시 삭제
-            nginxCachePurgeService.purgeCorporationPage(corporationId);
-
-            // Home 페이지 캐시 삭제 (기업 목록에 영향)
-            nginxCachePurgeService.purgeHomePages();
-
-            log.info("Corporation 캐시 purge 완료 - ID: {}", corporationId);
-        } catch (Exception e) {
-            log.error("Corporation 캐시 purge 실패 - ID: {}, 오류: {}", corporationId, e.getMessage(), e);
-            // 캐시 purge 실패는 비즈니스 로직을 실패시키지 않음
-        }
     }
 
     /**

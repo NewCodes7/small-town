@@ -16,7 +16,6 @@ import com.newcodes7.small_town.crawler.exception.CrawlerNotFoundException;
 import com.newcodes7.small_town.crawler.persistence.VideoPersistenceService;
 import com.newcodes7.small_town.crawler.repository.CrawlerCorporationRepository;
 import com.newcodes7.small_town.crawler.repository.CrawlerVideoRepository;
-import com.newcodes7.small_town.global.cache.NginxCachePurgeService;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.entity.Video;
 
@@ -32,7 +31,6 @@ public class YouTubeCrawlingService {
     private final CrawlerVideoRepository crawlerVideoRepository;
     private final ApplicationContext applicationContext;
     private final VideoPersistenceService videoPersistenceService;
-    private final NginxCachePurgeService nginxCachePurgeService;
 
     /**
      * 모든 기업 YouTube 크롤링 (배치)
@@ -59,8 +57,6 @@ public class YouTubeCrawlingService {
         }
 
         log.info("YouTube 크롤링 완료 - 처리된 기업: {}개", results.size());
-
-        purgeCacheForVideoCrawlResults(results);
 
         return results;
     }
@@ -134,29 +130,4 @@ public class YouTubeCrawlingService {
         throw new CrawlerNotFoundException(url);
     }
 
-    /**
-     * 비디오 크롤링 결과에 따라 선택적으로 캐시 purge
-     */
-    private void purgeCacheForVideoCrawlResults(List<VideoCrawlResult> results) {
-        try {
-            List<Long> corporationIdsWithNewVideos = results.stream()
-                    .filter(VideoCrawlResult::hasNewVideos)
-                    .map(result -> result.getCorporation().getId())
-                    .toList();
-
-            if (corporationIdsWithNewVideos.isEmpty()) {
-                log.info("신규 영상이 없어 캐시 purge를 건너뜁니다.");
-                return;
-            }
-
-            log.info("신규 영상이 추가된 기업 {}개에 대해 캐시 purge 시작", corporationIdsWithNewVideos.size());
-
-            nginxCachePurgeService.purgeCorporationPages(corporationIdsWithNewVideos);
-            nginxCachePurgeService.purgeHomePages();
-
-            log.info("비디오 크롤링 후 캐시 purge 완료");
-        } catch (Exception e) {
-            log.error("비디오 크롤링 후 캐시 purge 중 오류 발생: {}", e.getMessage(), e);
-        }
-    }
 }

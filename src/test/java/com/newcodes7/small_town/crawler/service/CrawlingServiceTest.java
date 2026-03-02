@@ -34,7 +34,6 @@ import com.newcodes7.small_town.crawler.repository.CrawlerArticleRepository;
 import com.newcodes7.small_town.crawler.repository.CrawlerCorporationRepository;
 import com.newcodes7.small_town.embedding.service.ChunkEmbeddingBatchService;
 import com.newcodes7.small_town.embedding.service.RepresentativeChunkService;
-import com.newcodes7.small_town.global.cache.NginxCachePurgeService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 
@@ -58,9 +57,6 @@ class CrawlingServiceTest {
 
     @Mock
     private ArticlePersistenceService articlePersistenceService;
-
-    @Mock
-    private NginxCachePurgeService nginxCachePurgeService;
 
     @Mock
     private ArticleContentExtractionService articleContentExtractionService;
@@ -91,7 +87,6 @@ class CrawlingServiceTest {
                 robotsTxtService,
                 webDriverConfig,
                 articlePersistenceService,
-                nginxCachePurgeService,
                 articleContentExtractionService,
                 articleRepository,
                 crawlingRunService,

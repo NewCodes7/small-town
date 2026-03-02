@@ -26,7 +26,6 @@ import com.newcodes7.small_town.crawler.repository.CrawlerArticleRepository;
 import com.newcodes7.small_town.crawler.repository.CrawlerCorporationRepository;
 import com.newcodes7.small_town.embedding.service.ChunkEmbeddingBatchService;
 import com.newcodes7.small_town.embedding.service.RepresentativeChunkService;
-import com.newcodes7.small_town.global.cache.NginxCachePurgeService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 
@@ -44,7 +43,6 @@ public class CrawlingService {
     private final RobotsTxtService robotsTxtService;
     private final WebDriverConfig webDriverConfig;
     private final ArticlePersistenceService articlePersistenceService;
-    private final NginxCachePurgeService nginxCachePurgeService;
     private final ArticleContentExtractionService articleContentExtractionService;
     private final ArticleRepository articleRepository;
     private final CrawlingRunService crawlingRunService;
@@ -98,7 +96,6 @@ public class CrawlingService {
         if (!allNewArticles.isEmpty()) {
             boolean bm25RefreshSucceeded = refreshSearchIndex();
             selectRepresentativeChunksForArticles(allNewArticles, bm25RefreshSucceeded);
-            purgeCacheForCrawlResults(results);
         }
 
 
@@ -406,32 +403,6 @@ public class CrawlingService {
     }
 
     /**
-     * 크롤링 결과에 따라 선택적으로 캐시 purge
-     */
-    private void purgeCacheForCrawlResults(List<CrawlResult> results) {
-        try {
-            List<Long> corporationIdsWithNewArticles = results.stream()
-                    .filter(CrawlResult::hasNewArticles)
-                    .map(result -> result.getCorporation().getId())
-                    .toList();
-
-            if (corporationIdsWithNewArticles.isEmpty()) {
-                log.info("신규 글이 없어 캐시 purge를 건너뜁니다.");
-                return;
-            }
-
-            log.info("신규 글이 추가된 기업 {}개에 대해 캐시 purge 시작", corporationIdsWithNewArticles.size());
-
-            nginxCachePurgeService.purgeCorporationPages(corporationIdsWithNewArticles);
-            nginxCachePurgeService.purgeHomePages();
-
-            log.info("크롤링 후 캐시 purge 완료");
-        } catch (Exception e) {
-            log.error("크롤링 후 캐시 purge 중 오류 발생: {}", e.getMessage(), e);
-        }
-    }
-
-    /**
      * BM25 검색 인덱스 갱신 (Admin 전체 페이지 크롤링용)
      * scheduledFullPageCrawling에서 배치 완료 후 1회 호출
      *
@@ -552,9 +523,6 @@ public class CrawlingService {
 
         log.info("Admin 전체 기업 전체 페이지 크롤링 완료 - 총 기업: {}개", corporations.size());
 
-        // 크롤링 완료 후 선택적 캐시 purge
-        purgeCacheForCrawlResults(results);
-
         return results;
     }
 
@@ -650,10 +618,9 @@ public class CrawlingService {
         log.info("스케줄된 전체 페이지 크롤링 완료 - 처리된 기업: {}개, 소요 시간: {}분",
                 results.size(), totalElapsedMinutes);
 
-        // 크롤링 완료 후 선택적 캐시 purge
+        // 크롤링 완료 후 검색 인덱스 갱신
         if (!results.isEmpty()) {
             refreshBM25SearchIndex(results);
-            purgeCacheForCrawlResults(results);
         }
 
         return results;
