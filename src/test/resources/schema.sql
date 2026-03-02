@@ -14,7 +14,7 @@ FROM article a
 LEFT JOIN (
     SELECT
         at.article_id,
-        STRING_AGG(CASE WHEN at.source = 'TITLE' THEN t.term END, ' ' ORDER BY at.score DESC) AS title_terms,
+        STRING_AGG(CASE WHEN at.source IN ('TITLE', 'BOTH') THEN t.term END, ' ' ORDER BY at.score DESC) AS title_terms,
         STRING_AGG(CASE WHEN at.source IN ('CONTENT', 'BOTH') THEN t.term END, ' ' ORDER BY at.score DESC) AS content_terms
     FROM article_term at
     JOIN term t ON at.term_id = t.id
