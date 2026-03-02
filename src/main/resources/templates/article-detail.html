@@ -767,7 +767,7 @@
                         const data = await response.json();
                         const likeIcon = likeBtn.querySelector('i');
 
-                        if (data.isLiked) {
+                        if (data.hasLiked) {
                             likeBtn.classList.add('liked');
                             likeIcon.classList.remove('far');
                             likeIcon.classList.add('fas');

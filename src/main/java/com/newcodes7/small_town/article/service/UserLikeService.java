@@ -155,7 +155,7 @@ public class UserLikeService {
         if (userEmail == null || userEmail.trim().isEmpty()) {
             // 이메일이 없으면 모두 false
             return articleIds.stream()
-                .collect(java.util.stream.Collectors.toMap(id -> id, id -> false));
+                .collect(java.util.stream.Collectors.toMap(id -> id, id -> false, (a, b) -> a));
         }
 
         // 사용자 조회
@@ -163,7 +163,7 @@ public class UserLikeService {
         if (user == null) {
             // 사용자가 없으면 모두 false
             return articleIds.stream()
-                .collect(java.util.stream.Collectors.toMap(id -> id, id -> false));
+                .collect(java.util.stream.Collectors.toMap(id -> id, id -> false, (a, b) -> a));
         }
 
         // 한 번의 쿼리로 좋아요한 article ID 목록 조회
@@ -174,9 +174,9 @@ public class UserLikeService {
         // Set으로 변환하여 빠른 조회
         java.util.Set<Long> likedSet = new java.util.HashSet<>(likedArticleIds);
 
-        // Map 생성: articleId -> isLiked
+        // Map 생성: articleId -> isLiked (중복 ID는 같은 값으로 병합)
         return articleIds.stream()
-            .collect(java.util.stream.Collectors.toMap(id -> id, likedSet::contains));
+            .collect(java.util.stream.Collectors.toMap(id -> id, likedSet::contains, (a, b) -> a));
     }
 
     /**
@@ -196,7 +196,7 @@ public class UserLikeService {
         if (ipAddress == null || ipAddress.trim().isEmpty()) {
             // IP가 없으면 모두 false
             return articleIds.stream()
-                .collect(java.util.stream.Collectors.toMap(id -> id, id -> false));
+                .collect(java.util.stream.Collectors.toMap(id -> id, id -> false, (a, b) -> a));
         }
 
         // 한 번의 쿼리로 좋아요한 article ID 목록 조회
@@ -207,9 +207,9 @@ public class UserLikeService {
         // Set으로 변환하여 빠른 조회
         java.util.Set<Long> likedSet = new java.util.HashSet<>(likedArticleIds);
 
-        // Map 생성: articleId -> isLiked
+        // Map 생성: articleId -> isLiked (중복 ID는 같은 값으로 병합)
         return articleIds.stream()
-            .collect(java.util.stream.Collectors.toMap(id -> id, likedSet::contains));
+            .collect(java.util.stream.Collectors.toMap(id -> id, likedSet::contains, (a, b) -> a));
     }
 
     /**

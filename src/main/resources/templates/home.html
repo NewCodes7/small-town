@@ -249,7 +249,7 @@
                 <div class="article-card-wrapper" th:each="article : ${articles.content}">
                     <div class="article-card"
                          th:attr="data-article-id=${article.id}, data-detail-url=${article.detailUrl}"
-                         onclick="window.location.href=this.getAttribute('data-detail-url')"
+                         onclick="if(!event.target.closest('.like-button')) window.location.href=this.getAttribute('data-detail-url')"
                          style="cursor: pointer;">
                         <!-- Article Content (Left Side) -->
                     <div class="article-content">
@@ -278,8 +278,7 @@
                                     th:text="${article.publishedAt}"
                                     style="white-space: nowrap;">2024-01-01</small>
                                 <button class="like-button"
-                                        th:attr="data-article-id=${article.id}, data-liked=${article.isLiked != null and article.isLiked}"
-                                        onclick="event.stopPropagation()">
+                                        th:attr="data-article-id=${article.id}, data-liked=${article.isLiked != null and article.isLiked}">
                                     <i class="fas fa-heart like-icon"></i>
                                 </button>
                             </div>
@@ -361,7 +360,7 @@
                 <div class="article-card-wrapper" th:each="group : ${articles.content}" th:with="firstArticle=${group.articles[0]}, childArticles=${group.articles.size() > 1} ? ${group.articles.subList(1, group.articles.size())} : ${new java.util.ArrayList()}">
                     <div class="article-card"
                          th:attr="data-article-id=${firstArticle.id}, data-detail-url=${firstArticle.detailUrl}"
-                         onclick="window.location.href=this.getAttribute('data-detail-url')"
+                         onclick="if(!event.target.closest('.like-button')) window.location.href=this.getAttribute('data-detail-url')"
                          style="cursor: pointer;">
 
                         <!-- Article Content (Left Side) -->
@@ -382,8 +381,7 @@
                                 <div class="d-flex align-items-center gap-2">
                                     <small class="text-muted relative-time" th:attr="data-date=${firstArticle.publishedAt}" th:title="${firstArticle.publishedAt}" th:text="${firstArticle.publishedAt}" style="white-space: nowrap;"></small>
                                     <button class="like-button"
-                                            th:attr="data-article-id=${firstArticle.id}, data-liked=${firstArticle.isLiked != null and firstArticle.isLiked}"
-                                            onclick="event.stopPropagation()">
+                                            th:attr="data-article-id=${firstArticle.id}, data-liked=${firstArticle.isLiked != null and firstArticle.isLiked}">
                                         <i class="fas fa-heart like-icon"></i>
                                         <span class="like-count" th:text="${firstArticle.likeCount}">0</span>
                                     </button>
@@ -411,7 +409,7 @@
                         <div class="child-container" th:if="${!childArticles.isEmpty()}">
                             <div class="child" th:each="child : ${childArticles}"
                                  th:attr="data-article-id=${child.id}, data-detail-url=${child.detailUrl}"
-                                 onclick="event.stopPropagation(); window.location.href=this.getAttribute('data-detail-url')"
+                                 onclick="if(!event.target.closest('.like-button')) { event.stopPropagation(); window.location.href=this.getAttribute('data-detail-url'); }"
                                  style="cursor: pointer;">
                                 <h6 class="fw-bold d-flex align-items-center" style="margin: 0;">
                                     <span class="title-link" th:text="${child.translatedTitle != null && !child.translatedTitle.isEmpty() ? child.translatedTitle : child.title}"></span>
@@ -435,8 +433,7 @@
                                             </span>
                                         </div>
                                         <button class="like-button"
-                                                th:attr="data-article-id=${child.id}, data-liked=${child.isLiked != null and child.isLiked}"
-                                                onclick="event.stopPropagation()">
+                                                th:attr="data-article-id=${child.id}, data-liked=${child.isLiked != null and child.isLiked}">
                                             <i class="fas fa-heart like-icon"></i>
                                             <span class="like-count" th:text="${child.likeCount}">0</span>
                                         </button>
