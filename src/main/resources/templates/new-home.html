@@ -47,47 +47,6 @@
                 </form>
             </section>
 
-            <!-- Company Logos Slider Section -->
-            <div class="section-header">
-                <h2 class="section-title">
-                    <span class="section-icon">
-                        <i class="fas fa-building"></i>
-                    </span>
-                    구독 중인 기업
-                </h2>
-                <a th:href="@{/corporations}" class="section-more">
-                    전체 보기
-                    <i class="fas fa-arrow-right"></i>
-                </a>
-            </div>
-            <section class="company-logos-section">
-                <div class="logos-container">
-                    <div class="logos-track">
-                        <!-- 첫 번째 세트 -->
-                        <a th:each="corporation : ${corporations}"
-                           th:href="@{/corporations/{id}(id=${corporation.id})}"
-                           class="logo-item"
-                           th:title="${corporation.name}">
-                            <img th:if="${corporation.effectiveLogoUrl != null}"
-                                 th:src="${corporation.effectiveLogoUrl}"
-                                 th:alt="${corporation.name}"
-                                 class="company-logo-img">
-                        </a>
-                        <!-- 두 번째 세트 (무한 스크롤용 복제) -->
-                        <a th:each="corporation : ${corporations}"
-                           th:href="@{/corporations/{id}(id=${corporation.id})}"
-                           class="logo-item"
-                           th:title="${corporation.name}"
-                           aria-hidden="true">
-                            <img th:if="${corporation.effectiveLogoUrl != null}"
-                                 th:src="${corporation.effectiveLogoUrl}"
-                                 th:alt="${corporation.name}"
-                                 class="company-logo-img">
-                        </a>
-                    </div>
-                </div>
-            </section>
-
             <!-- 이번 주 인기글 Section -->
             <section class="content-section popular-section" th:if="${popularArticles != null and !popularArticles.isEmpty()}">
                 <div class="section-header">
@@ -144,6 +103,13 @@
                                               th:attr="data-date=${article.publishedAt}"
                                               th:text="${article.publishedAt}">날짜</span>
                                     </span>
+                                    <button class="like-button"
+                                            th:attr="data-article-id=${article.id},
+                                                    data-liked=${article.isLiked != null and article.isLiked}"
+                                            onclick="event.stopPropagation(); toggleArticleLike(this, event)">
+                                        <i class="far fa-heart like-icon"></i>
+                                        <span class="like-count" th:text="${article.likeCount}">0</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>

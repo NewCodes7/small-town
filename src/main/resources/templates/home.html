@@ -19,43 +19,9 @@
         <div class="banner-carousel">
             <!-- Banner Slides -->
             <div class="banner-slides">
-                <!-- Slide 1: Hero Section -->
-                <div class="banner-slide active">
-                    <div class="hero-content">
-                        <h1 class="hero-title">
-                            <i class="fas me-3" style="color: var(--primary-green);"></i>
-                            NewCodes
-                        </h1>
-                        <p class="hero-subtitle">모든 기술블로그를 한 곳에서 만나보세요!</p>
-                        
-                        <!-- Stats Cards -->
-                        <!-- <div class="row g-4 justify-content-center">
-                            <div class="col-md-3 col-sm-4 col-6">
-                                <div class="stats-card">
-                                    <span class="stats-number" th:text="${totalElements}">0</span>
-                                    <div class="stats-label">총 글 수</div>
-                                </div>
-                            </div>
-                        </div> -->
-                    </div>
-                    
-                    <!-- Floating Company Logos -->
-                    <div class="floating-logos-container">
-                        <div class="floating-logo" th:each="corporation, iterStat : ${corporations}">
-                            <a th:href="@{/corporations/{id}(id=${corporation.id})}"
-                               class="floating-logo-link">
-                                <img th:if="${corporation.effectiveLogoUrl != null}"
-                                     th:src="${corporation.effectiveLogoUrl}"
-                                     th:alt="${corporation.name}"
-                                     th:title="${corporation.name}"
-                                     class="logo-image">
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Slides 2-6: Popular Articles -->
-                <div class="banner-slide" th:each="article, iterStat : ${popularArticles}">
+                <!-- Popular Articles Slides -->
+                <div th:class="'banner-slide' + (${iterStat.index == 0} ? ' active' : '')"
+                     th:each="article, iterStat : ${popularArticles}">
                     <a th:href="${article.link}" target="_blank" class="banner-link">
                         <div class="popular-article-banner">
                             <!-- Article Thumbnail -->
