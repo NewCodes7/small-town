@@ -1,3 +1,46 @@
+// localStorage 유틸리티 (비인증 사용자 좋아요)
+const LIKED_ARTICLES_KEY = 'likedArticles';
+const LIKED_VIDEOS_KEY = 'likedVideos';
+
+function getLikedArticleIds() {
+    try { return JSON.parse(localStorage.getItem(LIKED_ARTICLES_KEY)) || []; } catch { return []; }
+}
+function addToLikedArticles(articleId) {
+    const ids = getLikedArticleIds();
+    if (!ids.includes(articleId)) { ids.push(articleId); localStorage.setItem(LIKED_ARTICLES_KEY, JSON.stringify(ids)); }
+}
+function removeFromLikedArticles(articleId) {
+    const ids = getLikedArticleIds().filter(id => id !== articleId);
+    localStorage.setItem(LIKED_ARTICLES_KEY, JSON.stringify(ids));
+}
+
+function getLikedVideoIds() {
+    try { return JSON.parse(localStorage.getItem(LIKED_VIDEOS_KEY)) || []; } catch { return []; }
+}
+function addToLikedVideos(videoId) {
+    const ids = getLikedVideoIds();
+    if (!ids.includes(videoId)) { ids.push(videoId); localStorage.setItem(LIKED_VIDEOS_KEY, JSON.stringify(ids)); }
+}
+function removeFromLikedVideos(videoId) {
+    const ids = getLikedVideoIds().filter(id => id !== videoId);
+    localStorage.setItem(LIKED_VIDEOS_KEY, JSON.stringify(ids));
+}
+
+// 인증 상태 캐시
+let _cachedAuthState = null;
+
+async function checkAuthenticated() {
+    if (_cachedAuthState !== null) return _cachedAuthState;
+    try {
+        const res = await fetch('/api/user-info', { credentials: 'include' });
+        const data = await res.json();
+        _cachedAuthState = data.authenticated || false;
+    } catch {
+        _cachedAuthState = false;
+    }
+    return _cachedAuthState;
+}
+
 // 이번 주 인기글 캐러셀
 let popularCurrentPage = 0;
 
@@ -140,6 +183,21 @@ async function toggleArticleLike(button, event) {
     const icon = button.querySelector('.like-icon');
     const countSpan = button.querySelector('.like-count');
 
+    const authenticated = await checkAuthenticated();
+    if (!authenticated) {
+        const isCurrentlyLiked = button.classList.contains('liked');
+        if (isCurrentlyLiked) {
+            button.classList.remove('liked');
+            icon.classList.replace('fas', 'far');
+            removeFromLikedArticles(parseInt(articleId));
+        } else {
+            button.classList.add('liked');
+            icon.classList.replace('far', 'fas');
+            addToLikedArticles(parseInt(articleId));
+        }
+        return;
+    }
+
     try {
         const response = await fetch(`/api/articles/${articleId}/like`, {
             method: 'POST',
@@ -178,6 +236,21 @@ async function toggleVideoLike(button, event) {
     const icon = button.querySelector('.like-icon');
     const countSpan = button.querySelector('.like-count');
 
+    const authenticated = await checkAuthenticated();
+    if (!authenticated) {
+        const isCurrentlyLiked = button.classList.contains('liked');
+        if (isCurrentlyLiked) {
+            button.classList.remove('liked');
+            icon.classList.replace('fas', 'far');
+            removeFromLikedVideos(parseInt(videoId));
+        } else {
+            button.classList.add('liked');
+            icon.classList.replace('far', 'fas');
+            addToLikedVideos(parseInt(videoId));
+        }
+        return;
+    }
+
     try {
         const response = await fetch(`/video/api/videos/${videoId}/like`, {
             method: 'POST',
@@ -209,83 +282,99 @@ async function toggleVideoLike(button, event) {
 
 // 좋아요 상태 로드 (배치 API 호출)
 async function loadLikeStatus() {
-    // Load article like status via batch API
+    const authenticated = await checkAuthenticated();
+
+    // Load article like status
     const articleButtons = document.querySelectorAll('.like-button[data-article-id]');
-    const articleIds = Array.from(articleButtons).map(button =>
-        parseInt(button.getAttribute('data-article-id'))
-    );
 
-    if (articleIds.length > 0) {
-        try {
-            const response = await fetch('/api/articles/like-status/batch', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                credentials: 'include',
-                body: JSON.stringify({ articleIds })
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                const likeStatus = data.likeStatus;
-
-                articleButtons.forEach(button => {
-                    const articleId = parseInt(button.getAttribute('data-article-id'));
-                    const isLiked = likeStatus[articleId] || false;
+    if (articleButtons.length > 0) {
+        if (!authenticated) {
+            const likedIds = getLikedArticleIds();
+            articleButtons.forEach(button => {
+                const articleId = parseInt(button.getAttribute('data-article-id'));
+                if (likedIds.includes(articleId)) {
+                    button.classList.add('liked');
                     const icon = button.querySelector('.like-icon');
-
-                    if (isLiked) {
-                        button.classList.add('liked');
-                        if (icon) {
-                            icon.classList.remove('far');
-                            icon.classList.add('fas');
-                        }
-                    }
+                    if (icon) { icon.classList.remove('far'); icon.classList.add('fas'); }
+                }
+            });
+        } else {
+            const articleIds = Array.from(articleButtons).map(button =>
+                parseInt(button.getAttribute('data-article-id'))
+            );
+            try {
+                const response = await fetch('/api/articles/like-status/batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ articleIds })
                 });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const likeStatus = data.likeStatus;
+
+                    articleButtons.forEach(button => {
+                        const articleId = parseInt(button.getAttribute('data-article-id'));
+                        const isLiked = likeStatus[articleId] || false;
+                        const icon = button.querySelector('.like-icon');
+
+                        if (isLiked) {
+                            button.classList.add('liked');
+                            if (icon) { icon.classList.remove('far'); icon.classList.add('fas'); }
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('좋아요 상태 로드 실패:', error);
             }
-        } catch (error) {
-            console.error('좋아요 상태 로드 실패:', error);
         }
     }
 
-    // Load video like status via batch API
+    // Load video like status
     const videoButtons = document.querySelectorAll('.like-button[data-video-id]');
-    const videoIds = Array.from(videoButtons).map(button =>
-        parseInt(button.getAttribute('data-video-id'))
-    );
 
-    if (videoIds.length > 0) {
-        try {
-            const response = await fetch('/video/api/videos/like-status/batch', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                credentials: 'include',
-                body: JSON.stringify({ videoIds })
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                const likeStatus = data.likeStatus;
-
-                videoButtons.forEach(button => {
-                    const videoId = parseInt(button.getAttribute('data-video-id'));
-                    const isLiked = likeStatus[videoId] || false;
+    if (videoButtons.length > 0) {
+        if (!authenticated) {
+            const likedIds = getLikedVideoIds();
+            videoButtons.forEach(button => {
+                const videoId = parseInt(button.getAttribute('data-video-id'));
+                if (likedIds.includes(videoId)) {
+                    button.classList.add('liked');
                     const icon = button.querySelector('.like-icon');
-
-                    if (isLiked) {
-                        button.classList.add('liked');
-                        if (icon) {
-                            icon.classList.remove('far');
-                            icon.classList.add('fas');
-                        }
-                    }
+                    if (icon) { icon.classList.remove('far'); icon.classList.add('fas'); }
+                }
+            });
+        } else {
+            const videoIds = Array.from(videoButtons).map(button =>
+                parseInt(button.getAttribute('data-video-id'))
+            );
+            try {
+                const response = await fetch('/video/api/videos/like-status/batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ videoIds })
                 });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const likeStatus = data.likeStatus;
+
+                    videoButtons.forEach(button => {
+                        const videoId = parseInt(button.getAttribute('data-video-id'));
+                        const isLiked = likeStatus[videoId] || false;
+                        const icon = button.querySelector('.like-icon');
+
+                        if (isLiked) {
+                            button.classList.add('liked');
+                            if (icon) { icon.classList.remove('far'); icon.classList.add('fas'); }
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('좋아요 상태 로드 실패:', error);
             }
-        } catch (error) {
-            console.error('좋아요 상태 로드 실패:', error);
         }
     }
 }
