@@ -41,6 +41,10 @@ update_backend_line_in_place() {
     local nginx_config="nginx/default.conf"
     local tmp_file
 
+    if [ ! -w "$nginx_config" ]; then
+        error "쓰기 권한이 없어 nginx 설정을 갱신할 수 없습니다: $nginx_config"
+    fi
+
     tmp_file=$(mktemp)
 
     if ! awk -v target="$backend_url" '
@@ -206,7 +210,7 @@ deploy() {
     local OLD_CONTAINER
 
     log "=== git 변경 내용 가져오기 ==="
-    sudo git restore nginx/default.conf
+    git restore nginx/default.conf
     git pull origin main
 
     log "=== Blue-Green 무중단 배포 시작 ==="
