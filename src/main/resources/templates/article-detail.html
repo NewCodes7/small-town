@@ -762,7 +762,7 @@
                 const articleId = likeBtn.getAttribute('data-article-id');
 
                 try {
-                    const response = await fetch(`/api/articles/${articleId}/like/status`);
+                    const response = await fetch(`/api/articles/${articleId}/like-status`);
                     if (response.ok) {
                         const data = await response.json();
                         const likeIcon = likeBtn.querySelector('i');

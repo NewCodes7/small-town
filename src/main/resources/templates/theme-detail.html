@@ -462,8 +462,8 @@
                 const videoId = button.getAttribute('data-video-id');
 
                 const endpoint = contentType === 'article'
-                    ? `/api/articles/${articleId}/like/status`
-                    : `/api/videos/${videoId}/like/status`;
+                    ? `/api/articles/${articleId}/like-status`
+                    : `/api/videos/${videoId}/like-status`;
 
                 try {
                     const response = await fetch(endpoint);

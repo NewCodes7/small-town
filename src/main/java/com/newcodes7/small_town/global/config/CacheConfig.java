@@ -23,7 +23,8 @@ public class CacheConfig {
         cacheManager.setCaches(List.of(
             buildWeightBasedCache("corporationArticles"),
             buildWeightBasedCache("corporationVideos"),
-            buildTtlCache("weeklyPopularArticles", 5, TimeUnit.MINUTES)
+            buildTtlCache("weeklyPopularArticles", 5, TimeUnit.MINUTES),
+            buildTtlCache("relatedArticles", 24, TimeUnit.HOURS)
         ));
         return cacheManager;
     }

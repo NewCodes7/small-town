@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -69,6 +70,7 @@ public class RelatedArticleService {
      * @param limit 결과 수 (기본 3)
      * @return 관련 글 목록
      */
+    @Cacheable(cacheNames = "relatedArticles", key = "#articleId + ':' + #limit")
     @Transactional(readOnly = true)
     public List<RelatedArticleDto> getRelatedArticles(Long articleId, Integer limit) {
         int resultLimit = limit != null ? limit : DEFAULT_LIMIT;
