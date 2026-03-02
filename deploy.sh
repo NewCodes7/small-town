@@ -75,7 +75,7 @@ update_backend_line_in_place() {
 # 컨테이너 내부 설정에 원하는 backend가 반영되었는지 확인
 is_runtime_backend_applied() {
     local backend_url=$1
-    docker exec newcodes-nginx sh -lc "grep -Fq 'set \$backend \"$backend_url\";' /etc/nginx/conf.d/default.conf"
+    docker exec newcodes-nginx sh -c "grep -Fq 'set \$backend \"$backend_url\";' /etc/nginx/conf.d/default.conf"
 }
 
 # nginx 컨테이너 재시작 후 설정 확인
@@ -84,7 +84,7 @@ restart_nginx_and_verify() {
 
     warn "Nginx 컨테이너 설정 불일치 감지: 컨테이너 재시작으로 bind mount 재동기화를 시도합니다"
     docker restart newcodes-nginx >/dev/null
-    docker exec newcodes-nginx nginx -t >/dev/null
+    docker exec newcodes-nginx nginx -t
 
     if ! is_runtime_backend_applied "$backend_url"; then
         error "Nginx 재시작 후에도 backend 설정이 반영되지 않았습니다: $backend_url"
@@ -127,7 +127,8 @@ health_check() {
         ((attempt++))
     done
 
-    error "헬스체크 실패: $container_name"
+    warn "헬스체크 실패: $container_name"
+    return 1
 }
 
 # nginx 설정 업데이트
@@ -162,8 +163,8 @@ update_nginx_upstream() {
     fi
 
     # 설정 검증 후 무중단 리로드
-    docker exec newcodes-nginx nginx -t >/dev/null
-    docker exec newcodes-nginx nginx -s reload >/dev/null
+    docker exec newcodes-nginx nginx -t
+    docker exec newcodes-nginx nginx -s reload
 
     # stale bind mount 등으로 컨테이너 내부 파일이 다른 경우 자동 복구 시도
     if ! is_runtime_backend_applied "$backend_url"; then
@@ -179,7 +180,7 @@ cleanup_old_container() {
 
     if docker ps -a --format "{{.Names}}" | grep -Fxq "$container_name"; then
         log "이전 컨테이너 정리: $container_name"
-        docker stop "$container_name" || true
+        docker stop --time=40 "$container_name" || true
         docker rm "$container_name" || true
     fi
 }
@@ -254,7 +255,11 @@ deploy() {
     fi
 
     # 2. 헬스체크 대기
-    health_check "$NEW_CONTAINER"
+    if ! health_check "$NEW_CONTAINER"; then
+        warn "헬스체크 실패로 새 컨테이너를 정리합니다: $NEW_CONTAINER"
+        cleanup_old_container "$NEW_CONTAINER"
+        error "배포 실패: $NEW_CONTAINER 헬스체크 통과 못함"
+    fi
 
     # 3. nginx 업스트림 전환
     update_nginx_upstream "$NEW_ACTIVE"
