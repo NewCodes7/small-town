@@ -103,12 +103,13 @@ function bindArticleCardClicks() {
                 return;
             }
 
-            // 관리자 버튼이나 회사 링크 클릭은 제외
+            // 관리자 버튼이나 회사 링크, 좋아요 버튼 클릭은 제외
             if (e.target.closest('.admin-control-panel') ||
                 e.target.closest('.admin-delete-btn') ||
                 e.target.closest('.admin-edit-btn') ||
                 e.target.closest('.admin-summary-btn') ||
-                e.target.closest('.company-link')) {
+                e.target.closest('.company-link') ||
+                e.target.closest('.like-button')) {
                 return;
             }
 
@@ -128,12 +129,13 @@ function bindArticleCardClicks() {
                 return;
             }
 
-            // 관리자 버튼이나 회사 링크 클릭은 제외
+            // 관리자 버튼이나 회사 링크, 좋아요 버튼 클릭은 제외
             if (e.target.closest('.admin-control-panel') ||
                 e.target.closest('.admin-delete-btn') ||
                 e.target.closest('.admin-edit-btn') ||
                 e.target.closest('.admin-summary-btn') ||
-                e.target.closest('.company-link')) {
+                e.target.closest('.company-link') ||
+                e.target.closest('.like-button')) {
                 return;
             }
 
@@ -153,7 +155,9 @@ function bindArticleCardClicks() {
         }
 
         child.addEventListener('click', function(e) {
-            // stopPropagation 제거 - 링크 클릭 등 다른 이벤트가 정상 작동하도록 함
+            if (e.target.closest('.like-button')) {
+                return;
+            }
             const articleId = parseInt(child.getAttribute('data-article-id'));
             if (articleId) {
                 // 페이지 URL로 비디오인지 블로그인지 판단
