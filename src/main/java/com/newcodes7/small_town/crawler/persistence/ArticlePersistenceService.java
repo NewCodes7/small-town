@@ -84,7 +84,7 @@ public class ArticlePersistenceService {
             log.debug("OpenAI 분석 완료 - Article: {}, Category: {}", article.getTitle(), category.getName());
             crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CATEGORY_ANALYSIS, CrawlingStepStatus.SUCCESS, null);
         } catch (Exception e) {
-            log.warn("OpenAI 분석 실패 - Article: {}, 오류: {}", article.getTitle(), e.getMessage());
+            log.warn("OpenAI 분석 실패 - Article: {}, 오류: {}", article.getTitle(), e.getMessage(), e);
             crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CATEGORY_ANALYSIS, CrawlingStepStatus.FAILURE, e.getMessage());
         }
     }
