@@ -25,11 +25,11 @@ import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.ArticleSummary;
 import com.newcodes7.small_town.global.entity.Video;
 
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
+
 import lombok.extern.slf4j.Slf4j;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class OpenaiService {
 
@@ -40,6 +40,10 @@ public class OpenaiService {
     private static final String MODEL = "o4-mini";
 
     private final RestTemplate restTemplate;
+
+    public OpenaiService(@Qualifier("openaiRestTemplate") RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
 
     /**
      * Video 분석 요청 (제목 + 설명으로 카테고리 분류)
