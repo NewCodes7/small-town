@@ -1,9 +1,11 @@
 package com.newcodes7.small_town.hackernews.integration;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
@@ -24,7 +26,14 @@ public class HackerNewsApiClient {
     private static final String TOP_STORIES_URL = BASE_URL + "/topstories.json";
     private static final String ITEM_URL = BASE_URL + "/item/{id}.json";
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
+
+    public HackerNewsApiClient(RestTemplateBuilder restTemplateBuilder) {
+        this.restTemplate = restTemplateBuilder
+            .connectTimeout(Duration.ofSeconds(10))
+            .readTimeout(Duration.ofSeconds(30))
+            .build();
+    }
 
     /**
      * 인기 스토리 ID 목록 조회 (최대 500개)
