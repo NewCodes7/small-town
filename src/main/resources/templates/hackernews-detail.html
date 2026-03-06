@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ko"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title th:text="${item.translatedTitle != null ? item.translatedTitle : item.title} + ' - Hacker News - NewCodes'">HN Article - NewCodes</title>
+
+    <meta name="description" th:content="${item.translatedTitle != null ? item.translatedTitle : item.title}">
+    <meta property="og:title" th:content="${item.translatedTitle != null ? item.translatedTitle : item.title}">
+    <meta property="og:type" content="article">
+
+    <style>
+        :root {
+            --primary-green: #03C75A;
+            --primary-green-dark: #02B350;
+            --secondary-green: #E8F7EF;
+            --text-dark: #1F2937;
+            --text-light: #6B7280;
+            --border-light: #E5E7EB;
+            --bg-light: #F9FAFB;
+            --hn-orange: #FF6600;
+        }
+
+        .hn-detail-container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 32px 20px 60px;
+        }
+
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: white;
+            color: var(--text-dark);
+            border: 2px solid var(--border-light);
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            margin-top: 32px;
+        }
+
+        .back-button:hover {
+            background: var(--bg-light);
+            border-color: var(--hn-orange);
+            color: var(--hn-orange);
+            transform: translateX(-4px);
+        }
+
+        .hn-detail-card {
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+            margin-bottom: 48px;
+            margin-top: 24px;
+        }
+
+        .hn-detail-header {
+            padding: 40px 40px 32px;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .hn-detail-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            background: #FFF7ED;
+            color: var(--hn-orange);
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .hn-detail-title {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--text-dark);
+            line-height: 1.4;
+            margin-bottom: 8px;
+        }
+
+        .hn-detail-original-title {
+            font-size: 1rem;
+            color: var(--text-light);
+            margin-bottom: 20px;
+            font-style: italic;
+        }
+
+        .hn-detail-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: center;
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
+
+        .hn-detail-meta span {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .hn-detail-meta .hn-score {
+            color: var(--hn-orange);
+            font-weight: 700;
+        }
+
+        .hn-detail-actions {
+            padding: 20px 40px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .hn-action-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .hn-action-btn.primary {
+            background: var(--hn-orange);
+            color: white;
+        }
+
+        .hn-action-btn.primary:hover {
+            background: #E55B00;
+            transform: translateY(-2px);
+        }
+
+        .hn-action-btn.secondary {
+            background: var(--bg-light);
+            color: var(--text-dark);
+            border: 1px solid var(--border-light);
+        }
+
+        .hn-action-btn.secondary:hover {
+            background: white;
+            border-color: var(--hn-orange);
+            color: var(--hn-orange);
+        }
+
+        /* Comments Section */
+        .hn-comments-section {
+            margin-top: 0;
+        }
+
+        .hn-comments-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .hn-comments-header h2 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        .hn-comments-count {
+            background: var(--hn-orange);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        .hn-comment {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+            border-left: 4px solid var(--border-light);
+            transition: all 0.2s ease;
+        }
+
+        .hn-comment:hover {
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            border-left-color: var(--hn-orange);
+        }
+
+        .hn-comment.depth-1 {
+            margin-left: 32px;
+            border-left-color: #DDD;
+        }
+
+        .hn-comment-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .hn-comment-author {
+            font-weight: 700;
+            color: var(--text-dark);
+            font-size: 0.9rem;
+        }
+
+        .hn-comment-date {
+            color: var(--text-light);
+            font-size: 0.8rem;
+        }
+
+        .hn-comment-original {
+            color: var(--text-dark);
+            line-height: 1.7;
+            font-size: 0.95rem;
+            margin-bottom: 12px;
+            padding: 16px;
+            background: var(--bg-light);
+            border-radius: 10px;
+        }
+
+        .hn-comment-translated {
+            color: var(--text-dark);
+            line-height: 1.7;
+            font-size: 0.95rem;
+            padding: 16px;
+            background: #FFF7ED;
+            border-radius: 10px;
+            border: 1px solid #FFE0B2;
+        }
+
+        .hn-comment-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .hn-comment-label.original {
+            color: var(--text-light);
+        }
+
+        .hn-comment-label.translated {
+            color: var(--hn-orange);
+        }
+
+        .hn-no-comments {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-light);
+        }
+
+        .hn-no-comments i {
+            font-size: 3rem;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+
+        @media (max-width: 768px) {
+            .hn-detail-header {
+                padding: 24px 20px;
+            }
+            .hn-detail-title {
+                font-size: 1.3rem;
+            }
+            .hn-detail-actions {
+                padding: 16px 20px;
+            }
+            .hn-comment.depth-1 {
+                margin-left: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="hn-detail-container">
+            <a href="/" class="back-button">
+                <i class="fas fa-arrow-left"></i>
+                <span>홈으로 돌아가기</span>
+            </a>
+
+            <div class="hn-detail-card">
+                <div class="hn-detail-header">
+                    <div class="hn-detail-badge">
+                        <i class="fab fa-hacker-news"></i>
+                        Hacker News
+                    </div>
+                    <h1 class="hn-detail-title" th:text="${item.translatedTitle != null ? item.translatedTitle : item.title}">Title</h1>
+                    <p class="hn-detail-original-title" th:if="${item.translatedTitle != null}" th:text="${item.title}">Original Title</p>
+                    <div class="hn-detail-meta">
+                        <span class="hn-score">
+                            <i class="fas fa-arrow-up"></i>
+                            <span th:text="${item.score + ' points'}">0 points</span>
+                        </span>
+                        <span>
+                            <i class="fas fa-comment"></i>
+                            <span th:text="${item.commentCount + ' comments'}">0 comments</span>
+                        </span>
+                        <span>
+                            <i class="fas fa-user"></i>
+                            <span th:text="${item.author}">author</span>
+                        </span>
+                        <span>
+                            <i class="far fa-clock"></i>
+                            <span class="relative-time"
+                                  th:attr="data-date=${item.hnCreatedAt}"
+                                  th:text="${item.hnCreatedAt}">날짜</span>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="hn-detail-actions">
+                    <a th:href="${item.url}" target="_blank" class="hn-action-btn primary" th:if="${item.url != null}">
+                        <i class="fas fa-external-link-alt"></i>
+                        원문 보기
+                    </a>
+                    <a th:href="${item.hnUrl}" target="_blank" class="hn-action-btn secondary">
+                        <i class="fab fa-hacker-news"></i>
+                        HN 토론 보기
+                    </a>
+                </div>
+            </div>
+
+            <!-- Comments Section -->
+            <section class="hn-comments-section">
+                <div class="hn-comments-header">
+                    <h2><i class="fas fa-comments"></i> 댓글</h2>
+                    <span class="hn-comments-count" th:text="${#lists.size(comments)}">0</span>
+                </div>
+
+                <div th:if="${comments != null and !comments.isEmpty()}">
+                    <div th:each="comment : ${comments}"
+                         class="hn-comment"
+                         th:classappend="${comment.depth > 0 ? ' depth-' + comment.depth : ''}">
+                        <div class="hn-comment-header">
+                            <span class="hn-comment-author" th:text="${comment.author}">author</span>
+                            <span class="hn-comment-date">
+                                <span class="relative-time"
+                                      th:attr="data-date=${comment.hnCreatedAt}"
+                                      th:text="${comment.hnCreatedAt}">날짜</span>
+                            </span>
+                        </div>
+                        <div class="hn-comment-label original">ENGLISH (원문)</div>
+                        <div class="hn-comment-original" th:text="${comment.textContent}">English comment text</div>
+                        <div th:if="${comment.translatedText != null}">
+                            <div class="hn-comment-label translated">한국어 (번역)</div>
+                            <div class="hn-comment-translated" th:text="${comment.translatedText}">번역된 댓글 텍스트</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div th:if="${comments == null or comments.isEmpty()}" class="hn-no-comments">
+                    <i class="fas fa-comment-slash"></i>
+                    <p>아직 크롤링된 댓글이 없습니다.</p>
+                    <p>댓글을 보려면 관리자가 댓글 크롤링을 실행해야 합니다.</p>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <div layout:fragment="scripts">
+        <script>
+            // Relative time formatting for HN items
+            document.querySelectorAll('.relative-time').forEach(function(el) {
+                var dateStr = el.getAttribute('data-date');
+                if (dateStr) {
+                    var date = new Date(dateStr.replace(' ', 'T'));
+                    var now = new Date();
+                    var diffMs = now - date;
+                    var diffMins = Math.floor(diffMs / 60000);
+                    var diffHours = Math.floor(diffMs / 3600000);
+                    var diffDays = Math.floor(diffMs / 86400000);
+
+                    if (diffMins < 60) {
+                        el.textContent = diffMins + '분 전';
+                    } else if (diffHours < 24) {
+                        el.textContent = diffHours + '시간 전';
+                    } else if (diffDays < 7) {
+                        el.textContent = diffDays + '일 전';
+                    } else {
+                        el.textContent = dateStr.substring(0, 10);
+                    }
+                }
+            });
+        </script>
+    </div>
+</body>
+</html>
