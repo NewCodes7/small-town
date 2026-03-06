@@ -377,7 +377,7 @@
             document.querySelectorAll('.relative-time').forEach(function(el) {
                 var dateStr = el.getAttribute('data-date');
                 if (dateStr) {
-                    var date = new Date(dateStr.replace(' ', 'T'));
+                    var date = new Date(dateStr.replace(/ /g, 'T'));
                     var now = new Date();
                     var diffMs = now - date;
                     var diffMins = Math.floor(diffMs / 60000);

@@ -3,12 +3,13 @@ package com.newcodes7.small_town.hackernews.service;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.jsoup.Jsoup;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,8 +36,11 @@ public class HackerNewsService {
     private final HackerNewsCommentRepository commentRepository;
     private final DeeplService deeplService;
 
-    private static final int TOP_STORIES_LIMIT = 30;
-    private static final int MAX_COMMENTS_PER_ITEM = 20;
+    @Value("${hackernews.crawl.top-stories-limit:30}")
+    private int topStoriesLimit;
+
+    @Value("${hackernews.crawl.max-comments-per-item:20}")
+    private int maxCommentsPerItem;
 
     /**
      * Hacker News 인기 스토리 크롤링 및 DB 저장
@@ -53,7 +57,7 @@ public class HackerNewsService {
 
         // 상위 N개만 처리
         List<Long> targetIds = topStoryIds.stream()
-            .limit(TOP_STORIES_LIMIT)
+            .limit(topStoriesLimit)
             .toList();
 
         // 이미 존재하는 ID 조회 (배치)
@@ -231,7 +235,7 @@ public class HackerNewsService {
     }
 
     private int crawlCommentsRecursive(HackerNewsItem item, List<Number> kidIds, int depth, int savedCount) {
-        if (kidIds == null || kidIds.isEmpty() || savedCount >= MAX_COMMENTS_PER_ITEM) {
+        if (kidIds == null || kidIds.isEmpty() || savedCount >= maxCommentsPerItem) {
             return savedCount;
         }
 
@@ -241,7 +245,7 @@ public class HackerNewsService {
             .stream().collect(Collectors.toSet());
 
         for (Number kidId : kidIds) {
-            if (savedCount >= MAX_COMMENTS_PER_ITEM) break;
+            if (savedCount >= maxCommentsPerItem) break;
 
             long commentHnId = kidId.longValue();
             if (existingIds.contains(commentHnId)) continue;
@@ -258,16 +262,8 @@ public class HackerNewsService {
                 String text = (String) commentData.get("text");
                 if (text == null || text.trim().isEmpty()) continue;
 
-                // HTML 태그 제거하여 순수 텍스트 추출
-                String cleanText = text.replaceAll("<[^>]*>", " ")
-                    .replaceAll("&amp;", "&")
-                    .replaceAll("&lt;", "<")
-                    .replaceAll("&gt;", ">")
-                    .replaceAll("&quot;", "\"")
-                    .replaceAll("&#x27;", "'")
-                    .replaceAll("&#x2F;", "/")
-                    .replaceAll("\\s+", " ")
-                    .trim();
+                // Jsoup을 사용한 HTML 태그 제거 및 엔티티 디코딩
+                String cleanText = Jsoup.parse(text).text().trim();
 
                 // 댓글 번역
                 String translatedText = null;

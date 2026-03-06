@@ -14,7 +14,6 @@ CREATE TABLE hacker_news_item (
     deleted_at       TIMESTAMP
 );
 
-CREATE INDEX idx_hn_item_hn_id ON hacker_news_item(hn_id);
 CREATE INDEX idx_hn_item_score ON hacker_news_item(score DESC);
 CREATE INDEX idx_hn_item_hn_created ON hacker_news_item(hn_created_at DESC);
 
@@ -32,5 +31,4 @@ CREATE TABLE hacker_news_comment (
     deleted_at            TIMESTAMP
 );
 
-CREATE INDEX idx_hn_comment_hn_id ON hacker_news_comment(hn_id);
 CREATE INDEX idx_hn_comment_item_id ON hacker_news_comment(hacker_news_item_id);

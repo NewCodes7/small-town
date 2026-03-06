@@ -30,7 +30,6 @@ import lombok.Setter;
 @EntityListeners(AuditingEntityListener.class)
 @Table(name = "hacker_news_item",
     indexes = {
-        @Index(name = "idx_hn_item_hn_id", columnList = "hn_id", unique = true),
         @Index(name = "idx_hn_item_score", columnList = "score DESC"),
         @Index(name = "idx_hn_item_hn_created", columnList = "hn_created_at DESC")
     }
