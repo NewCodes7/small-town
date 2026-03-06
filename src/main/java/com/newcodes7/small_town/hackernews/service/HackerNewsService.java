@@ -95,6 +95,65 @@ public class HackerNewsService {
     }
 
     /**
+     * Hacker News 인기 스토리 크롤링 + 댓글까지 함께 크롤링
+     * 스케줄러에서 사용: 스토리 저장 후 각 신규 아이템의 댓글도 크롤링
+     */
+    @Transactional
+    public int crawlTopStoriesWithComments() {
+        log.info("Hacker News 인기 스토리 + 댓글 크롤링 시작");
+
+        List<Long> topStoryIds = apiClient.getTopStoryIds();
+        if (topStoryIds.isEmpty()) {
+            log.warn("Hacker News top stories가 비어있음");
+            return 0;
+        }
+
+        List<Long> targetIds = topStoryIds.stream()
+            .limit(topStoriesLimit)
+            .toList();
+
+        Set<Long> existingHnIds = itemRepository.findExistingHnIds(targetIds)
+            .stream().collect(Collectors.toSet());
+
+        int savedCount = 0;
+        int totalComments = 0;
+
+        for (Long storyId : targetIds) {
+            try {
+                if (existingHnIds.contains(storyId)) {
+                    updateExistingItem(storyId);
+                    continue;
+                }
+
+                Map<String, Object> itemData = apiClient.getItem(storyId);
+                if (itemData == null || !"story".equals(itemData.get("type"))) {
+                    continue;
+                }
+
+                HackerNewsItem item = parseAndSaveItem(itemData);
+                if (item != null) {
+                    savedCount++;
+
+                    // 새로 저장된 아이템의 댓글도 크롤링
+                    try {
+                        int commentCount = crawlCommentsForItem(item, itemData);
+                        totalComments += commentCount;
+                    } catch (Exception e) {
+                        log.warn("스토리 {} 댓글 크롤링 실패: {}", storyId, e.getMessage());
+                    }
+                }
+
+                Thread.sleep(100);
+            } catch (Exception e) {
+                log.error("Hacker News 스토리 {} 처리 중 오류: {}", storyId, e.getMessage());
+            }
+        }
+
+        log.info("Hacker News 크롤링 완료: {}개 새 스토리, {}개 댓글 저장", savedCount, totalComments);
+        return savedCount;
+    }
+
+    /**
      * 특정 아이템의 댓글 크롤링 및 저장
      */
     @Transactional
@@ -166,6 +225,21 @@ public class HackerNewsService {
     }
 
     // ===== Private Methods =====
+
+    /**
+     * 이미 조회된 itemData를 활용해 댓글 크롤링 (API 재호출 방지)
+     */
+    private int crawlCommentsForItem(HackerNewsItem item, Map<String, Object> itemData) {
+        @SuppressWarnings("unchecked")
+        List<Number> kidIds = (List<Number>) itemData.get("kids");
+        if (kidIds == null || kidIds.isEmpty()) {
+            return 0;
+        }
+
+        int savedCount = crawlCommentsRecursive(item, kidIds, 0, 0);
+        log.info("댓글 크롤링 완료: HN item {} - {}개 댓글 저장", item.getHnId(), savedCount);
+        return savedCount;
+    }
 
     private HackerNewsItem parseAndSaveItem(Map<String, Object> data) {
         try {
