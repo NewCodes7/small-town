@@ -27,7 +27,7 @@ public class HackerNewsItemResponseDto {
         this.title = item.getTitle();
         this.translatedTitle = item.getTranslatedTitle();
         this.url = sanitizeUrl(item.getUrl());
-        this.hnUrl = item.getHnDiscussionUrl();
+        this.hnUrl = item.getHnUrl();
         this.author = item.getAuthor();
         this.score = item.getScore();
         this.commentCount = item.getCommentCount();

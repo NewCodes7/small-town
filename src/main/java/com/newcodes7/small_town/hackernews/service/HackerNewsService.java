@@ -85,8 +85,12 @@ public class HackerNewsService {
 
                 // API 호출 간 딜레이
                 Thread.sleep(100);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                log.warn("Hacker News 스토리 {} 처리 중 인터럽트 발생", storyId, ie);
+                break;
             } catch (Exception e) {
-                log.error("Hacker News 스토리 {} 처리 중 오류: {}", storyId, e.getMessage());
+                log.error("Hacker News 스토리 {} 처리 중 오류: {}", storyId, e.getMessage(), e);
             }
         }
 
@@ -144,8 +148,12 @@ public class HackerNewsService {
                 }
 
                 Thread.sleep(100);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                log.warn("Hacker News 스토리 {} 처리 중 인터럽트 발생", storyId, ie);
+                break;
             } catch (Exception e) {
-                log.error("Hacker News 스토리 {} 처리 중 오류: {}", storyId, e.getMessage());
+                log.error("Hacker News 스토리 {} 처리 중 오류: {}", storyId, e.getMessage(), e);
             }
         }
 
@@ -243,13 +251,41 @@ public class HackerNewsService {
 
     private HackerNewsItem parseAndSaveItem(Map<String, Object> data) {
         try {
+            if (data == null) {
+                log.warn("HackerNews item data is null, skipping.");
+                return null;
+            }
+
+            // Skip deleted or dead items returned by the HN API
+            Object deletedValue = data.get("deleted");
+            if (deletedValue instanceof Boolean && (Boolean) deletedValue) {
+                log.debug("Skipping deleted HackerNews item: {}", data.get("id"));
+                return null;
+            }
+            Object deadValue = data.get("dead");
+            if (deadValue instanceof Boolean && (Boolean) deadValue) {
+                log.debug("Skipping dead HackerNews item: {}", data.get("id"));
+                return null;
+            }
+
+            Object idObj = data.get("id");
+            if (!(idObj instanceof Number)) {
+                log.warn("HackerNews item missing valid id field, skipping. raw id: {}", idObj);
+                return null;
+            }
+            Number idNum = (Number) idObj;
+
             String title = (String) data.get("title");
+            if (title == null || title.isBlank()) {
+                log.warn("HackerNews item {} missing required title, skipping.", idNum);
+                return null;
+            }
+
             String url = (String) data.get("url");
             String author = (String) data.get("by");
             Number scoreNum = (Number) data.get("score");
             Number descendantsNum = (Number) data.get("descendants");
             Number timeNum = (Number) data.get("time");
-            Number idNum = (Number) data.get("id");
 
             long hnId = idNum.longValue();
             int score = scoreNum != null ? scoreNum.intValue() : 0;
@@ -263,7 +299,11 @@ public class HackerNewsService {
             String translatedTitle = null;
             if (title != null && !deeplService.containsKorean(title)) {
                 try {
-                    translatedTitle = deeplService.translateTitle(title);
+                    String translated = deeplService.translateTitle(title);
+                    // 번역 결과가 원본과 동일하거나 비어있으면 null로 처리
+                    if (translated != null && !translated.isBlank() && !translated.equals(title)) {
+                        translatedTitle = translated;
+                    }
                 } catch (Exception e) {
                     log.warn("제목 번역 실패: {} - {}", title, e.getMessage());
                 }
@@ -343,7 +383,11 @@ public class HackerNewsService {
                 String translatedText = null;
                 if (!deeplService.containsKorean(cleanText)) {
                     try {
-                        translatedText = deeplService.translateTitle(cleanText);
+                        String translated = deeplService.translateTitle(cleanText);
+                        // 번역 결과가 원본과 동일하거나 비어있으면 null로 처리
+                        if (translated != null && !translated.isBlank() && !translated.equals(cleanText)) {
+                            translatedText = translated;
+                        }
                     } catch (Exception e) {
                         log.warn("댓글 번역 실패: {}", e.getMessage());
                     }
@@ -380,8 +424,12 @@ public class HackerNewsService {
                 }
 
                 Thread.sleep(100);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                log.warn("댓글 {} 처리 중 인터럽트 발생", commentHnId, ie);
+                break;
             } catch (Exception e) {
-                log.error("댓글 {} 처리 중 오류: {}", commentHnId, e.getMessage());
+                log.error("댓글 {} 처리 중 오류", commentHnId, e);
             }
         }
 

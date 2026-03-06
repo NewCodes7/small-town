@@ -130,7 +130,7 @@
                         </span>
                         Hacker News 인기글
                     </h2>
-                    <a href="https://news.ycombinator.com" target="_blank" class="section-more">
+                    <a href="https://news.ycombinator.com" target="_blank" rel="noopener noreferrer" class="section-more">
                         HN 바로가기
                         <i class="fas fa-external-link-alt"></i>
                     </a>
@@ -149,7 +149,7 @@
                             <div class="hn-card-thumbnail-text">
                                 <span th:text="${hnItem.translatedTitle != null ? hnItem.translatedTitle : hnItem.title}">Title</span>
                             </div>
-                            <a th:if="${hnItem.url != null}" th:href="${hnItem.url}" target="_blank" class="hn-card-external"
+                            <a th:if="${hnItem.url != null}" th:href="${hnItem.url}" target="_blank" rel="noopener noreferrer" class="hn-card-external"
                                onclick="event.stopPropagation()">
                                 <i class="fas fa-external-link-alt"></i>
                             </a>

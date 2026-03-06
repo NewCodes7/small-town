@@ -86,6 +86,7 @@ class HackerNewsItemResponseDtoTest {
             .title("Original Title")
             .translatedTitle("번역된 제목")
             .url("https://example.com")
+            .hnUrl("https://news.ycombinator.com/item?id=12345")
             .author("testuser")
             .score(250)
             .commentCount(42)

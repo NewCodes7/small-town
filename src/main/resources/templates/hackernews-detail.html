@@ -323,11 +323,11 @@
                 </div>
 
                 <div class="hn-detail-actions">
-                    <a th:href="${item.url}" target="_blank" class="hn-action-btn primary" th:if="${item.url != null}">
+                    <a th:href="${item.url}" target="_blank" rel="noopener noreferrer" class="hn-action-btn primary" th:if="${item.url != null}">
                         <i class="fas fa-external-link-alt"></i>
                         원문 보기
                     </a>
-                    <a th:href="${item.hnUrl}" target="_blank" class="hn-action-btn secondary">
+                    <a th:href="${item.hnUrl}" target="_blank" rel="noopener noreferrer" class="hn-action-btn secondary">
                         <i class="fab fa-hacker-news"></i>
                         HN 토론 보기
                     </a>

@@ -541,6 +541,93 @@ class HackerNewsServiceTest {
         assertThat(result).isEmpty();
     }
 
+    // ===== 유효성 검사 테스트 =====
+
+    @Test
+    @DisplayName("crawlTopStories: deleted 아이템은 건너뜀")
+    void crawlTopStories_deleted_아이템_건너뜀() {
+        // given
+        when(apiClient.getTopStoryIds()).thenReturn(List.of(100L));
+        when(itemRepository.findExistingHnIds(anyList())).thenReturn(Collections.emptyList());
+
+        Map<String, Object> storyData = createStoryData(100L, "Deleted Story", "https://example.com", "testuser", 100, 10, 1700000000L);
+        storyData.put("deleted", true);
+        when(apiClient.getItem(100L)).thenReturn(storyData);
+
+        // when
+        int result = hackerNewsService.crawlTopStories();
+
+        // then
+        assertThat(result).isEqualTo(0);
+        verify(itemRepository, never()).save(any(HackerNewsItem.class));
+    }
+
+    @Test
+    @DisplayName("crawlTopStories: dead 아이템은 건너뜀")
+    void crawlTopStories_dead_아이템_건너뜀() {
+        // given
+        when(apiClient.getTopStoryIds()).thenReturn(List.of(100L));
+        when(itemRepository.findExistingHnIds(anyList())).thenReturn(Collections.emptyList());
+
+        Map<String, Object> storyData = createStoryData(100L, "Dead Story", "https://example.com", "testuser", 100, 10, 1700000000L);
+        storyData.put("dead", true);
+        when(apiClient.getItem(100L)).thenReturn(storyData);
+
+        // when
+        int result = hackerNewsService.crawlTopStories();
+
+        // then
+        assertThat(result).isEqualTo(0);
+        verify(itemRepository, never()).save(any(HackerNewsItem.class));
+    }
+
+    @Test
+    @DisplayName("crawlTopStories: 제목 없는 아이템은 건너뜀")
+    void crawlTopStories_제목_없는_아이템_건너뜀() {
+        // given
+        when(apiClient.getTopStoryIds()).thenReturn(List.of(100L));
+        when(itemRepository.findExistingHnIds(anyList())).thenReturn(Collections.emptyList());
+
+        Map<String, Object> storyData = createStoryData(100L, null, "https://example.com", "testuser", 100, 10, 1700000000L);
+        when(apiClient.getItem(100L)).thenReturn(storyData);
+
+        // when
+        int result = hackerNewsService.crawlTopStories();
+
+        // then
+        assertThat(result).isEqualTo(0);
+        verify(itemRepository, never()).save(any(HackerNewsItem.class));
+    }
+
+    @Test
+    @DisplayName("crawlTopStories: 번역 결과가 원본과 동일하면 translatedTitle은 null")
+    void crawlTopStories_번역_동일하면_null() {
+        // given
+        when(apiClient.getTopStoryIds()).thenReturn(List.of(100L));
+        when(itemRepository.findExistingHnIds(anyList())).thenReturn(Collections.emptyList());
+
+        Map<String, Object> storyData = createStoryData(100L, "Test Story", "https://example.com", "testuser", 150, 30, 1700000000L);
+        when(apiClient.getItem(100L)).thenReturn(storyData);
+
+        when(deeplService.containsKorean(anyString())).thenReturn(false);
+        // translateTitle returns same as original
+        when(deeplService.translateTitle("Test Story")).thenReturn("Test Story");
+        when(itemRepository.save(any(HackerNewsItem.class))).thenAnswer(invocation -> {
+            HackerNewsItem item = invocation.getArgument(0);
+            item.setId(1L);
+            return item;
+        });
+
+        // when
+        int result = hackerNewsService.crawlTopStories();
+
+        // then
+        assertThat(result).isEqualTo(1);
+        ArgumentCaptor<HackerNewsItem> captor = ArgumentCaptor.forClass(HackerNewsItem.class);
+        verify(itemRepository).save(captor.capture());
+        assertThat(captor.getValue().getTranslatedTitle()).isNull();
+    }
+
     // ===== Helper Methods =====
 
     private Map<String, Object> createStoryData(Long id, String title, String url, String author, int score, int descendants, long time) {

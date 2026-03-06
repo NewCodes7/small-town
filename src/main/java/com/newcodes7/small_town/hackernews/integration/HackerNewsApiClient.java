@@ -68,7 +68,7 @@ public class HackerNewsApiClient {
             );
             return response.getBody();
         } catch (Exception e) {
-            log.error("Hacker News item {} 조회 실패: {}", id, e.getMessage());
+            log.error("Hacker News item {} 조회 실패: {}", id, e.getMessage(), e);
             return null;
         }
     }

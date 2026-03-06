@@ -17,6 +17,6 @@ public interface HackerNewsCommentRepository extends JpaRepository<HackerNewsCom
 
     boolean existsByHnId(Long hnId);
 
-    @Query("SELECT c.hnId FROM HackerNewsComment c WHERE c.hnId IN :hnIds")
+    @Query("SELECT c.hnId FROM HackerNewsComment c WHERE c.hnId IN :hnIds AND c.deletedAt IS NULL")
     List<Long> findExistingHnIds(@Param("hnIds") List<Long> hnIds);
 }
