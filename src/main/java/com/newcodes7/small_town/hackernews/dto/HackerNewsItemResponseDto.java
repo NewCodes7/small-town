@@ -26,7 +26,7 @@ public class HackerNewsItemResponseDto {
         this.hnId = item.getHnId();
         this.title = item.getTitle();
         this.translatedTitle = item.getTranslatedTitle();
-        this.url = item.getUrl();
+        this.url = sanitizeUrl(item.getUrl());
         this.hnUrl = item.getHnDiscussionUrl();
         this.author = item.getAuthor();
         this.score = item.getScore();
@@ -34,5 +34,13 @@ public class HackerNewsItemResponseDto {
         this.hnCreatedAt = item.getHnCreatedAt() != null ?
             item.getHnCreatedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : null;
         this.detailUrl = "/hackernews/" + item.getId();
+    }
+
+    private static String sanitizeUrl(String url) {
+        if (url == null) return null;
+        if (url.startsWith("http://") || url.startsWith("https://")) {
+            return url;
+        }
+        return null;
     }
 }
