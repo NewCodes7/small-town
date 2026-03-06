@@ -45,7 +45,7 @@ public class HackerNewsController {
     @ResponseBody
     public List<HackerNewsItemResponseDto> getTopItems(
             @RequestParam(defaultValue = "10") int limit) {
-        return hackerNewsService.getTopItems(limit);
+        return hackerNewsService.getTopItems(Math.min(limit, 100));
     }
 
     /**
@@ -55,7 +55,7 @@ public class HackerNewsController {
     @ResponseBody
     public List<HackerNewsItemResponseDto> getLatestItems(
             @RequestParam(defaultValue = "10") int limit) {
-        return hackerNewsService.getLatestItems(limit);
+        return hackerNewsService.getLatestItems(Math.min(limit, 100));
     }
 
     /**

@@ -169,7 +169,7 @@
                                 </span>
                             </div>
                         </div>
-                        <a th:href="${hnItem.url}" target="_blank" class="hn-card-link"
+                        <a th:if="${hnItem.url != null}" th:href="${hnItem.url}" target="_blank" class="hn-card-link"
                            onclick="event.stopPropagation()">
                             <i class="fas fa-external-link-alt"></i>
                         </a>
