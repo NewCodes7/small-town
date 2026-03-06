@@ -14,4 +14,6 @@ public class OpenAiRequest {
     private String input;
     private String instructions;
     private List<Map<String, String>> tools;
+    @Builder.Default
+    private boolean stream = false;
 }

@@ -1539,22 +1539,69 @@
 
         /* ===== Hacker News Section ===== */
         .hn-icon {
-            background: linear-gradient(135deg, #FF6600, #FF8C42) !important;
+            background: linear-gradient(135deg, var(--primary-green), var(--primary-green-dark)) !important;
         }
 
-        .hn-card-grid {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+        .hn-carousel-wrapper {
+            display: flex;
+            align-items: stretch;
+            gap: 12px;
+        }
+
+        .hn-nav-btn {
+            width: 40px;
+            min-width: 40px;
+            border-radius: 12px;
+            border: 2px solid var(--border-light);
+            background: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-dark);
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+
+        .hn-nav-btn:hover {
+            background: #86efac;
+            border-color: #86efac;
+            color: white;
+        }
+
+        .hn-nav-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .hn-nav-btn:disabled:hover {
+            background: white;
+            border-color: var(--border-light);
+            color: var(--text-dark);
+        }
+
+        .hn-carousel {
+            overflow: hidden;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .hn-track {
+            display: flex;
             gap: 20px;
+            transition: transform 0.4s ease;
         }
 
         .hn-card {
+            min-width: calc(25% - 15px);
+            max-width: calc(25% - 15px);
             background: white;
             border-radius: 16px;
             overflow: hidden;
             border: 2px solid var(--border-light);
             transition: all 0.3s ease;
-            box-shadow: 0 2px 12px rgba(255, 102, 0, 0.06);
+            box-shadow: 0 2px 12px rgba(134, 239, 172, 0.28);
             display: flex;
             flex-direction: column;
             position: relative;
@@ -1563,8 +1610,8 @@
 
         .hn-card:hover {
             transform: translateY(-4px);
-            box-shadow: 0 8px 24px rgba(255, 102, 0, 0.18);
-            border-color: #FF6600;
+            box-shadow: 0 8px 24px rgba(134, 239, 172, 0.35);
+            border-color: #86efac;
         }
 
         .hn-rank {
@@ -1574,7 +1621,7 @@
             width: 32px;
             height: 32px;
             border-radius: 50%;
-            background: rgba(0, 0, 0, 0.55);
+            background: rgba(0, 0, 0, 0.6);
             color: white;
             font-weight: 700;
             font-size: 0.85rem;
@@ -1585,13 +1632,13 @@
         }
 
         .hn-rank.top-rank {
-            background: linear-gradient(135deg, #FF6600, #FF8C42);
+            background: #ef4444;
         }
 
         .hn-card-thumbnail {
             width: 100%;
             height: 160px;
-            background: linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 50%, #FFCC80 100%);
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 55%, #bbf7d0 100%);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1603,7 +1650,7 @@
         .hn-card-thumbnail-text {
             font-size: 0.95rem;
             font-weight: 700;
-            color: #E65100;
+            color: #3f6212;
             line-height: 1.5;
             text-align: center;
             display: -webkit-box;
@@ -1621,7 +1668,7 @@
             height: 30px;
             border-radius: 8px;
             background: rgba(255, 255, 255, 0.85);
-            color: #FF6600;
+            color: #65a30d;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1632,7 +1679,7 @@
         }
 
         .hn-card-external:hover {
-            background: #FF6600;
+            background: #86efac;
             color: white;
         }
 
@@ -1644,16 +1691,16 @@
         }
 
         .hn-card-title {
-            font-size: 0.88rem;
-            font-weight: 600;
-            color: var(--text-light);
+            font-size: 1.0rem;
+            font-weight: 700;
+            color: var(--text-dark);
             margin-bottom: 10px;
             line-height: 1.4;
             display: -webkit-box;
-            -webkit-line-clamp: 2;
+            -webkit-line-clamp: 3;
             -webkit-box-orient: vertical;
             overflow: hidden;
-            font-style: italic;
+            min-height: 3.8rem;
         }
 
         .hn-card-meta {
@@ -1674,7 +1721,7 @@
         }
 
         .hn-card-score {
-            color: #FF6600 !important;
+            color: #65a30d !important;
             font-weight: 700;
         }
 
@@ -1683,15 +1730,37 @@
         }
 
         @media (max-width: 1024px) {
-            .hn-card-grid {
-                grid-template-columns: repeat(3, minmax(0, 300px));
+            .hn-card {
+                min-width: calc(33.333% - 14px);
+                max-width: calc(33.333% - 14px);
             }
         }
 
         @media (max-width: 768px) {
-            .hn-card-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+            .hn-nav-btn {
+                display: none;
+            }
+
+            .hn-carousel {
+                overflow-x: auto;
+                scroll-snap-type: x mandatory;
+                scrollbar-width: none;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .hn-carousel::-webkit-scrollbar {
+                display: none;
+            }
+
+            .hn-track {
                 gap: 12px;
+            }
+
+            .hn-card {
+                min-width: 82%;
+                max-width: 82%;
+                scroll-snap-align: start;
+                flex-shrink: 0;
             }
 
             .hn-card-thumbnail {
@@ -1709,7 +1778,7 @@
             }
 
             .hn-card-title {
-                font-size: 0.82rem;
+                font-size: 1rem;
             }
 
             .hn-card-meta {
@@ -1719,7 +1788,8 @@
         }
 
         @media (max-width: 480px) {
-            .hn-card-grid {
-                grid-template-columns: 1fr;
+            .hn-card {
+                min-width: 90%;
+                max-width: 90%;
             }
         }

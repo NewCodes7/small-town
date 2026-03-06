@@ -43,6 +43,7 @@ async function checkAuthenticated() {
 
 // 이번 주 인기글 캐러셀
 let popularCurrentPage = 0;
+let hnCurrentPage = 0;
 
 function getPopularItemsPerPage() {
     const width = window.innerWidth;
@@ -78,6 +79,39 @@ function slidePopular(direction) {
     if (nextBtn) nextBtn.disabled = (popularCurrentPage >= maxPage);
 }
 
+function getHnItemsPerPage() {
+    const width = window.innerWidth;
+    if (width <= 768) return 1;
+    if (width <= 1024) return 3;
+    return 4;
+}
+
+function slideHn(direction) {
+    if (window.innerWidth <= 768) return;
+    const track = document.querySelector('.hn-track');
+    if (!track) return;
+
+    const totalItems = track.children.length;
+    if (totalItems === 0) return;
+
+    const itemsPerPage = getHnItemsPerPage();
+    const maxPage = Math.max(0, Math.ceil(totalItems / itemsPerPage) - 1);
+
+    hnCurrentPage += direction;
+    if (hnCurrentPage < 0) hnCurrentPage = 0;
+    if (hnCurrentPage > maxPage) hnCurrentPage = maxPage;
+
+    const style = window.getComputedStyle(track);
+    const gap = parseFloat(style.gap) || 0;
+    const cardWithGap = track.children[0].offsetWidth + gap;
+    track.style.transform = `translateX(-${hnCurrentPage * itemsPerPage * cardWithGap}px)`;
+
+    const prevBtn = document.querySelector('.hn-prev');
+    const nextBtn = document.querySelector('.hn-next');
+    if (prevBtn) prevBtn.disabled = (hnCurrentPage === 0);
+    if (nextBtn) nextBtn.disabled = (hnCurrentPage >= maxPage);
+}
+
 // Reset carousel on window resize
 window.addEventListener('resize', function() {
     popularCurrentPage = 0;
@@ -86,6 +120,13 @@ window.addEventListener('resize', function() {
         track.style.transform = 'translateX(0)';
     }
     slidePopular(0); // Update button states
+
+    hnCurrentPage = 0;
+    const hnTrack = document.querySelector('.hn-track');
+    if (hnTrack) {
+        hnTrack.style.transform = 'translateX(0)';
+    }
+    slideHn(0); // Update button states
 });
 
 // 아티클 상세 페이지로 이동 (조회수 증가는 상세 페이지에서 처리)
@@ -469,6 +510,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     slidePopular(0);
+
+    // HN 인기글 캐러셀 초기화
+    const hnPrevBtn = document.querySelector('.hn-prev');
+    const hnNextBtn = document.querySelector('.hn-next');
+    if (hnPrevBtn) hnPrevBtn.addEventListener('click', function() { slideHn(-1); });
+    if (hnNextBtn) hnNextBtn.addEventListener('click', function() { slideHn(1); });
+    slideHn(0);
 
     // 상대 시간 표시
     document.querySelectorAll('.relative-time').forEach(element => {
