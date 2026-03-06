@@ -97,6 +97,7 @@ public class ArticleController {
     private final com.newcodes7.small_town.theme.service.ThemeService themeService;
     private final ThemeRepository themeRepository;
     private final RelatedArticleService relatedArticleService;
+    private final com.newcodes7.small_town.hackernews.service.HackerNewsService hackerNewsService;
 
     @GetMapping("/articles")
     public String home(
@@ -1083,12 +1084,17 @@ public class ArticleController {
         // 이번 주 인기글 조회 (최근 7일, 조회수 순, 최대 8개)
         List<ArticleListResponseDto> popularArticles = articleService.getWeeklyPopularArticles(8);
 
+        // Hacker News 인기 아이템 조회 (최대 10개)
+        List<com.newcodes7.small_town.hackernews.dto.HackerNewsItemResponseDto> hackerNewsItems =
+            hackerNewsService.getTopItems(10);
+
         model.addAttribute("articles", latestArticles);
         model.addAttribute("videos", latestVideos);
         model.addAttribute("corporations", corporationsWithLogos);
         model.addAttribute("totalElements", totalElements);
         model.addAttribute("themes", themes);
         model.addAttribute("popularArticles", popularArticles);
+        model.addAttribute("hackerNewsItems", hackerNewsItems);
 
         return "new-home";
     }

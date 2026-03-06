@@ -62,7 +62,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
             .authorizeHttpRequests(authz -> authz
                 .requestMatchers("/api/auth/**", "/auth/**", "/api/user-info", "/api/auth/me").permitAll()
-                .requestMatchers("/", "/home", "/articles/**", "/about", "/corporations", "/corporations/**", "/video").permitAll()
+                .requestMatchers("/", "/home", "/articles/**", "/about", "/corporations", "/corporations/**", "/video", "/hackernews/**").permitAll()
                 .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
                 .requestMatchers("/error").permitAll()
                 .requestMatchers("/sitemap.xml", "/robots.txt").permitAll()
@@ -72,6 +72,8 @@ public class SecurityConfig {
 
                 // 글 목록 API는 모든 사용자 허용
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/articles/**").permitAll()
+                // Hacker News API는 모든 사용자 허용
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/hackernews/**").permitAll()
                 // 검색 API는 모든 사용자 허용
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/search/**").permitAll()
                 // 카테고리 목록 조회는 모든 사용자 허용

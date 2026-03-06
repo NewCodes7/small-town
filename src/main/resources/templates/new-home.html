@@ -121,6 +121,66 @@
                 </div>
             </section>
 
+            <!-- Hacker News 인기글 Section -->
+            <section class="content-section hn-section" th:if="${hackerNewsItems != null and !hackerNewsItems.isEmpty()}">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <span class="section-icon hn-icon">
+                            <i class="fab fa-hacker-news"></i>
+                        </span>
+                        Hacker News 인기글
+                    </h2>
+                    <a href="https://news.ycombinator.com" target="_blank" rel="noopener noreferrer" class="section-more">
+                        HN 바로가기
+                        <i class="fas fa-external-link-alt"></i>
+                    </a>
+                </div>
+
+                <div class="hn-card-grid">
+                    <div th:each="hnItem, iterStat : ${hackerNewsItems}"
+                         class="hn-card"
+                         th:attr="data-detail-url=${hnItem.detailUrl}"
+                         onclick="window.location.href=this.getAttribute('data-detail-url')"
+                         style="cursor: pointer;">
+                        <span class="hn-rank" th:classappend="${iterStat.index < 3 ? ' top-rank' : ''}"
+                              th:text="${iterStat.index + 1}">1</span>
+                        <!-- 썸네일 자리에 번역된 제목 표시 -->
+                        <div class="hn-card-thumbnail">
+                            <div class="hn-card-thumbnail-text">
+                                <span th:text="${hnItem.translatedTitle != null ? hnItem.translatedTitle : hnItem.title}">Title</span>
+                            </div>
+                            <a th:if="${hnItem.url != null}" th:href="${hnItem.url}" target="_blank" rel="noopener noreferrer" class="hn-card-external"
+                               onclick="event.stopPropagation()">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                        </div>
+                        <div class="hn-card-content">
+                            <h3 class="hn-card-title" lang="en" th:text="${hnItem.title}">Original Title</h3>
+                            <div class="hn-card-meta">
+                                <span class="hn-card-score">
+                                    <i class="fas fa-arrow-up"></i>
+                                    <span th:text="${hnItem.score}">0</span>
+                                </span>
+                                <span class="hn-card-comments">
+                                    <i class="fas fa-comment"></i>
+                                    <span th:text="${hnItem.commentCount}">0</span>
+                                </span>
+                                <span class="hn-card-author">
+                                    <i class="fas fa-user"></i>
+                                    <span th:text="${hnItem.author}">author</span>
+                                </span>
+                                <span class="hn-card-date">
+                                    <i class="far fa-clock"></i>
+                                    <span class="relative-time"
+                                          th:attr="data-date=${hnItem.hnCreatedAt}"
+                                          th:text="${hnItem.hnCreatedAt}">날짜</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- Latest Blog Articles Section -->
             <section class="content-section">
                 <div class="section-header">
