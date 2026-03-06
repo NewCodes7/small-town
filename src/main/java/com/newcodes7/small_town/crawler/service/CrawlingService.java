@@ -30,6 +30,7 @@ import com.newcodes7.small_town.embedding.service.ChunkEmbeddingBatchService;
 import com.newcodes7.small_town.embedding.service.RepresentativeChunkService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.global.service.BatchQueryService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +52,7 @@ public class CrawlingService {
     private final ArticleTermService articleTermService;
     private final ChunkEmbeddingBatchService chunkEmbeddingBatchService;
     private final RepresentativeChunkService representativeChunkService;
+    private final BatchQueryService batchQueryService;
 
     /**
      * 모든 기업 블로그 크롤링 (배치)
@@ -246,14 +248,14 @@ public class CrawlingService {
             log.info("BM25 검색 인덱스 갱신 시작 (Materialized View REFRESH)");
             long startTime = System.currentTimeMillis();
 
-            articleRepository.refreshArticleSearchIndex();
+            batchQueryService.executeWithNoTimeout(articleRepository::refreshArticleSearchIndex);
 
             log.info("BM25 검색 인덱스 갱신 완료 ({}ms)", System.currentTimeMillis() - startTime);
 
             log.info("Term 자동완성 인덱스 갱신 시작");
             long termStartTime = System.currentTimeMillis();
 
-            articleRepository.refreshTermAutocompleteIndex();
+            batchQueryService.executeWithNoTimeout(articleRepository::refreshTermAutocompleteIndex);
 
             log.info("Term 자동완성 인덱스 갱신 완료 ({}ms)", System.currentTimeMillis() - termStartTime);
 
@@ -444,14 +446,14 @@ public class CrawlingService {
             log.info("BM25 검색 인덱스 갱신 시작 (Materialized View REFRESH)");
             long startTime = System.currentTimeMillis();
 
-            articleRepository.refreshArticleSearchIndex();
+            batchQueryService.executeWithNoTimeout(articleRepository::refreshArticleSearchIndex);
 
             log.info("BM25 검색 인덱스 갱신 완료 ({}ms)", System.currentTimeMillis() - startTime);
 
             log.info("Term 자동완성 인덱스 갱신 시작");
             long termStartTime = System.currentTimeMillis();
 
-            articleRepository.refreshTermAutocompleteIndex();
+            batchQueryService.executeWithNoTimeout(articleRepository::refreshTermAutocompleteIndex);
 
             log.info("Term 자동완성 인덱스 갱신 완료 ({}ms)", System.currentTimeMillis() - termStartTime);
 

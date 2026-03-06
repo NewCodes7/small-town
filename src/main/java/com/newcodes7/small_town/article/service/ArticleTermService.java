@@ -533,6 +533,9 @@ public class ArticleTermService {
         log.info("모든 Term 통계 갱신 시작...");
         long startTime = System.currentTimeMillis();
 
+        // 전체 통계 갱신은 대량 UPDATE로 오래 걸릴 수 있으므로 현재 트랜잭션에서 타임아웃 비활성화
+        entityManager.createNativeQuery("SET LOCAL statement_timeout = 0").executeUpdate();
+
         // 1. ArticleTerm이 있는 Term들의 통계 업데이트
         int updatedCount = termRepository.updateAllTermStatistics();
         log.info("ArticleTerm이 있는 Term 통계 업데이트 완료: {} 개", updatedCount);
