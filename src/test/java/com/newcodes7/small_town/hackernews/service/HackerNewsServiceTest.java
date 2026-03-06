@@ -178,6 +178,128 @@ class HackerNewsServiceTest {
         assertThat(captor.getValue().getTranslatedTitle()).isNull();
     }
 
+    // ===== crawlTopStoriesWithComments 테스트 =====
+
+    @Test
+    @DisplayName("crawlTopStoriesWithComments: 스토리 저장 후 댓글도 함께 크롤링")
+    void crawlTopStoriesWithComments_스토리와_댓글_함께_크롤링() {
+        // given
+        when(apiClient.getTopStoryIds()).thenReturn(List.of(100L));
+        when(itemRepository.findExistingHnIds(anyList())).thenReturn(Collections.emptyList());
+
+        Map<String, Object> storyData = createStoryData(100L, "Test Story", "https://example.com", "testuser", 150, 30, 1700000000L);
+        storyData.put("kids", List.of(201, 202));
+        when(apiClient.getItem(100L)).thenReturn(storyData);
+
+        when(deeplService.containsKorean(anyString())).thenReturn(false);
+        when(deeplService.translateTitle(anyString())).thenReturn("번역된 텍스트");
+
+        HackerNewsItem savedItem = HackerNewsItem.builder()
+            .hnId(100L)
+            .title("Test Story")
+            .translatedTitle("번역된 텍스트")
+            .build();
+        savedItem.setId(1L);
+
+        when(itemRepository.save(any(HackerNewsItem.class))).thenReturn(savedItem);
+        when(commentRepository.findExistingHnIds(anyList())).thenReturn(Collections.emptyList());
+
+        Map<String, Object> commentData1 = createCommentData(201L, 100L, "user1", "Great post!", 1700001000L);
+        when(apiClient.getItem(201L)).thenReturn(commentData1);
+
+        Map<String, Object> commentData2 = createCommentData(202L, 100L, "user2", "I agree!", 1700002000L);
+        when(apiClient.getItem(202L)).thenReturn(commentData2);
+
+        when(commentRepository.save(any(HackerNewsComment.class))).thenAnswer(invocation -> {
+            HackerNewsComment comment = invocation.getArgument(0);
+            comment.setId(1L);
+            return comment;
+        });
+
+        // when
+        int result = hackerNewsService.crawlTopStoriesWithComments();
+
+        // then
+        assertThat(result).isEqualTo(1); // 1개 스토리 저장
+        verify(itemRepository, times(1)).save(any(HackerNewsItem.class));
+        verify(commentRepository, times(2)).save(any(HackerNewsComment.class)); // 댓글 2개
+    }
+
+    @Test
+    @DisplayName("crawlTopStoriesWithComments: 빈 top stories 시 0 반환")
+    void crawlTopStoriesWithComments_빈_결과() {
+        // given
+        when(apiClient.getTopStoryIds()).thenReturn(Collections.emptyList());
+
+        // when
+        int result = hackerNewsService.crawlTopStoriesWithComments();
+
+        // then
+        assertThat(result).isEqualTo(0);
+        verify(itemRepository, never()).save(any());
+        verify(commentRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("crawlTopStoriesWithComments: 기존 아이템은 업데이트만, 댓글 크롤링 안 함")
+    void crawlTopStoriesWithComments_기존_아이템_댓글_스킵() {
+        // given
+        when(apiClient.getTopStoryIds()).thenReturn(List.of(100L));
+        when(itemRepository.findExistingHnIds(anyList())).thenReturn(List.of(100L));
+
+        HackerNewsItem existingItem = HackerNewsItem.builder()
+            .hnId(100L)
+            .title("Old Title")
+            .score(50)
+            .commentCount(10)
+            .build();
+        existingItem.setId(1L);
+
+        Map<String, Object> updatedData = createStoryData(100L, "Old Title", "https://example.com", "testuser", 200, 50, 1700000000L);
+        when(apiClient.getItem(100L)).thenReturn(updatedData);
+        when(itemRepository.findByHnId(100L)).thenReturn(Optional.of(existingItem));
+        when(itemRepository.save(any(HackerNewsItem.class))).thenReturn(existingItem);
+
+        // when
+        int result = hackerNewsService.crawlTopStoriesWithComments();
+
+        // then
+        assertThat(result).isEqualTo(0); // 신규 저장 0건
+        verify(commentRepository, never()).save(any()); // 댓글 크롤링 안 함
+    }
+
+    @Test
+    @DisplayName("crawlTopStoriesWithComments: 댓글 크롤링 실패해도 스토리 저장은 성공")
+    void crawlTopStoriesWithComments_댓글_실패_스토리_성공() {
+        // given
+        when(apiClient.getTopStoryIds()).thenReturn(List.of(100L));
+        when(itemRepository.findExistingHnIds(anyList())).thenReturn(Collections.emptyList());
+
+        Map<String, Object> storyData = createStoryData(100L, "Test Story", "https://example.com", "testuser", 150, 30, 1700000000L);
+        storyData.put("kids", List.of(201));
+        when(apiClient.getItem(100L)).thenReturn(storyData);
+
+        when(deeplService.containsKorean(anyString())).thenReturn(false);
+        when(deeplService.translateTitle(anyString())).thenReturn("번역된 제목");
+
+        HackerNewsItem savedItem = HackerNewsItem.builder()
+            .hnId(100L)
+            .title("Test Story")
+            .build();
+        savedItem.setId(1L);
+        when(itemRepository.save(any(HackerNewsItem.class))).thenReturn(savedItem);
+
+        // 댓글 조회 시 예외
+        when(commentRepository.findExistingHnIds(anyList())).thenThrow(new RuntimeException("DB 오류"));
+
+        // when
+        int result = hackerNewsService.crawlTopStoriesWithComments();
+
+        // then
+        assertThat(result).isEqualTo(1); // 스토리 저장 성공
+        verify(itemRepository, times(1)).save(any(HackerNewsItem.class));
+    }
+
     // ===== 댓글 크롤링 테스트 =====
 
     @Test
