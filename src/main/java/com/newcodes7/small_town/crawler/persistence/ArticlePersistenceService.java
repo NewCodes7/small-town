@@ -2,7 +2,7 @@ package com.newcodes7.small_town.crawler.persistence;
 
 import com.newcodes7.small_town.crawler.crawler.BlogCrawler;
 import com.newcodes7.small_town.crawler.integration.openai.OpenaiService;
-import com.newcodes7.small_town.crawler.integration.deepl.DeeplService;
+import com.newcodes7.small_town.crawler.integration.translation.TranslationService;
 import com.newcodes7.small_town.crawler.service.CrawlingRunService;
 import com.newcodes7.small_town.crawler.entity.CrawlingStepStatus;
 import com.newcodes7.small_town.crawler.entity.CrawlingStepType;
@@ -38,7 +38,7 @@ public class ArticlePersistenceService {
     private final CrawlerArticleRepository crawlerArticleRepository;
     private final CategoryRepository categoryRepository;
     private final OpenaiService openaiService;
-    private final DeeplService deeplService;
+    private final TranslationService translationService;
     private final CrawlingRunService crawlingRunService;
 
     /**
@@ -280,13 +280,13 @@ public class ArticlePersistenceService {
                 String title = article.getTitle();
 
                 // 제목에 한국어가 포함되어 있지 않으면 번역
-                if (title != null && !deeplService.containsKorean(title)) {
+                if (title != null && !translationService.containsKorean(title)) {
                     log.debug("영어 제목 번역 시도 (DeepL) - 기업: {}, 제목: {}", corporation.getName(), title);
 
-                    String translatedTitle = deeplService.translateTitle(title);
+                    String translatedTitle = translationService.translateTitle(title);
 
                     if (translatedTitle != null && !translatedTitle.trim().isEmpty()
-                            && deeplService.containsKorean(translatedTitle)) {
+                            && translationService.containsKorean(translatedTitle)) {
                         article.setTranslatedTitle(translatedTitle);
                         crawlerArticleRepository.save(article);
 

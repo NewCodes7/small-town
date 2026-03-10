@@ -355,7 +355,7 @@
                         </div>
                         <div class="hn-comment-label original">ENGLISH (원문)</div>
                         <div class="hn-comment-original" th:text="${comment.textContent}">English comment text</div>
-                        <div th:if="${comment.translatedText != null}">
+                        <div th:if="${comment.translatedText != null and !#strings.isEmpty(comment.translatedText.trim())}">
                             <div class="hn-comment-label translated">한국어 (번역)</div>
                             <div class="hn-comment-translated" th:text="${comment.translatedText}">번역된 댓글 텍스트</div>
                         </div>

@@ -7,7 +7,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.crawler.integration.deepl.DeeplService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Video;
 import com.newcodes7.small_town.video.repository.VideoRepository;
@@ -22,7 +21,7 @@ public class TitleTranslationService {
 
     private final ArticleRepository articleRepository;
     private final VideoRepository videoRepository;
-    private final DeeplService deeplService;
+    private final TranslationService translationService;
     private final VideoPersistenceService videoPersistenceService;
 
     /**
@@ -46,7 +45,7 @@ public class TitleTranslationService {
                 // 이미 번역된 제목이 있으면 스킵
                 if (article.getTranslatedTitle() != null
                     && !article.getTranslatedTitle().isEmpty()
-                    && deeplService.containsKorean(article.getTranslatedTitle())
+                    && translationService.containsKorean(article.getTranslatedTitle())
                 ) {
                     log.debug("이미 번역된 제목 존재, 스킵: {}", article.getTitle());
                     skippedCount++;
@@ -54,16 +53,16 @@ public class TitleTranslationService {
                 }
 
                 // 원본 제목에 한국어가 포함되어 있으면 스킵
-                if (deeplService.containsKorean(article.getTitle())) {
+                if (translationService.containsKorean(article.getTitle())) {
                     log.debug("원본 제목에 한국어 포함, 스킵: {}", article.getTitle());
                     skippedCount++;
                     continue;
                 }
 
                 // DeepL로 제목 번역
-                String translatedTitle = deeplService.translateTitle(article.getTitle());
+                String translatedTitle = translationService.translateTitle(article.getTitle());
 
-                if (!deeplService.containsKorean(translatedTitle)) {
+                if (!translationService.containsKorean(translatedTitle)) {
                     log.warn("번역된 제목에 한국어가 포함되어 있지 않음, 스킵: {} -> {}", article.getTitle(), translatedTitle);
                     skippedCount++;
                     continue;
@@ -114,11 +113,11 @@ public class TitleTranslationService {
                     continue;
                 }
 
-                if (deeplService.containsKorean(article.getTitle())) {
+                if (translationService.containsKorean(article.getTitle())) {
                     continue;
                 }
 
-                String translatedTitle = deeplService.translateTitle(article.getTitle());
+                String translatedTitle = translationService.translateTitle(article.getTitle());
 
                 article.setTranslatedTitle(translatedTitle);
                 articleRepository.save(article);
@@ -181,7 +180,7 @@ public class TitleTranslationService {
                 // 이미 번역된 제목이 있으면 스킵
                 if (video.getTranslatedTitle() != null
                     && !video.getTranslatedTitle().isEmpty()
-                    && deeplService.containsKorean(video.getTranslatedTitle())
+                    && translationService.containsKorean(video.getTranslatedTitle())
                 ) {
                     log.debug("이미 번역된 제목 존재, 스킵: {}", video.getTitle());
                     skippedCount++;
@@ -189,16 +188,16 @@ public class TitleTranslationService {
                 }
 
                 // 원본 제목에 한국어가 포함되어 있으면 스킵
-                if (deeplService.containsKorean(video.getTitle())) {
+                if (translationService.containsKorean(video.getTitle())) {
                     log.debug("원본 제목에 한국어 포함, 스킵: {}", video.getTitle());
                     skippedCount++;
                     continue;
                 }
 
                 // DeepL로 제목 번역
-                String translatedTitle = deeplService.translateTitle(video.getTitle());
+                String translatedTitle = translationService.translateTitle(video.getTitle());
 
-                if (!deeplService.containsKorean(translatedTitle)) {
+                if (!translationService.containsKorean(translatedTitle)) {
                     log.warn("번역된 제목에 한국어가 포함되어 있지 않음, 스킵: {} -> {}", video.getTitle(), translatedTitle);
                     skippedCount++;
                     continue;
@@ -248,11 +247,11 @@ public class TitleTranslationService {
                     continue;
                 }
 
-                if (deeplService.containsKorean(video.getTitle())) {
+                if (translationService.containsKorean(video.getTitle())) {
                     continue;
                 }
 
-                String translatedTitle = deeplService.translateTitle(video.getTitle());
+                String translatedTitle = translationService.translateTitle(video.getTitle());
 
                 // 번역된 제목 저장 (캐시 evict 포함)
                 videoPersistenceService.updateVideoTranslatedTitle(video.getId(), translatedTitle);

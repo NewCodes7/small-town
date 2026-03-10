@@ -14,7 +14,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.newcodes7.small_town.crawler.integration.deepl.DeeplService;
+import com.newcodes7.small_town.crawler.integration.translation.TranslationService;
 import com.newcodes7.small_town.hackernews.dto.HackerNewsCommentResponseDto;
 import com.newcodes7.small_town.hackernews.dto.HackerNewsItemResponseDto;
 import com.newcodes7.small_town.hackernews.entity.HackerNewsComment;
@@ -34,7 +34,7 @@ public class HackerNewsService {
     private final HackerNewsApiClient apiClient;
     private final HackerNewsItemRepository itemRepository;
     private final HackerNewsCommentRepository commentRepository;
-    private final DeeplService deeplService;
+    private final TranslationService translationService;
 
     @Value("${hackernews.crawl.top-stories-limit:30}")
     private int topStoriesLimit;
@@ -261,9 +261,9 @@ public class HackerNewsService {
 
             // 제목 번역
             String translatedTitle = null;
-            if (title != null && !deeplService.containsKorean(title)) {
+            if (title != null && !translationService.containsKorean(title)) {
                 try {
-                    translatedTitle = deeplService.translateTitle(title);
+                    translatedTitle = translationService.translateTitle(title);
                 } catch (Exception e) {
                     log.warn("제목 번역 실패: {} - {}", title, e.getMessage());
                 }
@@ -339,16 +339,6 @@ public class HackerNewsService {
                 // Jsoup을 사용한 HTML 태그 제거 및 엔티티 디코딩
                 String cleanText = Jsoup.parse(text).text().trim();
 
-                // 댓글 번역
-                String translatedText = null;
-                if (!deeplService.containsKorean(cleanText)) {
-                    try {
-                        translatedText = deeplService.translateTitle(cleanText);
-                    } catch (Exception e) {
-                        log.warn("댓글 번역 실패: {}", e.getMessage());
-                    }
-                }
-
                 Number timeNum = (Number) commentData.get("time");
                 LocalDateTime hnCreatedAt = timeNum != null ?
                     LocalDateTime.ofInstant(Instant.ofEpochSecond(timeNum.longValue()), ZoneId.of("Asia/Seoul")) :
@@ -362,7 +352,7 @@ public class HackerNewsService {
                     .parentHnId(parentNum != null ? parentNum.longValue() : null)
                     .author((String) commentData.get("by"))
                     .textContent(cleanText)
-                    .translatedText(translatedText)
+                    .translatedText(null)
                     .hnCreatedAt(hnCreatedAt)
                     .depth(depth)
                     .build();

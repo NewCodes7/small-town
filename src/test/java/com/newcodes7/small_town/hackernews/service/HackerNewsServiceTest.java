@@ -21,7 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import com.newcodes7.small_town.crawler.integration.deepl.DeeplService;
+import com.newcodes7.small_town.crawler.integration.translation.TranslationService;
 import com.newcodes7.small_town.hackernews.dto.HackerNewsCommentResponseDto;
 import com.newcodes7.small_town.hackernews.dto.HackerNewsItemResponseDto;
 import com.newcodes7.small_town.hackernews.entity.HackerNewsComment;
@@ -43,13 +43,13 @@ class HackerNewsServiceTest {
     private HackerNewsCommentRepository commentRepository;
 
     @Mock
-    private DeeplService deeplService;
+    private TranslationService translationService;
 
     private HackerNewsService hackerNewsService;
 
     @BeforeEach
     void setUp() {
-        hackerNewsService = new HackerNewsService(apiClient, itemRepository, commentRepository, deeplService);
+        hackerNewsService = new HackerNewsService(apiClient, itemRepository, commentRepository, translationService);
         ReflectionTestUtils.setField(hackerNewsService, "topStoriesLimit", 30);
         ReflectionTestUtils.setField(hackerNewsService, "maxCommentsPerItem", 20);
     }
@@ -69,8 +69,8 @@ class HackerNewsServiceTest {
         Map<String, Object> storyData2 = createStoryData(200L, "Another Story", "https://example2.com", "user2", 80, 10, 1700001000L);
         when(apiClient.getItem(200L)).thenReturn(storyData2);
 
-        when(deeplService.containsKorean(anyString())).thenReturn(false);
-        when(deeplService.translateTitle(anyString())).thenReturn("번역된 제목");
+        when(translationService.containsKorean(anyString())).thenReturn(false);
+        when(translationService.translateTitle(anyString())).thenReturn("번역된 제목");
         when(itemRepository.save(any(HackerNewsItem.class))).thenAnswer(invocation -> {
             HackerNewsItem item = invocation.getArgument(0);
             item.setId(1L);
@@ -83,7 +83,7 @@ class HackerNewsServiceTest {
         // then
         assertThat(result).isEqualTo(2);
         verify(itemRepository, times(2)).save(any(HackerNewsItem.class));
-        verify(deeplService, times(2)).translateTitle(anyString());
+        verify(translationService, times(2)).translateTitle(anyString());
     }
 
     @Test
@@ -159,7 +159,7 @@ class HackerNewsServiceTest {
 
         Map<String, Object> storyData = createStoryData(100L, "한국어 제목", "https://example.com", "testuser", 100, 20, 1700000000L);
         when(apiClient.getItem(100L)).thenReturn(storyData);
-        when(deeplService.containsKorean("한국어 제목")).thenReturn(true);
+        when(translationService.containsKorean("한국어 제목")).thenReturn(true);
         when(itemRepository.save(any(HackerNewsItem.class))).thenAnswer(invocation -> {
             HackerNewsItem item = invocation.getArgument(0);
             item.setId(1L);
@@ -171,7 +171,7 @@ class HackerNewsServiceTest {
 
         // then
         assertThat(result).isEqualTo(1);
-        verify(deeplService, never()).translateTitle(anyString());
+        verify(translationService, never()).translateTitle(anyString());
 
         ArgumentCaptor<HackerNewsItem> captor = ArgumentCaptor.forClass(HackerNewsItem.class);
         verify(itemRepository).save(captor.capture());
@@ -191,8 +191,8 @@ class HackerNewsServiceTest {
         storyData.put("kids", List.of(201, 202));
         when(apiClient.getItem(100L)).thenReturn(storyData);
 
-        when(deeplService.containsKorean(anyString())).thenReturn(false);
-        when(deeplService.translateTitle(anyString())).thenReturn("번역된 텍스트");
+        when(translationService.containsKorean(anyString())).thenReturn(false);
+        when(translationService.translateTitle(anyString())).thenReturn("번역된 텍스트");
 
         HackerNewsItem savedItem = HackerNewsItem.builder()
             .hnId(100L)
@@ -279,8 +279,8 @@ class HackerNewsServiceTest {
         storyData.put("kids", List.of(201));
         when(apiClient.getItem(100L)).thenReturn(storyData);
 
-        when(deeplService.containsKorean(anyString())).thenReturn(false);
-        when(deeplService.translateTitle(anyString())).thenReturn("번역된 제목");
+        when(translationService.containsKorean(anyString())).thenReturn(false);
+        when(translationService.translateTitle(anyString())).thenReturn("번역된 제목");
 
         HackerNewsItem savedItem = HackerNewsItem.builder()
             .hnId(100L)
@@ -303,7 +303,7 @@ class HackerNewsServiceTest {
     // ===== 댓글 크롤링 테스트 =====
 
     @Test
-    @DisplayName("crawlComments: 댓글 크롤링 및 번역 성공")
+    @DisplayName("crawlComments: 댓글 크롤링 성공, 댓글 번역은 수행하지 않음")
     void crawlComments_성공() {
         // given
         HackerNewsItem item = HackerNewsItem.builder()
@@ -326,8 +326,6 @@ class HackerNewsServiceTest {
         Map<String, Object> commentData2 = createCommentData(202L, 100L, "commentUser2", "I agree!", 1700002000L);
         when(apiClient.getItem(202L)).thenReturn(commentData2);
 
-        when(deeplService.containsKorean(anyString())).thenReturn(false);
-        when(deeplService.translateTitle(anyString())).thenReturn("번역된 댓글");
         when(commentRepository.save(any(HackerNewsComment.class))).thenAnswer(invocation -> {
             HackerNewsComment comment = invocation.getArgument(0);
             comment.setId(1L);
@@ -340,6 +338,12 @@ class HackerNewsServiceTest {
         // then
         assertThat(result).isEqualTo(2);
         verify(commentRepository, times(2)).save(any(HackerNewsComment.class));
+        verify(translationService, never()).translateTitle(anyString());
+
+        ArgumentCaptor<HackerNewsComment> captor = ArgumentCaptor.forClass(HackerNewsComment.class);
+        verify(commentRepository, times(2)).save(captor.capture());
+        assertThat(captor.getAllValues())
+            .allSatisfy(comment -> assertThat(comment.getTranslatedText()).isNull());
     }
 
     @Test

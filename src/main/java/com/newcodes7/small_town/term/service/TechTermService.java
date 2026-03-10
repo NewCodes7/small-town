@@ -3,7 +3,7 @@ package com.newcodes7.small_town.term.service;
 import com.newcodes7.small_town.term.dto.StackExchangeTagDto;
 import com.newcodes7.small_town.article.repository.TermRepository;
 import com.newcodes7.small_town.article.repository.UserDictionaryRepository;
-import com.newcodes7.small_town.crawler.integration.deepl.DeeplService;
+import com.newcodes7.small_town.crawler.integration.translation.TranslationService;
 import com.newcodes7.small_town.article.service.TermSynonymService;
 import com.newcodes7.small_town.global.entity.Term;
 import com.newcodes7.small_town.global.entity.UserDictionary;
@@ -29,7 +29,7 @@ import java.util.Map;
 public class TechTermService {
 
     private final StackExchangeApiService stackExchangeApiService;
-    private final DeeplService deeplService;
+    private final TranslationService translationService;
     private final UserDictionaryRepository userDictionaryRepository;
     private final TermRepository termRepository;
     private final TermSynonymService termSynonymService;
@@ -107,7 +107,7 @@ public class TechTermService {
 
                     // 3. 기존 synonym이 없으면 DeepL로 번역
                     if (koreanTerm == null) {
-                        koreanTerm = deeplService.translateTitle(englishTerm);
+                        koreanTerm = translationService.translateTitle(englishTerm);
 
                         if (koreanTerm != null && !koreanTerm.equals(englishTerm)) {
                             log.info("Translated via DeepL: {} → {}", englishTerm, koreanTerm);

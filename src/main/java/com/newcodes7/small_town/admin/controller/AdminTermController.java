@@ -23,7 +23,7 @@ import com.newcodes7.small_town.article.repository.ArticleTermRepository;
 import com.newcodes7.small_town.article.repository.TermRepository;
 import com.newcodes7.small_town.article.repository.UserDictionaryRepository;
 import com.newcodes7.small_town.article.service.ArticleTermService;
-import com.newcodes7.small_town.crawler.integration.deepl.DeeplService;
+import com.newcodes7.small_town.crawler.integration.translation.TranslationService;
 import com.newcodes7.small_town.article.service.TermSynonymService;
 import com.newcodes7.small_town.term.service.TechTermService;
 import com.newcodes7.small_town.term.service.StackExchangeApiService;
@@ -52,7 +52,7 @@ public class AdminTermController {
     private final UserDictionaryRepository userDictionaryRepository;
     private final TermSynonymService termSynonymService;
     private final TermRepository termRepository;
-    private final DeeplService deeplService;
+    private final TranslationService translationService;
     private final TechTermService techTermService;
     private final StackExchangeApiService stackExchangeApiService;
 
@@ -1247,7 +1247,7 @@ public class AdminTermController {
 
             log.info("DeepL 유의어 추천 요청: {}", term);
 
-            List<String> recommendations = deeplService.recommendSynonyms(term.trim());
+            List<String> recommendations = translationService.recommendSynonyms(term.trim());
 
             response.put("success", true);
             response.put("term", term);
@@ -1301,7 +1301,7 @@ public class AdminTermController {
             log.info("유의어가 없는 term {} 개 발견 (이전 거부 term 제외)", termsWithoutSynonyms.size());
 
             // 3. DeepL로 일괄 추천
-            Map<String, List<String>> recommendations = deeplService.batchRecommendSynonyms(termsWithoutSynonyms);
+            Map<String, List<String>> recommendations = translationService.batchRecommendSynonyms(termsWithoutSynonyms);
 
             // 4. 추천받은 term들을 hasTranslation=false로 설정 (기본값: 선택되지 않음)
             for (Long termId : selectedTermIds) {

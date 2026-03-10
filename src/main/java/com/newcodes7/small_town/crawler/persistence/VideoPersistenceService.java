@@ -1,7 +1,7 @@
 package com.newcodes7.small_town.crawler.persistence;
 
 import com.newcodes7.small_town.crawler.crawler.VideoCrawler;
-import com.newcodes7.small_town.crawler.integration.deepl.DeeplService;
+import com.newcodes7.small_town.crawler.integration.translation.TranslationService;
 import com.newcodes7.small_town.crawler.integration.openai.OpenaiService;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -35,7 +35,7 @@ public class VideoPersistenceService {
     private final CrawlerVideoRepository crawlerVideoRepository;
     private final CategoryRepository categoryRepository;
     private final OpenaiService openaiService;
-    private final DeeplService deeplService;
+    private final TranslationService translationService;
 
     /**
      * Video 저장 (이미지 업로드, 제목 번역, AI 분석 포함)
@@ -296,7 +296,7 @@ public class VideoPersistenceService {
                 String title = video.getTitle();
 
                 // 원본 제목에 한국어가 포함되어 있으면 번역 스킵
-                if (title == null || deeplService.containsKorean(title)) {
+                if (title == null || translationService.containsKorean(title)) {
                     log.debug("원본 제목에 한국어 포함, 번역 스킵: {}", title);
                     return;
                 }
@@ -304,11 +304,11 @@ public class VideoPersistenceService {
                 log.debug("영어 비디오 제목 번역 시도 (DeepL) - 기업: {}, 제목: {}", corporation.getName(), title);
 
                 // DeepL로 제목 번역
-                String translatedTitle = deeplService.translateTitle(title);
+                String translatedTitle = translationService.translateTitle(title);
 
                 // 번역 결과에 한국어가 포함되어 있는지 확인
                 if (translatedTitle != null && !translatedTitle.trim().isEmpty()
-                        && deeplService.containsKorean(translatedTitle)) {
+                        && translationService.containsKorean(translatedTitle)) {
                     video.setTranslatedTitle(translatedTitle);
                     crawlerVideoRepository.save(video);
 
