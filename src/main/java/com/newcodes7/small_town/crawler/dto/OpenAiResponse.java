@@ -42,9 +42,17 @@ public class OpenAiResponse {
     }
 
     public String getOnlyResponseText() {
-        return output.get(output.size() - 1).getContent().get(0).getText()
-                .replaceAll("```json\\s*", "")
-                .replaceAll("```\\s*$", "")
-                .trim();
+        String text = output.get(output.size() - 1).getContent().get(0).getText();
+
+        int fencedJsonStart = text.indexOf("```json");
+        if (fencedJsonStart >= 0) {
+            int contentStart = fencedJsonStart + "```json".length();
+            int fencedJsonEnd = text.indexOf("```", contentStart);
+            if (fencedJsonEnd >= 0) {
+                return text.substring(contentStart, fencedJsonEnd).trim();
+            }
+        }
+
+        return text.trim();
     }
 }

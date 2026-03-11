@@ -3,6 +3,7 @@ package com.newcodes7.small_town.crawler.service;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -35,6 +36,7 @@ import com.newcodes7.small_town.embedding.service.ChunkEmbeddingBatchService;
 import com.newcodes7.small_town.embedding.service.RepresentativeChunkService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.global.service.BatchQueryService;
 
 @ExtendWith(MockitoExtension.class)
 class CrawlingServiceTest {
@@ -75,6 +77,9 @@ class CrawlingServiceTest {
     @Mock
     private RepresentativeChunkService representativeChunkService;
 
+    @Mock
+    private BatchQueryService batchQueryService;
+
     private CrawlingService crawlingService;
 
     @BeforeEach
@@ -91,7 +96,8 @@ class CrawlingServiceTest {
                 crawlingRunService,
                 articleTermService,
                 chunkEmbeddingBatchService,
-                representativeChunkService
+                representativeChunkService,
+                batchQueryService
         );
     }
 
@@ -144,6 +150,11 @@ class CrawlingServiceTest {
         when(articleTermService.extractAndSaveTermsForArticle(any())).thenReturn(1);
         when(chunkEmbeddingBatchService.generateChunkEmbeddingsForArticle(any())).thenReturn(1);
         when(representativeChunkService.selectRepresentativeChunk(anyLong())).thenReturn(1L);
+        doAnswer(invocation -> {
+            Runnable query = invocation.getArgument(0);
+            query.run();
+            return null;
+        }).when(batchQueryService).executeWithNoTimeout(any(Runnable.class));
 
         crawlingService.crawlAllBlogs();
 

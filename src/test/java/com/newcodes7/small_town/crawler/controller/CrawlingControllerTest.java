@@ -76,8 +76,8 @@ public class CrawlingControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockitoBean
-    private RestTemplate restTemplate;
+    @MockitoBean(name = "openaiRestTemplate")
+    private RestTemplate openaiRestTemplate;
 
     @MockitoBean
     private YouTubeService youtubeService;
@@ -167,7 +167,7 @@ public class CrawlingControllerTest {
                 new ResponseEntity<>(mockOpenAiResponse, HttpStatus.OK);
 
             // RestTemplate.exchange() 메서드 mock 설정
-            when(restTemplate.exchange(
+            when(openaiRestTemplate.exchange(
                 anyString(),
                 eq(HttpMethod.POST),
                 any(HttpEntity.class),
