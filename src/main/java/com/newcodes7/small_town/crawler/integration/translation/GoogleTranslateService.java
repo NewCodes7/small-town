@@ -46,7 +46,8 @@ public class GoogleTranslateService {
                 .queryParam("q", text)
                 .queryParam("target", targetLang.toLowerCase())
                 .queryParam("format", "text")
-                .build(true)
+                .build()
+                .encode()
                 .toUri();
 
             ResponseEntity<String> response = restTemplate.exchange(
