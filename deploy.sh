@@ -35,19 +35,19 @@ can_nginx_resolve_backend() {
     docker exec newcodes-nginx getent hosts "$backend_name" >/dev/null 2>&1
 }
 
-# default.conf의 backend 라인을 같은 inode로 갱신
+# default.conf의 upstream server 라인을 같은 inode로 갱신
 update_backend_line_in_place() {
-    local backend_url=$1
+    local backend_name=$1
     local nginx_config="nginx/default.conf"
     local tmp_file
 
     tmp_file=$(mktemp)
 
-    if ! awk -v target="$backend_url" '
+    if ! awk -v target="$backend_name" '
         BEGIN { updated = 0 }
         {
-            if ($0 ~ /^[[:space:]]*set[[:space:]]+\$backend[[:space:]]+"/) {
-                print "    set $backend \"" target "\";";
+            if ($0 ~ /^[[:space:]]*server[[:space:]]+newcodes-backend-(blue|green):8080[[:space:]]+resolve;/) {
+                print "    server " target ":8080 resolve;";
                 updated = 1;
             } else {
                 print $0;
@@ -60,7 +60,7 @@ update_backend_line_in_place() {
         }
     ' "$nginx_config" > "$tmp_file"; then
         rm -f "$tmp_file"
-        error "nginx/default.conf에서 'set \\$backend ...' 라인을 찾지 못해 전환을 중단합니다"
+        error "nginx/default.conf에서 'server newcodes-backend-*:8080 resolve;' 라인을 찾지 못해 전환을 중단합니다"
     fi
 
     # sudo tee로 파일 소유자와 무관하게 동일 inode 갱신 (bind mount stale 방지)
@@ -73,20 +73,20 @@ update_backend_line_in_place() {
 
 # 컨테이너 내부 설정에 원하는 backend가 반영되었는지 확인
 is_runtime_backend_applied() {
-    local backend_url=$1
-    docker exec newcodes-nginx sh -c "grep -Fq 'set \$backend \"$backend_url\";' /etc/nginx/conf.d/default.conf"
+    local backend_name=$1
+    docker exec newcodes-nginx sh -c "grep -Fq 'server ${backend_name}:8080 resolve;' /etc/nginx/conf.d/default.conf"
 }
 
 # nginx 컨테이너 재시작 후 설정 확인
 restart_nginx_and_verify() {
-    local backend_url=$1
+    local backend_name=$1
 
     warn "Nginx 컨테이너 설정 불일치 감지: 컨테이너 재시작으로 bind mount 재동기화를 시도합니다"
     docker restart newcodes-nginx >/dev/null
     docker exec newcodes-nginx nginx -t
 
-    if ! is_runtime_backend_applied "$backend_url"; then
-        error "Nginx 재시작 후에도 backend 설정이 반영되지 않았습니다: $backend_url"
+    if ! is_runtime_backend_applied "$backend_name"; then
+        error "Nginx 재시작 후에도 backend 설정이 반영되지 않았습니다: $backend_name"
     fi
 }
 
@@ -136,16 +136,13 @@ health_check() {
 update_nginx_upstream() {
     local active_server=$1
     local backend_name
-    local backend_url
 
     log "nginx 업스트림 설정 업데이트: $active_server로 전환"
 
     if [ "$active_server" = "blue" ]; then
         backend_name="newcodes-backend-blue"
-        backend_url="http://newcodes-backend-blue:8080"
     else
         backend_name="newcodes-backend-green"
-        backend_url="http://newcodes-backend-green:8080"
     fi
 
     # 존재하지 않는 백엔드로 전환되는 실수를 사전 차단
@@ -153,10 +150,10 @@ update_nginx_upstream() {
         error "전환 대상 컨테이너가 실행 중이 아닙니다: $backend_name"
     fi
 
-    update_backend_line_in_place "$backend_url"
+    update_backend_line_in_place "$backend_name"
 
-    if ! grep -Fq "set \$backend \"$backend_url\";" nginx/default.conf; then
-        error "호스트 nginx/default.conf 반영 검증 실패: $backend_url"
+    if ! grep -Fq "server ${backend_name}:8080 resolve;" nginx/default.conf; then
+        error "호스트 nginx/default.conf 반영 검증 실패: $backend_name"
     fi
 
     if ! can_nginx_resolve_backend "$backend_name"; then
@@ -168,8 +165,8 @@ update_nginx_upstream() {
     docker exec newcodes-nginx nginx -s reload
 
     # stale bind mount 등으로 컨테이너 내부 파일이 다른 경우 자동 복구 시도
-    if ! is_runtime_backend_applied "$backend_url"; then
-        restart_nginx_and_verify "$backend_url"
+    if ! is_runtime_backend_applied "$backend_name"; then
+        restart_nginx_and_verify "$backend_name"
     fi
 
     log "nginx 리로드 완료"
