@@ -10,6 +10,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.openqa.selenium.WebDriver;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
@@ -27,8 +28,10 @@ import net.dankito.readability4j.Readability4J;
 @Slf4j
 public class ContentExtractor {
 
-    private static final int PAGE_LOAD_WAIT_MS = 3000;
     private static final double RELATED_CONTENT_THRESHOLD = 0.5; // 50% 지점
+
+    @Value("${content-extractor.page-load-wait-ms:3000}")
+    private int pageLoadWaitMs = 3000;
 
     private final RelatedContentKeywordService relatedContentKeywordService;
 
@@ -47,7 +50,7 @@ public class ContentExtractor {
             driver.get(articleUrl);
 
             // 2. 페이지 로딩 대기
-            Thread.sleep(PAGE_LOAD_WAIT_MS);
+            Thread.sleep(pageLoadWaitMs);
 
             // 3. HTML 소스 가져오기
             String htmlSource = driver.getPageSource();

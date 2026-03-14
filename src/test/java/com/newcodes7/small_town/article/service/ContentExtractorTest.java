@@ -5,6 +5,7 @@ import static org.mockito.Mockito.*;
 
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,6 +13,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.openqa.selenium.WebDriver;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /**
  * ContentExtractor 단위 테스트
@@ -28,6 +30,12 @@ public class ContentExtractorTest {
 
     @Mock
     private WebDriver driver;
+
+    @BeforeEach
+    void setUp() {
+        // 테스트에서 Thread.sleep 대기를 제거하여 빠른 실행
+        ReflectionTestUtils.setField(contentExtractor, "pageLoadWaitMs", 0);
+    }
 
     // --- extractCleanContent ---
 
