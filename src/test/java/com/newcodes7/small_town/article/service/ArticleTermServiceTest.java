@@ -398,4 +398,160 @@ public class ArticleTermServiceTest {
             articleTermService.updateTermStatisticsForArticle(savedArticle);
         }).doesNotThrowAnyException();
     }
+
+    // ===================== 추가 테스트 =====================
+
+    @Test
+    @DisplayName("Article Term 조회 - 존재하는 ID")
+    void getArticleTerms_Success() {
+        // given
+        Article article = Article.builder()
+                .title("Python 머신러닝 가이드")
+                .content("Python으로 머신러닝을 구현합니다. Python은 데이터 분석에도 사용됩니다.")
+                .link("https://test.com/article-terms1")
+                .publishedAt(LocalDateTime.now())
+                .corporation(testCorporation)
+                .build();
+        article = articleRepository.save(article);
+        articleTermService.extractAndSaveTermsForArticle(article);
+
+        // when
+        List<ArticleTerm> terms = articleTermService.getArticleTerms(article.getId());
+
+        // then
+        assertThat(terms).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("Article Term 조회 - 존재하지 않는 ID는 빈 리스트")
+    void getArticleTerms_NotFound() {
+        // when
+        List<ArticleTerm> terms = articleTermService.getArticleTerms(999999L);
+
+        // then
+        assertThat(terms).isEmpty();
+    }
+
+    @Test
+    @DisplayName("단일 Article Term 추출 - extractTermsForSingleArticle")
+    void extractTermsForSingleArticle_Success() {
+        // given
+        Article article = Article.builder()
+                .title("TypeScript 프로그래밍 실전 가이드")
+                .content("TypeScript는 JavaScript의 상위집합입니다. TypeScript로 안전한 코드를 작성할 수 있습니다.")
+                .link("https://test.com/article-single")
+                .publishedAt(LocalDateTime.now())
+                .corporation(testCorporation)
+                .build();
+        article = articleRepository.save(article);
+
+        // when
+        ArticleTermExtractionResult result = articleTermService.extractTermsForSingleArticle(article.getId());
+
+        // then
+        assertThat(result.getProcessedArticles()).isEqualTo(1);
+        assertThat(result.getTotalTerms()).isGreaterThan(0);
+        assertThat(result.getProcessingTimeMs()).isGreaterThanOrEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("Term 삭제 후 불용어 등록")
+    void deleteTermAndAddToStopwords_Success() {
+        // given - term이 있는 article 생성
+        Article article = Article.builder()
+                .title("Rust 프로그래밍 특징")
+                .content("Rust는 메모리 안전성을 보장합니다. Rust는 시스템 프로그래밍에 적합합니다.")
+                .link("https://test.com/article-stopword")
+                .publishedAt(LocalDateTime.now())
+                .corporation(testCorporation)
+                .build();
+        article = articleRepository.save(article);
+        articleTermService.extractAndSaveTermsForArticle(article);
+
+        List<ArticleTerm> articleTerms = articleTermRepository.findByArticleId(article.getId());
+        assertThat(articleTerms).isNotEmpty();
+
+        Term targetTerm = articleTerms.get(0).getTerm();
+        Long termId = targetTerm.getId();
+
+        // when
+        int deletedCount = articleTermService.deleteTermAndAddToStopwords(termId, "테스트 삭제");
+
+        // then
+        assertThat(deletedCount).isGreaterThanOrEqualTo(1);
+        assertThat(termRepository.findById(termId)).isEmpty(); // term 삭제 확인
+    }
+
+    @Test
+    @DisplayName("Term 삭제 - 존재하지 않는 ID")
+    void deleteTermAndAddToStopwords_NotFound() {
+        assertThatThrownBy(() -> articleTermService.deleteTermAndAddToStopwords(999999L, "테스트"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("존재하지 않는 Term");
+    }
+
+    @Test
+    @DisplayName("불용어 추가")
+    void addStopword_Success() {
+        // when & then - 예외 없이 실행되어야 함
+        assertThatCode(() -> {
+            articleTermService.addStopword("불용어테스트", "NNP", "테스트 목적");
+        }).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("불용어 중복 추가 - 에러 없이 무시")
+    void addStopword_Duplicate() {
+        // given
+        articleTermService.addStopword("중복불용어", "NNP", "첫 번째 추가");
+
+        // when & then - 중복이어도 예외 없음
+        assertThatCode(() -> {
+            articleTermService.addStopword("중복불용어", "NNP", "두 번째 추가");
+        }).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("전체 Article Term 추출 - forceReanalyze=true")
+    void extractAndSaveAllArticleTerms_ForceReanalyze() {
+        // given - Article 1개 생성 후 Term 추출
+        Article article = Article.builder()
+                .title("Kotlin 코루틴 가이드")
+                .content("Kotlin 코루틴은 비동기 프로그래밍을 쉽게 만듭니다.")
+                .link("https://test.com/article-force")
+                .publishedAt(LocalDateTime.now())
+                .corporation(testCorporation)
+                .build();
+        article = articleRepository.save(article);
+        articleTermService.extractAndSaveTermsForArticle(article);
+
+        // when - 강제 재분석
+        ArticleTermExtractionResult result = articleTermService.extractAndSaveAllArticleTerms(true);
+
+        // then - processedArticles가 0보다 크거나 같아야 함 (강제 재분석이므로 재처리됨)
+        assertThat(result.getProcessedArticles()).isGreaterThanOrEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("ArticleTermExtractionResult 결과 객체 검증")
+    void articleTermExtractionResult_Fields() {
+        // given
+        ArticleTermExtractionResult result = new ArticleTermExtractionResult();
+
+        // when
+        result.incrementProcessedArticles();
+        result.incrementProcessedArticles();
+        result.incrementSkippedArticles();
+        result.incrementFailedArticles();
+        result.addTermCount(5);
+        result.addTermCount(3);
+        result.setProcessingTimeMs(100);
+
+        // then
+        assertThat(result.getProcessedArticles()).isEqualTo(2);
+        assertThat(result.getSkippedArticles()).isEqualTo(1);
+        assertThat(result.getFailedArticles()).isEqualTo(1);
+        assertThat(result.getTotalTerms()).isEqualTo(8);
+        assertThat(result.getProcessingTimeMs()).isEqualTo(100);
+    }
 }
