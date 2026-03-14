@@ -163,8 +163,8 @@ class RobotsTxtRuleTest {
         assertThat(rule.isPathAllowed("/api")).isFalse();
         assertThat(rule.isPathAllowed("/api/v1")).isFalse();
         assertThat(rule.isPathAllowed("/api/v2/users")).isFalse();
-        assertThat(rule.isPathAllowed("/apiary")).isFalse(); // 접두사 매칭이므로 /api로 시작하는 경로는 차단
+        assertThat(rule.isPathAllowed("/apiary")).isFalse(); // 구현이 startsWith 접두사 매칭이므로 "/apiary".startsWith("/api") == true → 차단
         assertThat(rule.isPathAllowed("/other")).isTrue();
-        assertThat(rule.isPathAllowed("/application")).isTrue(); // /app ≠ /api 이므로 허용
+        assertThat(rule.isPathAllowed("/application")).isTrue(); // "/application".startsWith("/api") == false → 허용
     }
 }
