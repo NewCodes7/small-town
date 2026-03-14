@@ -252,8 +252,8 @@ src/test/java/com/newcodes7/small_town/
 
 ## 📚 작성된 문서
 
-1. **TESTING_GUIDE.md** - 테스트 작성 및 실행 가이드
-2. **TEST_COMPLETION_REPORT.md** - 본 문서 (상세 완료 보고서)
+1. **docs/testing/TESTING_GUIDE.md** - 테스트 작성 및 실행 가이드
+2. **docs/testing/TEST_COMPLETION_REPORT.md** - 본 문서 (상세 완료 보고서)
 3. **CLAUDE.md** - 프로젝트 아키텍처 문서
 
 ---

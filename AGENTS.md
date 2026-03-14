@@ -22,7 +22,7 @@
   - Boolean fields: `is/has/can` prefix
 
 ## Testing Guidelines
-- Tests are primarily integration tests using PostgreSQL (see `TESTING_GUIDE.md`).
+- Tests are primarily integration tests using PostgreSQL (see `docs/testing/TESTING_GUIDE.md`).
 - Test classes live in `src/test/java` and use `@SpringBootTest` with `application-test.properties`.
 - Naming: `*ServiceTest`, `*RepositoryTest`, and method names like `signup_Success`.
 - Run targeted tests with `./gradlew test --tests "*AuthServiceTest.signup_Success"`.
