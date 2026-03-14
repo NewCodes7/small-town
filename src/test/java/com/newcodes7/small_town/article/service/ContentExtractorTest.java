@@ -217,4 +217,94 @@ public class ContentExtractorTest {
         // then
         assertThat(result).contains("\n\n");
     }
+
+    // === 추가 edge case ===
+
+    @Test
+    @DisplayName("본문 추출 - 잘못된 HTML 구조여도 빈 문자열 반환 (예외 없음)")
+    void extractCleanContent_MalformedHtml_returnsEmpty() {
+        // given: 유효하지 않은 HTML (p 태그 미닫힘, body 없음 등)
+        String url = "https://test.com/malformed";
+        String html = "<html><head><title>Broken</head><div><p>unclosed para<p>another";
+        when(driver.getPageSource()).thenReturn(html);
+        when(relatedContentKeywordService.getAllKeywordStrings()).thenReturn(List.of());
+
+        // when
+        String result = contentExtractor.extractCleanContent(url, driver);
+
+        // then: Jsoup이 자동으로 보정하므로 예외 없이 결과 반환
+        assertThat(result).isNotNull();
+    }
+
+    @Test
+    @DisplayName("본문 추출 - 관련 글 키워드 대소문자 무시 매칭")
+    void extractCleanContent_RelatedContentCaseInsensitive() throws Exception {
+        // given
+        String url = "https://test.com/case-insensitive";
+        StringBuilder longContent = new StringBuilder();
+        longContent.append("<html><body><article>");
+        for (int i = 0; i < 20; i++) {
+            longContent.append("<p>Content paragraph ").append(i).append(" with sufficient text to pass threshold.</p>");
+        }
+        longContent.append("<p>RELATED POSTS</p><p>More reading suggestions</p>");
+        longContent.append("</article></body></html>");
+
+        when(driver.getPageSource()).thenReturn(longContent.toString());
+        when(relatedContentKeywordService.getAllKeywordStrings()).thenReturn(List.of("related posts"));
+
+        // when
+        String result = contentExtractor.extractCleanContent(url, driver);
+
+        // then: 대소문자 무시로 "RELATED POSTS" 제거
+        assertThat(result).doesNotContainIgnoringCase("RELATED POSTS");
+    }
+
+    @Test
+    @DisplayName("본문 추출 - 복수 관련 글 키워드 중 가장 먼저 나타나는 것으로 제거")
+    void extractCleanContent_MultipleRelatedKeywords_earliestRemoved() throws Exception {
+        // given
+        String url = "https://test.com/multiple-keywords";
+        StringBuilder longContent = new StringBuilder();
+        longContent.append("<html><body><article>");
+        for (int i = 0; i < 15; i++) {
+            longContent.append("<p>Main content paragraph ").append(i).append(" here. Enough text to exceed half.</p>");
+        }
+        longContent.append("<p>추천 글</p>");
+        longContent.append("<p>More content after first keyword</p>");
+        longContent.append("<p>관련 콘텐츠</p>");
+        longContent.append("</article></body></html>");
+
+        when(driver.getPageSource()).thenReturn(longContent.toString());
+        when(relatedContentKeywordService.getAllKeywordStrings()).thenReturn(List.of("관련 콘텐츠", "추천 글"));
+
+        // when
+        String result = contentExtractor.extractCleanContent(url, driver);
+
+        // then: "추천 글"이 먼저 나오므로 그 이후 전부 제거
+        assertThat(result).doesNotContain("추천 글");
+        assertThat(result).doesNotContain("관련 콘텐츠");
+    }
+
+    @Test
+    @DisplayName("본문 추출 - 빈 블록 요소는 결과에 포함되지 않음")
+    void extractCleanContent_EmptyBlockElements_filtered() throws Exception {
+        // given
+        String url = "https://test.com/empty-blocks";
+        String html = "<html><body><article>" +
+                "<p>실제 내용</p>" +
+                "<p></p>" +
+                "<p>   </p>" +
+                "<p>두 번째 내용</p>" +
+                "</article></body></html>";
+        when(driver.getPageSource()).thenReturn(html);
+        when(relatedContentKeywordService.getAllKeywordStrings()).thenReturn(List.of());
+
+        // when
+        String result = contentExtractor.extractCleanContent(url, driver);
+
+        // then: 빈 문단이 결과에 빈 줄로 포함되지 않음
+        assertThat(result).contains("실제 내용");
+        assertThat(result).contains("두 번째 내용");
+        assertThat(result).doesNotContain("\n\n\n"); // 3개 이상의 연속 줄바꿈 없음
+    }
 }

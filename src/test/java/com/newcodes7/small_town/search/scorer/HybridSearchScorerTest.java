@@ -271,4 +271,190 @@ public class HybridSearchScorerTest {
         String query = queryBuilder.toString();
         assertTrue(query.contains("content_terms:redis^2.0 OR title_terms:캐시"));
     }
+
+    // ===== 추가 NSF 에지 케이스 =====
+
+    @Test
+    public void calculateNSFScores_양쪽_모두_빈_맵() {
+        // given
+        Map<Long, Double> bm25Scores = new HashMap<>();
+        Map<Long, Double> vectorScores = new HashMap<>();
+
+        // when
+        HybridSearchScorer.NSFResult nsfResult = scorer.calculateNSFScores(bm25Scores, vectorScores);
+
+        // then
+        assertTrue(nsfResult.getNsfScores().isEmpty());
+        assertTrue(nsfResult.getWeightSums().isEmpty());
+    }
+
+    @Test
+    public void calculateNSFScores_커스텀_가중치_BM25_0() {
+        // given: BM25 가중치 0 → Vector만 사용
+        Map<Long, Double> bm25Scores = new HashMap<>();
+        bm25Scores.put(1L, 10.0);
+
+        Map<Long, Double> vectorScores = new HashMap<>();
+        vectorScores.put(1L, 0.8);
+
+        // when
+        HybridSearchScorer.NSFResult nsfResult = scorer.calculateNSFScores(bm25Scores, vectorScores, 0.0, 1.0);
+        Map<Long, Double> result = nsfResult.getNsfScores();
+
+        // then: BM25 가중치 0이므로 Vector 점수만 반영
+        // normalizedBm25=1.0(단일결과 클램핑), normalizedVector=0.8
+        // weightedSum = 0.0*1.0 + 1.0*0.8 = 0.8
+        // weightSum = 0.0 + 1.0 = 1.0
+        // nsfScore = 0.8 / 1.0 = 0.8
+        assertEquals(0.8, result.get(1L), 0.001);
+    }
+
+    @Test
+    public void calculateNSFScores_커스텀_가중치_Vector_0() {
+        // given: Vector 가중치 0 → BM25만 사용
+        Map<Long, Double> bm25Scores = new HashMap<>();
+        bm25Scores.put(1L, 10.0);
+
+        Map<Long, Double> vectorScores = new HashMap<>();
+        vectorScores.put(1L, 0.9);
+
+        // when
+        HybridSearchScorer.NSFResult nsfResult = scorer.calculateNSFScores(bm25Scores, vectorScores, 1.0, 0.0);
+        Map<Long, Double> result = nsfResult.getNsfScores();
+
+        // then: Vector 가중치 0이므로 BM25 점수만 반영
+        // normalizedBm25=1.0(단일결과 클램핑), normalizedVector=0.9
+        // weightedSum = 1.0*1.0 + 0.0*0.9 = 1.0
+        // weightSum = 1.0 + 0.0 = 1.0
+        // nsfScore = 1.0 / 1.0 = 1.0
+        assertEquals(1.0, result.get(1L), 0.001);
+    }
+
+    @Test
+    public void calculateNSFScores_양쪽_가중치_모두_0() {
+        // given: 양쪽 가중치 모두 0 → 0으로 처리
+        Map<Long, Double> bm25Scores = new HashMap<>();
+        bm25Scores.put(1L, 10.0);
+
+        Map<Long, Double> vectorScores = new HashMap<>();
+        vectorScores.put(1L, 0.9);
+
+        // when
+        HybridSearchScorer.NSFResult nsfResult = scorer.calculateNSFScores(bm25Scores, vectorScores, 0.0, 0.0);
+        Map<Long, Double> result = nsfResult.getNsfScores();
+
+        // then: weightSum = 0 → nsfScore = 0
+        assertEquals(0.0, result.get(1L), 0.001);
+    }
+
+    @Test
+    public void calculateNSFScores_벡터_전용_과대평가_방지_경계값() {
+        // given: Vector 점수가 threshold 0.52 근처인 단일 결과
+        Map<Long, Double> bm25Scores = new HashMap<>();
+        Map<Long, Double> vectorScores = new HashMap<>();
+        vectorScores.put(1L, 0.52); // threshold 경계
+
+        // when
+        HybridSearchScorer.NSFResult nsfResult = scorer.calculateNSFScores(bm25Scores, vectorScores);
+        Map<Long, Double> result = nsfResult.getNsfScores();
+
+        // then: BM25 미참여 → 분모에 BM25 가중치 포함으로 과대평가 방지
+        // normalizedVector = 0.52 (클램핑, range=0)
+        // weightedSum = 0.5 * 0.52 = 0.26
+        // weightSum = 0.5 + 0.5 = 1.0
+        // nsfScore = 0.26 / 1.0 = 0.26
+        assertTrue(result.get(1L) < 0.52, "벡터 전용 결과는 원래 유사도보다 낮아야 함");
+        assertEquals(0.26, result.get(1L), 0.001);
+    }
+
+    @Test
+    public void minMaxNormalize_음수_점수_포함() {
+        // given: BM25가 음수 점수를 반환하는 경우 (이론적으로 가능)
+        Map<Long, Double> scores = new HashMap<>();
+        scores.put(1L, -1.0);
+        scores.put(2L, 0.0);
+        scores.put(3L, 1.0);
+
+        // when
+        Map<Long, Double> result = scorer.minMaxNormalize(scores);
+
+        // then: 범위 -1 ~ 1, range = 2
+        assertEquals(0.0, result.get(1L), 0.001);   // (-1 - (-1)) / 2 = 0
+        assertEquals(0.5, result.get(2L), 0.001);   // (0 - (-1)) / 2 = 0.5
+        assertEquals(1.0, result.get(3L), 0.001);   // (1 - (-1)) / 2 = 1.0
+    }
+
+    // ===== buildBM25Query 에지 케이스 =====
+
+    @Test
+    public void buildBM25Query_null_입력() {
+        // when
+        String result = scorer.buildBM25Query(null);
+
+        // then
+        assertNull(result);
+    }
+
+    @Test
+    public void buildBM25Query_빈_맵() {
+        // when
+        String result = scorer.buildBM25Query(new HashMap<>());
+
+        // then
+        assertNull(result);
+    }
+
+    @Test
+    public void buildBM25Query_직접매칭과_확장Term_분리() {
+        // given: weight >= 1.0은 직접 매칭, < 1.0은 확장
+        Map<String, Double> termWeights = new java.util.LinkedHashMap<>();
+        termWeights.put("redis", 1.0);    // 직접 매칭
+        termWeights.put("캐시", 0.8);      // 확장
+
+        // when
+        String result = scorer.buildBM25Query(termWeights);
+
+        // then: redis boost=2.0, 캐시 boost=0.8*2.0=1.6
+        assertNotNull(result);
+        assertTrue(result.contains("redis"));
+        assertTrue(result.contains("캐시"));
+        assertTrue(result.contains("content_terms:redis^2.0"));
+    }
+
+    @Test
+    public void buildBM25Query_커스텀_titleMultiplier() {
+        // given
+        Map<String, Double> termWeights = new java.util.LinkedHashMap<>();
+        termWeights.put("java", 1.0);
+
+        // when: titleMultiplier = 4.0 (SIMPLE)
+        String result = scorer.buildBM25Query(termWeights, 4.0);
+
+        // then: title boost = 2.0 * 4.0 = 8.0
+        assertNotNull(result);
+        assertTrue(result.contains("title_terms:java^8.0"));
+        assertTrue(result.contains("content_terms:java^2.0"));
+    }
+
+    // ===== quoteTerm 테스트 =====
+
+    @Test
+    public void quoteTerm_null_입력() {
+        assertNull(scorer.quoteTerm(null));
+    }
+
+    @Test
+    public void quoteTerm_빈_문자열() {
+        assertEquals("", scorer.quoteTerm(""));
+    }
+
+    @Test
+    public void quoteTerm_단일_단어() {
+        assertEquals("redis", scorer.quoteTerm("redis"));
+    }
+
+    @Test
+    public void quoteTerm_띄어쓰기_포함_문자열() {
+        assertEquals("\"machine learning\"", scorer.quoteTerm("machine learning"));
+    }
 }
