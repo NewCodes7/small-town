@@ -324,7 +324,7 @@ public class SearchQueryEmbeddingServiceTest {
 
     @Test
     @DisplayName("getEmbeddingWithCacheInfo - 캐시 히트 시 searchLog 비동기 업데이트")
-    void getEmbeddingWithCacheInfo_CacheHit_UpdatesSearchLog() throws InterruptedException {
+    void getEmbeddingWithCacheInfo_CacheHit_UpdatesSearchLog() {
         // given
         float[] embedding = new float[]{0.1f};
         SearchQueryEmbedding cached = SearchQueryEmbedding.builder()
@@ -332,7 +332,6 @@ public class SearchQueryEmbeddingServiceTest {
                 .searchKeyword("test")
                 .embedding(embedding)
                 .build();
-        // searchLog가 null인 캐시된 엔트리
         when(repository.findByNormalizedKeyword("test")).thenReturn(Optional.of(cached));
 
         SearchLog mockLog = mock(SearchLog.class);
@@ -340,10 +339,13 @@ public class SearchQueryEmbeddingServiceTest {
         // when
         CachedEmbeddingResult result = service.getEmbeddingWithCacheInfo("test", mockLog);
 
-        // then
+        // then - 캐시 히트 확인 (비동기 업데이트는 executor에 제출됨)
         assertThat(result.isCacheHit()).isTrue();
         assertThat(result.getEmbedding()).isEqualTo(embedding);
-        // 비동기 업데이트가 스케줄링됨 (정확한 검증은 비동기 특성상 어려움)
-        Thread.sleep(200); // 비동기 작업 완료 대기
+
+        // executor shutdown 후 모든 비동기 작업 완료 대기
+        searchExecutor.shutdown();
+        assertThatCode(() -> searchExecutor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS))
+                .doesNotThrowAnyException();
     }
 }

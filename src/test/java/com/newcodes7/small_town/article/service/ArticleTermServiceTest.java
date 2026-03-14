@@ -528,8 +528,8 @@ public class ArticleTermServiceTest {
         // when - 강제 재분석
         ArticleTermExtractionResult result = articleTermService.extractAndSaveAllArticleTerms(true);
 
-        // then - processedArticles가 0보다 크거나 같아야 함 (강제 재분석이므로 재처리됨)
-        assertThat(result.getProcessedArticles()).isGreaterThanOrEqualTo(0);
+        // then - processedArticles가 0보다 커야 함 (강제 재분석이므로 재처리됨)
+        assertThat(result.getProcessedArticles()).isGreaterThan(0);
     }
 
     @Test
