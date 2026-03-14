@@ -44,8 +44,8 @@ public class RelatedContentKeywordServiceTest {
     @DisplayName("모든 키워드 조회 - 데이터 존재")
     void getAllKeywords_WithData() {
         // given
-        service.addKeyword("추천 콘텐츠");
-        service.addKeyword("related posts");
+        service.addKeyword("테스트 추천 콘텐츠");
+        service.addKeyword("test related posts");
 
         // when
         List<RelatedContentKeyword> result = service.getAllKeywords();
@@ -60,14 +60,14 @@ public class RelatedContentKeywordServiceTest {
     @DisplayName("모든 키워드를 문자열 리스트로 조회")
     void getAllKeywordStrings() {
         // given
-        service.addKeyword("추천 글");
-        service.addKeyword("관련 글");
+        service.addKeyword("테스트 추천 글");
+        service.addKeyword("테스트 관련 글");
 
         // when
         List<String> result = service.getAllKeywordStrings();
 
         // then
-        assertThat(result).contains("추천 글", "관련 글");
+        assertThat(result).contains("테스트 추천 글", "테스트 관련 글");
     }
 
     // --- addKeyword ---
