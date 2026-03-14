@@ -40,7 +40,7 @@ public interface VideoTermRepository extends JpaRepository<VideoTerm, Long> {
     /**
      * 특정 term ID를 가진 모든 VideoTerm 삭제
      */
-    @Modifying
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("DELETE FROM VideoTerm vt WHERE vt.term.id = :termId")
     int deleteByTermId(@Param("termId") Long termId);
 
