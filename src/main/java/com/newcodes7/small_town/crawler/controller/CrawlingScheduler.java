@@ -263,7 +263,7 @@ public class CrawlingScheduler {
      * 매 정각 30분에 실행
      * 모든 블로그 타입의 본문이 200자 이하인 Article 대상
      */
-    // @Scheduled(cron = "${crawler.schedule.medium-content.cron:0 30 * * * ?}", zone = "Asia/Seoul")
+    @Scheduled(cron = "${crawler.schedule.medium-content.cron:0 30 * * * ?}", zone = "Asia/Seoul")
     public void scheduledContentCrawling() {
         log.info("스케줄된 본문 백필 크롤링 작업 시작 (타임아웃: 25분)");
 
