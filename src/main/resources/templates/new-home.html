@@ -3,10 +3,10 @@
         xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{layout/base}">
 <head>
-    <title>NewCodes - 모든 기술블로그를 한 곳에서</title>
+    <title>기술 블로그 모음 - NewCodes | 국내외 IT 기업 블로그 한곳에서</title>
     <th:block layout:fragment="meta" th:remove="tag">
-        <meta name="description" content="NewCodes에서 최신 기술 블로그와 IT 소식을 만나보세요. 개발자를 위한 다양한 아티클을 매일 업데이트합니다.">
-        <meta name="keywords" content="홈, 최신 기술, IT 뉴스, 개발자 커뮤니티, 기술 아티클, NewCodes">
+        <meta name="description" content="국내외 IT 기업의 최신 기술 블로그를 한곳에서 만나보세요. NewCodes는 네이버, 카카오, 토스 등 기업 기술 블로그 모음 서비스입니다.">
+        <meta name="keywords" content="기술 블로그 모음, 기업 기술 블로그, 개발자 블로그, IT 블로그, 기술 아티클, 개발자, NewCodes">
         <meta name="robots" content="index, follow">
     </th:block>
     <!-- 소셜 공유 설정 -->
@@ -28,6 +28,8 @@
 
             <!-- Search Section -->
             <section class="hero-search-section">
+                <h1 class="hero-main-title">기술 블로그 모음</h1>
+                <p class="hero-subtitle">국내외 IT 기업의 최신 기술 블로그를 한곳에서</p>
                 <form id="searchForm" action="/articles" method="get" class="hero-search-form">
                     <div class="hero-search-container">
                         <i class="fas fa-search hero-search-icon"></i>
@@ -101,7 +103,12 @@
                                         <span class="popular-card-company-name" th:text="${article.corporation.name}">Corporation</span>
                                     </a>
                                 </div>
-                                <h3 class="popular-card-title" th:text="${article.translatedTitle != null ? article.translatedTitle : article.title}">Article Title</h3>
+                                <h3 class="popular-card-title">
+                                    <a class="popular-card-title-link"
+                                       th:href="${article.detailUrl}"
+                                       th:text="${article.translatedTitle != null ? article.translatedTitle : article.title}"
+                                       onclick="event.stopPropagation()">Article Title</a>
+                                </h3>
                                 <div class="popular-card-meta">
                                     <span class="popular-card-date">
                                         <i class="far fa-clock"></i>
@@ -144,11 +151,9 @@
 
                 <div class="blog-grid">
                     <!-- Blog Cards - Dynamic -->
-                    <div th:each="article : ${articles}"
-                         class="blog-card"
-                         th:attr="data-detail-url=${article.detailUrl}"
-                         onclick="window.location.href=this.getAttribute('data-detail-url')"
-                         style="cursor: pointer;">
+                    <a th:each="article : ${articles}"
+                       class="blog-card"
+                       th:href="${article.detailUrl}">
                         <div th:if="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}"
                              class="blog-card-thumbnail"
                              th:style="'background-image: url(' + ${article.thumbnailImage} + '); background-size: cover; background-position: center;'">
@@ -190,7 +195,7 @@
                                 </button>
                             </div>
                         </div>
-                    </div>
+                    </a>
                 </div>
 
                 <!-- Mobile View All Button -->
@@ -223,12 +228,10 @@
                     </button>
                     <div class="hn-carousel">
                         <div class="hn-track">
-                            <div th:each="hnItem, iterStat : ${hackerNewsItems}"
-                                 th:if="${iterStat.index < 12}"
-                                 class="hn-card"
-                                 th:attr="data-detail-url=${hnItem.detailUrl}"
-                                 onclick="window.location.href=this.getAttribute('data-detail-url')"
-                                 style="cursor: pointer;">
+                            <a th:each="hnItem, iterStat : ${hackerNewsItems}"
+                               th:if="${iterStat.index < 12}"
+                               class="hn-card"
+                               th:href="${hnItem.detailUrl}">
                                 <span class="hn-rank" th:classappend="${iterStat.index < 3 ? ' top-rank' : ''}"
                                       th:text="${iterStat.index + 1}">1</span>
                                 <!-- 썸네일 자리에 영어 원문 제목 표시 -->
@@ -260,7 +263,7 @@
                                         </span>
                                     </div>
                                 </div>
-                            </div>
+                            </a>
                         </div>
                     </div>
                     <button class="hn-nav-btn hn-next" aria-label="다음">

@@ -10,6 +10,21 @@
             max-width: 700px;
             margin: 0 auto 60px;
             padding: 20px 0;
+            text-align: center;
+        }
+
+        .hero-main-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--text-primary, #1a1a1a);
+            margin-bottom: 8px;
+            line-height: 1.2;
+        }
+
+        .hero-subtitle {
+            font-size: 1rem;
+            color: var(--text-secondary, #666);
+            margin-bottom: 28px;
         }
 
         .hero-search-form {
@@ -1075,6 +1090,11 @@
             min-height: 3.8rem;
         }
 
+        .popular-card-title-link {
+            text-decoration: none;
+            color: inherit;
+        }
+
         .popular-card-meta {
             display: flex;
             align-items: center;
@@ -1126,6 +1146,10 @@
             .hero-search-section {
                 margin-bottom: 40px;
                 padding: 16px 0;
+            }
+
+            .hero-main-title {
+                font-size: 1.6rem;
             }
 
             .hero-search-container {
@@ -1251,6 +1275,14 @@
             .hero-search-section {
                 margin-bottom: 32px;
                 padding: 12px 0;
+            }
+
+            .hero-main-title {
+                font-size: 1.4rem;
+            }
+
+            .hero-subtitle {
+                font-size: 0.9rem;
             }
 
             .hero-search-input {
@@ -1602,6 +1634,8 @@
             border: 2px solid var(--border-light);
             transition: all 0.3s ease;
             box-shadow: 0 2px 12px rgba(134, 239, 172, 0.28);
+            text-decoration: none;
+            color: inherit;
             display: flex;
             flex-direction: column;
             position: relative;

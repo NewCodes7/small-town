@@ -14,6 +14,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title th:text="${title != null ? title + ' - NewCodes' : 'NewCodes - 기술 블로그 모음'}">NewCodes</title>
 
+    <!-- Canonical URL -->
+    <link rel="canonical" th:if="${canonicalUrl != null}" th:href="${canonicalUrl}">
+
     <!-- SEO Meta Tags -->
     <th:block th:fragment="meta">
         <meta name="description" content="NewCodes는 최신 기술 블로그 게시물을 큐레이팅하여 제공하는 플랫폼입니다. 다양한 기술 블로그를 한 곳에서 만나보세요.">

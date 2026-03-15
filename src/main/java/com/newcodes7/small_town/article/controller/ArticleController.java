@@ -64,6 +64,7 @@ import com.newcodes7.small_town.article.dto.RelatedArticleDto;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 
 import com.newcodes7.small_town.article.dto.CorporationDto;
 import com.newcodes7.small_town.article.dto.GroupedArticlesDto;
@@ -74,6 +75,9 @@ import java.util.stream.Collectors;
 @Controller
 @RequiredArgsConstructor
 public class ArticleController {
+
+    @Value("${app.base-url}")
+    private String baseUrl;
 
     private final ArticleService articleService;
     private final ArticleSearchService articleSearchService;
@@ -252,6 +256,7 @@ public class ArticleController {
         model.addAttribute("embeddingTerms", embeddingTerms);  // 임베딩 유사어 (weight < 0.8)
         // model.addAttribute("popularArticles", popularArticles.getContent());
 
+        model.addAttribute("canonicalUrl", baseUrl + "/articles");
         return "home";
     }
     
@@ -484,6 +489,9 @@ public class ArticleController {
         model.addAttribute("article", articleDto);
         model.addAttribute("mainRepresentativeChunkInfo", relatedArticleService.getRepresentativeChunkInfo(id));
 
+        String slug = generateSlug(article);
+        String encodedSlug = URLEncoder.encode(slug, StandardCharsets.UTF_8);
+        model.addAttribute("canonicalUrl", baseUrl + "/articles/" + id + "-" + encodedSlug);
         return "article-detail";
     }
 
@@ -1096,6 +1104,7 @@ public class ArticleController {
         model.addAttribute("popularArticles", popularArticles);
         model.addAttribute("hackerNewsItems", hackerNewsItems);
 
+        model.addAttribute("canonicalUrl", baseUrl + "/");
         return "new-home";
     }
 
