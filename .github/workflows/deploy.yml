@@ -40,6 +40,8 @@ jobs:
 
       - name: Run tests
         run: ./gradlew test --no-daemon
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/small_town_test
 
   build-and-deploy:
     runs-on: ubuntu-latest
