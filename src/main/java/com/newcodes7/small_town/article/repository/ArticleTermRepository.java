@@ -59,7 +59,7 @@ public interface ArticleTermRepository extends JpaRepository<ArticleTerm, Long> 
     /**
      * 특정 term ID를 가진 모든 ArticleTerm 삭제
      */
-    @Modifying
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("DELETE FROM ArticleTerm at WHERE at.term.id = :termId")
     int deleteByTermId(@Param("termId") Long termId);
 

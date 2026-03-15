@@ -12,10 +12,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
+import com.newcodes7.small_town.article.dto.MigrationResultDto;
 import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
 import com.newcodes7.small_town.article.exception.InvalidParameterException;
 import com.newcodes7.small_town.article.exception.UserNotFoundException;
@@ -341,5 +344,163 @@ public class UserLikeServiceTest {
         assertThat(statusMap).hasSize(2);
         assertThat(statusMap.get(testArticle.getId())).isTrue();
         assertThat(statusMap.get(article2.getId())).isFalse();
+    }
+
+    // ===================== 추가 테스트 =====================
+
+    @Test
+    @DisplayName("좋아요한 게시글 조회 - 성공")
+    void getLikedArticles_Success() {
+        // given
+        userLikeService.toggleLike(testArticle.getId(), testUser.getEmail());
+
+        // when
+        Page<ArticleListResponseDto> result = userLikeService.getLikedArticles(
+                testUser.getEmail(), 0, 10);
+
+        // then
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        assertThat(result.getContent().get(0).getId()).isEqualTo(testArticle.getId());
+    }
+
+    @Test
+    @DisplayName("좋아요한 게시글 조회 - 좋아요 없는 경우")
+    void getLikedArticles_NoLikes() {
+        // when
+        Page<ArticleListResponseDto> result = userLikeService.getLikedArticles(
+                testUser.getEmail(), 0, 10);
+
+        // then
+        assertThat(result.getTotalElements()).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("좋아요한 게시글 조회 - 존재하지 않는 사용자")
+    void getLikedArticles_UserNotFound() {
+        assertThatThrownBy(() -> userLikeService.getLikedArticles("nonexistent@example.com", 0, 10))
+                .isInstanceOf(UserNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("좋아요 마이그레이션 - 성공")
+    void migrateLikesFromLocalStorage_Success() {
+        // when
+        MigrationResultDto result = userLikeService.migrateLikesFromLocalStorage(
+                testUser.getEmail(), List.of(testArticle.getId()));
+
+        // then
+        assertThat(result.getTotalCount()).isEqualTo(1);
+        assertThat(result.getItems()).hasSize(1);
+        assertThat(result.getItems().get(0).getId()).isEqualTo(testArticle.getId());
+
+        // verify like was actually created
+        assertThat(userLikeService.hasLiked(testArticle.getId(), testUser.getEmail())).isTrue();
+    }
+
+    @Test
+    @DisplayName("좋아요 마이그레이션 - 빈 리스트")
+    void migrateLikesFromLocalStorage_EmptyList() {
+        // when
+        MigrationResultDto result = userLikeService.migrateLikesFromLocalStorage(
+                testUser.getEmail(), List.of());
+
+        // then
+        assertThat(result.getTotalCount()).isEqualTo(0);
+        assertThat(result.getItems()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("좋아요 마이그레이션 - null 리스트")
+    void migrateLikesFromLocalStorage_NullList() {
+        // when
+        MigrationResultDto result = userLikeService.migrateLikesFromLocalStorage(
+                testUser.getEmail(), null);
+
+        // then
+        assertThat(result.getTotalCount()).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("좋아요 마이그레이션 - 이미 좋아요한 글은 건너뜀")
+    void migrateLikesFromLocalStorage_SkipExisting() {
+        // given - 이미 좋아요 추가
+        userLikeService.toggleLike(testArticle.getId(), testUser.getEmail());
+
+        // when
+        MigrationResultDto result = userLikeService.migrateLikesFromLocalStorage(
+                testUser.getEmail(), List.of(testArticle.getId()));
+
+        // then - 이미 좋아요된 글은 마이그레이션하지 않음
+        assertThat(result.getTotalCount()).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("좋아요 마이그레이션 - 존재하지 않는 사용자")
+    void migrateLikesFromLocalStorage_UserNotFound() {
+        assertThatThrownBy(() -> userLikeService.migrateLikesFromLocalStorage(
+                "nonexistent@example.com", List.of(testArticle.getId())))
+                .isInstanceOf(UserNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("좋아요 마이그레이션 - 존재하지 않는 게시글 ID는 건너뜀")
+    void migrateLikesFromLocalStorage_SkipNonExistentArticle() {
+        // when
+        MigrationResultDto result = userLikeService.migrateLikesFromLocalStorage(
+                testUser.getEmail(), List.of(testArticle.getId(), 999999L));
+
+        // then
+        assertThat(result.getTotalCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("IP 기반 좋아요 확인 - null IP")
+    void hasLikedByIp_NullIp() {
+        boolean result = userLikeService.hasLikedByIp(testArticle.getId(), null);
+        assertThat(result).isFalse();
+    }
+
+    @Test
+    @DisplayName("IP 기반 좋아요 확인 - 빈 IP")
+    void hasLikedByIp_EmptyIp() {
+        boolean result = userLikeService.hasLikedByIp(testArticle.getId(), "");
+        assertThat(result).isFalse();
+    }
+
+    @Test
+    @DisplayName("배치 좋아요 상태 - 사용자: null articleIds")
+    void getLikeStatusBatchByUser_NullArticleIds() {
+        Map<Long, Boolean> result = userLikeService.getLikeStatusBatchByUser(null, testUser.getEmail());
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("배치 좋아요 상태 - 사용자: 빈 articleIds")
+    void getLikeStatusBatchByUser_EmptyArticleIds() {
+        Map<Long, Boolean> result = userLikeService.getLikeStatusBatchByUser(List.of(), testUser.getEmail());
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("배치 좋아요 상태 - 사용자: null email")
+    void getLikeStatusBatchByUser_NullEmail() {
+        Map<Long, Boolean> result = userLikeService.getLikeStatusBatchByUser(
+                List.of(testArticle.getId()), null);
+        assertThat(result).containsEntry(testArticle.getId(), false);
+    }
+
+    @Test
+    @DisplayName("배치 좋아요 상태 - IP: null articleIds")
+    void getLikeStatusBatchByIp_NullArticleIds() {
+        Map<Long, Boolean> result = userLikeService.getLikeStatusBatchByIp(null, "127.0.0.1");
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("배치 좋아요 상태 - IP: null IP")
+    void getLikeStatusBatchByIp_NullIp() {
+        Map<Long, Boolean> result = userLikeService.getLikeStatusBatchByIp(
+                List.of(testArticle.getId()), null);
+        assertThat(result).containsEntry(testArticle.getId(), false);
     }
 }
