@@ -1793,3 +1793,116 @@
                 max-width: 90%;
             }
         }
+
+        /* ===== Mobile Swipe Hint ===== */
+        .mobile-swipe-hint {
+            display: none;
+        }
+
+        /* ===== Mobile Horizontal Sliders (Blog / Video / Theme) ===== */
+        @media (max-width: 768px) {
+            .mobile-swipe-hint {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                background: linear-gradient(135deg, var(--secondary-green) 0%, #f0fdf4 100%);
+                border: 1px solid rgba(34, 197, 94, 0.3);
+                border-radius: 14px;
+                padding: 12px 16px;
+                font-size: 0.85rem;
+                color: #166534;
+                margin-bottom: 32px;
+            }
+
+            .mobile-swipe-hint i {
+                font-size: 1.1rem;
+                color: var(--primary-green);
+                flex-shrink: 0;
+            }
+
+            /* Blog grid → horizontal scroll slider */
+            .blog-grid {
+                display: flex;
+                overflow-x: auto;
+                scroll-snap-type: x mandatory;
+                scrollbar-width: none;
+                -webkit-overflow-scrolling: touch;
+                gap: 12px;
+                padding-bottom: 8px;
+                justify-content: flex-start;
+            }
+
+            .blog-grid::-webkit-scrollbar {
+                display: none;
+            }
+
+            .blog-card {
+                min-width: 82%;
+                max-width: 82%;
+                scroll-snap-align: start;
+                flex-shrink: 0;
+            }
+
+            /* Video grid → horizontal scroll slider */
+            .video-grid {
+                display: flex;
+                overflow-x: auto;
+                scroll-snap-type: x mandatory;
+                scrollbar-width: none;
+                -webkit-overflow-scrolling: touch;
+                gap: 12px;
+                padding-bottom: 8px;
+                justify-content: flex-start;
+            }
+
+            .video-grid::-webkit-scrollbar {
+                display: none;
+            }
+
+            .video-card {
+                min-width: 82%;
+                max-width: 82%;
+                scroll-snap-align: start;
+                flex-shrink: 0;
+            }
+
+            /* Theme grid → horizontal scroll slider */
+            .theme-grid {
+                display: flex;
+                overflow-x: auto;
+                scroll-snap-type: x mandatory;
+                scrollbar-width: none;
+                -webkit-overflow-scrolling: touch;
+                gap: 12px;
+                padding: 8px 0;
+                justify-content: flex-start;
+            }
+
+            .theme-grid::-webkit-scrollbar {
+                display: none;
+            }
+
+            .theme-collection {
+                min-width: 82%;
+                max-width: 82%;
+                scroll-snap-align: start;
+                flex-shrink: 0;
+                margin-right: 0;
+                overflow: hidden;
+            }
+
+            /* Stacked card pseudo-elements would overflow scroll container — disable them */
+            .theme-collection::before,
+            .theme-collection::after {
+                display: none;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .blog-card,
+            .video-card,
+            .theme-collection {
+                min-width: 90%;
+                max-width: 90%;
+            }
+        }
