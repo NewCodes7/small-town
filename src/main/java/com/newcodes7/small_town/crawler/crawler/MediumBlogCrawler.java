@@ -294,11 +294,11 @@ public class MediumBlogCrawler implements BlogCrawler {
         try {
             log.debug("본문 추출 시작: {}", articleUrl);
 
-            // Bot 감지 우회 설정
-            setupAntiDetection(driver);
-
             // article 페이지로 이동
             driver.get(articleUrl);
+
+            // Bot 감지 우회 설정 (페이지 로드 후 실행해야 현재 페이지에 적용됨)
+            setupAntiDetection(driver);
 
             // Cloudflare 챌린지 대기 및 통과
             waitForCloudflareChallenge(driver, articleUrl);
@@ -344,7 +344,7 @@ public class MediumBlogCrawler implements BlogCrawler {
      * 최대 15초까지 대기하며 챌린지가 자동 해결되기를 기다림
      */
     private void waitForCloudflareChallenge(WebDriver driver, String url) throws InterruptedException {
-        int maxWaitSeconds = 15;
+        int maxWaitSeconds = 30;
         int waitedSeconds = 0;
         int checkIntervalMs = 1000;
 
@@ -374,9 +374,10 @@ public class MediumBlogCrawler implements BlogCrawler {
         if (pageContent == null) return false;
 
         // Cloudflare 챌린지 페이지의 특징적인 문구들
-        return pageContent.contains("사람인지 확인")
+        return pageContent.contains("보안 확인 수행 중")
+                || pageContent.contains("악의적 봇으로부터 보호")
+                || pageContent.contains("사람인지 확인")
                 || pageContent.contains("보안을 검토")
-                || pageContent.contains("확인 성공")
                 || pageContent.contains("응답을 기다리는 중")
                 || pageContent.contains("Checking your browser")
                 || pageContent.contains("Just a moment")

@@ -49,10 +49,13 @@ public class ContentExtractor {
             // 1. WebDriver로 페이지 접속
             driver.get(articleUrl);
 
-            // 2. 페이지 로딩 대기
+            // 2. 초기 페이지 로딩 대기
             Thread.sleep(pageLoadWaitMs);
 
-            // 3. HTML 소스 가져오기
+            // 3. Cloudflare 챌린지 대기 (최대 30초)
+            waitForCloudflareChallenge(driver, articleUrl);
+
+            // 4. HTML 소스 가져오기
             String htmlSource = driver.getPageSource();
 
             if (htmlSource == null || htmlSource.isBlank()) {
@@ -60,7 +63,13 @@ public class ContentExtractor {
                 return "";
             }
 
-            // 4. Readability4J로 깨끗한 본문 추출
+            // 5. Cloudflare 페이지가 남아있으면 실패 처리
+            if (isCloudflareChallengePage(htmlSource)) {
+                log.warn("Cloudflare 챌린지 통과 실패 - 본문 추출 불가: {}", articleUrl);
+                return "";
+            }
+
+            // 6. Readability4J로 깨끗한 본문 추출
             String cleanContent = extractWithReadability(articleUrl, htmlSource);
 
             if (cleanContent.isBlank()) {
@@ -79,6 +88,42 @@ public class ContentExtractor {
             log.error("본문 추출 실패: {}", articleUrl, e);
             return "";
         }
+    }
+
+    /**
+     * Cloudflare 챌린지 페이지 대기 (최대 30초)
+     */
+    private void waitForCloudflareChallenge(WebDriver driver, String url) throws InterruptedException {
+        int maxWaitSeconds = 30;
+        for (int waited = 0; waited < maxWaitSeconds; waited++) {
+            String pageSource = driver.getPageSource();
+            if (!isCloudflareChallengePage(pageSource)) {
+                if (waited > 0) {
+                    log.info("Cloudflare 챌린지 통과 완료 ({}초 소요): {}", waited, url);
+                }
+                return;
+            }
+            log.debug("Cloudflare 챌린지 대기 중... ({}/{}초): {}", waited, maxWaitSeconds, url);
+            Thread.sleep(1000);
+        }
+        log.warn("Cloudflare 챌린지 대기 시간 초과 ({}초): {}", maxWaitSeconds, url);
+    }
+
+    /**
+     * Cloudflare 챌린지 페이지 여부 판단
+     */
+    private boolean isCloudflareChallengePage(String pageContent) {
+        if (pageContent == null) return false;
+        return pageContent.contains("보안 확인 수행 중")
+                || pageContent.contains("악의적 봇으로부터 보호")
+                || pageContent.contains("사람인지 확인")
+                || pageContent.contains("보안을 검토")
+                || pageContent.contains("응답을 기다리는 중")
+                || pageContent.contains("Checking your browser")
+                || pageContent.contains("Just a moment")
+                || pageContent.contains("Verify you are human")
+                || pageContent.contains("cf-browser-verification")
+                || pageContent.contains("cf_chl_opt");
     }
 
     /**
