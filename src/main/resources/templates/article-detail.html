@@ -8,9 +8,9 @@
     <title th:text="${article.translatedTitle != null ? article.translatedTitle : article.title} + ' - NewCodes'">Article - NewCodes</title>
 
     <!-- SEO Meta Tags -->
-    <meta name="description" th:content="${article.translatedTitle != null ? article.translatedTitle : article.title}">
-    <meta property="og:title" th:content="${article.translatedTitle != null ? article.translatedTitle : article.title}">
-    <meta property="og:description" th:content="${article.translatedTitle != null ? article.translatedTitle : article.title}">
+    <meta name="description" th:content="${(article.translatedTitle != null ? article.translatedTitle : article.title) + ' - ' + article.corporation.name + ' 기술 블로그. NewCodes에서 국내외 IT 기업의 최신 기술 블로그를 한곳에서 만나보세요.'}">
+    <meta property="og:title" th:content="${(article.translatedTitle != null ? article.translatedTitle : article.title) + ' - ' + article.corporation.name + ' | NewCodes'}">
+    <meta property="og:description" th:content="${(article.translatedTitle != null ? article.translatedTitle : article.title) + ' - ' + article.corporation.name + ' 기술 블로그. NewCodes에서 국내외 IT 기업의 최신 기술 블로그를 한곳에서 만나보세요.'}">
     <meta property="og:image" th:content="${article.thumbnailImage}">
     <meta property="og:type" content="article">
     <meta name="twitter:card" content="summary_large_image">

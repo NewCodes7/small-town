@@ -574,6 +574,7 @@ public class ArticleController {
         model.addAttribute("totalArticles", totalArticles);
         model.addAttribute("totalVideos", totalVideos);
 
+        model.addAttribute("canonicalUrl", baseUrl + "/corporations");
         return "corporations";
     }
 
@@ -605,6 +606,7 @@ public class ArticleController {
         model.addAttribute("totalPages", articles.getTotalPages());
         model.addAttribute("totalElements", articles.getTotalElements());
 
+        model.addAttribute("canonicalUrl", baseUrl + "/corporations/" + corporationId);
         return "corporation-detail";
     }
     

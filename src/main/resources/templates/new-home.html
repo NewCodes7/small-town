@@ -21,6 +21,39 @@
     <link rel="stylesheet" type="text/css" th:href="@{/css/new-home.css}">
     <link rel="stylesheet" type="text/css" th:href="@{/css/default-thumbnail.css}">
     <script th:src="@{/js/searchUtils.js}"></script>
+    <!-- 구조화 데이터 (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "NewCodes",
+      "alternateName": "기술 블로그 모음 - NewCodes",
+      "description": "국내외 IT 기업의 최신 기술 블로그를 한곳에서 만나보세요. 네이버, 카카오, 토스 등 기업 기술 블로그 모음 서비스입니다.",
+      "url": "https://newcodes.net",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://newcodes.net/articles?keyword={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      "name": "기술 블로그 모음",
+      "description": "네이버, 카카오, 토스, 우아한형제들, 라인 등 국내외 IT 기업의 기술 블로그를 한곳에서 모아보는 서비스입니다.",
+      "url": "https://newcodes.net",
+      "provider": {
+        "@type": "Organization",
+        "name": "NewCodes",
+        "url": "https://newcodes.net"
+      }
+    }
+    </script>
 </head>
 <body>
     <div layout:fragment="content">
