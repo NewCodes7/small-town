@@ -1,0 +1,52 @@
+{
+  "ROOT_QUERY": {
+    "__typename": "Query",
+    "publicationByRef({\"domainOrSlug\":\"netflixtechblog.com\"})": {
+      "__ref": "Publication:5a9a69ab944d"
+    }
+  },
+  "Publication:5a9a69ab944d": {
+    "__typename": "Publication",
+    "id": "5a9a69ab944d",
+    "name": "Netflix TechBlog",
+    "publicationPostsConnection({\"first\":10,\"after\":null})": {
+      "__typename": "PublicationPostsConnection",
+      "edges": [
+        { "__typename": "PublicationPostEdge", "node": { "__ref": "Post:post001" } },
+        { "__typename": "PublicationPostEdge", "node": { "__ref": "Post:post002" } },
+        { "__typename": "PublicationPostEdge", "node": { "__ref": "Post:post003" } }
+      ]
+    }
+  },
+  "Post:post001": {
+    "__typename": "Post",
+    "id": "post001",
+    "title": "Building More Effective Teams at Netflix",
+    "mediumUrl": "https://netflixtechblog.com/building-more-effective-teams-at-netflix-post001",
+    "previewImage": { "__ref": "ImageMetadata:img001" },
+    "firstPublishedAt": 1700000000000
+  },
+  "Post:post002": {
+    "__typename": "Post",
+    "id": "post002",
+    "title": "Migrating Netflix to GraphQL Safely",
+    "uniqueSlug": "migrating-netflix-to-graphql-safely-post002",
+    "previewImage": { "__ref": "ImageMetadata:img002" },
+    "firstPublishedAt": 1710000000000
+  },
+  "Post:post003": {
+    "__typename": "Post",
+    "id": "post003",
+    "title": "Serving 100 Million Users with Edge Computing",
+    "mediumUrl": "https://netflixtechblog.com/edge-computing-post003",
+    "firstPublishedAt": 1720000000000
+  },
+  "ImageMetadata:img001": {
+    "__typename": "ImageMetadata",
+    "id": "1*abc123thumbnailId"
+  },
+  "ImageMetadata:img002": {
+    "__typename": "ImageMetadata",
+    "id": "1*def456thumbnailId"
+  }
+}
