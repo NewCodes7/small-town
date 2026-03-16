@@ -402,9 +402,6 @@
             color: var(--text-dark);
             margin-bottom: 10px;
             line-height: 1.4;
-            display: -webkit-box;
-            -webkit-line-clamp: 3;
-            -webkit-box-orient: vertical;
             overflow: hidden;
             min-height: 3.8rem;
         }
@@ -436,11 +433,15 @@
         }
 
         .blog-card-title-link {
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
             text-decoration: none;
             color: inherit;
         }
 
-        .blog-card-title-link:hover .blog-card-title {
+        .blog-card-title-link:hover {
             color: var(--primary-green);
         }
 
@@ -1730,11 +1731,21 @@
             color: var(--text-dark);
             margin-bottom: 10px;
             line-height: 1.4;
+            overflow: hidden;
+            min-height: 3.8rem;
+        }
+
+        .hn-card-title-link {
             display: -webkit-box;
             -webkit-line-clamp: 3;
             -webkit-box-orient: vertical;
             overflow: hidden;
-            min-height: 3.8rem;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .hn-card-title-link:hover {
+            color: var(--primary-green);
         }
 
         .hn-card-meta {

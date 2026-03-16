@@ -184,9 +184,11 @@
 
                 <div class="blog-grid">
                     <!-- Blog Cards - Dynamic -->
-                    <a th:each="article : ${articles}"
-                       class="blog-card"
-                       th:href="${article.detailUrl}">
+                    <div th:each="article : ${articles}"
+                         class="blog-card"
+                         th:attr="data-detail-url=${article.detailUrl}"
+                         onclick="window.location.href=this.getAttribute('data-detail-url')"
+                         style="cursor: pointer;">
                         <div th:if="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}"
                              class="blog-card-thumbnail"
                              th:style="'background-image: url(' + ${article.thumbnailImage} + '); background-size: cover; background-position: center;'">
@@ -210,7 +212,12 @@
                                     <span class="blog-card-company-name" th:text="${article.corporation.name}">Corporation</span>
                                 </a>
                             </div>
-                            <h3 class="blog-card-title" th:text="${article.translatedTitle != null ? article.translatedTitle : article.title}">Article Title</h3>
+                            <h3 class="blog-card-title">
+                                <a class="blog-card-title-link"
+                                   th:href="${article.detailUrl}"
+                                   th:text="${article.translatedTitle != null ? article.translatedTitle : article.title}"
+                                   onclick="event.stopPropagation()">Article Title</a>
+                            </h3>
                             <div class="blog-card-meta">
                                 <span class="blog-card-date">
                                     <i class="far fa-clock"></i>
@@ -228,7 +235,7 @@
                                 </button>
                             </div>
                         </div>
-                    </a>
+                    </div>
                 </div>
 
                 <!-- Mobile View All Button -->
@@ -261,10 +268,12 @@
                     </button>
                     <div class="hn-carousel">
                         <div class="hn-track">
-                            <a th:each="hnItem, iterStat : ${hackerNewsItems}"
-                               th:if="${iterStat.index < 12}"
-                               class="hn-card"
-                               th:href="${hnItem.detailUrl}">
+                            <div th:each="hnItem, iterStat : ${hackerNewsItems}"
+                                 th:if="${iterStat.index < 12}"
+                                 class="hn-card"
+                                 th:attr="data-detail-url=${hnItem.detailUrl}"
+                                 onclick="window.location.href=this.getAttribute('data-detail-url')"
+                                 style="cursor: pointer;">
                                 <span class="hn-rank" th:classappend="${iterStat.index < 3 ? ' top-rank' : ''}"
                                       th:text="${iterStat.index + 1}">1</span>
                                 <!-- 썸네일 자리에 영어 원문 제목 표시 -->
@@ -278,7 +287,12 @@
                                     </a>
                                 </div>
                                 <div class="hn-card-content">
-                                    <h3 class="hn-card-title" th:text="${hnItem.translatedTitle != null ? hnItem.translatedTitle : hnItem.title}">Translated Title</h3>
+                                    <h3 class="hn-card-title">
+                                        <a class="hn-card-title-link"
+                                           th:href="${hnItem.detailUrl}"
+                                           th:text="${hnItem.translatedTitle != null ? hnItem.translatedTitle : hnItem.title}"
+                                           onclick="event.stopPropagation()">Translated Title</a>
+                                    </h3>
                                     <div class="hn-card-meta">
                                         <span class="hn-card-score">
                                             <i class="fas fa-arrow-up"></i>
@@ -296,7 +310,7 @@
                                         </span>
                                     </div>
                                 </div>
-                            </a>
+                            </div>
                         </div>
                     </div>
                     <button class="hn-nav-btn hn-next" aria-label="다음">
