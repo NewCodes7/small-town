@@ -15,6 +15,33 @@
     <meta property="og:type" content="article">
     <meta name="twitter:card" content="summary_large_image">
 
+    <!-- 구조화 데이터 (JSON-LD) -->
+    <script type="application/ld+json" th:inline="javascript">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": /*[[${article.translatedTitle != null ? article.translatedTitle : article.title}]]*/ "",
+      "description": /*[[${article.summary != null ? article.summary : (article.translatedTitle != null ? article.translatedTitle : article.title) + ' - ' + article.corporation.name + ' 기술 블로그'}]]*/ "",
+      "image": /*[[${article.thumbnailImage}]]*/ "",
+      "datePublished": /*[[${article.publishedAt}]]*/ "",
+      "url": /*[[${canonicalUrl}]]*/ "",
+      "author": {
+        "@type": "Organization",
+        "name": /*[[${article.corporation.name}]]*/ ""
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "NewCodes",
+        "url": "https://newcodes.net"
+      },
+      "isPartOf": {
+        "@type": "CollectionPage",
+        "name": "기술 블로그 모음",
+        "url": "https://newcodes.net"
+      }
+    }
+    </script>
+
     <style>
         :root {
             --primary-green: #03C75A;
