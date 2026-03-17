@@ -617,11 +617,14 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Modifying
     @Query(value = """
         UPDATE term t
-        SET total_frequency = COALESCE((
-            SELECT SUM(at.frequency)
-            FROM article_term at
-            WHERE at.term_id = t.id
-        ), 0)
+        SET total_frequency = agg.total
+        FROM (
+            SELECT term_id, SUM(frequency) AS total
+            FROM article_term
+            GROUP BY term_id
+        ) agg
+        WHERE t.id = agg.term_id
+          AND t.total_frequency IS DISTINCT FROM agg.total
         """, nativeQuery = true)
     void refreshTermAutocompleteIndex();
 
