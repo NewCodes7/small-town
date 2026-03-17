@@ -1,17 +1,23 @@
 package com.newcodes7.small_town.crawler.crawler;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.stream.Collectors;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.springframework.stereotype.Component;
@@ -25,6 +31,11 @@ import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.BlogType;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.util.TimeUtil;
+import com.rometools.rome.feed.synd.SyndContent;
+import com.rometools.rome.feed.synd.SyndEntry;
+import com.rometools.rome.feed.synd.SyndFeed;
+import com.rometools.rome.io.SyndFeedInput;
+import com.rometools.rome.io.XmlReader;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -88,7 +99,7 @@ public class MediumBlogCrawler implements BlogCrawler {
     
     private List<Article> crawlHtmlWithInfiniteScroll(WebDriver driver, Corporation corporation, String link) throws CrawlerException, IOException {
         List<Article> articles = new ArrayList<>();
-        
+
         try {
             driver.get(link);
 
@@ -96,9 +107,8 @@ public class MediumBlogCrawler implements BlogCrawler {
             simulateHumanBehavior(driver);
 
             String pageSource = driver.getPageSource();
-            Document doc = Jsoup.parse(pageSource);
 
-            Files.writeString(Path.of("medium_page.html"), pageSource); 
+            Files.writeString(Path.of("medium_page.html"), pageSource);
 
             // ✅ window.__APOLLO_STATE__에서 데이터 추출 (Medium의 내부 데이터 구조)
             JavascriptExecutor js = (JavascriptExecutor) driver;
@@ -114,19 +124,153 @@ public class MediumBlogCrawler implements BlogCrawler {
 
             log.info("APOLLO_STATE JSON 추출 완료: {} bytes", apolloStateJson.length());
 
+            // RSS에서 본문 미리 수집 (Cloudflare 우회)
+            Map<String, String> rssContentMap = fetchRssContentMap(link);
+
             // JSON 파싱 및 Article 추출
-            articles = parseArticlesFromApolloState(apolloStateJson, corporation);
+            articles = parseArticlesFromApolloState(apolloStateJson, corporation, rssContentMap);
 
             log.info("{} - APOLLO_STATE에서 추출한 아티클 수: {}", link, articles.size());
-            
+
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw CrawlerTimeoutException.pageLoadTimeout(link, 10);
         }
-        
+
         return articles;
     }
-    
+
+    /**
+     * RSS feed에서 URL → 본문 맵 구성
+     * Cloudflare가 차단하는 개별 페이지 대신 RSS로 본문을 미리 수집
+     */
+    private Map<String, String> fetchRssContentMap(String blogLink) {
+        Map<String, String> contentMap = new HashMap<>();
+        try {
+            String feedUrl = buildFeedUrlFromBlogLink(blogLink);
+            SyndFeedInput input = new SyndFeedInput();
+            SyndFeed feed = input.build(new XmlReader(new URL(feedUrl)));
+
+            for (SyndEntry entry : feed.getEntries()) {
+                String content = extractTextFromRssEntry(entry);
+                if (entry.getLink() != null && !content.isEmpty()) {
+                    contentMap.put(entry.getLink(), content);
+                }
+                // uri도 키로 등록 (Medium에서 link와 uri가 다를 수 있음)
+                if (entry.getUri() != null && !content.isEmpty()) {
+                    contentMap.put(entry.getUri(), content);
+                }
+            }
+            log.info("RSS 본문 수집 완료: {}개 아티클, feedUrl: {}", contentMap.size(), feedUrl);
+        } catch (Exception e) {
+            log.warn("RSS 본문 수집 실패 (APOLLO_STATE만 사용): {} - {}", blogLink, e.getMessage());
+        }
+        return contentMap;
+    }
+
+    /**
+     * RSS entry에서 텍스트 본문 추출 (content:encoded 우선, description fallback)
+     */
+    private String extractTextFromRssEntry(SyndEntry entry) {
+        // content:encoded 우선
+        List<SyndContent> contents = entry.getContents();
+        if (!contents.isEmpty() && contents.get(0).getValue() != null) {
+            return extractTextFromHtml(contents.get(0).getValue());
+        }
+        // description fallback
+        if (entry.getDescription() != null && entry.getDescription().getValue() != null) {
+            return extractTextFromHtml(entry.getDescription().getValue());
+        }
+        return "";
+    }
+
+    /**
+     * HTML에서 블록 요소 텍스트 추출
+     */
+    private String extractTextFromHtml(String html) {
+        Document doc = Jsoup.parse(html);
+        Elements blocks = doc.select("p, h1, h2, h3, h4, h5, h6, li, blockquote, pre");
+        return blocks.stream()
+                .map(Element::text)
+                .filter(text -> !text.isBlank())
+                .collect(Collectors.joining("\n\n"))
+                .trim();
+    }
+
+    /**
+     * article URL이 RSS 본문 맵의 키와 일치하는지 확인 (slug 기반 매칭 포함)
+     */
+    private String findContentByUrl(Map<String, String> rssContentMap, String articleUrl) {
+        if (rssContentMap.isEmpty() || articleUrl == null) return "";
+
+        // 정확한 URL 매칭
+        if (rssContentMap.containsKey(articleUrl)) {
+            return rssContentMap.get(articleUrl);
+        }
+
+        // URL 끝 slash 정규화 후 매칭
+        String normalizedUrl = articleUrl.replaceAll("/$", "");
+        for (Map.Entry<String, String> entry : rssContentMap.entrySet()) {
+            if (entry.getKey().replaceAll("/$", "").equals(normalizedUrl)) {
+                return entry.getValue();
+            }
+        }
+
+        // slug 기반 매칭 (Medium URL의 마지막 경로 세그먼트)
+        try {
+            String slug = new URI(articleUrl).getPath().replaceAll("/$", "");
+            for (Map.Entry<String, String> entry : rssContentMap.entrySet()) {
+                String entrySlug = new URI(entry.getKey()).getPath().replaceAll("/$", "");
+                if (slug.equals(entrySlug)) {
+                    return entry.getValue();
+                }
+            }
+        } catch (Exception e) {
+            log.debug("slug 기반 매칭 실패: {}", articleUrl);
+        }
+
+        return "";
+    }
+
+    /**
+     * 블로그 링크(corporation.blogLink)에서 RSS feed URL 생성
+     * - medium.com 호스팅 publication: medium.com/watcha → medium.com/feed/watcha
+     * - 커스텀 도메인: techblog.gccompany.co.kr → techblog.gccompany.co.kr/feed
+     */
+    private String buildFeedUrlFromBlogLink(String blogLink) {
+        try {
+            URI uri = URI.create(blogLink.replaceAll("/$", ""));
+            if ("medium.com".equals(uri.getHost())) {
+                // /watcha → /feed/watcha
+                return "https://medium.com/feed" + uri.getPath();
+            }
+            return uri.getScheme() + "://" + uri.getHost() + "/feed";
+        } catch (Exception e) {
+            return blogLink.replaceAll("/$", "") + "/feed";
+        }
+    }
+
+    /**
+     * 아티클 URL에서 RSS feed URL 생성 (extractContentFromRssFallback 전용)
+     * - medium.com/watcha/article-slug → medium.com/feed/watcha
+     * - techblog.gccompany.co.kr/article-slug → techblog.gccompany.co.kr/feed
+     */
+    private String buildFeedUrlFromArticleUrl(String articleUrl) {
+        try {
+            URI uri = new URI(articleUrl);
+            if ("medium.com".equals(uri.getHost())) {
+                // 경로의 첫 번째 세그먼트가 publication slug: /watcha/article → /feed/watcha
+                String[] segments = uri.getPath().split("/");
+                String publication = segments.length > 1 ? segments[1] : "";
+                return "https://medium.com/feed/" + publication;
+            }
+            return uri.getScheme() + "://" + uri.getHost() + "/feed";
+        } catch (Exception e) {
+            log.warn("feed URL 생성 실패: {}", articleUrl);
+            return "";
+        }
+    }
+
     /**
      * Bot 감지 우회를 위한 추가 설정
      */
@@ -321,8 +465,8 @@ public class MediumBlogCrawler implements BlogCrawler {
 
             // Cloudflare 챌린지 페이지인지 최종 확인
             if (isCloudflareChallengePage(content)) {
-                log.warn("본문 추출 실패: Cloudflare 챌린지 통과 실패 - {}", articleUrl);
-                return "";
+                log.warn("본문 추출 실패: Cloudflare 챌린지 통과 실패 - {}, RSS fallback 시도", articleUrl);
+                return extractContentFromRssFallback(articleUrl);
             }
 
             log.debug("본문 추출 완료: {} (길이: {}자)", articleUrl, content.length());
@@ -335,6 +479,44 @@ public class MediumBlogCrawler implements BlogCrawler {
             return "";
         } catch (Exception e) {
             log.error("본문 추출 실패: {} - {}", articleUrl, e.getMessage(), e);
+            return "";
+        }
+    }
+
+    /**
+     * RSS feed를 통한 본문 추출 fallback
+     * Cloudflare가 Selenium을 차단할 때 RSS feed로 본문을 가져옴
+     */
+    private String extractContentFromRssFallback(String articleUrl) {
+        try {
+            String feedUrl = buildFeedUrlFromArticleUrl(articleUrl);
+
+            SyndFeedInput input = new SyndFeedInput();
+            SyndFeed feed = input.build(new XmlReader(new URL(feedUrl)));
+
+            for (SyndEntry entry : feed.getEntries()) {
+                // URL 매칭 (정확한 매칭 + slug 기반 매칭)
+                String entryLink = entry.getLink();
+                if (entryLink != null) {
+                    String normalizedArticle = articleUrl.replaceAll("/$", "");
+                    String normalizedEntry = entryLink.replaceAll("/$", "");
+                    // 정확한 매칭 또는 slug(경로) 기반 매칭
+                    boolean matched = normalizedArticle.equals(normalizedEntry)
+                            || new URI(normalizedArticle).getPath().equals(new URI(normalizedEntry).getPath());
+                    if (matched) {
+                        String content = extractTextFromRssEntry(entry);
+                        if (!content.isEmpty()) {
+                            log.info("RSS fallback 성공: {} ({}자)", articleUrl, content.length());
+                            return content;
+                        }
+                    }
+                }
+            }
+
+            log.warn("RSS fallback 실패: 해당 article을 RSS에서 찾을 수 없음 - {}", articleUrl);
+            return "";
+        } catch (Exception e) {
+            log.warn("RSS fallback 실패: {} - {}", articleUrl, e.getMessage());
             return "";
         }
     }
@@ -390,7 +572,14 @@ public class MediumBlogCrawler implements BlogCrawler {
      * window.__APOLLO_STATE__에서 Article 목록 파싱
      */
     private List<Article> parseArticlesFromApolloState(String apolloStateJson, Corporation corporation) {
-        return parseArticlesFromApolloStateWithDedup(apolloStateJson, corporation, null);
+        return parseArticlesFromApolloStateWithDedup(apolloStateJson, corporation, null, Map.of());
+    }
+
+    /**
+     * window.__APOLLO_STATE__에서 Article 목록 파싱 (RSS 본문 맵 포함)
+     */
+    private List<Article> parseArticlesFromApolloState(String apolloStateJson, Corporation corporation, Map<String, String> rssContentMap) {
+        return parseArticlesFromApolloStateWithDedup(apolloStateJson, corporation, null, rssContentMap);
     }
 
 
@@ -405,6 +594,14 @@ public class MediumBlogCrawler implements BlogCrawler {
             String apolloStateJson,
             Corporation corporation,
             java.util.Set<String> collectedPostIds) {
+        return parseArticlesFromApolloStateWithDedup(apolloStateJson, corporation, collectedPostIds, Map.of());
+    }
+
+    private List<Article> parseArticlesFromApolloStateWithDedup(
+            String apolloStateJson,
+            Corporation corporation,
+            java.util.Set<String> collectedPostIds,
+            Map<String, String> rssContentMap) {
         List<Article> articles = new ArrayList<>();
 
         try {
@@ -493,7 +690,7 @@ public class MediumBlogCrawler implements BlogCrawler {
                     JsonNode postNode = root.get(postRef);
                     if (postNode == null) continue;
 
-                    Article article = parseArticleFromApolloPost(postNode, root, corporation);
+                    Article article = parseArticleFromApolloPost(postNode, root, corporation, rssContentMap);
                     if (article != null) {
                         articles.add(article);
                         log.debug("Article 파싱 완료: {}", article.getTitle());
@@ -514,6 +711,10 @@ public class MediumBlogCrawler implements BlogCrawler {
      * Apollo State의 Post 노드에서 Article 생성
      */
     private Article parseArticleFromApolloPost(JsonNode postNode, JsonNode root, Corporation corporation) {
+        return parseArticleFromApolloPost(postNode, root, corporation, Map.of());
+    }
+
+    private Article parseArticleFromApolloPost(JsonNode postNode, JsonNode root, Corporation corporation, Map<String, String> rssContentMap) {
         try {
             // 제목
             String title = postNode.get("title").asText();
@@ -564,11 +765,17 @@ public class MediumBlogCrawler implements BlogCrawler {
                 publishedAt = TimeUtil.nowInSeoul();
             }
 
+            // RSS에서 본문 조회 (크롤 시점에 바로 채움)
+            String content = findContentByUrl(rssContentMap, link);
+            if (!content.isEmpty()) {
+                log.debug("RSS에서 본문 수집 완료: {} ({}자)", title, content.length());
+            }
+
             return Article.builder()
                     .corporation(corporation)
                     .title(title)
                     .link(link)
-                    .content("") // 본문은 별도 백필 API로 추출 (크롤링 성능 고려)
+                    .content(content) // RSS에서 가져온 본문 (없으면 빈 문자열, 백필 스케줄러가 처리)
                     .thumbnailImage(thumbnailImage)
                     .publishedAt(publishedAt)
                     .viewCount(0)
