@@ -4,7 +4,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.time.LocalDateTime;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
@@ -19,7 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.admin.service.EmbeddingBatchService;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.article.service.ArticleEmbeddingService;
 import com.newcodes7.small_town.article.service.TermEmbeddingService;
 import com.newcodes7.small_town.crawler.dto.ArticleSummaryResponse;
 import com.newcodes7.small_town.crawler.integration.openai.OpenaiService;
@@ -44,7 +42,6 @@ public class AdminEmbeddingController {
     private final EmbeddingBatchService embeddingBatchService;
     private final TermEmbeddingService termEmbeddingService;
     private final OpenaiService openaiService;
-    private final ArticleEmbeddingService articleEmbeddingService;
     private final RepresentativeChunkService representativeChunkService;
 
     /**
@@ -122,12 +119,13 @@ public class AdminEmbeddingController {
             // 1. Article 조회
             List<Article> articles;
             if (withoutEmbedding) {
-                // 임베딩이 없는 Article 조회
+                // 청크 임베딩이 없는 Article 조회
                 if (corporationId != null) {
-                    articles = articleRepository.findArticlesWithoutEmbeddingByCorporationId(
-                            corporationId, PageRequest.of(0, limit));
+                    List<Long> ids = articleRepository.findArticleIdsWithoutEmbeddingByCorporationId(corporationId, limit);
+                    articles = ids.isEmpty() ? List.of() : articleRepository.findAllById(ids);
                 } else {
-                    articles = articleRepository.findArticlesWithoutEmbedding(PageRequest.of(0, limit));
+                    List<Long> ids = articleRepository.findArticleIdsWithoutEmbedding(limit);
+                    articles = ids.isEmpty() ? List.of() : articleRepository.findAllById(ids);
                 }
             } else {
                 // 모든 Article 조회
@@ -364,18 +362,11 @@ public class AdminEmbeddingController {
             article.setSummary(summaryResponse.toDisplayText());
             articleRepository.save(article);
 
-            // 4. summary 기반 임베딩 생성 및 저장
-            float[] embedding = generateSummaryEmbedding(article);
-            if (embedding != null) {
-                saveEmbeddingToArticle(article, embedding);
-            }
-
             response.put("success", true);
             response.put("articleId", id);
             response.put("summary", summaryResponse.toDisplayText());
             response.put("keywords", summaryResponse.getKeywords());
-            response.put("embeddingGenerated", embedding != null);
-            response.put("message", "요약 생성 및 임베딩 저장 완료");
+            response.put("message", "요약 생성 완료");
 
             log.info("Article {} - 요약 생성 완료", id);
 
@@ -502,12 +493,6 @@ public class AdminEmbeddingController {
                     // summary 저장
                     article.setSummary(summaryResponse.toDisplayText());
                     articleRepository.save(article);
-
-                    // 임베딩 생성
-                    float[] embedding = generateSummaryEmbedding(article);
-                    if (embedding != null) {
-                        saveEmbeddingToArticle(article, embedding);
-                    }
 
                     Map<String, Object> result = new HashMap<>();
                     result.put("articleId", article.getId());
@@ -894,16 +879,4 @@ public class AdminEmbeddingController {
         }
     }
 
-    private float[] generateSummaryEmbedding(Article article) {
-        if (article.getSummary() == null || article.getSummary().trim().isEmpty()) {
-            return null;
-        }
-        return articleEmbeddingService.generateEmbedding(article.getSummary());
-    }
-
-    private void saveEmbeddingToArticle(Article article, float[] embedding) {
-        article.setEmbedding(embedding);
-        article.setEmbeddingGeneratedAt(LocalDateTime.now());
-        articleRepository.save(article);
-    }
 }

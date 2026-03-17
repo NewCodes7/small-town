@@ -276,68 +276,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "ORDER BY a.id DESC")
     List<Article> findAllByIdIn(@Param("ids") List<Long> ids);
 
-    // ===== Vector Embedding 관련 쿼리 =====
-
-    /**
-     * 벡터 유사도 검색 (Article 객체 반환)
-     * pgvector의 코사인 거리(<=>)를 사용하여 유사한 Article 조회
-     *
-     * @param queryEmbedding 검색 쿼리의 임베딩 벡터 (PostgreSQL 배열 포맷: "[0.1,0.2,...]")
-     * @param threshold 최소 유사도 임계값 (0.0 ~ 1.0)
-     * @param limit 최대 결과 수
-     * @return 유사도 높은 순으로 정렬된 Article 리스트
-     */
-    @Query(value = "SELECT a.*, " +
-           "1 - (a.embedding <=> CAST(:queryEmbedding AS vector)) as similarity " +
-           "FROM article a " +
-           "WHERE a.deleted_at IS NULL " +
-           "AND a.embedding IS NOT NULL " +
-           "AND 1 - (a.embedding <=> CAST(:queryEmbedding AS vector)) >= :threshold " +
-           "ORDER BY a.embedding <=> CAST(:queryEmbedding AS vector) " +
-           "LIMIT :limit",
-           nativeQuery = true)
-    List<Article> findByVectorSimilarity(
-            @Param("queryEmbedding") String queryEmbedding,
-            @Param("threshold") double threshold,
-            @Param("limit") int limit
-    );
-
-    /**
-     * 벡터 유사도 검색 (ID와 스코어만 반환)
-     * Summary 기반 임베딩 검색에 사용
-     *
-     * @param queryEmbedding 검색 쿼리의 임베딩 벡터 (PostgreSQL 배열 포맷: "[0.1,0.2,...]")
-     * @param threshold 최소 유사도 임계값 (0.0 ~ 1.0)
-     * @param limit 최대 결과 수
-     * @return [Article ID, similarity score] 형태의 Object[] 리스트
-     */
-    @Query(value = "SELECT a.id, " +
-           "1 - (a.embedding <=> CAST(:queryEmbedding AS vector)) as similarity " +
-           "FROM article a " +
-           "WHERE a.deleted_at IS NULL " +
-           "AND a.embedding IS NOT NULL " +
-           "AND 1 - (a.embedding <=> CAST(:queryEmbedding AS vector)) >= :threshold " +
-           "ORDER BY a.embedding <=> CAST(:queryEmbedding AS vector) " +
-           "LIMIT :limit",
-           nativeQuery = true)
-    List<Object[]> findByVectorSimilarityWithScores(
-            @Param("queryEmbedding") String queryEmbedding,
-            @Param("threshold") double threshold,
-            @Param("limit") int limit
-    );
-
-    /**
-     * 임베딩이 없는 Article 조회 (content가 있지만 embedding이 null인 경우)
-     * 배치 임베딩 생성 시 사용
-     *
-     * @param pageable 페이징 정보
-     * @return 임베딩이 없는 Article 리스트
-     */
-    @Query("SELECT a FROM Article a " +
-           "WHERE a.deletedAt IS NULL " +
-           "AND a.embedding IS NULL " +
-           "AND a.content IS NOT NULL")
-    List<Article> findArticlesWithoutEmbedding(Pageable pageable);
+    // ===== Chunk Embedding 관련 쿼리 =====
 
     /**
      * content가 없는 Article 조회 (본문 백필이 필요한 경우)
@@ -359,14 +298,6 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     long countActiveArticles();
 
     /**
-     * 임베딩 통계 조회용 - 임베딩이 있는 Article 수
-     */
-    @Query("SELECT COUNT(a) FROM Article a " +
-           "WHERE a.deletedAt IS NULL " +
-           "AND a.embedding IS NOT NULL")
-    long countArticlesWithEmbedding();
-
-    /**
      * 임베딩 통계 조회용 - content가 없는 Article 수
      */
     @Query("SELECT COUNT(a) FROM Article a " +
@@ -383,20 +314,27 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     long countArticlesWithContent();
 
     /**
-     * 특정 Corporation의 임베딩이 없는 Article 조회
+     * 특정 Corporation의 청크 임베딩이 없는 Article ID 조회
      *
      * @param corporationId Corporation ID
-     * @param pageable 페이징 정보
-     * @return 임베딩이 없는 Article 리스트
+     * @param limit 조회할 개수
+     * @return 청크 임베딩이 없는 Article ID 리스트
      */
-    @Query("SELECT a FROM Article a " +
-           "WHERE a.deletedAt IS NULL " +
-           "AND a.corporation.id = :corporationId " +
-           "AND a.embedding IS NULL " +
-           "AND a.content IS NOT NULL")
-    List<Article> findArticlesWithoutEmbeddingByCorporationId(
+    @Query(value = "SELECT a.id FROM article a " +
+           "WHERE a.deleted_at IS NULL " +
+           "AND a.corporation_id = :corporationId " +
+           "AND a.content IS NOT NULL " +
+           "AND TRIM(a.content) != '' " +
+           "AND NOT EXISTS (" +
+           "    SELECT 1 FROM clova_article_chunk cac " +
+           "    WHERE cac.article_id = a.id AND cac.embedding_binary IS NOT NULL" +
+           ") " +
+           "ORDER BY a.id DESC " +
+           "LIMIT :limit",
+           nativeQuery = true)
+    List<Long> findArticleIdsWithoutEmbeddingByCorporationId(
             @Param("corporationId") Long corporationId,
-            Pageable pageable);
+            @Param("limit") int limit);
 
     /**
      * ILIKE 검색용 경량 쿼리 (ID와 published_at만 반환, 최대 100개)

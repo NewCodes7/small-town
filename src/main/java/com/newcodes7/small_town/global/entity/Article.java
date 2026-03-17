@@ -11,9 +11,6 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.newcodes7.small_town.global.config.VectorType;
-
-import org.hibernate.annotations.Type;
 
 import jakarta.persistence.Basic;
 import jakarta.persistence.CascadeType;
@@ -104,15 +101,6 @@ public class Article {
     @Basic(fetch = FetchType.LAZY)
     @Column(columnDefinition = "TEXT")
     private String content;
-
-    @Basic(fetch = FetchType.LAZY)
-    @Type(VectorType.class)
-    @Column(columnDefinition = "vector(1536)")
-    private float[] embedding;
-
-    @Basic(fetch = FetchType.LAZY)
-    @Column(name = "embedding_generated_at")
-    private LocalDateTime embeddingGeneratedAt;
 
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
