@@ -466,7 +466,9 @@ public class MediumBlogCrawler implements BlogCrawler {
             // Cloudflare 챌린지 페이지인지 최종 확인
             if (isCloudflareChallengePage(content)) {
                 log.warn("본문 추출 실패: Cloudflare 챌린지 통과 실패 - {}, RSS fallback 시도", articleUrl);
-                return extractContentFromRssFallback(articleUrl);
+                String rssFallback = extractContentFromRssFallback(articleUrl);
+                if (!rssFallback.isEmpty()) return rssFallback;
+                return extractContentFromJinaAi(articleUrl);
             }
 
             log.debug("본문 추출 완료: {} (길이: {}자)", articleUrl, content.length());
@@ -517,6 +519,48 @@ public class MediumBlogCrawler implements BlogCrawler {
             return "";
         } catch (Exception e) {
             log.warn("RSS fallback 실패: {} - {}", articleUrl, e.getMessage());
+            return "";
+        }
+    }
+
+    /**
+     * Jina.ai Reader API를 통한 본문 추출 (최후 fallback)
+     * RSS에도 없는 오래된 아티클을 Cloudflare 없이 가져올 때 사용
+     * https://r.jina.ai/{url} → plain text Markdown 반환
+     */
+    private String extractContentFromJinaAi(String articleUrl) {
+        try {
+            String jinaUrl = "https://r.jina.ai/" + articleUrl;
+            String response = Jsoup.connect(jinaUrl)
+                    .header("Accept", "text/plain")
+                    .header("User-Agent", "Mozilla/5.0")
+                    .ignoreContentType(true)
+                    .timeout(30_000)
+                    .execute()
+                    .body();
+
+            if (response == null || response.isBlank()) return "";
+
+            // "Markdown Content:" 이후 본문만 추출
+            int contentStart = response.indexOf("Markdown Content:");
+            if (contentStart >= 0) {
+                response = response.substring(contentStart + "Markdown Content:".length()).trim();
+            }
+
+            // 마크다운 이미지 제거, 링크는 텍스트만, 헤더 # 제거
+            response = response
+                    .replaceAll("!\\[.*?\\]\\(.*?\\)", "")
+                    .replaceAll("\\[([^\\]]+)\\]\\([^)]+\\)", "$1")
+                    .replaceAll("(?m)^#+\\s*", "")
+                    .replaceAll("\n{3,}", "\n\n")
+                    .trim();
+
+            if (response.length() < 200) return "";
+
+            log.info("Jina.ai fallback 성공: {} ({}자)", articleUrl, response.length());
+            return response;
+        } catch (Exception e) {
+            log.warn("Jina.ai fallback 실패: {} - {}", articleUrl, e.getMessage());
             return "";
         }
     }
