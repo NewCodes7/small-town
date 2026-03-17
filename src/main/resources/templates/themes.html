@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ko"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>테마 - NewCodes</title>
+    <style>
+        :root {
+            --primary-green: #03C75A;
+            --secondary-green: #E8F7EF;
+            --text-dark: #1F2937;
+            --text-light: #6B7280;
+            --border-light: #E5E7EB;
+            --bg-light: #F9FAFB;
+        }
+
+        .themes-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 60px 20px;
+        }
+
+        .themes-header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .themes-title {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--text-dark);
+            margin-bottom: 16px;
+        }
+
+        .themes-subtitle {
+            font-size: 1.1rem;
+            color: var(--text-light);
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        .themes-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+
+        .theme-card {
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            border: 2px solid var(--border-light);
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 12px rgba(3, 199, 90, 0.08);
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .theme-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(3, 199, 90, 0.18);
+            border-color: var(--primary-green);
+            color: inherit;
+        }
+
+        .theme-thumbnail {
+            width: 100%;
+            height: 180px;
+            background: linear-gradient(135deg, var(--secondary-green) 0%, #F0F8F0 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .theme-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .theme-emoji-placeholder {
+            font-size: 3.5rem;
+        }
+
+        .theme-body {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .theme-name {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 8px;
+        }
+
+        .theme-description {
+            font-size: 0.9rem;
+            color: var(--text-light);
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            flex: 1;
+            margin-bottom: 16px;
+        }
+
+        .theme-stats {
+            display: flex;
+            gap: 16px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-light);
+            font-size: 0.82rem;
+            color: var(--text-light);
+        }
+
+        .theme-stat {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .theme-stat i {
+            color: var(--primary-green);
+            font-size: 0.8rem;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            color: var(--primary-green);
+            opacity: 0.3;
+            margin-bottom: 20px;
+        }
+
+        .empty-state h3 {
+            font-size: 1.5rem;
+            color: var(--text-dark);
+            margin-bottom: 12px;
+        }
+
+        .empty-state p {
+            color: var(--text-light);
+        }
+
+        @media (max-width: 1024px) {
+            .themes-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 600px) {
+            .themes-title {
+                font-size: 2rem;
+            }
+
+            .themes-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="themes-container">
+            <div class="themes-header">
+                <h1 class="themes-title">
+                    <span>테마</span>
+                </h1>
+                <p class="themes-subtitle">큐레이션된 주제별 기술 아티클과 영상을 모아보세요.</p>
+            </div>
+
+            <div th:if="${themes != null and !themes.isEmpty()}" class="themes-grid">
+                <a th:each="theme : ${themes}"
+                   th:href="@{/themes/{id}(id=${theme.id})}"
+                   class="theme-card">
+                    <div class="theme-thumbnail">
+                        <img th:if="${theme.thumbnailUrl != null and !theme.thumbnailUrl.isEmpty()}"
+                             th:src="${theme.thumbnailUrl}"
+                             th:alt="${theme.name}">
+                        <span th:unless="${theme.thumbnailUrl != null and !theme.thumbnailUrl.isEmpty()}"
+                              class="theme-emoji-placeholder"
+                              th:text="${theme.emoji != null ? theme.emoji : '📚'}">📚</span>
+                    </div>
+                    <div class="theme-body">
+                        <h2 class="theme-name" th:text="${theme.name}">테마 이름</h2>
+                        <p class="theme-description" th:text="${theme.description}">테마 설명</p>
+                        <div class="theme-stats">
+                            <span class="theme-stat">
+                                <i class="fas fa-newspaper"></i>
+                                <span th:text="${theme.articleCount} + '개 아티클'">0개 아티클</span>
+                            </span>
+                            <span class="theme-stat">
+                                <i class="fab fa-youtube"></i>
+                                <span th:text="${theme.videoCount} + '개 영상'">0개 영상</span>
+                            </span>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <div th:if="${themes == null or themes.isEmpty()}" class="empty-state">
+                <i class="fas fa-layer-group"></i>
+                <h3>등록된 테마가 없습니다</h3>
+                <p>새로운 테마가 곧 추가될 예정입니다.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
