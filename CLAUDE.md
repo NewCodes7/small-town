@@ -292,6 +292,12 @@ public class ExampleServiceTest { ... }
 - Nginx: `set $backend` 변수 기반 동적 전환, Docker DNS(`127.0.0.11`) 사용
 - 헬스체크: `/actuator/health` (최대 5분 대기)
 
+### 테스트 스킵 배포
+커밋 메시지에 `[skip tests]`를 포함하면 CI 테스트를 건너뛰고 바로 빌드/배포:
+```bash
+git commit -m "feat: 설명 [skip tests]"
+```
+
 ### 필수 환경변수 (prod)
 ```
 DB_URL, DB_USERNAME, DB_PASSWORD
