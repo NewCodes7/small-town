@@ -57,6 +57,9 @@ public class ArticleServiceTest {
     @Mock
     private UserLikeService userLikeService;
 
+    @Mock
+    private ArticleAnalyzedContentService articleAnalyzedContentService;
+
     @InjectMocks
     private ArticleService articleService;
 

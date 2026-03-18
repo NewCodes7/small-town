@@ -277,13 +277,9 @@ public class AdminTermController {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            // Article 존재 확인
-            Article article = articleRepository.findById(articleId)
-                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 Article입니다. ID: " + articleId));
-
             String termString = (String) request.get("term");
-            Double score = request.get("score") != null ? ((Number) request.get("score")).doubleValue() : 0.5;
-            Integer frequency = request.get("frequency") != null ? ((Number) request.get("frequency")).intValue() : 1;
+            double score = request.get("score") != null ? ((Number) request.get("score")).doubleValue() : 0.5;
+            int frequency = request.get("frequency") != null ? ((Number) request.get("frequency")).intValue() : 1;
 
             if (termString == null || termString.trim().isEmpty()) {
                 response.put("success", false);
@@ -291,41 +287,16 @@ public class AdminTermController {
                 return ResponseEntity.badRequest().body(response);
             }
 
-            // Term 생성 또는 조회
-            List<com.newcodes7.small_town.global.entity.Term> existingTerms =
-                    termRepository.findByTerm(termString.trim());
-            com.newcodes7.small_town.global.entity.Term term;
-
-            if (!existingTerms.isEmpty()) {
-                // 기존 term 사용
-                term = existingTerms.get(0);
-            } else {
-                // 새로운 term 생성
-                term = com.newcodes7.small_town.global.entity.Term.builder()
-                        .term(termString.trim())
-                        .termType("NNG") // 기본값: 일반 명사
-                        .build();
-                term = termRepository.save(term);
-            }
-
-            // ArticleTerm 생성
             com.newcodes7.small_town.global.entity.ArticleTerm articleTerm =
-                    com.newcodes7.small_town.global.entity.ArticleTerm.builder()
-                            .article(article)
-                            .term(term)
-                            .frequency(frequency)
-                            .score(score)
-                            .build();
-
-            articleTermRepository.save(articleTerm);
+                    articleTermService.addArticleTermForAdmin(articleId, termString, score, frequency);
 
             response.put("success", true);
             response.put("message", "Term이 성공적으로 추가되었습니다.");
             response.put("articleTermId", articleTerm.getId());
-            response.put("term", term.getTerm());
+            response.put("term", articleTerm.getTerm().getTerm());
             response.put("score", score);
 
-            log.info("Article ID {}에 Term '{}' 추가 완료 (score: {})", articleId, term.getTerm(), score);
+            log.info("Article ID {}에 Term '{}' 추가 완료 (score: {})", articleId, articleTerm.getTerm().getTerm(), score);
 
             return ResponseEntity.ok(response);
 
@@ -355,44 +326,11 @@ public class AdminTermController {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            // ArticleTerm 존재 확인
+            Double newScore = request.containsKey("score") ? ((Number) request.get("score")).doubleValue() : null;
+            Integer newFrequency = request.containsKey("frequency") ? ((Number) request.get("frequency")).intValue() : null;
+
             com.newcodes7.small_town.global.entity.ArticleTerm articleTerm =
-                    articleTermRepository.findById(articleTermId)
-                            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 ArticleTerm입니다. ID: " + articleTermId));
-
-            // Article ID 일치 확인
-            if (!articleTerm.getArticle().getId().equals(articleId)) {
-                response.put("success", false);
-                response.put("message", "ArticleTerm이 해당 Article에 속하지 않습니다.");
-                return ResponseEntity.badRequest().body(response);
-            }
-
-            // score, frequency 업데이트
-            if (request.containsKey("score")) {
-                Double score = ((Number) request.get("score")).doubleValue();
-                articleTerm = com.newcodes7.small_town.global.entity.ArticleTerm.builder()
-                        .id(articleTerm.getId())
-                        .article(articleTerm.getArticle())
-                        .term(articleTerm.getTerm())
-                        .frequency(articleTerm.getFrequency())
-                        .score(score)
-                        .createdAt(articleTerm.getCreatedAt())
-                        .build();
-            }
-
-            if (request.containsKey("frequency")) {
-                Integer frequency = ((Number) request.get("frequency")).intValue();
-                articleTerm = com.newcodes7.small_town.global.entity.ArticleTerm.builder()
-                        .id(articleTerm.getId())
-                        .article(articleTerm.getArticle())
-                        .term(articleTerm.getTerm())
-                        .frequency(frequency)
-                        .score(articleTerm.getScore())
-                        .createdAt(articleTerm.getCreatedAt())
-                        .build();
-            }
-
-            articleTermRepository.save(articleTerm);
+                    articleTermService.updateArticleTermForAdmin(articleTermId, articleId, newScore, newFrequency);
 
             response.put("success", true);
             response.put("message", "ArticleTerm이 성공적으로 수정되었습니다.");
@@ -430,22 +368,7 @@ public class AdminTermController {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            // ArticleTerm 존재 확인
-            com.newcodes7.small_town.global.entity.ArticleTerm articleTerm =
-                    articleTermRepository.findById(articleTermId)
-                            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 ArticleTerm입니다. ID: " + articleTermId));
-
-            // Article ID 일치 확인
-            if (!articleTerm.getArticle().getId().equals(articleId)) {
-                response.put("success", false);
-                response.put("message", "ArticleTerm이 해당 Article에 속하지 않습니다.");
-                return ResponseEntity.badRequest().body(response);
-            }
-
-            String termName = articleTerm.getTerm().getTerm();
-
-            // ArticleTerm 삭제
-            articleTermRepository.delete(articleTerm);
+            String termName = articleTermService.deleteArticleTermForAdmin(articleTermId, articleId);
 
             response.put("success", true);
             response.put("message", String.format("Term '%s'가 성공적으로 삭제되었습니다.", termName));

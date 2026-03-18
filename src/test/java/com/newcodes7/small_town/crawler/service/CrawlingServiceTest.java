@@ -25,7 +25,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.openqa.selenium.WebDriver;
 import org.springframework.context.ApplicationContext;
 
-import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.service.ArticleTermService;
 import com.newcodes7.small_town.crawler.config.WebDriverConfig;
 import com.newcodes7.small_town.crawler.crawler.BlogCrawler;
@@ -39,7 +38,6 @@ import com.newcodes7.small_town.embedding.service.ChunkEmbeddingBatchService;
 import com.newcodes7.small_town.embedding.service.RepresentativeChunkService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
-import com.newcodes7.small_town.global.service.BatchQueryService;
 
 @ExtendWith(MockitoExtension.class)
 class CrawlingServiceTest {
@@ -66,9 +64,6 @@ class CrawlingServiceTest {
     private ArticleContentExtractionService articleContentExtractionService;
 
     @Mock
-    private ArticleRepository articleRepository;
-
-    @Mock
     private CrawlingRunService crawlingRunService;
 
     @Mock
@@ -79,9 +74,6 @@ class CrawlingServiceTest {
 
     @Mock
     private RepresentativeChunkService representativeChunkService;
-
-    @Mock
-    private BatchQueryService batchQueryService;
 
     private CrawlingService crawlingService;
 
@@ -95,18 +87,16 @@ class CrawlingServiceTest {
                 webDriverConfig,
                 articlePersistenceService,
                 articleContentExtractionService,
-                articleRepository,
                 crawlingRunService,
                 articleTermService,
                 chunkEmbeddingBatchService,
-                representativeChunkService,
-                batchQueryService
+                representativeChunkService
         );
     }
 
     @Test
-    @DisplayName("crawlAllBlogs: 신규 글 존재 시 BM25/자동완성 인덱스는 1회만 갱신")
-    void crawlAllBlogs_RefreshIndexOnceWhenNewArticles() throws Exception {
+    @DisplayName("crawlAllBlogs: 신규 글 존재 시 대표 청크 선정 호출")
+    void crawlAllBlogs_SelectsRepresentativeChunksWhenNewArticles() throws Exception {
         Corporation corp1 = Corporation.builder()
                 .name("corp1")
                 .blogLink("https://corp1.com/blog")
@@ -153,16 +143,11 @@ class CrawlingServiceTest {
         when(articleTermService.extractAndSaveTermsForArticle(any())).thenReturn(1);
         when(chunkEmbeddingBatchService.generateChunkEmbeddingsForArticle(any())).thenReturn(1);
         when(representativeChunkService.selectRepresentativeChunk(anyLong())).thenReturn(1L);
-        doAnswer(invocation -> {
-            Runnable query = invocation.getArgument(0);
-            query.run();
-            return null;
-        }).when(batchQueryService).executeWithNoTimeout(any(Runnable.class));
 
         crawlingService.crawlAllBlogs();
 
-        verify(articleRepository, times(1)).refreshArticleSearchIndex();
-        verify(articleRepository, times(1)).refreshTermAutocompleteIndex();
+        // article_analyzed_content는 Term 추출 시 자동 갱신 - 별도 인덱스 갱신 호출 없음
+        verify(representativeChunkService, times(2)).selectRepresentativeChunk(anyLong());
     }
 
     @Test
@@ -204,9 +189,7 @@ class CrawlingServiceTest {
         verify(articleTermService, times(1)).extractAndSaveTermsForArticle(any());
         verify(chunkEmbeddingBatchService, never()).generateChunkEmbeddingsForArticle(any());
         verify(representativeChunkService, never()).selectRepresentativeChunk(anyLong());
-        // crawlSingleBlog는 인덱스 갱신을 하지 않음 (crawlAllBlogs에서 1회 처리)
-        verify(articleRepository, never()).refreshArticleSearchIndex();
-        verify(articleRepository, never()).refreshTermAutocompleteIndex();
+        // crawlSingleBlog는 대표 청크 선정을 하지 않음 (crawlAllBlogs에서 처리)
     }
 
     @Test

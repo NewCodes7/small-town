@@ -45,15 +45,18 @@ public class ArticleService {
     private final CorporationRepository corporationRepository;
     private final ArticleSearchService articleSearchService;
     private final UserLikeService userLikeService;
+    private final ArticleAnalyzedContentService articleAnalyzedContentService;
 
     public ArticleService(ArticleRepository articleRepository,
                          @Qualifier("articleCorporationRepository") CorporationRepository corporationRepository,
                          ArticleSearchService articleSearchService,
-                         UserLikeService userLikeService) {
+                         UserLikeService userLikeService,
+                         ArticleAnalyzedContentService articleAnalyzedContentService) {
         this.articleRepository = articleRepository;
         this.corporationRepository = corporationRepository;
         this.articleSearchService = articleSearchService;
         this.userLikeService = userLikeService;
+        this.articleAnalyzedContentService = articleAnalyzedContentService;
     }
 
     @Cacheable(value = "corporationArticles",
@@ -267,6 +270,7 @@ public class ArticleService {
 
         article.softDelete();
         articleRepository.save(article);
+        articleAnalyzedContentService.deleteForArticle(articleId);
     }
 
     /**

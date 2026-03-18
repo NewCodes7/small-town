@@ -125,9 +125,24 @@ public class ArticleControllerTest {
         }
         articleTermRepository.saveAll(articleTerms);
 
-        // Materialized View 리프레시 (BM25 인덱스도 자동 갱신)
+        // article_analyzed_content 갱신 (BM25 인덱스도 자동 갱신)
         entityManager.flush();
-        entityManager.createNativeQuery("REFRESH MATERIALIZED VIEW article_search_view").executeUpdate();
+        entityManager.createNativeQuery("""
+                INSERT INTO article_analyzed_content (id, title, published_at, corporation_id, category_id, title_terms, content_terms, updated_at)
+                SELECT a.id, a.title, a.published_at, a.corporation_id, a.category_id,
+                       STRING_AGG(CASE WHEN at.source IN ('TITLE','BOTH') THEN t.term END, ' ' ORDER BY at.score DESC),
+                       STRING_AGG(CASE WHEN at.source IN ('CONTENT','BOTH') THEN t.term END, ' ' ORDER BY at.score DESC),
+                       NOW()
+                FROM article a
+                LEFT JOIN article_term at ON a.id = at.article_id
+                LEFT JOIN term t ON at.term_id = t.id
+                WHERE a.deleted_at IS NULL
+                GROUP BY a.id, a.title, a.published_at, a.corporation_id, a.category_id
+                ON CONFLICT (id) DO UPDATE SET
+                    title_terms = EXCLUDED.title_terms,
+                    content_terms = EXCLUDED.content_terms,
+                    updated_at = NOW()
+                """).executeUpdate();
     }
 
     @Test

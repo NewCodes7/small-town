@@ -143,8 +143,8 @@ public class RepresentativeChunkService {
 
             String sql = """
                 SELECT paradedb.score(id) as bm25_score
-                FROM article_search_view
-                WHERE article_search_view @@@ paradedb.parse(:searchQuery)
+                FROM article_analyzed_content
+                WHERE article_analyzed_content @@@ paradedb.parse(:searchQuery)
                 AND id = :articleId
                 """;
 

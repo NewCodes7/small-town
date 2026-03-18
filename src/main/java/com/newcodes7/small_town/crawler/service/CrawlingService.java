@@ -11,7 +11,6 @@ import org.openqa.selenium.WebDriver;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 
-import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.service.ArticleTermService;
 import com.newcodes7.small_town.crawler.config.WebDriverConfig;
 import com.newcodes7.small_town.crawler.crawler.BlogCrawler;
@@ -30,7 +29,6 @@ import com.newcodes7.small_town.embedding.service.ChunkEmbeddingBatchService;
 import com.newcodes7.small_town.embedding.service.RepresentativeChunkService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
-import com.newcodes7.small_town.global.service.BatchQueryService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,20 +45,17 @@ public class CrawlingService {
     private final WebDriverConfig webDriverConfig;
     private final ArticlePersistenceService articlePersistenceService;
     private final ArticleContentExtractionService articleContentExtractionService;
-    private final ArticleRepository articleRepository;
     private final CrawlingRunService crawlingRunService;
     private final ArticleTermService articleTermService;
     private final ChunkEmbeddingBatchService chunkEmbeddingBatchService;
     private final RepresentativeChunkService representativeChunkService;
-    private final BatchQueryService batchQueryService;
 
     /**
      * 모든 기업 블로그 크롤링 (배치)
      *
      * 기업별: crawlSingleBlog (새 글 수집 → 본문/Term 분석 → Embedding 생성)
-     * 전체 완료 후: BM25 인덱스 갱신 (1회) → 대표 Chunk 선택
-     * BM25 인덱스 갱신을 마지막으로 미루는 이유: REFRESH MATERIALIZED VIEW는 비용이 크므로
-     * 기업별로 반복 호출하지 않고 모든 Term이 저장된 후 1회만 실행
+     * 전체 완료 후: 대표 Chunk 선택
+     * article_analyzed_content는 Term 추출 시 자동 갱신되므로 별도 인덱스 갱신 불필요
      */
     public List<CrawlResult> crawlAllBlogs() {
         List<Corporation> corporations = crawlerCorporationRepository.findAllWithBlogLink();
@@ -98,10 +93,9 @@ public class CrawlingService {
         log.info("블로그 크롤링 완료 - 처리된 기업: {}개", results.size());
 
         if (!allNewArticles.isEmpty()) {
-            boolean bm25RefreshSucceeded = refreshSearchIndex();
-            selectRepresentativeChunksForArticles(allNewArticles, bm25RefreshSucceeded);
+            // article_analyzed_content는 Term 추출 시 자동 갱신되므로 별도 refresh 불필요
+            selectRepresentativeChunksForArticles(allNewArticles, true);
         }
-
 
         return results;
     }
@@ -234,36 +228,6 @@ public class CrawlingService {
                 crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CONTENT_EXTRACTION, CrawlingStepStatus.FAILURE, e.getMessage());
                 crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.TERM_ANALYSIS, CrawlingStepStatus.SKIPPED, "본문 추출 실패");
             }
-        }
-    }
-
-    /**
-     * BM25 검색 인덱스 갱신 (Materialized View REFRESH)
-     * Term 저장 후 호출 → 대표 Chunk 선정 시 BM25 쿼리에 신규 Term이 반영됨
-     *
-     * @return true if refresh succeeded, false otherwise
-     */
-    private boolean refreshSearchIndex() {
-        try {
-            log.info("BM25 검색 인덱스 갱신 시작 (Materialized View REFRESH)");
-            long startTime = System.currentTimeMillis();
-
-            batchQueryService.executeWithNoTimeout(articleRepository::refreshArticleSearchIndex);
-
-            log.info("BM25 검색 인덱스 갱신 완료 ({}ms)", System.currentTimeMillis() - startTime);
-
-            log.info("Term 자동완성 인덱스 갱신 시작");
-            long termStartTime = System.currentTimeMillis();
-
-            batchQueryService.executeWithNoTimeout(articleRepository::refreshTermAutocompleteIndex);
-
-            log.info("Term 자동완성 인덱스 갱신 완료 ({}ms)", System.currentTimeMillis() - termStartTime);
-
-            return true;
-        } catch (Exception e) {
-            log.error("BM25 검색 인덱스 갱신 중 오류 발생: {}", e.getMessage(), e);
-            // 인덱스 갱신 실패는 크롤링 자체를 실패시키지 않음
-            return false;
         }
     }
 
@@ -425,42 +389,6 @@ public class CrawlingService {
                     article.getTitle(), e.getMessage(), e);
             crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CONTENT_EXTRACTION, CrawlingStepStatus.FAILURE, e.getMessage());
             crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.TERM_ANALYSIS, CrawlingStepStatus.SKIPPED, "Content 추출 실패");
-        }
-    }
-
-    /**
-     * BM25 검색 인덱스 갱신 (Admin 전체 페이지 크롤링용)
-     * scheduledFullPageCrawling에서 배치 완료 후 1회 호출
-     *
-     * @return true if refresh succeeded (or skipped due to no new articles), false on error
-     */
-    private boolean refreshBM25SearchIndex(List<CrawlResult> results) {
-        try {
-            boolean hasNewArticles = results.stream().anyMatch(CrawlResult::hasNewArticles);
-
-            if (!hasNewArticles) {
-                log.info("신규 글이 없어 BM25 인덱스 갱신을 건너뜁니다.");
-                return true;
-            }
-
-            log.info("BM25 검색 인덱스 갱신 시작 (Materialized View REFRESH)");
-            long startTime = System.currentTimeMillis();
-
-            batchQueryService.executeWithNoTimeout(articleRepository::refreshArticleSearchIndex);
-
-            log.info("BM25 검색 인덱스 갱신 완료 ({}ms)", System.currentTimeMillis() - startTime);
-
-            log.info("Term 자동완성 인덱스 갱신 시작");
-            long termStartTime = System.currentTimeMillis();
-
-            batchQueryService.executeWithNoTimeout(articleRepository::refreshTermAutocompleteIndex);
-
-            log.info("Term 자동완성 인덱스 갱신 완료 ({}ms)", System.currentTimeMillis() - termStartTime);
-
-            return true;
-        } catch (Exception e) {
-            log.error("BM25 검색 인덱스 갱신 중 오류 발생: {}", e.getMessage(), e);
-            return false;
         }
     }
 
@@ -636,11 +564,6 @@ public class CrawlingService {
         long totalElapsedMinutes = (System.currentTimeMillis() - startTime) / 60000;
         log.info("스케줄된 전체 페이지 크롤링 완료 - 처리된 기업: {}개, 소요 시간: {}분",
                 results.size(), totalElapsedMinutes);
-
-        // 크롤링 완료 후 검색 인덱스 갱신
-        if (!results.isEmpty()) {
-            refreshBM25SearchIndex(results);
-        }
 
         return results;
     }

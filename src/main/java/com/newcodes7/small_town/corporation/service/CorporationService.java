@@ -27,6 +27,7 @@ import com.newcodes7.small_town.corporation.repository.IndustryRepository;
 import com.newcodes7.small_town.crawler.entity.ParsingSelector;
 import com.newcodes7.small_town.crawler.repository.ParsingSelectorRepository;
 import com.newcodes7.small_town.crawler.integration.youtube.YouTubeService;
+import com.newcodes7.small_town.article.service.ArticleAnalyzedContentService;
 import com.newcodes7.small_town.global.entity.BlogType;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.util.KoreanCharacterUtil;
@@ -45,6 +46,7 @@ public class CorporationService {
     private final FileUploadService fileUploadService;
     private final ParsingSelectorRepository parsingSelectorRepository;
     private final YouTubeService youtubeService;
+    private final ArticleAnalyzedContentService articleAnalyzedContentService;
     
     /**
      * 통합 필터링 메서드
@@ -587,6 +589,7 @@ public class CorporationService {
 
         for (com.newcodes7.small_town.global.entity.Article article : articles) {
             article.softDelete();
+            articleAnalyzedContentService.deleteForArticle(article.getId());
         }
 
         log.info("기업 {} 의 글 삭제 완료 - 총 {}개", corporation.getName(), articles.size());

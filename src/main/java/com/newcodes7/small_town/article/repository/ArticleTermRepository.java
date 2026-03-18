@@ -82,6 +82,13 @@ public interface ArticleTermRepository extends JpaRepository<ArticleTerm, Long> 
     List<Long> findArticleIdsByTerms(@Param("terms") List<String> terms);
 
     /**
+     * 특정 term ID를 가진 ArticleTerm의 article ID 목록 조회
+     * Term 삭제 전 영향받는 article 캡처용
+     */
+    @Query("SELECT DISTINCT at.article.id FROM ArticleTerm at WHERE at.term.id = :termId")
+    List<Long> findArticleIdsByTermId(@Param("termId") Long termId);
+
+    /**
      * 여러 term ID로 article 검색용 (OR 조건)
      * 유의어 검색에 사용
      */

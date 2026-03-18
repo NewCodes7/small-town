@@ -50,6 +50,7 @@ public class ArticleTermService {
     private final UnifiedMorphemeAnalyzer unifiedMorphemeAnalyzer;
     private final TransactionTemplate transactionTemplate;
     private final EntityManager entityManager;
+    private final ArticleAnalyzedContentService articleAnalyzedContentService;
 
     /**
      * 모든 article의 term을 추출하고 저장
@@ -326,6 +327,9 @@ public class ArticleTermService {
         termRepository.saveAll(newTermsToSave); // 신규 단어들 저장
         articleTermRepository.saveAll(articleTerms); // 관계 테이블 저장
 
+        // 7. article_analyzed_content 동기화 (BM25 검색 인덱스 정합성 유지)
+        articleAnalyzedContentService.rebuildForArticle(article);
+
         log.info("Article ID {} term 저장 완료: {} terms (전체: {}, 최소빈도 {} 이상: {})",
             article.getId(), articleTerms.size(), termDataMap.size(),
             MIN_FREQUENCY, filteredTerms.size());
@@ -362,6 +366,8 @@ public class ArticleTermService {
         }
 
         // 2. 해당 term을 사용하는 모든 ArticleTerm 삭제 (최적화된 쿼리 사용)
+        // 삭제 전에 영향받는 article ID 캡처 (삭제 후 article_analyzed_content 재계산용)
+        List<Long> affectedArticleIds = articleTermRepository.findArticleIdsByTermId(termId);
         int articleTermCount = articleTermRepository.countByTermId(termId);
         articleTermRepository.deleteByTermId(termId);
 
@@ -389,6 +395,11 @@ public class ArticleTermService {
 
         // 6. 불용어 캐시 갱신
         unifiedMorphemeAnalyzer.refreshStopwordCache();
+
+        // 7. 영향받은 article들의 article_analyzed_content 재계산
+        if (!affectedArticleIds.isEmpty()) {
+            articleAnalyzedContentService.rebuildForAffectedArticles(affectedArticleIds);
+        }
 
         log.info("Term 삭제 완료: {} ({}), TermSynonym {} 개, ArticleTerm {} 개, VideoTerm {} 개 삭제",
                 term.getTerm(), term.getTermType(), synonymCount, articleTermCount, videoTermCount);
@@ -572,6 +583,84 @@ public class ArticleTermService {
         int updatedCount = termRepository.updateTermStatisticsByIds(termIds);
 
         log.debug("Article ID {} 관련 Term 통계 갱신 완료: {} 개 업데이트", article.getId(), updatedCount);
+    }
+
+    /**
+     * 관리자용: Article에 Term 추가 후 article_analyzed_content 자동 갱신
+     */
+    @Transactional
+    public ArticleTerm addArticleTermForAdmin(Long articleId, String termString, double score, int frequency) {
+        Article article = articleRepository.findById(articleId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 Article입니다. ID: " + articleId));
+
+        List<Term> existingTerms = termRepository.findByTerm(termString.trim());
+        Term term;
+        if (!existingTerms.isEmpty()) {
+            term = existingTerms.get(0);
+        } else {
+            term = termRepository.save(Term.builder()
+                    .term(termString.trim())
+                    .termType("NNG")
+                    .build());
+        }
+
+        ArticleTerm articleTerm = ArticleTerm.builder()
+                .article(article)
+                .term(term)
+                .frequency(frequency)
+                .score(score)
+                .build();
+        ArticleTerm saved = articleTermRepository.save(articleTerm);
+
+        articleAnalyzedContentService.rebuildForArticle(article);
+        return saved;
+    }
+
+    /**
+     * 관리자용: ArticleTerm score/frequency 수정 후 article_analyzed_content 자동 갱신
+     */
+    @Transactional
+    public ArticleTerm updateArticleTermForAdmin(Long articleTermId, Long articleId, Double newScore, Integer newFrequency) {
+        ArticleTerm articleTerm = articleTermRepository.findById(articleTermId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 ArticleTerm입니다. ID: " + articleTermId));
+
+        if (!articleTerm.getArticle().getId().equals(articleId)) {
+            throw new IllegalArgumentException("ArticleTerm이 해당 Article에 속하지 않습니다.");
+        }
+
+        ArticleTerm updated = ArticleTerm.builder()
+                .id(articleTerm.getId())
+                .article(articleTerm.getArticle())
+                .term(articleTerm.getTerm())
+                .frequency(newFrequency != null ? newFrequency : articleTerm.getFrequency())
+                .score(newScore != null ? newScore : articleTerm.getScore())
+                .createdAt(articleTerm.getCreatedAt())
+                .build();
+        ArticleTerm saved = articleTermRepository.save(updated);
+
+        articleAnalyzedContentService.rebuildForArticle(articleTerm.getArticle());
+        return saved;
+    }
+
+    /**
+     * 관리자용: ArticleTerm 삭제 후 article_analyzed_content 자동 갱신
+     * @return 삭제된 term 문자열
+     */
+    @Transactional
+    public String deleteArticleTermForAdmin(Long articleTermId, Long articleId) {
+        ArticleTerm articleTerm = articleTermRepository.findById(articleTermId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 ArticleTerm입니다. ID: " + articleTermId));
+
+        if (!articleTerm.getArticle().getId().equals(articleId)) {
+            throw new IllegalArgumentException("ArticleTerm이 해당 Article에 속하지 않습니다.");
+        }
+
+        String termName = articleTerm.getTerm().getTerm();
+        Article article = articleTerm.getArticle();
+        articleTermRepository.delete(articleTerm);
+
+        articleAnalyzedContentService.rebuildForArticle(article);
+        return termName;
     }
 
     /**
