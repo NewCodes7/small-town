@@ -31,8 +31,10 @@ public class ArticleAnalyzedContentService {
      */
     @Transactional
     public void rebuildForArticle(Article article) {
+        long startTime = System.currentTimeMillis();
         articleAnalyzedContentRepository.upsertForArticle(article.getId());
-        log.debug("article_analyzed_content 갱신 완료: article_id={}", article.getId());
+        log.info("article_analyzed_content 갱신 완료: article_id={}, {}ms",
+                article.getId(), System.currentTimeMillis() - startTime);
     }
 
     /**
