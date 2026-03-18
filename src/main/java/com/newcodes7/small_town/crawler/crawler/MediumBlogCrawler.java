@@ -241,8 +241,11 @@ public class MediumBlogCrawler implements BlogCrawler {
         try {
             URI uri = URI.create(blogLink.replaceAll("/$", ""));
             if ("medium.com".equals(uri.getHost())) {
-                // /watcha → /feed/watcha
-                return "https://medium.com/feed" + uri.getPath();
+                // publication slug는 첫 번째 경로 세그먼트만 사용
+                // e.g., /ssgtech/all → /feed/ssgtech
+                String[] segments = uri.getPath().split("/");
+                String publicationSlug = segments.length > 1 ? "/" + segments[1] : uri.getPath();
+                return "https://medium.com/feed" + publicationSlug;
             }
             return uri.getScheme() + "://" + uri.getHost() + "/feed";
         } catch (Exception e) {

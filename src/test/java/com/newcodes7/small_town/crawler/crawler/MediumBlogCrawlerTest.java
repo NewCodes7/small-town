@@ -10,11 +10,13 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -86,6 +88,22 @@ public class MediumBlogCrawlerTest {
     private boolean isCloudflare(String content) {
         return (Boolean) ReflectionTestUtils.invokeMethod(
                 crawler, "isCloudflareChallengePage", content);
+    }
+
+    private String buildFeedUrl(String blogLink) {
+        return (String) ReflectionTestUtils.invokeMethod(
+                crawler, "buildFeedUrlFromBlogLink", blogLink);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, String> fetchRssContentMap(String blogLink) {
+        return (Map<String, String>) ReflectionTestUtils.invokeMethod(
+                crawler, "fetchRssContentMap", blogLink);
+    }
+
+    private String findContentByUrl(Map<String, String> map, String url) {
+        return (String) ReflectionTestUtils.invokeMethod(
+                crawler, "findContentByUrl", map, url);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -599,7 +617,88 @@ public class MediumBlogCrawlerTest {
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 7. isCloudflareChallengePage
+    // 7. buildFeedUrlFromBlogLink
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("buildFeedUrlFromBlogLink")
+    class BuildFeedUrl {
+
+        @Test
+        @DisplayName("medium.com 단순 경로 → /feed/{slug}")
+        void mediumSimplePath() {
+            assertThat(buildFeedUrl("https://medium.com/watcha"))
+                    .isEqualTo("https://medium.com/feed/watcha");
+        }
+
+        @Test
+        @DisplayName("medium.com /all 접미사 → /feed/{slug} (all 제거)")
+        void mediumWithAllSuffix() {
+            assertThat(buildFeedUrl("https://medium.com/ssgtech/all"))
+                    .isEqualTo("https://medium.com/feed/ssgtech");
+        }
+
+        @Test
+        @DisplayName("medium.com 후행 슬래시 → /feed/{slug}")
+        void mediumTrailingSlash() {
+            assertThat(buildFeedUrl("https://medium.com/ssgtech/"))
+                    .isEqualTo("https://medium.com/feed/ssgtech");
+        }
+
+        @Test
+        @DisplayName("커스텀 도메인 → {host}/feed")
+        void customDomain() {
+            assertThat(buildFeedUrl("https://techblog.gccompany.co.kr"))
+                    .isEqualTo("https://techblog.gccompany.co.kr/feed");
+        }
+
+        @Test
+        @DisplayName("netflixtechblog.com → {host}/feed")
+        void netflixDomain() {
+            assertThat(buildFeedUrl("https://netflixtechblog.com"))
+                    .isEqualTo("https://netflixtechblog.com/feed");
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 8. RSS 통합 테스트 (실제 네트워크, 수동 실행용)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("RSS 통합 테스트 (실제 네트워크)")
+    class RssIntegration {
+
+        private static final String SSG_BLOG_LINK = "https://medium.com/ssgtech/all";
+        private static final String TARGET_ARTICLE_URL =
+                "https://medium.com/ssgtech/%EC%99%9C-%EB%85%B8%EC%B6%9C%EC%9D%B4-%EC%95%88-%EB%90%A0%EA%B9%8C-%EB%A5%BC-%ED%95%9C-%EB%B2%88%EC%97%90-%EC%B6%94%EC%A0%81%ED%95%98%EB%8A%94-%EB%B0%A9%EB%B2%95-cd5c7a488b75";
+
+        @Test
+        @Tag("manual")
+        @DisplayName("ssgtech/all → RSS feed URL 생성 후 본문 수집 성공")
+        void ssgRssFetch_articleContentFound() {
+            // given: /all 접미사가 있어도 feed URL을 올바르게 생성해야 함
+            String feedUrl = buildFeedUrl(SSG_BLOG_LINK);
+            assertThat(feedUrl).isEqualTo("https://medium.com/feed/ssgtech");
+
+            // when: RSS feed에서 본문 맵 수집
+            Map<String, String> contentMap = fetchRssContentMap(SSG_BLOG_LINK);
+
+            // then: 맵이 비어있지 않아야 함 (RSS 접근 성공)
+            assertThat(contentMap)
+                    .as("RSS feed에서 아티클을 하나 이상 수집해야 함")
+                    .isNotEmpty();
+
+            // and: 대상 아티클 본문이 존재해야 함
+            String content = findContentByUrl(contentMap, TARGET_ARTICLE_URL);
+            assertThat(content)
+                    .as("대상 아티클 본문이 RSS에 포함되어야 함: " + TARGET_ARTICLE_URL)
+                    .isNotBlank()
+                    .hasSizeGreaterThan(100);
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 9. isCloudflareChallengePage
     // ──────────────────────────────────────────────────────────────────────────
 
     @Nested
