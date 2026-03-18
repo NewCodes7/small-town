@@ -1,8 +1,11 @@
 package com.newcodes7.small_town.admin.service;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -17,8 +20,10 @@ import com.newcodes7.small_town.corporation.service.CorporationService;
 import com.newcodes7.small_town.crawler.entity.CrawlingSchedulerRun;
 import com.newcodes7.small_town.crawler.repository.CrawlingSchedulerRunRepository;
 import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.search.dto.ArticleSearchResultDto;
 import com.newcodes7.small_town.search.entity.SearchLog;
 import com.newcodes7.small_town.global.entity.Video;
+import com.newcodes7.small_town.search.service.ArticleSearchService;
 import com.newcodes7.small_town.search.service.SearchLogService;
 import com.newcodes7.small_town.theme.dto.ThemeSimpleResponseDto;
 import com.newcodes7.small_town.theme.repository.ThemeRepository;
@@ -49,6 +54,7 @@ public class AdminArticleListService {
     private final UserRepository userRepository;
     private final com.newcodes7.small_town.article.repository.LikeLogRepository likeLogRepository;
     private final CrawlingSchedulerRunRepository crawlingSchedulerRunRepository;
+    private final ArticleSearchService articleSearchService;
 
     /**
      * Article List 페이지 데이터 DTO
@@ -130,7 +136,28 @@ public class AdminArticleListService {
         }
 
         if (search != null && !search.trim().isEmpty()) {
-            return articleRepository.findByTitleContainingIgnoreCaseAndDeletedAtIsNull(search, pageable);
+            Page<ArticleSearchResultDto> searchResult = articleSearchService.searchArticlesHybrid(
+                    search, null, null,
+                    pageable.getPageNumber(), pageable.getPageSize(),
+                    "relevance", null, null);
+
+            List<Long> articleIds = searchResult.getContent().stream()
+                    .map(ArticleSearchResultDto::getId)
+                    .collect(Collectors.toList());
+
+            if (articleIds.isEmpty()) {
+                return Page.empty(pageable);
+            }
+
+            Map<Long, Article> articleMap = articleRepository.findAllById(articleIds).stream()
+                    .collect(Collectors.toMap(Article::getId, a -> a));
+
+            List<Article> orderedArticles = articleIds.stream()
+                    .map(articleMap::get)
+                    .filter(a -> a != null)
+                    .collect(Collectors.toList());
+
+            return new PageImpl<>(orderedArticles, pageable, searchResult.getTotalElements());
         } else {
             return articleRepository.findByDeletedAtIsNull(pageable);
         }
