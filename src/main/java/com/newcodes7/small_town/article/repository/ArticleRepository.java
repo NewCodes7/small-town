@@ -378,7 +378,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
 
     /**
      * BM25 알고리즘을 사용한 전문 검색 (ArticleTerm 기반)
-     * Materialized View인 article_search_view를 사용하여
+     * Materialized View인 article_analyzed_content를 사용하여
      * 형태소 분석된 정제 키워드로 검색합니다.
      *
      * @param searchQuery ParadeDB 검색 쿼리
@@ -388,8 +388,8 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query(value = "SELECT id, " +
            "paradedb.score(id) as bm25_score, " +
            "published_at " +
-           "FROM article_search_view " +
-           "WHERE article_search_view @@@ paradedb.parse(:searchQuery) " +
+           "FROM article_analyzed_content " +
+           "WHERE article_analyzed_content @@@ paradedb.parse(:searchQuery) " +
            "ORDER BY bm25_score DESC " +
            "LIMIT :limit",
            nativeQuery = true)
@@ -404,7 +404,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query(value = "SELECT asi.id, " +
            "paradedb.score(asi.id) as bm25_score, " +
            "asi.published_at " +
-           "FROM article_search_view asi " +
+           "FROM article_analyzed_content asi " +
            "LEFT JOIN corporation c ON asi.corporation_id = c.id " +
            "LEFT JOIN category cat ON asi.category_id = cat.id " +
            "WHERE asi @@@ paradedb.parse(:searchQuery) " +
@@ -426,7 +426,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query(value = "SELECT asi.id, " +
            "paradedb.score(asi.id) as bm25_score, " +
            "asi.published_at " +
-           "FROM article_search_view asi " +
+           "FROM article_analyzed_content asi " +
            "LEFT JOIN corporation c ON asi.corporation_id = c.id " +
            "WHERE asi @@@ paradedb.parse(:searchQuery) " +
            "AND c.is_domestic IN (:domesticTypes) " +
@@ -445,7 +445,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query(value = "SELECT asi.id, " +
            "paradedb.score(asi.id) as bm25_score, " +
            "asi.published_at " +
-           "FROM article_search_view asi " +
+           "FROM article_analyzed_content asi " +
            "LEFT JOIN category cat ON asi.category_id = cat.id " +
            "WHERE asi @@@ paradedb.parse(:searchQuery) " +
            "AND cat.name IN (:category) " +
@@ -465,7 +465,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query(value = "SELECT asi.id, " +
            "paradedb.score(asi.id) as bm25_score, " +
            "asi.published_at " +
-           "FROM article_search_view asi " +
+           "FROM article_analyzed_content asi " +
            "WHERE asi @@@ paradedb.parse(:searchQuery) " +
            "AND asi.id IN (:articleIds) " +
            "ORDER BY bm25_score DESC",
@@ -482,7 +482,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query(value = "SELECT asi.id, " +
            "paradedb.score(asi.id) as bm25_score, " +
            "asi.published_at " +
-           "FROM article_search_view asi " +
+           "FROM article_analyzed_content asi " +
            "LEFT JOIN corporation c ON asi.corporation_id = c.id " +
            "LEFT JOIN category cat ON asi.category_id = cat.id " +
            "WHERE asi @@@ paradedb.parse(:searchQuery) " +
@@ -505,7 +505,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query(value = "SELECT asi.id, " +
            "paradedb.score(asi.id) as bm25_score, " +
            "asi.published_at " +
-           "FROM article_search_view asi " +
+           "FROM article_analyzed_content asi " +
            "LEFT JOIN corporation c ON asi.corporation_id = c.id " +
            "WHERE asi @@@ paradedb.parse(:searchQuery) " +
            "AND c.is_domestic IN (:domesticTypes) " +
@@ -525,7 +525,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query(value = "SELECT asi.id, " +
            "paradedb.score(asi.id) as bm25_score, " +
            "asi.published_at " +
-           "FROM article_search_view asi " +
+           "FROM article_analyzed_content asi " +
            "LEFT JOIN category cat ON asi.category_id = cat.id " +
            "WHERE asi @@@ paradedb.parse(:searchQuery) " +
            "AND cat.name IN (:category) " +
@@ -537,15 +537,6 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
             @Param("category") List<String> category,
             @Param("articleIds") List<Long> articleIds
     );
-
-    /**
-     * BM25 검색용 Materialized View 갱신
-     * 크롤링 후 또는 ArticleTerm 업데이트 후 호출
-     */
-    @Transactional
-    @Modifying
-    @Query(value = "REFRESH MATERIALIZED VIEW CONCURRENTLY article_search_view", nativeQuery = true)
-    void refreshArticleSearchIndex();
 
     /**
      * Term total_frequency 업데이트 (자동완성 최적화용)
@@ -845,4 +836,15 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
      */
     @Query("SELECT a.id, a.publishedAt FROM Article a WHERE a.id IN :ids AND a.deletedAt IS NULL")
     List<Object[]> findIdAndPublishedAtByIdIn(@Param("ids") List<Long> ids);
+
+    /**
+     * Sitemap 생성용 경량 조회 (id, title, translatedTitle, publishedAt만 반환)
+     * content 컬럼 제외로 대용량 로드 방지
+     */
+    @Query(value = "SELECT a.id, a.title, a.translated_title, a.published_at " +
+           "FROM article a " +
+           "WHERE a.deleted_at IS NULL " +
+           "ORDER BY a.published_at DESC",
+           nativeQuery = true)
+    List<Object[]> findAllActiveArticlesForSitemap();
 }

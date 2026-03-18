@@ -2,11 +2,12 @@ package com.newcodes7.small_town.global.controller;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,7 +15,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.corporation.repository.CorporationRepository;
-import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 
 import lombok.RequiredArgsConstructor;
@@ -49,17 +49,20 @@ public class SitemapController {
             appendUrl(xml, baseUrl + "/corporations/" + corp.getId(), "weekly", "0.7", null);
         }
 
-        // 아티클 상세 페이지 (최대 50,000개)
-        List<Article> articles = articleRepository
-            .findAllActiveArticlesWithDetails(PageRequest.of(0, 50000))
-            .getContent();
-        for (Article article : articles) {
-            String slug = generateSlug(article);
-            String encodedSlug = URLEncoder.encode(slug, StandardCharsets.UTF_8);
-            String url = baseUrl + "/articles/" + article.getId() + "-" + encodedSlug;
-            String lastmod = article.getPublishedAt() != null
-                ? article.getPublishedAt().format(DATE_FORMATTER)
+        // 아티클 상세 페이지 (content 제외 경량 조회)
+        List<Object[]> articles = articleRepository.findAllActiveArticlesForSitemap();
+        for (Object[] row : articles) {
+            Long id = ((Number) row[0]).longValue();
+            String title = (String) row[1];
+            String translatedTitle = (String) row[2];
+            LocalDateTime publishedAt = row[3] != null
+                ? ((Timestamp) row[3]).toLocalDateTime()
                 : null;
+
+            String slug = generateSlug(title, translatedTitle);
+            String encodedSlug = URLEncoder.encode(slug, StandardCharsets.UTF_8);
+            String url = baseUrl + "/articles/" + id + "-" + encodedSlug;
+            String lastmod = publishedAt != null ? publishedAt.format(DATE_FORMATTER) : null;
             appendUrl(xml, url, "monthly", "0.7", lastmod);
         }
 
@@ -84,9 +87,8 @@ public class SitemapController {
         return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
-    private String generateSlug(Article article) {
-        String title = article.getTranslatedTitle() != null
-            ? article.getTranslatedTitle() : article.getTitle();
+    private String generateSlug(String title, String translatedTitle) {
+        title = translatedTitle != null ? translatedTitle : title;
 
         String slug = title.toLowerCase()
             .replaceAll("[^a-z0-9가-힣\\s-]", "")
