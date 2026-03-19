@@ -38,13 +38,13 @@ public class TermAutocompleteRepository {
             SELECT term, MAX(total_frequency) AS total_frequency
             FROM (
                 SELECT term, total_frequency FROM term
-                WHERE LOWER(term) LIKE ? AND total_frequency > 0
+                WHERE term LIKE ? AND total_frequency > 0
                 UNION ALL
                 SELECT term, total_frequency FROM term
-                WHERE LOWER(decomposed_term) LIKE ? AND total_frequency > 0
+                WHERE decomposed_term LIKE ? AND total_frequency > 0
                 UNION ALL
                 SELECT term, total_frequency FROM term
-                WHERE LOWER(chosung) LIKE ? AND total_frequency > 0
+                WHERE chosung LIKE ? AND total_frequency > 0
             ) AS combined
             GROUP BY term
             ORDER BY total_frequency DESC

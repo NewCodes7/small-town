@@ -89,9 +89,9 @@ public class TermSynonymService {
      */
     @Transactional
     public TermSynonym addSynonymByTermString(String termStr1, String termStr2) {
-        Term term1 = termRepository.findByTermAndTermType(termStr1, "NNG")
+        Term term1 = termRepository.findByTermAndTermType(termStr1.toLowerCase(), "NNG")
             .orElseGet(() -> createNewTerm(termStr1));
-        Term term2 = termRepository.findByTermAndTermType(termStr2, "NNG")
+        Term term2 = termRepository.findByTermAndTermType(termStr2.toLowerCase(), "NNG")
             .orElseGet(() -> createNewTerm(termStr2));
 
         return addSynonym(term1.getId(), term2.getId());
@@ -105,8 +105,9 @@ public class TermSynonymService {
      */
     private Term createNewTerm(String termString) {
         // 초성 및 자모 분리 로직은 생략 (필요 시 KoreanTextProcessor 사용)
+        String normalized = termString.toLowerCase();
         Term newTerm = Term.builder()
-            .term(termString)
+            .term(normalized)
             .termType("NNG")  // 기본값: 일반 명사
             .build();
 
@@ -179,9 +180,9 @@ public class TermSynonymService {
         termSynonymRepository.delete(existingSynonym);
 
         // Term 조회 또는 생성
-        Term term1 = termRepository.findByTermAndTermType(termStr1, "NNG")
+        Term term1 = termRepository.findByTermAndTermType(termStr1.toLowerCase(), "NNG")
             .orElseGet(() -> createNewTerm(termStr1));
-        Term term2 = termRepository.findByTermAndTermType(termStr2, "NNG")
+        Term term2 = termRepository.findByTermAndTermType(termStr2.toLowerCase(), "NNG")
             .orElseGet(() -> createNewTerm(termStr2));
 
         // 새로운 유의어 생성
@@ -216,7 +217,7 @@ public class TermSynonymService {
             term1 = termRepository.findById(termId1)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 term입니다. ID: " + termId1));
         } else if (termStr1 != null && !termStr1.trim().isEmpty()) {
-            term1 = termRepository.findByTermAndTermType(termStr1.trim(), "NNG")
+            term1 = termRepository.findByTermAndTermType(termStr1.trim().toLowerCase(), "NNG")
                 .orElseGet(() -> createNewTerm(termStr1.trim()));
         } else {
             throw new IllegalArgumentException("term1에 대한 ID 또는 문자열이 필요합니다.");
@@ -228,7 +229,7 @@ public class TermSynonymService {
             term2 = termRepository.findById(termId2)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 term입니다. ID: " + termId2));
         } else if (termStr2 != null && !termStr2.trim().isEmpty()) {
-            term2 = termRepository.findByTermAndTermType(termStr2.trim(), "NNG")
+            term2 = termRepository.findByTermAndTermType(termStr2.trim().toLowerCase(), "NNG")
                 .orElseGet(() -> createNewTerm(termStr2.trim()));
         } else {
             throw new IllegalArgumentException("term2에 대한 ID 또는 문자열이 필요합니다.");

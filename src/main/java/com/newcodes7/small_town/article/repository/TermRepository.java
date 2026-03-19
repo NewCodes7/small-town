@@ -43,7 +43,7 @@ public interface TermRepository extends JpaRepository<Term, Long> {
      * @param limit 최대 결과 수
      * @return 매칭되는 Term 목록
      */
-    @Query("SELECT t FROM Term t WHERE LOWER(t.term) LIKE LOWER(CONCAT('%', :query, '%')) ORDER BY t.term LIMIT :limit")
+    @Query("SELECT t FROM Term t WHERE t.term LIKE CONCAT('%', lower(:query), '%') ORDER BY t.term LIMIT :limit")
     List<Term> searchByTermContaining(@Param("query") String query, @Param("limit") int limit);
 
     // ===== 벡터 유사도 검색 =====

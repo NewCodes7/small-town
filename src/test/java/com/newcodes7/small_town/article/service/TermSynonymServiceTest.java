@@ -125,8 +125,8 @@ public class TermSynonymServiceTest {
 
         // then
         assertThat(synonym).isNotNull();
-        assertThat(synonym.getTerm().getTerm()).isIn("자바", "Java");
-        assertThat(synonym.getSynonymTerm().getTerm()).isIn("자바", "Java");
+        assertThat(synonym.getTerm().getTerm()).isIn("자바", "java");
+        assertThat(synonym.getSynonymTerm().getTerm()).isIn("자바", "java");
     }
 
     @Test

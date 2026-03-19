@@ -14,6 +14,8 @@ import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
@@ -118,6 +120,14 @@ public class Term {
     @CreatedDate
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    @PrePersist
+    @PreUpdate
+    void normalizeLowercase() {
+        if (this.term != null) this.term = this.term.toLowerCase();
+        if (this.decomposedTerm != null) this.decomposedTerm = this.decomposedTerm.toLowerCase();
+        if (this.chosung != null) this.chosung = this.chosung.toLowerCase();
+    }
 
     /**
      * decomposedTerm 업데이트

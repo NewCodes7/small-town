@@ -593,7 +593,7 @@ public class ArticleTermService {
         Article article = articleRepository.findById(articleId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 Article입니다. ID: " + articleId));
 
-        List<Term> existingTerms = termRepository.findByTerm(termString.trim());
+        List<Term> existingTerms = termRepository.findByTerm(termString.trim().toLowerCase());
         Term term;
         if (!existingTerms.isEmpty()) {
             term = existingTerms.get(0);
