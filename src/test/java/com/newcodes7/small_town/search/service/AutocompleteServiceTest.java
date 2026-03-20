@@ -15,12 +15,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.newcodes7.small_town.article.repository.TermAutocompleteJpaRepository;
-import com.newcodes7.small_town.article.repository.TermAutocompleteJpaRepository.TermAutocompleteProjection;
-import com.newcodes7.small_town.corporation.repository.CorporationAutocompleteJpaRepository;
-import com.newcodes7.small_town.corporation.repository.CorporationAutocompleteJpaRepository.CorporationAutocompleteProjection;
-import com.newcodes7.small_town.theme.repository.ThemeAutocompleteJpaRepository;
-import com.newcodes7.small_town.theme.repository.ThemeAutocompleteJpaRepository.ThemeAutocompleteProjection;
+import com.newcodes7.small_town.article.dto.TermAutocompleteDto;
+import com.newcodes7.small_town.article.repository.TermAutocompleteRepository;
+import com.newcodes7.small_town.corporation.repository.CorporationAutocompleteRepository;
+import com.newcodes7.small_town.corporation.dto.CorporationAutocompleteDto;
+import com.newcodes7.small_town.theme.repository.ThemeAutocompleteRepository;
+import com.newcodes7.small_town.theme.dto.ThemeAutocompleteDto;
 
 /**
  * AutocompleteService 단위 테스트
@@ -30,9 +30,9 @@ import com.newcodes7.small_town.theme.repository.ThemeAutocompleteJpaRepository.
 @ExtendWith(MockitoExtension.class)
 class AutocompleteServiceTest {
 
-    @Mock private TermAutocompleteJpaRepository termAutocompleteJpaRepository;
-    @Mock private CorporationAutocompleteJpaRepository corporationAutocompleteJpaRepository;
-    @Mock private ThemeAutocompleteJpaRepository themeAutocompleteJpaRepository;
+    @Mock private TermAutocompleteRepository termAutocompleteRepository;
+    @Mock private CorporationAutocompleteRepository corporationAutocompleteRepository;
+    @Mock private ThemeAutocompleteRepository themeAutocompleteRepository;
 
     private AutocompleteService autocompleteService;
 
@@ -43,9 +43,9 @@ class AutocompleteServiceTest {
     void setUp() {
         autocompleteService = new AutocompleteService(
                 syncExecutor,
-                termAutocompleteJpaRepository,
-                corporationAutocompleteJpaRepository,
-                themeAutocompleteJpaRepository
+                termAutocompleteRepository,
+                corporationAutocompleteRepository,
+                themeAutocompleteRepository
         );
     }
 
@@ -57,7 +57,7 @@ class AutocompleteServiceTest {
 
         // then
         assertThat(result).isEmpty();
-        verifyNoInteractions(termAutocompleteJpaRepository, corporationAutocompleteJpaRepository, themeAutocompleteJpaRepository);
+        verifyNoInteractions(termAutocompleteRepository, corporationAutocompleteRepository, themeAutocompleteRepository);
     }
 
     @Test
@@ -84,30 +84,24 @@ class AutocompleteServiceTest {
     @DisplayName("getAutocompleteSuggestions: 정상 쿼리 → Corporation, Theme, Term 순서로 결과 반환")
     void getAutocompleteSuggestions_normalQuery_returnsOrderedResults() {
         // given
-        CorporationAutocompleteProjection corpProj = mock(CorporationAutocompleteProjection.class);
-        when(corpProj.getId()).thenReturn(1L);
-        when(corpProj.getName()).thenReturn("Naver");
-        when(corpProj.getAlternateName()).thenReturn(null);
-        when(corpProj.getLogoUrl()).thenReturn(null);
-        when(corpProj.getLogoS3Url()).thenReturn(null);
-        when(corpProj.getLogoFilename()).thenReturn(null);
-        when(corpProj.getDecomposedName()).thenReturn("ㄴㅔㅇㅣㅂㅓ");
-        when(corpProj.getDecomposedAlternateName()).thenReturn(null);
-        when(corporationAutocompleteJpaRepository.findAutocompleteCorporationsWithTwoPatterns(
+        CorporationAutocompleteDto corpDto = mock(CorporationAutocompleteDto.class);
+        when(corpDto.getDisplayName(anyString())).thenReturn("Naver");
+        when(corpDto.getId()).thenReturn(1L);
+        when(corpDto.getEffectiveLogoUrl()).thenReturn("logo.png");
+        when(corporationAutocompleteRepository.findAutocompleteCorporationsWithTwoPatterns(
                 anyString(), anyString(), eq(2)))
-                .thenReturn(List.of(corpProj));
+                .thenReturn(List.of(corpDto));
 
-        ThemeAutocompleteProjection themeProj = mock(ThemeAutocompleteProjection.class);
-        when(themeProj.getId()).thenReturn(10L);
-        when(themeProj.getName()).thenReturn("AI 기술");
-        when(themeAutocompleteJpaRepository.findAutocompleteThemesSimple(anyString(), anyString(), eq(2)))
-                .thenReturn(List.of(themeProj));
+        ThemeAutocompleteDto themeDto = mock(ThemeAutocompleteDto.class);
+        when(themeDto.getId()).thenReturn(10L);
+        when(themeDto.getName()).thenReturn("AI 기술");
+        when(themeAutocompleteRepository.findAutocompleteThemesSimple(anyString(), anyString(), eq(2)))
+                .thenReturn(List.of(themeDto));
 
-        TermAutocompleteProjection termProj = mock(TermAutocompleteProjection.class);
-        when(termProj.getTerm()).thenReturn("naver");
-        when(termProj.getTotalFrequency()).thenReturn(100L);
-        when(termAutocompleteJpaRepository.findAutocompleteTerms(anyString(), eq(4)))
-                .thenReturn(List.of(termProj));
+        TermAutocompleteDto termDto = mock(TermAutocompleteDto.class);
+        when(termDto.getTerm()).thenReturn("naver");
+        when(termAutocompleteRepository.findAutocompleteTerms(anyString(), eq(4)))
+                .thenReturn(List.of(termDto));
 
         // when
         List<Object> result = autocompleteService.getAutocompleteSuggestions("nav");
@@ -129,12 +123,12 @@ class AutocompleteServiceTest {
     @DisplayName("getAutocompleteSuggestions: 모든 검색이 빈 결과 → 빈 리스트")
     void getAutocompleteSuggestions_allEmpty_returnsEmpty() {
         // given
-        when(corporationAutocompleteJpaRepository.findAutocompleteCorporationsWithTwoPatterns(
+        when(corporationAutocompleteRepository.findAutocompleteCorporationsWithTwoPatterns(
                 anyString(), anyString(), eq(2)))
                 .thenReturn(List.of());
-        when(themeAutocompleteJpaRepository.findAutocompleteThemesSimple(anyString(), anyString(), eq(2)))
+        when(themeAutocompleteRepository.findAutocompleteThemesSimple(anyString(), anyString(), eq(2)))
                 .thenReturn(List.of());
-        when(termAutocompleteJpaRepository.findAutocompleteTerms(anyString(), eq(4)))
+        when(termAutocompleteRepository.findAutocompleteTerms(anyString(), eq(4)))
                 .thenReturn(List.of());
 
         // when
@@ -148,18 +142,17 @@ class AutocompleteServiceTest {
     @DisplayName("getAutocompleteSuggestions: Corporation 검색 예외 시에도 다른 결과 반환")
     void getAutocompleteSuggestions_corporationThrows_otherResultsReturned() {
         // given
-        when(corporationAutocompleteJpaRepository.findAutocompleteCorporationsWithTwoPatterns(
+        when(corporationAutocompleteRepository.findAutocompleteCorporationsWithTwoPatterns(
                 anyString(), anyString(), eq(2)))
                 .thenThrow(new RuntimeException("DB error"));
 
-        when(themeAutocompleteJpaRepository.findAutocompleteThemesSimple(anyString(), anyString(), eq(2)))
+        when(themeAutocompleteRepository.findAutocompleteThemesSimple(anyString(), anyString(), eq(2)))
                 .thenReturn(List.of());
 
-        TermAutocompleteProjection termProj = mock(TermAutocompleteProjection.class);
-        when(termProj.getTerm()).thenReturn("redis");
-        when(termProj.getTotalFrequency()).thenReturn(50L);
-        when(termAutocompleteJpaRepository.findAutocompleteTerms(anyString(), eq(4)))
-                .thenReturn(List.of(termProj));
+        TermAutocompleteDto termDto = mock(TermAutocompleteDto.class);
+        when(termDto.getTerm()).thenReturn("redis");
+        when(termAutocompleteRepository.findAutocompleteTerms(anyString(), eq(4)))
+                .thenReturn(List.of(termDto));
 
         // when
         List<Object> result = autocompleteService.getAutocompleteSuggestions("red");
@@ -173,12 +166,12 @@ class AutocompleteServiceTest {
     @DisplayName("getAutocompleteSuggestions: 한글 검색어 처리 확인")
     void getAutocompleteSuggestions_koreanQuery_worksCorrectly() {
         // given
-        when(corporationAutocompleteJpaRepository.findAutocompleteCorporationsWithTwoPatterns(
+        when(corporationAutocompleteRepository.findAutocompleteCorporationsWithTwoPatterns(
                 anyString(), anyString(), eq(2)))
                 .thenReturn(List.of());
-        when(themeAutocompleteJpaRepository.findAutocompleteThemesSimple(anyString(), anyString(), eq(2)))
+        when(themeAutocompleteRepository.findAutocompleteThemesSimple(anyString(), anyString(), eq(2)))
                 .thenReturn(List.of());
-        when(termAutocompleteJpaRepository.findAutocompleteTerms(anyString(), eq(4)))
+        when(termAutocompleteRepository.findAutocompleteTerms(anyString(), eq(4)))
                 .thenReturn(List.of());
 
         // when: 한글 쿼리도 예외 없이 처리
