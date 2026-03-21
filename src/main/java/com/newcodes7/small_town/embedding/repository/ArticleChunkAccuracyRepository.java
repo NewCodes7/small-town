@@ -8,6 +8,7 @@ import java.util.Map;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
@@ -39,7 +40,7 @@ public class ArticleChunkAccuracyRepository {
      * @param limit 반환할 최대 아티클 수
      * @return Article ID -> 코사인 유사도 맵 (내림차순 정렬)
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Map<Long, Double> exactSearch(String vectorString, int topK, int limit) {
         // SET LOCAL enable_indexscan=off: HNSW 인덱스를 비활성화하여 full scan 수행
         jdbcTemplate.execute("SET LOCAL enable_indexscan = off");
@@ -123,7 +124,7 @@ public class ArticleChunkAccuracyRepository {
      * @param threshold 유사도 임계값
      * @return threshold 이상인 아티클 수
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int countExactSearchAboveThreshold(String vectorString, int topK, double threshold) {
         jdbcTemplate.execute("SET LOCAL enable_indexscan = off");
 

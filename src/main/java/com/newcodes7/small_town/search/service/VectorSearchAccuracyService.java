@@ -12,7 +12,6 @@ import java.util.stream.Collectors;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.embedding.repository.ArticleChunkAccuracyRepository;
 
@@ -61,7 +60,6 @@ public class VectorSearchAccuracyService {
      * @param threshold Stage2 유사도 임계값
      * @return 측정 결과 맵 (JSON 직렬화 가능)
      */
-    @Transactional
     public Map<String, Object> measure(List<String> keywords, int topK, int candidateLimit, double threshold) {
         List<String> testQueries = resolveTestQueries(keywords);
         log.info("벡터 검색 정확도 측정 시작 - 쿼리 수: {}, topK: {}, candidateLimit: {}, threshold: {}",
@@ -303,10 +301,10 @@ public class VectorSearchAccuracyService {
 
         try {
             String sql = """
-                    SELECT keyword, COUNT(*) as cnt
+                    SELECT search_keyword, COUNT(*) as cnt
                     FROM search_log
-                    WHERE keyword IS NOT NULL AND LENGTH(TRIM(keyword)) > 0
-                    GROUP BY keyword
+                    WHERE search_keyword IS NOT NULL AND LENGTH(TRIM(search_keyword)) > 0
+                    GROUP BY search_keyword
                     ORDER BY cnt DESC
                     LIMIT 30
                     """;
