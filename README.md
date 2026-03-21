@@ -4,8 +4,6 @@
 
 **서비스:** https://newcodes.net &nbsp;|&nbsp; **블로그:** https://velog.io/@newcodes7/posts
 
----
-
 ## 목차
 
 1. [프로젝트 개요](#1-프로젝트-개요)
@@ -17,8 +15,6 @@
 7. [문제 해결 경험](#7-문제-해결-경험)
 8. [개발 과정](#8-개발-과정)
 9. [관련 링크](#9-관련-링크)
-
----
 
 ## 1. 프로젝트 개요
 
@@ -34,8 +30,6 @@
 
 - 최신 글뿐 아니라 시간이 지나도 가치 있는 **과거 글까지 다시 발견**할 수 있는 서비스 제공
 - 흩어진 기술 콘텐츠를 **한 곳에 모아** 더 많은 개발자에게 전달하는 것을 목표로 개발
-
----
 
 ## 2. 시스템 아키텍처
 
@@ -76,8 +70,6 @@ PostgreSQL (pgvector + ParadeDB)
 - 헬스체크 `/actuator/health` 통과 후 트래픽 전환 (최대 5분 대기)
 - 장애 발생 시 `./deploy.sh rollback` 즉시 롤백
 
----
-
 ## 3. 기술 스택
 
 | 분류 | 기술 |
@@ -91,8 +83,6 @@ PostgreSQL (pgvector + ParadeDB)
 | **Monitoring** | Prometheus, Grafana, Loki, Promtail |
 | **Caching / Scheduling** | Caffeine, Quartz |
 | **Auth** | JWT (jjwt 0.12.3), OAuth2 (Google, GitHub) |
-
----
 
 ## 4. 주요 기능
 
@@ -115,8 +105,6 @@ PostgreSQL (pgvector + ParadeDB)
 - 글 좋아요 (별도 보관)
 - GitHub / Google OAuth2 소셜 로그인, 로컬 로그인
 - 사용자 피드백 접수 및 관리
-
----
 
 ## 5. 모듈 구조
 
@@ -158,8 +146,6 @@ SearchQueryEmbedding   # 쿼리 임베딩 캐시
 SearchWeightConfig     # BM25/Vector 가중치 동적 설정
 ```
 
----
-
 ## 6. 코드 품질을 위한 노력
 
 ### 크롤러 플러그인 아키텍처
@@ -185,8 +171,6 @@ pgvector, ParadeDB 등 PostgreSQL 전용 기능에 의존하는 코드 특성상
 각 모듈(`article`, `auth`, `crawler`, `corporation`)에 도메인 고유 예외 클래스와 `@RestControllerAdvice` 핸들러를 분리해 예외 처리 책임을 도메인에 귀속했습니다.
 API 요청은 JSON 응답, 뷰 요청은 HTML 에러 페이지로 분기하는 전역 핸들러도 설계했습니다.
 
----
-
 ## 7. 문제 해결 경험
 
 ### 7-1. Semantic Search 시스템 설계 및 구현
@@ -199,8 +183,6 @@ API 요청은 JSON 응답, 뷰 요청은 HTML 에러 페이지로 분기하는 �
 
 **해결:** `'React 상태관리 라이브러리 비교'` 같은 자연어 검색 지원, 이를 기반으로 관련 글 추천 및 테마별 글 모음 기능 구현
 
----
-
 ### 7-2. 2단계 검색으로 벡터 검색 속도 최적화
 
 **문제:** 벡터 데이터가 12만 개로 증가하자 검색 속도가 8초 이상으로 저하, 1GB RAM 환경에서 HNSW 인덱스가 메모리에 충분히 적재되지 않아 Disk read 비율이 높음
@@ -208,8 +190,6 @@ API 요청은 JSON 응답, 뷰 요청은 HTML 에러 페이지로 분기하는 �
 **과정:** 1단계로 binary 양자화 벡터(bit 1024)에 HNSW 인덱스를 적용해 후보를 빠르게 추출(ANN), 2단계로 halfvec(FP16) 벡터로 정밀 유사도 계산(KNN) → 벡터 크기를 97% 절감(474MB → 16MB)하고, content·halfvec 컬럼을 별도 테이블로 분리해 shared_buffers를 확보한 후 HNSW prewarm으로 인덱스를 메모리에 로드
 
 **해결:** 검색 속도 8배 이상 개선 (약 8,000ms → 약 1,000ms), 1 vCPU 1GB RAM 환경에서 HNSW 인덱스를 44MB로 유지하며 원활한 검색 달성
-
----
 
 ### 7-3. 검색어 자동완성 속도 최적화
 
@@ -221,8 +201,6 @@ API 요청은 JSON 응답, 뷰 요청은 HTML 에러 페이지로 분기하는 �
 
 **해결:** 자동완성 API 응답시간 90% 이상 개선 (1,000ms → 40ms)
 
----
-
 ### 7-4. JVM OOM으로 인한 서버 다운
 
 **문제:** JVM OOM으로 서버가 3번 다운, 2GB RAM 서버에서 Spring Boot·Nginx·Prometheus·Grafana 등 여러 프로세스가 동시에 실행되는 상황
@@ -230,8 +208,6 @@ API 요청은 JSON 응답, 뷰 요청은 HTML 에러 페이지로 분기하는 �
 **과정:** (1) 글 검색 시 content 컬럼까지 로드해 OOM → 필요한 컬럼만 조회하도록 쿼리 개선, HikariCP maximumPoolSize 5 제한 + connectionTimeout 3초 + statement_timeout 5초 설정 / (2) 컬렉션 FETCH JOIN + Pageable 조합으로 메모리 페이징 → 불필요한 FETCH JOIN 제거해 DB 레벨 페이징 정상화 / (3) Grafana JVM 힙·GC 기반 알림 설정, Nginx Docker DNS 갱신(`resolver`), JVM `-Xmx` 512MB → 1024MB 증설
 
 **해결:** 2026년 이후 OOM으로 인한 서버 다운 0건
-
----
 
 ## 8. 개발 과정
 
@@ -255,8 +231,6 @@ API 요청은 JSON 응답, 뷰 요청은 HTML 에러 페이지로 분기하는 �
 ./deploy.sh rollback  # 롤백
 ./deploy.sh status    # 상태 확인
 ```
-
----
 
 ## 9. 관련 링크
 
