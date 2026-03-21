@@ -76,6 +76,9 @@ public class ArticleChunkAccuracyRepository {
                 vectorString, topK, limit
         );
 
+        // 같은 트랜잭션의 이후 쿼리(Stage1/Stage2)가 인덱스를 정상 사용하도록 복원
+        jdbcTemplate.execute("SET LOCAL enable_indexscan = on");
+
         Map<Long, Double> result = new LinkedHashMap<>();
         for (Map.Entry<Long, Double> entry : rows) {
             result.put(entry.getKey(), entry.getValue());
@@ -94,14 +97,19 @@ public class ArticleChunkAccuracyRepository {
      * @return Stage1 후보 Article ID 목록
      */
     public List<Long> stage1CandidateIds(String binaryString, int candidateLimit) {
+        // 프로덕션과 동일하게 청크 기준 상위 candidateLimit개를 먼저 추린 뒤 distinct article_id 추출
+        // (DISTINCT + ORDER BY non-selected column은 PostgreSQL에서 에러 발생)
         String sql = """
-                SELECT DISTINCT cac.article_id
-                FROM clova_article_chunk cac
-                JOIN article a ON cac.article_id = a.id
-                WHERE a.deleted_at IS NULL
-                  AND cac.embedding_binary IS NOT NULL
-                ORDER BY cac.embedding_binary <~> CAST(? AS bit(1024))
-                LIMIT ?
+                SELECT DISTINCT article_id
+                FROM (
+                    SELECT cac.article_id
+                    FROM clova_article_chunk cac
+                    JOIN article a ON cac.article_id = a.id
+                    WHERE a.deleted_at IS NULL
+                      AND cac.embedding_binary IS NOT NULL
+                    ORDER BY cac.embedding_binary <~> CAST(? AS bit(1024))
+                    LIMIT ?
+                ) top_chunks
                 """;
 
         return jdbcTemplate.queryForList(sql, Long.class, binaryString, candidateLimit);
@@ -148,6 +156,7 @@ public class ArticleChunkAccuracyRepository {
                 """;
 
         Integer count = jdbcTemplate.queryForObject(sql, Integer.class, vectorString, topK, threshold);
+        jdbcTemplate.execute("SET LOCAL enable_indexscan = on");
         return count != null ? count : 0;
     }
 }
