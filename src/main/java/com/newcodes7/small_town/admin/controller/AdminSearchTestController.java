@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.search.service.VectorSearchAccuracyService;
 import com.newcodes7.small_town.search.service.VectorSearchService;
 import com.newcodes7.small_town.global.entity.Article;
 
@@ -35,6 +36,7 @@ public class AdminSearchTestController {
 
     private final ArticleRepository articleRepository;
     private final VectorSearchService vectorSearchService;
+    private final VectorSearchAccuracyService vectorSearchAccuracyService;
 
     /**
      * 하이브리드 검색 테스트 - 상세 매칭 정보 제공
@@ -134,6 +136,35 @@ public class AdminSearchTestController {
             response.put("success", false);
             response.put("message", "검색 테스트 중 오류 발생: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 벡터 검색 정확도 측정 - Binary HNSW + halfvec 2단계 검색의 Recall/NDCG 계산
+     *
+     * @param keywords 테스트 키워드 목록 (미입력 시 SearchLog 상위 키워드 또는 기본값 사용)
+     * @param topK Recall@K 기준 K값 (기본: 10)
+     * @param candidateLimit Stage1 후보 수 (기본: 200)
+     * @param threshold Stage2 유사도 임계값 (기본: 0.52)
+     */
+    @GetMapping("/search/vector-accuracy")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> measureVectorAccuracy(
+            @RequestParam(required = false) List<String> keywords,
+            @RequestParam(defaultValue = "10") int topK,
+            @RequestParam(defaultValue = "200") int candidateLimit,
+            @RequestParam(defaultValue = "0.52") double threshold) {
+
+        try {
+            log.info("벡터 검색 정확도 측정 요청 - topK: {}, candidateLimit: {}, threshold: {}", topK, candidateLimit, threshold);
+            Map<String, Object> result = vectorSearchAccuracyService.measure(keywords, topK, candidateLimit, threshold);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("벡터 검색 정확도 측정 중 오류 발생", e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "정확도 측정 중 오류 발생: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(error);
         }
     }
 
