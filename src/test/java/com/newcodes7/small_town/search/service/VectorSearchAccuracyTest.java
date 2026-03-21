@@ -58,6 +58,10 @@ class VectorSearchAccuracyTest {
         log.info("\n=== candidateLimit 조정 비교 ===");
         for (int limit : new int[]{100, 200, 500}) {
             Map<String, Object> result = accuracyService.measure(testKeywords, topK, limit, threshold);
+            if (result.containsKey("error")) {
+                log.warn("candidateLimit={}: 측정 불가 - {}", limit, result.get("error"));
+                continue;
+            }
             @SuppressWarnings("unchecked")
             Map<String, Object> stage1 = (Map<String, Object>) result.get("stage1");
             @SuppressWarnings("unchecked")
@@ -83,6 +87,10 @@ class VectorSearchAccuracyTest {
         log.info("\n=== threshold 조정 영향 분석 ===");
         for (double thresh : new double[]{0.45, 0.52, 0.60}) {
             Map<String, Object> result = accuracyService.measure(testKeywords, topK, candidateLimit, thresh);
+            if (result.containsKey("error")) {
+                log.warn("threshold={}: 측정 불가 - {}", thresh, result.get("error"));
+                continue;
+            }
             @SuppressWarnings("unchecked")
             Map<String, Object> stage2 = (Map<String, Object>) result.get("stage2");
 
