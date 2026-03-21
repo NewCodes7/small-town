@@ -76,12 +76,14 @@ services:
     image: prom/prometheus:v2.37.4
     container_name: prometheus
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml  
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
     restart: always
     networks:
       - app-network
     expose:
       - "9090"
+    extra_hosts:
+      - "db-node-exporter:${DB_NODE_IP}"
 
   grafana:
     image: grafana/grafana:8.3.3
@@ -147,7 +149,7 @@ services:
     container_name: postgres_exporter
     restart: unless-stopped
     environment:
-      DATA_SOURCE_NAME: "postgresql://exporter:EXPORTER_STRONG_PASSWORD@ip-10-0-32-222.ap-northeast-2.compute.internal:5432/small_town?sslmode=disable"
+      DATA_SOURCE_NAME: "${POSTGRES_EXPORTER_DSN}"
     networks:
       - app-network
     expose:

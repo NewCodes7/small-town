@@ -26,7 +26,7 @@ jobs:
         image: paradedb/paradedb:latest
         env:
           POSTGRES_USER: newcodes
-          POSTGRES_PASSWORD: whsskdjfuqrpgodiwl
+          POSTGRES_PASSWORD: ${{ secrets.TEST_DB_PASSWORD }}
           POSTGRES_DB: postgres
         options: >-
           --health-cmd pg_isready
@@ -53,6 +53,7 @@ jobs:
         run: ./gradlew test --no-daemon -x jacocoTestReport
         env:
           POSTGRES_HOST: localhost
+          TEST_DB_PASSWORD: ${{ secrets.TEST_DB_PASSWORD }}
 
   build-and-deploy:
     runs-on: ubuntu-latest

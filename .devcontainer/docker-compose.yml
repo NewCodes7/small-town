@@ -22,7 +22,7 @@ services:
       - "5432:5432"
     environment:
       POSTGRES_USER: newcodes
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-whsskdjfuqrpgodiwl}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-test_db_password}
       POSTGRES_DB: small_town
     volumes:
       - ../.devcontainer/postgres_backup_data:/var/lib/postgresql/data

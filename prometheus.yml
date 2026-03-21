@@ -22,4 +22,4 @@ scrape_configs:
 
   - job_name: 'db-node'
     static_configs:
-      - targets: ['10.0.32.222:9100']
+      - targets: ['db-node-exporter:9100']  # 서버 /etc/hosts 또는 DNS에 db-node-exporter 등록 필요

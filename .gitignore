@@ -8,3 +8,5 @@ bin/
 # Logs
 logs/
 .devcontainer/postgres_backup_data
+# GA 인증 파일 (민감 정보)
+credentials/
