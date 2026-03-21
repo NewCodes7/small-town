@@ -2,6 +2,7 @@ package com.newcodes7.small_town.search.service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.DoubleSummaryStatistics;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -101,11 +102,15 @@ public class VectorSearchAccuracyService {
                 exactAboveThresholdCounts.add((Integer) queryResult.get("exactAboveThreshold"));
                 stage2ReturnedCounts.add((Integer) queryResult.get("stage2Returned"));
 
-                log.debug("측정 완료 - '{}': stage1Recall@{}={:.1f}%, stage2Recall@{}={:.1f}%",
-                        keyword, topK,
-                        (Double) queryResult.get("stage1RecallAtTopK") * 100,
-                        topK,
-                        (Double) queryResult.get("stage2RecallAtTopK") * 100);
+                log.info("[쿼리] '{}' | s1Recall@{}={}% s2Recall@{}={}% NDCG@{}={}% | exact={} returned={} miss={}%",
+                        keyword,
+                        topK, pct((Double) queryResult.get("stage1RecallAtTopK")),
+                        topK, pct((Double) queryResult.get("stage2RecallAtTopK")),
+                        topK, pct((Double) queryResult.get("stage2NdcgAtTopK")),
+                        queryResult.get("exactAboveThreshold"),
+                        queryResult.get("stage2Returned"),
+                        missRatePct((Integer) queryResult.get("exactAboveThreshold"),
+                                    (Integer) queryResult.get("stage2Returned")));
 
             } catch (Exception e) {
                 log.warn("쿼리 측정 실패 - '{}': {}", keyword, e.getMessage());
@@ -165,8 +170,9 @@ public class VectorSearchAccuracyService {
         response.put("worstQueries", worstQueries);
         response.put("queriesUsed", testQueries.stream().limit(measured).collect(Collectors.toList()));
 
-        log.info("벡터 검색 정확도 측정 완료 - {}개 쿼리, stage1Recall@{}={:.1f}%, stage2Recall@{}={:.1f}%",
-                measured, topK, avg(stage1RecallAtTopK) * 100, topK, avg(stage2RecallAtTopK) * 100);
+        logSummary(measured, topK, candidateLimit, threshold,
+                stage1RecallAtTopK, stage2RecallAtTopK, stage2NdcgAtTopK,
+                avgExactAbove, avgStage2Returned, missRate, queryDetails);
 
         return response;
     }
@@ -351,5 +357,101 @@ public class VectorSearchAccuracyService {
 
     private double round2(double value) {
         return Math.round(value * 10000.0) / 10000.0;
+    }
+
+    /** 0~1 값을 소수점 1자리 % 문자열로 변환 */
+    private String pct(double value) {
+        return String.format("%.1f", value * 100);
+    }
+
+    /** exact/returned로 누락률 % 문자열 계산 */
+    private String missRatePct(int exact, int returned) {
+        if (exact == 0) return "0.0";
+        return String.format("%.1f", Math.max(0, (exact - returned) * 100.0 / exact));
+    }
+
+    /** 표준편차 계산 */
+    private double stdDev(List<Double> values) {
+        if (values.size() < 2) return 0.0;
+        double mean = avg(values);
+        double variance = values.stream()
+                .mapToDouble(v -> (v - mean) * (v - mean))
+                .average()
+                .orElse(0.0);
+        return Math.sqrt(variance);
+    }
+
+    /**
+     * 측정 완료 요약 로그 출력
+     *
+     * - avg/min/max/std for stage1/stage2 Recall@K, NDCG@K
+     * - Recall 분포 (≥90%, 70~90%, <70%)
+     * - Threshold 손실 요약
+     * - 최악 쿼리 Top 5
+     */
+    private void logSummary(int measured, int topK, int candidateLimit, double threshold,
+                            List<Double> stage1RecallAtTopK,
+                            List<Double> stage2RecallAtTopK,
+                            List<Double> stage2NdcgAtTopK,
+                            double avgExactAbove, double avgStage2Returned, double missRate,
+                            List<Map<String, Object>> queryDetails) {
+
+        DoubleSummaryStatistics s1Stats = stage1RecallAtTopK.stream()
+                .mapToDouble(v -> v).summaryStatistics();
+        DoubleSummaryStatistics s2Stats = stage2RecallAtTopK.stream()
+                .mapToDouble(v -> v).summaryStatistics();
+        DoubleSummaryStatistics ndcgStats = stage2NdcgAtTopK.stream()
+                .mapToDouble(v -> v).summaryStatistics();
+
+        long high = stage2RecallAtTopK.stream().filter(v -> v >= 0.9).count();
+        long mid  = stage2RecallAtTopK.stream().filter(v -> v >= 0.7 && v < 0.9).count();
+        long low  = stage2RecallAtTopK.stream().filter(v -> v < 0.7).count();
+
+        List<Map<String, Object>> worst = queryDetails.stream()
+                .sorted(Comparator.comparingDouble(m -> (Double) m.get("stage2RecallAtTopK")))
+                .limit(5)
+                .collect(Collectors.toList());
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("%n=== 벡터 검색 정확도 측정 결과 ===%n"));
+        sb.append(String.format("쿼리: %d개 | topK=%d | candidateLimit=%d | threshold=%.2f%n",
+                measured, topK, candidateLimit, threshold));
+
+        sb.append(String.format("%n[Stage1 Binary HNSW Recall@%d]%n", topK));
+        sb.append(String.format("  avg=%.1f%%  min=%.1f%%  max=%.1f%%  std=±%.1f%%%n",
+                s1Stats.getAverage() * 100, s1Stats.getMin() * 100,
+                s1Stats.getMax() * 100, stdDev(stage1RecallAtTopK) * 100));
+
+        sb.append(String.format("%n[Stage2 최종 결과 Recall@%d]%n", topK));
+        sb.append(String.format("  avg=%.1f%%  min=%.1f%%  max=%.1f%%  std=±%.1f%%%n",
+                s2Stats.getAverage() * 100, s2Stats.getMin() * 100,
+                s2Stats.getMax() * 100, stdDev(stage2RecallAtTopK) * 100));
+
+        sb.append(String.format("%n[NDCG@%d]%n", topK));
+        sb.append(String.format("  avg=%.1f%%  min=%.1f%%  max=%.1f%%%n",
+                ndcgStats.getAverage() * 100, ndcgStats.getMin() * 100, ndcgStats.getMax() * 100));
+
+        sb.append(String.format("%n[Recall@%d 분포]%n", topK));
+        sb.append(String.format("  ≥90%%: %d개 (%.0f%%)  70~90%%: %d개 (%.0f%%)  <70%%: %d개 (%.0f%%)%n",
+                high, high * 100.0 / measured,
+                mid,  mid  * 100.0 / measured,
+                low,  low  * 100.0 / measured));
+
+        sb.append(String.format("%n[Threshold 손실 (threshold=%.2f)]%n", threshold));
+        sb.append(String.format("  exact 관련 avg=%.1f개  stage2 반환 avg=%.1f개  누락률=%.1f%%%n",
+                avgExactAbove, avgStage2Returned, missRate * 100));
+
+        sb.append(String.format("%n[최악 쿼리 Top5 (stage2Recall@%d 기준)]%n", topK));
+        for (Map<String, Object> q : worst) {
+            sb.append(String.format("  %-30s s1=%.1f%% s2=%.1f%% ndcg=%.1f%% exact=%d ret=%d%n",
+                    "\"" + q.get("keyword") + "\"",
+                    (Double) q.get("stage1RecallAtTopK") * 100,
+                    (Double) q.get("stage2RecallAtTopK") * 100,
+                    (Double) q.get("stage2NdcgAtTopK") * 100,
+                    (Integer) q.get("exactAboveThreshold"),
+                    (Integer) q.get("stage2Returned")));
+        }
+
+        log.info(sb.toString());
     }
 }
