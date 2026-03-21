@@ -42,6 +42,8 @@ public class ArticleChunkAccuracyRepository {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Map<Long, Double> exactSearch(String vectorString, int topK, int limit) {
+        // Exact Search는 전체 테이블 스캔이므로 이 트랜잭션에서만 타임아웃 연장
+        jdbcTemplate.execute("SET LOCAL statement_timeout = '300000'"); // 5분
         // SET LOCAL enable_indexscan=off: HNSW 인덱스를 비활성화하여 full scan 수행
         jdbcTemplate.execute("SET LOCAL enable_indexscan = off");
 
