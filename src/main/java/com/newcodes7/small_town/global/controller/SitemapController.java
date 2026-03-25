@@ -5,7 +5,9 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -37,16 +39,29 @@ public class SitemapController {
         xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         xml.append("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
 
+        // 최신 아티클 발행일 조회 (정적 페이지 lastmod용)
+        Timestamp latestTs = articleRepository.findLatestPublishedAt();
+        String latestDate = latestTs != null ? latestTs.toLocalDateTime().format(DATE_FORMATTER) : null;
+
+        // 기업별 최신 아티클 발행일 맵 생성
+        Map<Long, String> corpLatestDate = new HashMap<>();
+        for (Object[] row : articleRepository.findLatestPublishedAtByCorporation()) {
+            Long corpId = ((Number) row[0]).longValue();
+            String date = row[1] != null ? ((Timestamp) row[1]).toLocalDateTime().format(DATE_FORMATTER) : null;
+            corpLatestDate.put(corpId, date);
+        }
+
         // 주요 정적 페이지
-        appendUrl(xml, baseUrl + "/", "daily", "1.0", null);
-        appendUrl(xml, baseUrl + "/articles", "daily", "0.9", null);
-        appendUrl(xml, baseUrl + "/video", "weekly", "0.8", null);
-        appendUrl(xml, baseUrl + "/corporations", "weekly", "0.8", null);
+        appendUrl(xml, baseUrl + "/", "daily", "1.0", latestDate);
+        appendUrl(xml, baseUrl + "/articles", "daily", "0.9", latestDate);
+        appendUrl(xml, baseUrl + "/video", "weekly", "0.8", latestDate);
+        appendUrl(xml, baseUrl + "/corporations", "weekly", "0.8", latestDate);
 
         // 기업 상세 페이지
         List<Corporation> corporations = corporationRepository.findAllActive();
         for (Corporation corp : corporations) {
-            appendUrl(xml, baseUrl + "/corporations/" + corp.getId(), "weekly", "0.7", null);
+            appendUrl(xml, baseUrl + "/corporations/" + corp.getId(), "weekly", "0.7",
+                corpLatestDate.get(corp.getId()));
         }
 
         // 아티클 상세 페이지 (content 제외 경량 조회)

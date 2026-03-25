@@ -4,6 +4,8 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -62,6 +64,7 @@ import com.newcodes7.small_town.embedding.service.RelatedArticleService;
 import com.newcodes7.small_town.article.dto.RelatedArticleDto;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -477,13 +480,20 @@ public class ArticleController {
     }
 
     @GetMapping("/articles/{idSlug:\\d+-.*}")
-    public String articleDetail(@PathVariable String idSlug, Model model) {
+    public String articleDetail(@PathVariable String idSlug, Model model, HttpServletResponse response) {
         // /articles/123-slug 형식
         int dashIndex = idSlug.indexOf('-');
         Long id = Long.parseLong(idSlug.substring(0, dashIndex));
 
         Article article = articleRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Article not found"));
+
+        // Last-Modified 헤더 설정 (구글 신선도 신호)
+        if (article.getPublishedAt() != null) {
+            String lastModified = DateTimeFormatter.RFC_1123_DATE_TIME
+                .format(article.getPublishedAt().atOffset(ZoneOffset.UTC));
+            response.setHeader("Last-Modified", lastModified);
+        }
 
         ArticleListResponseDto articleDto = new ArticleListResponseDto(article);
         model.addAttribute("article", articleDto);

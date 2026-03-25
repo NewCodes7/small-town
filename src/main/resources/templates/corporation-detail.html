@@ -8,6 +8,35 @@
         <meta name="keywords" th:content="${corporation.name} + ', 기술 블로그, 채용, IT, 개발자, NewCodes'">
         <meta name="robots" content="index, follow">
     </th:block>
+    <!-- OG 태그 -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" th:content="${corporation.name} + ' 기술 블로그 | NewCodes'">
+    <meta property="og:description" th:content="${corporation.name} + '의 최신 기술 블로그 아티클을 NewCodes에서 만나보세요.'">
+    <meta th:if="${corporation.logoS3Url != null}" property="og:image" th:content="${corporation.logoS3Url}">
+    <!-- 구조화 데이터 (JSON-LD) -->
+    <script type="application/ld+json" th:inline="javascript">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": /*[[${corporation.name}]]*/ "",
+      "url": /*[[${corporation.homeLink}]]*/ "",
+      "sameAs": /*[[${corporation.blogLink}]]*/ ""
+    }
+    </script>
+    <script type="application/ld+json" th:inline="javascript">
+    {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      "name": /*[[${corporation.name + ' 기술 블로그'}]]*/ "",
+      "description": /*[[${corporation.name + '의 최신 기술 블로그 아티클 모음'}]]*/ "",
+      "url": /*[[${canonicalUrl}]]*/ "",
+      "isPartOf": {
+        "@type": "WebSite",
+        "name": "NewCodes",
+        "url": "https://newcodes.net"
+      }
+    }
+    </script>
     <link rel="stylesheet" type="text/css" th:href="@{/css/corporation-detail.css}">
     <link rel="stylesheet" type="text/css" th:href="@{/css/home.css}">
     <link rel="stylesheet" type="text/css" th:href="@{/css/default-thumbnail.css}">

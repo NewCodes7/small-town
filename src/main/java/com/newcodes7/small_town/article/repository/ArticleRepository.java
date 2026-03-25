@@ -847,4 +847,19 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "ORDER BY a.published_at DESC",
            nativeQuery = true)
     List<Object[]> findAllActiveArticlesForSitemap();
+
+    /**
+     * Sitemap lastmod용: 전체 최신 아티클 발행일 조회
+     */
+    @Query(value = "SELECT MAX(a.published_at) FROM article a WHERE a.deleted_at IS NULL",
+           nativeQuery = true)
+    java.sql.Timestamp findLatestPublishedAt();
+
+    /**
+     * Sitemap lastmod용: 기업별 최신 아티클 발행일 조회 (corporation_id, max_published_at)
+     */
+    @Query(value = "SELECT a.corporation_id, MAX(a.published_at) " +
+           "FROM article a WHERE a.deleted_at IS NULL GROUP BY a.corporation_id",
+           nativeQuery = true)
+    List<Object[]> findLatestPublishedAtByCorporation();
 }
