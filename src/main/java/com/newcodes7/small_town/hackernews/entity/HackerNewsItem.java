@@ -77,6 +77,12 @@ public class HackerNewsItem {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "rank")
+    private Integer rank;
+
+    @Column(name = "crawl_batch_at")
+    private LocalDateTime crawlBatchAt;
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 

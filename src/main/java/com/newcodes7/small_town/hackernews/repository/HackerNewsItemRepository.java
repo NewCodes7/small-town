@@ -26,4 +26,9 @@ public interface HackerNewsItemRepository extends JpaRepository<HackerNewsItem, 
 
     @Query("SELECT h.hnId FROM HackerNewsItem h WHERE h.hnId IN :hnIds")
     List<Long> findExistingHnIds(@Param("hnIds") List<Long> hnIds);
+
+    @Query("SELECT h FROM HackerNewsItem h WHERE h.deletedAt IS NULL " +
+           "AND h.crawlBatchAt = (SELECT MAX(h2.crawlBatchAt) FROM HackerNewsItem h2 WHERE h2.deletedAt IS NULL) " +
+           "ORDER BY h.rank ASC")
+    List<HackerNewsItem> findByLatestBatch(Pageable pageable);
 }

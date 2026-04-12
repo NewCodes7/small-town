@@ -64,12 +64,15 @@ public class HackerNewsService {
         Set<Long> existingHnIds = itemRepository.findExistingHnIds(targetIds)
             .stream().collect(Collectors.toSet());
 
+        LocalDateTime batchTime = LocalDateTime.now();
         int savedCount = 0;
-        for (Long storyId : targetIds) {
+        for (int i = 0; i < targetIds.size(); i++) {
+            Long storyId = targetIds.get(i);
+            int rank = i + 1;
             try {
                 if (existingHnIds.contains(storyId)) {
-                    // 기존 아이템 점수 업데이트
-                    updateExistingItem(storyId);
+                    // 기존 아이템 점수 및 순위 업데이트
+                    updateExistingItem(storyId, rank, batchTime);
                     continue;
                 }
 
@@ -78,7 +81,7 @@ public class HackerNewsService {
                     continue;
                 }
 
-                HackerNewsItem item = parseAndSaveItem(itemData);
+                HackerNewsItem item = parseAndSaveItem(itemData, rank, batchTime);
                 if (item != null) {
                     savedCount++;
                 }
@@ -115,13 +118,16 @@ public class HackerNewsService {
         Set<Long> existingHnIds = itemRepository.findExistingHnIds(targetIds)
             .stream().collect(Collectors.toSet());
 
+        LocalDateTime batchTime = LocalDateTime.now();
         int savedCount = 0;
         int totalComments = 0;
 
-        for (Long storyId : targetIds) {
+        for (int i = 0; i < targetIds.size(); i++) {
+            Long storyId = targetIds.get(i);
+            int rank = i + 1;
             try {
                 if (existingHnIds.contains(storyId)) {
-                    updateExistingItem(storyId);
+                    updateExistingItem(storyId, rank, batchTime);
                     continue;
                 }
 
@@ -130,7 +136,7 @@ public class HackerNewsService {
                     continue;
                 }
 
-                HackerNewsItem item = parseAndSaveItem(itemData);
+                HackerNewsItem item = parseAndSaveItem(itemData, rank, batchTime);
                 if (item != null) {
                     savedCount++;
 
@@ -182,11 +188,11 @@ public class HackerNewsService {
     }
 
     /**
-     * 인기 아이템 목록 조회 (점수순)
+     * 인기 아이템 목록 조회 (최신 크롤링 배치 기준, rank 순)
      */
     @Transactional(readOnly = true)
     public List<HackerNewsItemResponseDto> getTopItems(int limit) {
-        return itemRepository.findTopByScore(PageRequest.of(0, limit))
+        return itemRepository.findByLatestBatch(PageRequest.of(0, limit))
             .stream()
             .map(HackerNewsItemResponseDto::new)
             .toList();
@@ -241,7 +247,7 @@ public class HackerNewsService {
         return savedCount;
     }
 
-    private HackerNewsItem parseAndSaveItem(Map<String, Object> data) {
+    private HackerNewsItem parseAndSaveItem(Map<String, Object> data, int rank, LocalDateTime batchTime) {
         try {
             String title = (String) data.get("title");
             String url = (String) data.get("url");
@@ -279,6 +285,8 @@ public class HackerNewsService {
                 .score(score)
                 .commentCount(descendants)
                 .hnCreatedAt(hnCreatedAt)
+                .rank(rank)
+                .crawlBatchAt(batchTime)
                 .build();
 
             return itemRepository.save(item);
@@ -288,7 +296,7 @@ public class HackerNewsService {
         }
     }
 
-    private void updateExistingItem(Long hnId) {
+    private void updateExistingItem(Long hnId, int rank, LocalDateTime batchTime) {
         try {
             Map<String, Object> itemData = apiClient.getItem(hnId);
             if (itemData == null) return;
@@ -301,6 +309,8 @@ public class HackerNewsService {
 
             if (scoreNum != null) item.setScore(scoreNum.intValue());
             if (descendantsNum != null) item.setCommentCount(descendantsNum.intValue());
+            item.setRank(rank);
+            item.setCrawlBatchAt(batchTime);
 
             itemRepository.save(item);
         } catch (Exception e) {
