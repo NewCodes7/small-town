@@ -3,6 +3,11 @@ services:
     image: ghcr.io/newcodes7/small-town:latest
     container_name: newcodes-backend-blue
     restart: unless-stopped
+    logging: &backend-logging
+      driver: json-file
+      options:
+        max-size: "20m"   # 파일 appender가 이미 ./logs/에 저장하므로 작게 설정
+        max-file: "3"
     environment: &backend-env
       - DB_URL=${DB_URL}
       - DB_USERNAME=${DB_USERNAME}
@@ -52,6 +57,7 @@ services:
     image: ghcr.io/newcodes7/small-town:latest
     container_name: newcodes-backend-green
     restart: unless-stopped
+    logging: *backend-logging
     environment: *backend-env
     expose:
       - "8080"
@@ -75,6 +81,11 @@ services:
   prometheus:
     image: prom/prometheus:v2.37.4
     container_name: prometheus
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     restart: always
@@ -88,6 +99,11 @@ services:
   grafana:
     image: grafana/grafana:8.3.3
     container_name: grafana
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       - GF_PASSWORD=${ADMIN_PASSWORD}
       - GF_SERVER_ROOT_URL=https://newcodes.net/admin/monitor/
@@ -111,6 +127,11 @@ services:
   loki:
     image: grafana/loki:2.9.3
     container_name: loki
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
       - "3100:3100"
     command: -config.file=/etc/loki/local-config.yaml
@@ -121,6 +142,11 @@ services:
   promtail:
     image: grafana/promtail:2.9.3
     container_name: promtail
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - ./logs:/logs:ro
       - ./promtail-config.yml:/etc/promtail/config.yml:ro
@@ -135,6 +161,11 @@ services:
     image: prom/node-exporter:latest
     container_name: node-exporter
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - app-network
     pid: host
@@ -148,6 +179,11 @@ services:
     image: prometheuscommunity/postgres-exporter:latest
     container_name: postgres_exporter
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       DATA_SOURCE_NAME: "${POSTGRES_EXPORTER_DSN}"
     networks:
@@ -161,6 +197,11 @@ services:
       dockerfile: Dockerfile
     container_name: newcodes-nginx
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
     ports:
       - "80:80"
       - "443:443"
@@ -180,6 +221,11 @@ services:
 
   certbot:
     image: certbot/certbot
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
