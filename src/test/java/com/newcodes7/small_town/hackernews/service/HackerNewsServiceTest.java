@@ -417,13 +417,13 @@ class HackerNewsServiceTest {
     // ===== 조회 테스트 =====
 
     @Test
-    @DisplayName("getTopItems: 점수순으로 아이템 목록 반환")
+    @DisplayName("getTopItems: 최신 배치 기준 아이템 목록 반환")
     void getTopItems_점수순_조회() {
         // given
         HackerNewsItem item1 = createItemEntity(1L, 100L, "High Score", "번역1", 300);
         HackerNewsItem item2 = createItemEntity(2L, 200L, "Medium Score", "번역2", 150);
 
-        when(itemRepository.findTopByScore(PageRequest.of(0, 10)))
+        when(itemRepository.findByLatestBatch(PageRequest.of(0, 10)))
             .thenReturn(List.of(item1, item2));
 
         // when
