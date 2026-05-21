@@ -503,6 +503,23 @@ function initOAuthNotice() {
     }
 }
 
+function showLikeLoginModal() {
+    const modal = document.getElementById('likeLoginModal');
+    if (modal) {
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeLikeLoginModal(event) {
+    const modal = document.getElementById('likeLoginModal');
+    if (!modal) return;
+    if (!event || event.target === modal || event.target.classList.contains('like-login-modal-close') || event.target.classList.contains('like-login-btn-later')) {
+        modal.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // CSR을 위한 ArticleManager 초기화
     articleManager = new ArticleManager();
@@ -512,4 +529,11 @@ document.addEventListener('DOMContentLoaded', function() {
     initRegionToggle();
     initSortDropdown();
     initOAuthNotice();
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('likeLoginModal');
+            if (modal && modal.classList.contains('active')) closeLikeLoginModal(null);
+        }
+    });
 });

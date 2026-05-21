@@ -1,3 +1,15 @@
+// 인증 상태 캐시 (페이지 내 재사용)
+let _likeButtonAuthState = null;
+async function _getLikeButtonAuthState() {
+    if (_likeButtonAuthState !== null) return _likeButtonAuthState;
+    try {
+        const res = await fetch('/api/user-info', { credentials: 'include' });
+        const data = await res.json();
+        _likeButtonAuthState = data.authenticated || false;
+    } catch { _likeButtonAuthState = false; }
+    return _likeButtonAuthState;
+}
+
 // 좋아요 버튼 클릭 이벤트 (이벤트 위임으로 CSR 렌더링된 요소도 처리)
 function likeButton() {
     document.addEventListener('click', async function(e) {
@@ -8,6 +20,20 @@ function likeButton() {
         e.stopPropagation();
 
         const articleId = btn.getAttribute('data-article-id');
+        const authenticated = await _getLikeButtonAuthState();
+
+        if (!authenticated) {
+            const isCurrentlyLiked = btn.classList.contains('liked');
+            if (isCurrentlyLiked) {
+                btn.classList.remove('liked');
+                if (typeof removeFromLikedArticles === 'function') removeFromLikedArticles(parseInt(articleId));
+            } else {
+                btn.classList.add('liked');
+                if (typeof addToLikedArticles === 'function') addToLikedArticles(parseInt(articleId));
+                if (typeof showLikeLoginModal === 'function') showLikeLoginModal();
+            }
+            return;
+        }
 
         try {
             const response = await fetch(`/api/articles/${articleId}/like`, {
@@ -24,10 +50,10 @@ function likeButton() {
                 // 좋아요 상태에 따른 스타일 변경 및 localStorage 동기화
                 if (data.isLiked) {
                     btn.classList.add('liked');
-                    addToLikedArticles(articleId);
+                    if (typeof addToLikedArticles === 'function') addToLikedArticles(articleId);
                 } else {
                     btn.classList.remove('liked');
-                    removeFromLikedArticles(articleId);
+                    if (typeof removeFromLikedArticles === 'function') removeFromLikedArticles(articleId);
                 }
             }
         } catch (error) {
@@ -48,12 +74,7 @@ async function loadLikeStatuses() {
         return;
     }
 
-    let authenticated = false;
-    try {
-        const res = await fetch('/api/user-info', { credentials: 'include' });
-        const data = await res.json();
-        authenticated = data.authenticated || false;
-    } catch {}
+    const authenticated = await _getLikeButtonAuthState();
 
     if (!authenticated) {
         // 비로그인: localStorage 기반으로 표시 (new-home.js와 동일한 키 사용)

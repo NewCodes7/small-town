@@ -1140,6 +1140,23 @@
             }
         </style>
 
+        <style>
+            .like-login-modal { display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+            .like-login-modal.active { display: flex; align-items: center; justify-content: center; }
+            .like-login-modal-content { position: relative; background: #fff; border-radius: 16px; padding: 36px 32px 28px; max-width: 360px; width: 90%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+            .like-login-modal-close { position: absolute; top: 14px; right: 18px; font-size: 22px; color: #9ca3af; background: none; border: none; cursor: pointer; }
+            .like-login-modal-close:hover { color: #374151; }
+            .like-login-modal-icon { font-size: 2.5rem; color: #ef4444; margin-bottom: 12px; }
+            .like-login-modal-content h3 { font-size: 1.15rem; font-weight: 700; color: #111827; margin: 0 0 8px; }
+            .like-login-modal-content p { font-size: 0.88rem; color: #6b7280; line-height: 1.6; margin: 0 0 24px; }
+            .like-login-modal-buttons { display: flex; flex-direction: column; gap: 10px; }
+            .like-login-btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border-radius: 8px; font-size: 0.9rem; font-weight: 600; text-decoration: none; border: none; cursor: pointer; transition: opacity 0.2s; }
+            .like-login-btn:hover { opacity: 0.88; }
+            .like-login-btn-google { background: #ea4335; color: #fff; }
+            .like-login-btn-github { background: #24292e; color: #fff; }
+            .like-login-btn-later { background: none; color: #9ca3af; font-weight: 500; font-size: 0.82rem; padding: 6px; }
+        </style>
+
         <!-- 관리자 전용 글 편집 모달 -->
         <div class="modal fade" id="editArticleModal" tabindex="-1">
             <div class="modal-dialog modal-lg">
@@ -1311,6 +1328,25 @@
         </div>
     </div>
     
+    <!-- Like Login Modal -->
+    <div id="likeLoginModal" class="like-login-modal" onclick="closeLikeLoginModal(event)">
+        <div class="like-login-modal-content">
+            <button class="like-login-modal-close" onclick="closeLikeLoginModal(event)">&times;</button>
+            <div class="like-login-modal-icon"><i class="fas fa-heart"></i></div>
+            <h3>좋아요가 저장됐어요!</h3>
+            <p>로그인하면 어디서나 확인하고<br>영구적으로 저장할 수 있어요.</p>
+            <div class="like-login-modal-buttons">
+                <a href="/oauth2/authorization/google" class="like-login-btn like-login-btn-google">
+                    <i class="fab fa-google"></i> Google로 로그인
+                </a>
+                <a href="/oauth2/authorization/github" class="like-login-btn like-login-btn-github">
+                    <i class="fab fa-github"></i> GitHub로 로그인
+                </a>
+                <button class="like-login-btn like-login-btn-later" onclick="closeLikeLoginModal(event)">나중에 할게요</button>
+            </div>
+        </div>
+    </div>
+
     <div layout:fragment="scripts">
         <script th:src="@{/js/articleManager.js(v='1.0.1')}"></script>
         <script th:src="@{/js/home.js}"></script>
