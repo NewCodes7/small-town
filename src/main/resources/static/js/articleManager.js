@@ -30,7 +30,7 @@ class ArticleManager {
 
     loadStateFromURL() {
         const params = new URLSearchParams(window.location.search);
-        this.currentPage = (parseInt(params.get('page')) - 1) || 0;
+        this.currentPage = parseInt(params.get('page')) || 0;
         if (this.currentPage < 0) this.currentPage = 0;
         const sortFromURL = params.get('sort');
         this.currentSort = sortFromURL || ((params.get('keyword') || '').trim() !== '' ? 'relevance' : 'latest');
@@ -510,7 +510,7 @@ class ArticleManager {
                         </div>
                         <div class="d-flex align-items-center gap-2">
                             <small class="text-muted relative-time" data-date="${article.publishedAt || ''}" title="${article.publishedAt || ''}" style="white-space: nowrap;">${article.publishedAt || ''}</small>
-                            <button class="like-button" data-article-id="${article.id}" data-liked="${isLiked}" onclick="event.stopPropagation()">
+                            <button class="like-button" data-article-id="${article.id}" data-liked="${isLiked}">
                                 <i class="fas fa-heart like-icon"></i>
                             </button>
                         </div>
@@ -553,7 +553,7 @@ class ArticleManager {
                     </div>`
                     : '';
                 return `<div class="child" data-article-id="${child.id}" data-detail-url="${this.escapeHtml(child.detailUrl || '')}"
-                             onclick="event.stopPropagation(); window.location.href=this.getAttribute('data-detail-url')" style="cursor: pointer;">
+                             onclick="if(!event.target.closest('.like-button')) { event.stopPropagation(); window.location.href=this.getAttribute('data-detail-url'); }" style="cursor: pointer;">
                     <h6 class="fw-bold d-flex align-items-center" style="margin: 0;">
                         <span class="title-link">${this.escapeHtml(childTitle)}</span>
                     </h6>
@@ -561,7 +561,7 @@ class ArticleManager {
                         <span class="d-flex align-items-center gap-2">
                             <small class="text-muted relative-time" data-date="${child.publishedAt || ''}" title="${child.publishedAt || ''}" style="white-space: nowrap;">${child.publishedAt || ''}</small>
                             ${childAdminScoreHTML}
-                            <button class="like-button" data-article-id="${child.id}" data-liked="${childIsLiked}" onclick="event.stopPropagation()">
+                            <button class="like-button" data-article-id="${child.id}" data-liked="${childIsLiked}">
                                 <i class="fas fa-heart like-icon"></i>
                                 <span class="like-count">${child.likeCount || 0}</span>
                             </button>
@@ -596,7 +596,7 @@ class ArticleManager {
                         </div>
                         <div class="d-flex align-items-center gap-2">
                             <small class="text-muted relative-time" data-date="${firstArticle.publishedAt || ''}" title="${firstArticle.publishedAt || ''}" style="white-space: nowrap;">${firstArticle.publishedAt || ''}</small>
-                            <button class="like-button" data-article-id="${firstArticle.id}" data-liked="${isLiked}" onclick="event.stopPropagation()">
+                            <button class="like-button" data-article-id="${firstArticle.id}" data-liked="${isLiked}">
                                 <i class="fas fa-heart like-icon"></i>
                                 <span class="like-count">${firstArticle.likeCount || 0}</span>
                             </button>
@@ -710,7 +710,7 @@ class ArticleManager {
 
     updateURL() {
         const params = new URLSearchParams();
-        if (this.currentPage > 0) params.set('page', this.currentPage + 1);
+        if (this.currentPage > 0) params.set('page', this.currentPage);
         const defaultSort = this.currentKeyword ? 'relevance' : 'latest';
         if (this.currentSort !== defaultSort) params.set('sort', this.currentSort);
         if (this.currentKeyword) params.set('keyword', this.currentKeyword);
