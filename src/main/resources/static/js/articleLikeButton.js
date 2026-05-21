@@ -37,7 +37,7 @@ function likeButton() {
 }
 
 
-// 페이지 로드 시 좋아요 상태 확인 (배치 API로 조회)
+// 페이지 로드 시 좋아요 상태 확인
 async function loadLikeStatuses() {
     const likeButtons = document.querySelectorAll('.like-button[data-article-id]');
     const articleIds = Array.from(likeButtons).map(btn =>
@@ -45,6 +45,25 @@ async function loadLikeStatuses() {
     );
 
     if (articleIds.length === 0) {
+        return;
+    }
+
+    let authenticated = false;
+    try {
+        const res = await fetch('/api/user-info', { credentials: 'include' });
+        const data = await res.json();
+        authenticated = data.authenticated || false;
+    } catch {}
+
+    if (!authenticated) {
+        // 비로그인: localStorage 기반으로 표시 (new-home.js와 동일한 키 사용)
+        const likedIds = typeof getLikedArticleIds === 'function' ? getLikedArticleIds() : [];
+        likeButtons.forEach(btn => {
+            const articleId = parseInt(btn.getAttribute('data-article-id'));
+            if (likedIds.includes(articleId)) {
+                btn.classList.add('liked');
+            }
+        });
         return;
     }
 

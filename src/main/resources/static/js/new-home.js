@@ -215,6 +215,77 @@ document.addEventListener('keydown', function(event) {
     }
 });
 
+// 로그인 유도 모달
+function showLikeLoginModal() {
+    const modal = document.getElementById('likeLoginModal');
+    if (modal) {
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeLikeLoginModal(event) {
+    const modal = document.getElementById('likeLoginModal');
+    if (!modal) return;
+    if (!event || event.target === modal || event.target.classList.contains('like-login-modal-close') || event.target.classList.contains('like-login-btn-later')) {
+        modal.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+}
+
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        const modal = document.getElementById('likeLoginModal');
+        if (modal && modal.classList.contains('active')) {
+            closeLikeLoginModal(null);
+        }
+    }
+});
+
+// localStorage 좋아요 마이그레이션 (블로그)
+async function migrateLikesFromLocalStorage() {
+    try {
+        const likedIds = getLikedArticleIds();
+        if (!likedIds || likedIds.length === 0) return null;
+        const response = await fetch('/api/articles/migrate-likes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(likedIds)
+        });
+        if (response.ok) {
+            localStorage.removeItem(LIKED_ARTICLES_KEY);
+            return await response.json();
+        }
+        return null;
+    } catch (error) {
+        console.error('Failed to migrate article likes:', error);
+        return null;
+    }
+}
+
+// localStorage 좋아요 마이그레이션 (비디오)
+async function migrateVideoLikesFromLocalStorage() {
+    try {
+        const likedIds = getLikedVideoIds();
+        if (!likedIds || likedIds.length === 0) return null;
+        const response = await fetch('/video/api/videos/migrate-likes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(likedIds)
+        });
+        if (response.ok) {
+            localStorage.removeItem(LIKED_VIDEOS_KEY);
+            return await response.json();
+        }
+        return null;
+    } catch (error) {
+        console.error('Failed to migrate video likes:', error);
+        return null;
+    }
+}
+
 // 블로그 좋아요 토글
 async function toggleArticleLike(button, event) {
     event.preventDefault();
@@ -235,6 +306,7 @@ async function toggleArticleLike(button, event) {
             button.classList.add('liked');
             icon.classList.replace('far', 'fas');
             addToLikedArticles(parseInt(articleId));
+            showLikeLoginModal();
         }
         return;
     }
@@ -288,6 +360,7 @@ async function toggleVideoLike(button, event) {
             button.classList.add('liked');
             icon.classList.replace('far', 'fas');
             addToLikedVideos(parseInt(videoId));
+            showLikeLoginModal();
         }
         return;
     }
@@ -529,8 +602,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // 좋아요 상태 로드
+    // 좋아요 상태 로드 + OAuth 로그인 후 localStorage 마이그레이션
     loadLikeStatus();
+    (async () => {
+        const authenticated = await checkAuthenticated();
+        if (authenticated) {
+            if (getLikedArticleIds().length > 0) await migrateLikesFromLocalStorage();
+            if (getLikedVideoIds().length > 0) await migrateVideoLikesFromLocalStorage();
+        }
+    })();
 
     // 검색 자동완성 초기화 (searchAutocomplete.js 모듈 사용)
     if (typeof SearchAutocomplete !== 'undefined') {
