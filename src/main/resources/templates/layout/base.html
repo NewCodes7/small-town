@@ -1052,6 +1052,51 @@
         });
     </script>
     
+    <!-- Like Login Modal (공통: 모든 페이지에서 비로그인 좋아요 시 표시) -->
+    <div id="likeLoginModal" class="like-login-modal" onclick="closeLikeLoginModal(event)">
+        <div class="like-login-modal-content">
+            <button class="like-login-modal-close" onclick="closeLikeLoginModal(event)">&times;</button>
+            <div class="like-login-modal-icon"><i class="fas fa-heart"></i></div>
+            <h3>좋아요가 저장됐어요!</h3>
+            <p>로그인하면 어디서나 확인하고<br>영구적으로 저장할 수 있어요.</p>
+            <div class="like-login-modal-buttons">
+                <a href="/auth/login" class="like-login-btn like-login-btn-email">
+                    <i class="fas fa-envelope"></i> 이메일로 로그인
+                </a>
+                <a href="/oauth2/authorization/github" class="like-login-btn like-login-btn-github">
+                    <i class="fab fa-github"></i> GitHub로 로그인
+                </a>
+                <button class="like-login-btn like-login-btn-later" onclick="closeLikeLoginModal(event)">나중에 할게요</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showLikeLoginModal() {
+            const modal = document.getElementById('likeLoginModal');
+            if (modal) {
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+        function closeLikeLoginModal(event) {
+            const modal = document.getElementById('likeLoginModal');
+            if (!modal) return;
+            if (!event || event.target === modal
+                || event.target.classList.contains('like-login-modal-close')
+                || event.target.classList.contains('like-login-btn-later')) {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('likeLoginModal');
+                if (modal && modal.classList.contains('active')) closeLikeLoginModal(null);
+            }
+        });
+    </script>
+
     <script layout:fragment="scripts"></script>
 </body>
 </html>

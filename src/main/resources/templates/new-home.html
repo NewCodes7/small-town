@@ -472,24 +472,6 @@
             </div>
         </div>
 
-        <!-- Like Login Modal -->
-        <div id="likeLoginModal" class="like-login-modal" onclick="closeLikeLoginModal(event)">
-            <div class="like-login-modal-content">
-                <button class="like-login-modal-close" onclick="closeLikeLoginModal(event)">&times;</button>
-                <div class="like-login-modal-icon"><i class="fas fa-heart"></i></div>
-                <h3>좋아요가 저장됐어요!</h3>
-                <p>로그인하면 어디서나 확인하고<br>영구적으로 저장할 수 있어요.</p>
-                <div class="like-login-modal-buttons">
-                    <a href="/oauth2/authorization/google" class="like-login-btn like-login-btn-google">
-                        <i class="fab fa-google"></i> Google로 로그인
-                    </a>
-                    <a href="/oauth2/authorization/github" class="like-login-btn like-login-btn-github">
-                        <i class="fab fa-github"></i> GitHub로 로그인
-                    </a>
-                    <button class="like-login-btn like-login-btn-later" onclick="closeLikeLoginModal(event)">나중에 할게요</button>
-                </div>
-            </div>
-        </div>
     </div>
 
     <div layout:fragment="scripts">

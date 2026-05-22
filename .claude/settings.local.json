@@ -9,7 +9,12 @@
       "Bash(git -C /workspaces/small-town log --all --full-history --oneline -- \"V1_3*\" -- \"V1_4*\")",
       "Bash(git -C /workspaces/small-town show 0337b02 --stat)",
       "Bash(git -C /workspaces/small-town show:*)",
-      "Bash(git fetch:*)"
+      "Bash(git fetch:*)",
+      "Bash(curl:*)",
+      "Bash(echo \"\" >> src/main/resources/static/css/base.css)"
+    ],
+    "additionalDirectories": [
+      "/workspaces/small-town/src/main/resources/static/css"
     ]
   }
 }
