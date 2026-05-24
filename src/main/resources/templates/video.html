@@ -1166,8 +1166,9 @@
                     }
 
                     child.addEventListener('click', (e) => {
-                        // 회사 링크를 클릭한 경우는 기본 동작 허용
-                        if (e.target.closest('.company-link') || e.target.closest('a')) {
+                        // 좋아요 버튼, 회사 링크를 클릭한 경우는 기본 동작 허용
+                        if (e.target.closest('.like-button') ||
+                            e.target.closest('.company-link') || e.target.closest('a')) {
                             return; // 기본 동작 허용 (링크 이동 등)
                         }
 
