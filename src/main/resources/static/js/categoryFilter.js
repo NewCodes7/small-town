@@ -330,7 +330,7 @@ class CategoryFilterManager {
         }
 
         // 페이지는 0으로 리셋
-        url.searchParams.set('page', '0');
+        url.searchParams.set('page', '1');
 
         // URL 저장 (새로고침을 위해 history에는 저장하지 않음)
         this.pendingUrl = url.toString();

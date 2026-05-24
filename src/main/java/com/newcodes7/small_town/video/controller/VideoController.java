@@ -85,7 +85,7 @@ public class VideoController {
 
     @GetMapping({"", "/"})
     public String videoHome(
-            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "page", defaultValue = "1") int page,
             @RequestParam(name = "size", defaultValue = "10") int size,
             @RequestParam(name = "sort", defaultValue = "latest") String sort,
             @RequestParam(name = "keyword", required = false) String keyword,
@@ -95,6 +95,8 @@ public class VideoController {
             @AuthenticationPrincipal UserDetails userDetails,
             HttpServletRequest request,
             Model model) {
+
+        int internalPage = Math.max(0, page - 1);
 
         // 검색 로그 저장
         if (keyword != null && !keyword.trim().isEmpty()) {
@@ -110,7 +112,7 @@ public class VideoController {
         Page<VideoResponseDto> videos = videoService.getVideosWithFilters(
             keyword != null && !keyword.trim().isEmpty() ? keyword.trim().toLowerCase() : null,
             regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
-            page,
+            internalPage,
             size,
             sort,
             effectiveView,
@@ -137,7 +139,7 @@ public class VideoController {
         model.addAttribute("totalElements", videos.getTotalElements());
         model.addAttribute("hasNext", videos.hasNext());
         model.addAttribute("hasPrevious", videos.hasPrevious());
-        model.addAttribute("currentPage", page);
+        model.addAttribute("currentPage", internalPage);
         model.addAttribute("currentSort", sort);
         model.addAttribute("keyword", keyword);
         model.addAttribute("selectedRegions", regions != null ? regions : new ArrayList<>());

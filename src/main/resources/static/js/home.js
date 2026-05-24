@@ -386,7 +386,7 @@ function updateViewParam(viewType) {
     } else {
         const url = new URL(window.location.href);
         url.searchParams.set('view', viewType);
-        url.searchParams.set('page', '0');
+        url.searchParams.set('page', '1');
         window.location.href = url.toString();
     }
 }
@@ -403,7 +403,7 @@ function updateRegionParam(region) {
         if (region) {
             url.searchParams.set('regions', region);
         }
-        url.searchParams.set('page', '0');
+        url.searchParams.set('page', '1');
         window.location.href = url.toString();
     }
 }
@@ -477,7 +477,7 @@ function updateSortParam(sortType) {
     } else {
         const url = new URL(window.location.href);
         url.searchParams.set('sort', sortType);
-        url.searchParams.set('page', '0');
+        url.searchParams.set('page', '1');
         window.location.href = url.toString();
     }
 }

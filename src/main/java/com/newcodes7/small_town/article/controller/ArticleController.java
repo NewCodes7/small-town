@@ -108,7 +108,7 @@ public class ArticleController {
 
     @GetMapping("/articles")
     public String home(
-            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "page", defaultValue = "1") int page,
             @RequestParam(name = "size", defaultValue = "10") int size,
             @RequestParam(name = "sort", required = false) String sort,
             @RequestParam(name = "keyword", required = false) String keyword,
@@ -118,6 +118,8 @@ public class ArticleController {
             @AuthenticationPrincipal UserDetails userDetails,
             HttpServletRequest request,
             Model model) {
+
+        int internalPage = Math.max(0, page - 1);
 
         // 검색 로그 저장
         if (keyword != null && !keyword.trim().isEmpty()) {
@@ -173,7 +175,7 @@ public class ArticleController {
                     exactKeyword,
                     regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
                     category == null || category.isEmpty() ? null : category.stream().sorted().toList(),
-                    page,
+                    internalPage,
                     size,
                     effectiveSort,
                     clientIp,
@@ -203,7 +205,7 @@ public class ArticleController {
                     expandedTerms,
                     regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
                     category == null || category.isEmpty() ? null : category.stream().sorted().toList(),
-                    page,
+                    internalPage,
                     size,
                     effectiveSort,
                     clientIp,
@@ -215,7 +217,7 @@ public class ArticleController {
             articles = articleService.getArticlesWithFilters(
                 keyword != null && !keyword.trim().isEmpty() ? keyword.trim().toLowerCase() : null,
                 regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
-                page,
+                internalPage,
                 size,
                 effectiveSort,
                 effectiveView,
@@ -246,7 +248,7 @@ public class ArticleController {
         model.addAttribute("totalElements", articles.getTotalElements());
         model.addAttribute("hasNext", articles.hasNext());
         model.addAttribute("hasPrevious", articles.hasPrevious());
-        model.addAttribute("currentPage", page);
+        model.addAttribute("currentPage", internalPage);
         model.addAttribute("currentSort", effectiveSort);  
         model.addAttribute("keyword", keyword);
         model.addAttribute("selectedRegions", regions != null ? regions : new ArrayList<>());

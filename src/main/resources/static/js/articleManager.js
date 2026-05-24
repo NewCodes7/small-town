@@ -30,7 +30,8 @@ class ArticleManager {
 
     loadStateFromURL() {
         const params = new URLSearchParams(window.location.search);
-        this.currentPage = parseInt(params.get('page')) || 0;
+        const urlPage = parseInt(params.get('page'));
+        this.currentPage = isNaN(urlPage) ? 0 : Math.max(0, urlPage - 1);
         if (this.currentPage < 0) this.currentPage = 0;
         const sortFromURL = params.get('sort');
         this.currentSort = sortFromURL || ((params.get('keyword') || '').trim() !== '' ? 'relevance' : 'latest');
@@ -710,7 +711,7 @@ class ArticleManager {
 
     updateURL() {
         const params = new URLSearchParams();
-        if (this.currentPage > 0) params.set('page', this.currentPage);
+        if (this.currentPage > 0) params.set('page', this.currentPage + 1);
         const defaultSort = this.currentKeyword ? 'relevance' : 'latest';
         if (this.currentSort !== defaultSort) params.set('sort', this.currentSort);
         if (this.currentKeyword) params.set('keyword', this.currentKeyword);
