@@ -20,11 +20,19 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 public class WebDriverConfig {
-    
+
     private final WebDriverProperties webDriverProperties;
-    
+    private static volatile boolean webDriverSetupDone = false;
+
     public WebDriver createWebDriver() {
-        WebDriverManager.chromedriver().setup(); // 크롬 드라이버 자동 다운로드 및 설정
+        if (!webDriverSetupDone) {
+            synchronized (WebDriverConfig.class) {
+                if (!webDriverSetupDone) {
+                    WebDriverManager.chromedriver().setup();
+                    webDriverSetupDone = true;
+                }
+            }
+        }
 
         ChromeOptions options = new ChromeOptions();
 
@@ -114,10 +122,10 @@ public class WebDriverConfig {
         options.setExperimentalOption("prefs", prefs);
 
         ChromeDriver driver = new ChromeDriver(options);
-        // 웹 요소가 나타날 때까지 기다리는 최대 시간을 설정
         driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(webDriverProperties.getTimeout()));
-        // 페이지가 완전히 로드될 때까지 기다리는 최대 시간을 설정
         driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(webDriverProperties.getTimeout()));
+        // JS 실행 timeout을 짧게 설정해 시스템 부하 시 빠르게 실패하도록 처리
+        driver.manage().timeouts().scriptTimeout(Duration.ofSeconds(10));
 
         log.info("WebDriver 초기화 완료 - Headless: {}", webDriverProperties.isHeadless());
 

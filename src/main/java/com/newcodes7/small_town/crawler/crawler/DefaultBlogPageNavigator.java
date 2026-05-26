@@ -132,14 +132,23 @@ public class DefaultBlogPageNavigator {
 
     private void performScrollSimulation(WebDriver driver) throws InterruptedException {
         JavascriptExecutor js = (JavascriptExecutor) driver;
-        int maxScrollAttempts = 50;
+        // 블로그 목록 페이지는 대부분 SSR이므로 소량만 스크롤해서 lazy-load 트리거
+        // 과도한 스크롤은 시스템 iowait 상승 → Chrome 렌더러 hang → ScriptTimeoutException 유발
+        int maxScrollAttempts = 5;
         int scrollCount = 0;
         long previousHeight = 0;
         int noChangeCount = 0;
 
         while (scrollCount < maxScrollAttempts) {
-            long currentPos = (long) js.executeScript("return window.scrollY + window.innerHeight;");
-            long totalHeight = (long) js.executeScript("return document.body.scrollHeight;");
+            long currentPos;
+            long totalHeight;
+            try {
+                currentPos = (long) js.executeScript("return window.scrollY + window.innerHeight;");
+                totalHeight = (long) js.executeScript("return document.body.scrollHeight;");
+            } catch (Exception e) {
+                log.warn("스크롤 위치 확인 실패 - 스크롤 중단: {}", e.getMessage());
+                break;
+            }
 
             if (currentPos >= totalHeight) {
                 break;
@@ -156,9 +165,14 @@ public class DefaultBlogPageNavigator {
             }
 
             int scrollAmount = 200 + random.nextInt(300);
-            js.executeScript("window.scrollBy(0, " + scrollAmount + ")");
+            try {
+                js.executeScript("window.scrollBy(0, " + scrollAmount + ")");
+            } catch (Exception e) {
+                log.warn("스크롤 실행 실패 - 스크롤 중단: {}", e.getMessage());
+                break;
+            }
 
-            Thread.sleep(500 + random.nextInt(1000));
+            Thread.sleep(100 + random.nextInt(200));
             scrollCount++;
         }
     }
