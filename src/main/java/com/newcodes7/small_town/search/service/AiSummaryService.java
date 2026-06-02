@@ -75,9 +75,13 @@ public class AiSummaryService {
     private Counter failureCounter;
     private Counter cachedCounter;
     private Timer latencyTimer;
+    private HttpClient httpClient;
 
     @PostConstruct
     public void init() {
+        httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(3))
+                .build();
         successCounter = Counter.builder("ai_summary_requests_total")
                 .tag("status", "success")
                 .description("AI summary successful requests")
@@ -132,7 +136,9 @@ public class AiSummaryService {
             String requestBody = buildGeminiRequestBody(SYSTEM_PROMPT, userMessage);
 
             StringBuilder fullText = new StringBuilder();
+            StringBuilder pendingBuf = new StringBuilder();
             boolean queriesDetected = false;
+            final int HOLD_BACK = "[QUERIES]".length() - 1;
 
             try (Stream<String> lines = callGeminiStream(requestBody)) {
                 for (String line : (Iterable<String>) lines::iterator) {
@@ -143,23 +149,29 @@ public class AiSummaryService {
                     String text = extractTextFromGeminiResponse(json);
                     if (text.isEmpty()) continue;
 
-                    if (!queriesDetected) {
-                        String before = fullText.toString();
-                        fullText.append(text);
+                    fullText.append(text);
 
-                        int queryIdx = fullText.indexOf("[QUERIES]");
-                        if (queryIdx == -1) {
-                            sendTokenEvent(emitter, text);
-                        } else {
+                    if (!queriesDetected) {
+                        pendingBuf.append(text);
+                        String pending = pendingBuf.toString();
+                        int queryIdx = pending.indexOf("[QUERIES]");
+                        if (queryIdx != -1) {
                             queriesDetected = true;
-                            String safeText = fullText.substring(before.length(), queryIdx);
-                            if (!safeText.isEmpty()) {
-                                sendTokenEvent(emitter, safeText);
+                            if (queryIdx > 0) sendTokenEvent(emitter, pending.substring(0, queryIdx));
+                            pendingBuf.setLength(0);
+                        } else {
+                            // [QUERIES] 태그가 토큰 경계에 걸쳐 오는 경우 대비:
+                            // 끝 8자는 홀드하여 다음 토큰과 합쳐서 재검사
+                            int safeLen = pending.length() - HOLD_BACK;
+                            if (safeLen > 0) {
+                                sendTokenEvent(emitter, pending.substring(0, safeLen));
+                                pendingBuf.delete(0, safeLen);
                             }
                         }
-                    } else {
-                        fullText.append(text);
                     }
+                }
+                if (!queriesDetected && pendingBuf.length() > 0) {
+                    sendTokenEvent(emitter, pendingBuf.toString());
                 }
             } catch (HttpTimeoutException e) {
                 log.warn("Gemini API 타임아웃 - 쿼리: {}", query);
@@ -168,7 +180,15 @@ public class AiSummaryService {
                 failureCounter.increment();
                 latencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
                 return;
-            } catch (IOException | InterruptedException e) {
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.error("Gemini API 호출 중 인터럽트: {}", e.getMessage());
+                sendErrorEvent(emitter, "요약을 불러올 수 없습니다");
+                completeEmitter(emitter);
+                failureCounter.increment();
+                latencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
+                return;
+            } catch (IOException e) {
                 log.error("Gemini API 호출 실패: {}", e.getMessage());
                 sendErrorEvent(emitter, "요약을 불러올 수 없습니다");
                 completeEmitter(emitter);
@@ -223,9 +243,6 @@ public class AiSummaryService {
     }
 
     protected Stream<String> callGeminiStream(String requestBody) throws IOException, InterruptedException {
-        HttpClient client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(3))
-                .build();
         String url = GEMINI_BASE_URL + geminiModel
                 + ":streamGenerateContent?key=" + geminiApiKey + "&alt=sse";
         HttpRequest request = HttpRequest.newBuilder()
@@ -234,7 +251,7 @@ public class AiSummaryService {
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .timeout(Duration.ofSeconds(10))
                 .build();
-        HttpResponse<Stream<String>> response = client.send(request, HttpResponse.BodyHandlers.ofLines());
+        HttpResponse<Stream<String>> response = httpClient.send(request, HttpResponse.BodyHandlers.ofLines());
         if (response.statusCode() != 200) {
             throw new IOException("Gemini API 오류: " + response.statusCode());
         }
