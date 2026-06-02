@@ -39,17 +39,21 @@ RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --d
 # Chrome 버전을 자동으로 찾아 ChromeDriver를 설치하는 더 강력한 스크립트:
 ENV CHROME_DRIVER_VERSION "stable"
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
-    && apt-get install -y unzip \
+    && apt-get install -y unzip wget jq \
     && CHROME_VERSION=$(google-chrome-stable --version | grep -oP '\d+\.\d+\.\d+\.\d+') \
     && CHROME_MAJOR_VERSION=$(echo $CHROME_VERSION | cut -d'.' -f1) \
-    && LATEST_CHROMEDRIVER_VERSION=$(wget -qO- "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json" | grep -oP "${CHROME_MAJOR_VERSION}\.\d+\.\d+\.\d+" | head -1) \
-    && wget -q https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/$LATEST_CHROMEDRIVER_VERSION/linux64/chromedriver-linux64.zip -O /tmp/chromedriver.zip \
+    && echo "Chrome Major Version: $CHROME_MAJOR_VERSION" \
+    # 1. JSON 보안 API에서 해당 메이저 버전에 맞는 정확한 chromedriver 다운로드 URL을 직접 추출합니다.
+    && CHROMEDRIVER_URL=$(wget -qO- "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json" \
+       | jq -r ".channels.Stable.downloads.chromedriver[] | select(.platform==\"linux64\") | .url") \
+    # 2. 추출한 내부 전체 URL로 안전하게 다운로드합니다.
+    && wget -q "$CHROMEDRIVER_URL" -O /tmp/chromedriver.zip \
     && unzip /tmp/chromedriver.zip -d /tmp/chromedriver \
     && mv /tmp/chromedriver/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver \
     && chmod +x /usr/local/bin/chromedriver \
     && rm -rf /tmp/chromedriver.zip /tmp/chromedriver \
     && rm -rf /var/lib/apt/lists/*
-
+    
 # ---------------------------------------------------------
 # 1. Node.js 설치 (v18+ / 여기선 20)
 # ---------------------------------------------------------

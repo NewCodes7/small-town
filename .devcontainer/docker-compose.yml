@@ -10,13 +10,13 @@ services:
       - ..:/workspaces/small-town:cached
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_started # ◀ 헬스체크 완료를 기다리지 않고 일단 띄웁니다.
 
   postgres:
     build:
       context: .
       dockerfile: postgres.Dockerfile
-    container_name: postgres
+    # container_name: postgres ◀ ⚠️ 삭제 (Docker Compose 프로젝트 내 호스트네임 충돌 방지)
     restart: always
     ports:
       - "5432:5432"
@@ -27,9 +27,4 @@ services:
     volumes:
       - ../.devcontainer/postgres_backup_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U newcodes -d small_town"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+    # healthcheck: ◀ ⚠️ 전체 삭제 (poststart.sh에서 대신 처리할 것이므로 필요 없음)
