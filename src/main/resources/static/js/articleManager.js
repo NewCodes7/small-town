@@ -261,6 +261,12 @@ class ArticleManager {
             }
 
             this.loadArticles();
+
+            if (this.currentKeyword) {
+                window.aiSummaryManager?.start(this.currentKeyword);
+            } else {
+                window.aiSummaryManager?.hide();
+            }
         }
     }
 

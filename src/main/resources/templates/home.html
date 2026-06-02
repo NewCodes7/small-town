@@ -50,6 +50,13 @@
                             </div>
                         </div>
                     </form>
+
+                    <!-- Admin: 추천 검색어 -->
+                    <div th:if="${#authorization.expression('hasRole(''ADMIN'')')}"
+                         id="recommendedQueriesSection" class="recommended-queries-section" style="display:none;">
+                        <span class="recommended-queries-label">추천:</span>
+                        <div id="recommendedQueriesList" class="recommended-queries-list"></div>
+                    </div>
                 </div>
             </div>
 
@@ -232,6 +239,23 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- Admin: AI 요약 카드 -->
+        <div th:if="${#authorization.expression('hasRole(''ADMIN'')')}"
+             id="aiSummaryCard" class="ai-summary-card" style="display:none;">
+            <div class="ai-summary-header">
+                <span class="ai-badge">✨ AI 요약</span>
+            </div>
+            <div id="aiSummaryLoading" class="ai-summary-skeleton" style="display:none;">
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line short"></div>
+                <div class="skeleton-line"></div>
+            </div>
+            <div id="aiSummaryContent" class="ai-summary-content"></div>
+            <div id="aiSummaryError" class="ai-summary-error" style="display:none;"></div>
+            <div id="aiSummarySources" class="ai-summary-sources" style="display:none;"></div>
+            <div id="aiSummaryRelatedQueries" class="ai-summary-related-queries" style="display:none;"></div>
         </div>
 
         <!-- Loading State -->
@@ -1321,6 +1345,7 @@
         <script th:src="@{/js/visitedHistory.js}"></script>
         <script th:src="@{/js/articleLikeButton.js}"></script>
         <script th:src="@{/js/searchAutocomplete.js}"></script>
+        <script th:if="${#authorization.expression('hasRole(''ADMIN'')')}" th:src="@{/js/aiSummary.js}"></script>
 
         <!-- Floating Feedback Widget Script -->
         <script>

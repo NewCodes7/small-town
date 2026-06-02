@@ -2362,3 +2362,191 @@
         padding: 1px 4px;
     }
 }
+
+/* ===== AI Summary Card ===== */
+.ai-summary-card {
+    border-left: 3px solid var(--primary-green);
+    background: var(--white);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.ai-summary-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.85rem;
+}
+
+.ai-badge {
+    background: linear-gradient(135deg, var(--primary-green) 0%, var(--primary-green-light) 100%);
+    color: #fff;
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+/* Skeleton loading */
+.ai-summary-skeleton {
+    padding: 4px 0;
+}
+
+.skeleton-line {
+    height: 14px;
+    border-radius: 4px;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e4e4e4 50%, #f0f0f0 75%);
+    background-size: 800px 100%;
+    animation: shimmer 1.5s infinite;
+    margin-bottom: 10px;
+    width: 100%;
+}
+
+.skeleton-line.short {
+    width: 55%;
+}
+
+@keyframes shimmer {
+    0% { background-position: -800px 0; }
+    100% { background-position: 800px 0; }
+}
+
+/* Summary text */
+.ai-summary-content {
+    line-height: 1.85;
+    color: var(--text-dark);
+    font-size: 0.93rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* Error */
+.ai-summary-error {
+    color: #e74c3c;
+    font-size: 0.88rem;
+    padding: 6px 0;
+}
+
+/* Sources */
+.ai-summary-sources {
+    margin-top: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-light);
+}
+
+.ai-sources-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-right: 0.25rem;
+}
+
+.source-badge {
+    display: inline-flex;
+    align-items: center;
+    background: var(--secondary-green);
+    color: var(--primary-green-dark);
+    border: 1px solid rgba(3, 199, 90, 0.2);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background 0.15s, border-color 0.15s;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.source-badge:hover {
+    background: rgba(3, 199, 90, 0.15);
+    border-color: var(--primary-green);
+    color: var(--primary-green-dark);
+    text-decoration: none;
+}
+
+/* Related queries */
+.ai-summary-related-queries {
+    margin-top: 0.75rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.ai-related-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-right: 0.25rem;
+}
+
+.related-query-btn {
+    background: var(--background-light);
+    border: 1px solid var(--border-light);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 0.82rem;
+    color: var(--text-dark);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.related-query-btn:hover {
+    background: var(--secondary-green);
+    border-color: var(--primary-green);
+    color: var(--primary-green-dark);
+}
+
+/* Recommended queries (below search bar) */
+.recommended-queries-section {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.6rem 0 0.25rem;
+}
+
+.recommended-queries-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+
+.recommended-queries-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.recommended-query-btn {
+    background: var(--background-light);
+    border: 1px solid var(--border-light);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 0.82rem;
+    color: var(--text-dark);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.recommended-query-btn:hover {
+    background: var(--secondary-green);
+    border-color: var(--primary-green);
+    color: var(--primary-green-dark);
+}

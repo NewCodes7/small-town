@@ -1,12 +1,19 @@
 package com.newcodes7.small_town.search.service;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 
 import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
+import com.newcodes7.small_town.search.dto.AiSummaryChunkDto;
 import com.newcodes7.small_town.search.service.SearchQueryEmbeddingService;
 
 import lombok.RequiredArgsConstructor;
@@ -26,6 +33,12 @@ public class VectorSearchService {
 
     private final ArticleChunkRepository chunkRepository;
     private final SearchQueryEmbeddingService searchQueryEmbeddingService;
+    private final CacheManager cacheManager;
+    @Qualifier("searchExecutor")
+    private final ExecutorService searchExecutor;
+
+    private static final String CHUNK_CACHE_NAME = "chunkSearchResults";
+    private static final int SUMMARY_CHUNK_LIMIT = 6;
 
     // 기본 유사도 임계값
     private static final double DEFAULT_SIMILARITY_THRESHOLD = 0.52;
@@ -125,6 +138,8 @@ public class VectorSearchService {
             long queryStart = System.currentTimeMillis();
             Map<Long, Double> scores = searchTwoStage(queryEmbedding, DEFAULT_SIMILARITY_THRESHOLD, DEFAULT_TOP_K, DEFAULT_MAX_RESULTS, domesticTypes, categories);
             long queryMs = System.currentTimeMillis() - queryStart;
+
+            warmChunkCacheAsync(keyword, queryEmbedding);
 
             return new VectorSearchResult(scores, queryEmbedding, embeddingMs, queryMs, cacheHit, cacheLookupMs);
 
@@ -229,6 +244,91 @@ public class VectorSearchService {
         public long getCacheLookupMs() {
             return cacheLookupMs;
         }
+    }
+
+    /**
+     * AI 요약용 상위 N개 chunk 조회 (article 정보 + 텍스트 포함)
+     * 검색 시 워밍된 Caffeine 캐시 우선 조회, 미스 시 2단계 벡터 검색 실행
+     *
+     * @param keyword 검색 키워드
+     * @param limit 조회할 최대 chunk 수
+     * @return chunk 목록 (article_id, title, url, content)
+     */
+    public List<AiSummaryChunkDto> getTopChunksForSummary(String keyword, int limit) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return List.of();
+        }
+
+        String cacheKey = keyword.toLowerCase().trim();
+        Cache cache = cacheManager.getCache(CHUNK_CACHE_NAME);
+        if (cache != null) {
+            Cache.ValueWrapper wrapper = cache.get(cacheKey);
+            if (wrapper != null) {
+                @SuppressWarnings("unchecked")
+                List<AiSummaryChunkDto> cached = (List<AiSummaryChunkDto>) wrapper.get();
+                if (cached != null) {
+                    log.debug("AI 요약용 chunk 캐시 히트 - 키워드: '{}', {}개", keyword, cached.size());
+                    return cached;
+                }
+            }
+        }
+
+        try {
+            float[] queryEmbedding = searchQueryEmbeddingService.getOrCreateEmbedding(keyword);
+            if (queryEmbedding == null) {
+                log.warn("AI 요약용 임베딩 생성 실패: {}", keyword);
+                return List.of();
+            }
+
+            List<AiSummaryChunkDto> chunks = fetchTopChunks(queryEmbedding, limit);
+
+            if (cache != null && !chunks.isEmpty()) {
+                cache.put(cacheKey, chunks);
+            }
+
+            log.debug("AI 요약용 chunk 조회 완료 - 키워드: '{}', 결과: {}개", keyword, chunks.size());
+            return chunks;
+
+        } catch (Exception e) {
+            log.error("AI 요약용 chunk 조회 실패: {}", e.getMessage(), e);
+            return List.of();
+        }
+    }
+
+    private void warmChunkCacheAsync(String keyword, float[] queryEmbedding) {
+        String cacheKey = keyword.toLowerCase().trim();
+        Cache cache = cacheManager.getCache(CHUNK_CACHE_NAME);
+        if (cache == null || cache.get(cacheKey) != null) {
+            return;
+        }
+        CompletableFuture.runAsync(() -> {
+            try {
+                List<AiSummaryChunkDto> chunks = fetchTopChunks(queryEmbedding, SUMMARY_CHUNK_LIMIT);
+                if (!chunks.isEmpty()) {
+                    cache.put(cacheKey, chunks);
+                    log.debug("chunk 캐시 워밍 완료 - 키워드: '{}', {}개", keyword, chunks.size());
+                }
+            } catch (Exception e) {
+                log.debug("chunk 캐시 워밍 실패 (무시): {}", e.getMessage());
+            }
+        }, searchExecutor);
+    }
+
+    private List<AiSummaryChunkDto> fetchTopChunks(float[] queryEmbedding, int limit) {
+        String vectorString = formatVectorForPostgres(queryEmbedding);
+        String binaryString = toBinaryString(queryEmbedding);
+        List<Object[]> results = chunkRepository.findTopChunksForAiSummary(
+                vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, DEFAULT_SIMILARITY_THRESHOLD, limit);
+        List<AiSummaryChunkDto> chunks = new ArrayList<>();
+        for (Object[] row : results) {
+            chunks.add(new AiSummaryChunkDto(
+                    ((Number) row[0]).longValue(),
+                    (String) row[1],
+                    (String) row[2],
+                    (String) row[3]
+            ));
+        }
+        return chunks;
     }
 
     /**

@@ -349,6 +349,46 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
     );
 
     /**
+     * AI 요약용 상위 N개 chunk 조회 (article 정보 + 텍스트 포함)
+     * 2단계 검색: Binary HNSW → halfvec Reranking
+     * Article별 집계 없이 개별 chunk를 유사도 순으로 반환
+     */
+    @Query(value = """
+            WITH query_vec AS (
+                SELECT l2_normalize(CAST(:queryEmbedding AS halfvec)) AS vec
+            ),
+            candidates AS (
+                SELECT cac.id AS chunk_id, cac.article_id
+                FROM clova_article_chunk cac
+                JOIN article a ON cac.article_id = a.id
+                WHERE a.deleted_at IS NULL
+                  AND cac.embedding_binary IS NOT NULL
+                ORDER BY cac.embedding_binary <~> CAST(:queryBinary AS bit(1024))
+                LIMIT :candidateLimit
+            )
+            SELECT
+                a.id AS article_id,
+                a.title AS article_title,
+                a.url AS article_url,
+                cc.content AS chunk_content
+            FROM candidates c
+            JOIN article a ON a.id = c.article_id
+            JOIN clova_chunk_vectors ccv ON ccv.id = c.chunk_id
+            JOIN clova_chunk_contents cc ON cc.id = c.chunk_id
+            CROSS JOIN query_vec q
+            WHERE -(ccv.embedding_normalized <#> q.vec) >= :threshold
+            ORDER BY -(ccv.embedding_normalized <#> q.vec) DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> findTopChunksForAiSummary(
+            @Param("queryEmbedding") String queryEmbedding,
+            @Param("queryBinary") String queryBinary,
+            @Param("candidateLimit") int candidateLimit,
+            @Param("threshold") double threshold,
+            @Param("limit") int limit
+    );
+
+    /**
      * Binary embedding이 없는 청크 수
      */
     @Query("SELECT COUNT(c) FROM ArticleChunk c WHERE c.embeddingBinary IS NULL")
