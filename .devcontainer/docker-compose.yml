@@ -27,4 +27,7 @@ services:
     volumes:
       - ../.devcontainer/postgres_backup_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    # Codespace 종료 시 WAL 손상 방지: SIGTERM → pg_ctl stop (fast mode)
+    stop_grace_period: 30s
+    stop_signal: SIGTERM
     # healthcheck: ◀ ⚠️ 전체 삭제 (poststart.sh에서 대신 처리할 것이므로 필요 없음)
