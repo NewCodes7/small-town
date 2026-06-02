@@ -111,7 +111,16 @@ class AiSummaryManager {
             a.target = '_blank';
             a.rel = 'noopener noreferrer';
             a.className = 'source-badge';
-            a.textContent = s.title;
+            if (s.logoUrl) {
+                const img = document.createElement('img');
+                img.src = s.logoUrl;
+                img.alt = s.title;
+                img.className = 'source-badge-logo';
+                a.appendChild(img);
+            }
+            const span = document.createElement('span');
+            span.textContent = s.title;
+            a.appendChild(span);
             this.sourcesEl.appendChild(a);
         });
         this.sourcesEl.style.display = 'flex';

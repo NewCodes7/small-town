@@ -369,10 +369,13 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
             SELECT
                 a.id AS article_id,
                 a.title AS article_title,
-                a.url AS article_url,
-                cc.content AS chunk_content
+                a.link AS article_url,
+                cc.content AS chunk_content,
+                corp.logo_s3_url AS logo_s3_url,
+                corp.logo_filename AS logo_filename
             FROM candidates c
             JOIN article a ON a.id = c.article_id
+            JOIN corporation corp ON corp.id = a.corporation_id
             JOIN clova_chunk_vectors ccv ON ccv.id = c.chunk_id
             JOIN clova_chunk_contents cc ON cc.id = c.chunk_id
             CROSS JOIN query_vec q

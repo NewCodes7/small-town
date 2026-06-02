@@ -25,5 +25,6 @@
       ]
     }
   },
-  "shutdownAction": "stopCompose"
+  "shutdownAction": "stopCompose",
+  "postStartCommand": "bash /workspaces/small-town/.devcontainer/poststart.sh"
 }

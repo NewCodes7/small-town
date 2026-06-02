@@ -64,8 +64,8 @@ public class AiSummaryService {
     private static final String SYSTEM_PROMPT = """
             당신은 기술 블로그 내용을 요약하는 어시스턴트입니다.
             [규칙]
-            - 제공된 출처 내용만 참고하여 요약하세요. 외부 지식을 추가하지 마세요.
-            - 사용자 검색 의도에 맞게 핵심만 3~5문장으로 요약하세요.
+            - 첫 줄에 검색어가 무엇인지 1~2문장으로 간단히 설명하세요. (출처 없이 개념 설명)
+            - 이후 제공된 출처 내용만 참고하여 핵심을 3~5문장으로 요약하세요. 외부 지식을 추가하지 마세요.
             - 출처는 [출처N] 형식으로 인용하세요. 예: 스프링 부트에서는 [출처1]...
             - 마지막에 반드시 아래 형식으로 추천 검색어 3개를 포함하세요.
             [QUERIES]{"queries":["검색어1","검색어2","검색어3"]}[/QUERIES]
@@ -272,7 +272,7 @@ public class AiSummaryService {
         return chunks.stream()
                 .collect(Collectors.toMap(
                         AiSummaryChunkDto::articleId,
-                        c -> new AiSummarySourceDto(c.articleId(), c.articleTitle(), c.articleUrl()),
+                        c -> new AiSummarySourceDto(c.articleId(), c.articleTitle(), c.articleUrl(), c.logoUrl()),
                         (a, b) -> a,
                         LinkedHashMap::new
                 ))

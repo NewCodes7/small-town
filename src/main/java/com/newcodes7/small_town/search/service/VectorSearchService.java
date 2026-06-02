@@ -321,11 +321,17 @@ public class VectorSearchService {
                 vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, DEFAULT_SIMILARITY_THRESHOLD, limit);
         List<AiSummaryChunkDto> chunks = new ArrayList<>();
         for (Object[] row : results) {
+            String logoS3Url = (String) row[4];
+            String logoFilename = (String) row[5];
+            String logoUrl = (logoS3Url != null && !logoS3Url.isBlank()) ? logoS3Url
+                    : (logoFilename != null && !logoFilename.isBlank()) ? "/images/logos/" + logoFilename
+                    : null;
             chunks.add(new AiSummaryChunkDto(
                     ((Number) row[0]).longValue(),
                     (String) row[1],
                     (String) row[2],
-                    (String) row[3]
+                    (String) row[3],
+                    logoUrl
             ));
         }
         return chunks;
