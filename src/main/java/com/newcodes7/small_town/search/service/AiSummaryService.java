@@ -64,10 +64,17 @@ public class AiSummaryService {
     private static final String SYSTEM_PROMPT = """
             당신은 기술 블로그 내용을 요약하는 어시스턴트입니다.
             [규칙]
-            - 첫 줄에 검색어가 무엇인지 1~2문장으로 간단히 설명하세요. (출처 없이 개념 설명)
-            - 이후 제공된 출처 내용만 참고하여 핵심을 3~5문장으로 요약하세요. 외부 지식을 추가하지 마세요.
-            - 출처는 [출처N] 형식으로 인용하세요. 예: 스프링 부트에서는 [출처1]...
-            - 마지막에 반드시 아래 형식으로 추천 검색어 3개를 포함하세요.
+            - 첫 줄: 검색어가 무엇인지 1문장으로 개념을 설명하세요. (출처 없이 순수 개념 설명)
+            - 이후: 제공된 출처 내용을 바탕으로 사용자 검색어에 관련된 범주명을 정해 불렛 포인트(•)로 정리하세요. 외부 지식은 추가하지 마세요.
+            - 불렛은 3~5개이며 두 가지 형식 중 하나를 사용하세요.
+            - 문장이 1개일 때: • **범주명**: 내용.[출처N]
+            - 문장이 2개 이상일 때: 첫 문장을 포함한 모든 문장을 하위 항목으로 내리세요.
+              • **범주명**:
+                - 첫 번째 내용.[출처N]
+                - 두 번째 내용.[출처N]
+            - 출처는 문장 마침표 바로 뒤에 [출처N] 형식으로 표기하세요.
+            - 여러 출처를 하나의 괄호에 묶지 마세요. [출처1, 출처2] 형식은 금지이며, 반드시 [출처1][출처2] 처럼 개별 표기하세요.
+            - 마지막에 반드시 아래 형식으로 추천 검색어 3개를 포함하세요. 이 때 사용자 검색어와 CHUNK 내용을 함께 고려하세요.
             [QUERIES]{"queries":["검색어1","검색어2","검색어3"]}[/QUERIES]
             """;
 
@@ -125,7 +132,7 @@ public class AiSummaryService {
 
             List<AiSummaryChunkDto> chunks = vectorSearchService.getTopChunksForSummary(normalizedQuery, MAX_CHUNKS);
             if (chunks.isEmpty()) {
-                sendErrorEvent(emitter, "요약을 불러올 수 없습니다");
+                sendHideEvent(emitter);
                 completeEmitter(emitter);
                 failureCounter.increment();
                 return;
@@ -249,7 +256,7 @@ public class AiSummaryService {
                 .uri(URI.create(url))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .timeout(Duration.ofSeconds(10))
+                .timeout(Duration.ofSeconds(60))
                 .build();
         HttpResponse<Stream<String>> response = httpClient.send(request, HttpResponse.BodyHandlers.ofLines());
         if (response.statusCode() != 200) {
@@ -289,14 +296,14 @@ public class AiSummaryService {
         int sourceNum = 1;
         for (Map.Entry<Long, List<AiSummaryChunkDto>> entry : byArticle.entrySet()) {
             List<AiSummaryChunkDto> articleChunks = entry.getValue();
-            sb.append("[출처").append(sourceNum++).append("] ")
-              .append(articleChunks.get(0).articleTitle()).append("\n");
+            String title = articleChunks.get(0).articleTitle();
+            sb.append("[출처").append(sourceNum++).append("] ").append(title).append("\n");
             for (AiSummaryChunkDto chunk : articleChunks) {
                 String content = chunk.content();
                 if (content.length() > CHUNK_MAX_CHARS) {
                     content = content.substring(0, CHUNK_MAX_CHARS);
                 }
-                sb.append(content).append("\n");
+                sb.append("제목: ").append(title).append("\n").append(content).append("\n");
             }
             sb.append("\n");
         }
@@ -312,7 +319,7 @@ public class AiSummaryService {
                 )),
                 "generationConfig", Map.of(
                         "temperature", 0.7,
-                        "maxOutputTokens", 1024
+                        "maxOutputTokens", 8192
                 )
         );
         return objectMapper.writeValueAsString(body);
@@ -333,13 +340,19 @@ public class AiSummaryService {
 
     private void sendTokenEvent(SseEmitter emitter, String text) {
         try {
-            emitter.send(SseEmitter.event().name("token").data(text));
+            emitter.send(SseEmitter.event().name("token").data(objectMapper.writeValueAsString(text)));
         } catch (Exception ignored) {}
     }
 
     private void sendDoneEvent(SseEmitter emitter, AiSummaryDoneDto done) {
         try {
             emitter.send(SseEmitter.event().name("done").data(objectMapper.writeValueAsString(done)));
+        } catch (Exception ignored) {}
+    }
+
+    private void sendHideEvent(SseEmitter emitter) {
+        try {
+            emitter.send(SseEmitter.event().name("hide").data("{}"));
         } catch (Exception ignored) {}
     }
 

@@ -2,6 +2,7 @@ package com.newcodes7.small_town.search.service;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -39,6 +40,8 @@ public class VectorSearchService {
 
     private static final String CHUNK_CACHE_NAME = "chunkSearchResults";
     private static final int SUMMARY_CHUNK_LIMIT = 6;
+    private static final int SUMMARY_MAX_CHUNKS_PER_ARTICLE = 2;
+    private static final int SUMMARY_FETCH_MULTIPLIER = 4;
 
     // 기본 유사도 임계값
     private static final double DEFAULT_SIMILARITY_THRESHOLD = 0.52;
@@ -318,21 +321,30 @@ public class VectorSearchService {
         String vectorString = formatVectorForPostgres(queryEmbedding);
         String binaryString = toBinaryString(queryEmbedding);
         List<Object[]> results = chunkRepository.findTopChunksForAiSummary(
-                vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, DEFAULT_SIMILARITY_THRESHOLD, limit);
+                vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, DEFAULT_SIMILARITY_THRESHOLD,
+                limit * SUMMARY_FETCH_MULTIPLIER);
+
+        Map<Long, Integer> articleChunkCount = new LinkedHashMap<>();
         List<AiSummaryChunkDto> chunks = new ArrayList<>();
         for (Object[] row : results) {
+            Long articleId = ((Number) row[0]).longValue();
+            if (articleChunkCount.getOrDefault(articleId, 0) >= SUMMARY_MAX_CHUNKS_PER_ARTICLE) {
+                continue;
+            }
             String logoS3Url = (String) row[4];
             String logoFilename = (String) row[5];
             String logoUrl = (logoS3Url != null && !logoS3Url.isBlank()) ? logoS3Url
                     : (logoFilename != null && !logoFilename.isBlank()) ? "/images/logos/" + logoFilename
                     : null;
             chunks.add(new AiSummaryChunkDto(
-                    ((Number) row[0]).longValue(),
+                    articleId,
                     (String) row[1],
                     (String) row[2],
                     (String) row[3],
                     logoUrl
             ));
+            articleChunkCount.merge(articleId, 1, Integer::sum);
+            if (chunks.size() >= limit) break;
         }
         return chunks;
     }

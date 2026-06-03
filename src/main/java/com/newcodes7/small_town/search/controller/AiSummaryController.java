@@ -27,7 +27,7 @@ public class AiSummaryController {
 
     @GetMapping(value = "/ai-summary", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter getAiSummary(@RequestParam String q) {
-        SseEmitter emitter = new SseEmitter(30_000L);
+        SseEmitter emitter = new SseEmitter(90_000L);
         CompletableFuture.runAsync(() -> aiSummaryService.streamAiSummary(q, emitter), searchExecutor);
         return emitter;
     }

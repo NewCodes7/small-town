@@ -2,12 +2,15 @@ package com.newcodes7.small_town.global.exception;
 
 import com.newcodes7.small_town.article.exception.ArticleException;
 import com.newcodes7.small_town.article.exception.ErrorResponse;
+import com.newcodes7.small_town.auth.exception.AuthException;
 import com.newcodes7.small_town.crawler.exception.CrawlerException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
@@ -42,6 +45,36 @@ public class RestApiExceptionHandler {
         return ResponseEntity
             .status(HttpStatus.NOT_FOUND)
             .body(errorResponse);
+    }
+
+    @ExceptionHandler(AuthException.class)
+    public ResponseEntity<ErrorResponse> handleAuthException(AuthException e, WebRequest request) {
+        String path = ((ServletWebRequest) request).getRequest().getRequestURI();
+        log.warn("Auth 예외 발생 [{}]: {} at {}", e.getErrorCode(), e.getMessage(), path);
+
+        HttpStatus status = switch (e.getErrorCode()) {
+            case "AUTHENTICATION_FAILED", "UNAUTHORIZED" -> HttpStatus.UNAUTHORIZED;
+            case "DUPLICATE_EMAIL" -> HttpStatus.CONFLICT;
+            case "PASSWORD_MISMATCH", "INVALID_TOKEN" -> HttpStatus.BAD_REQUEST;
+            case "USER_NOT_FOUND", "ROLE_NOT_FOUND", "PROVIDER_NOT_FOUND" -> HttpStatus.NOT_FOUND;
+            default -> HttpStatus.INTERNAL_SERVER_ERROR;
+        };
+
+        ErrorResponse errorResponse = ErrorResponse.of(e.getErrorCode(), e.getMessage(), path);
+        return ResponseEntity.status(status).body(errorResponse);
+    }
+
+    @ExceptionHandler({BadCredentialsException.class, AuthenticationException.class})
+    public ResponseEntity<ErrorResponse> handleSpringAuthException(AuthenticationException e, WebRequest request) {
+        String path = ((ServletWebRequest) request).getRequest().getRequestURI();
+        log.warn("Spring Security 인증 실패: {} at {}", e.getMessage(), path);
+
+        ErrorResponse errorResponse = ErrorResponse.of(
+            "AUTHENTICATION_FAILED",
+            "이메일 또는 비밀번호가 올바르지 않습니다.",
+            path
+        );
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
     }
 
     @ExceptionHandler(Exception.class)

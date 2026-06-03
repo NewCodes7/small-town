@@ -51,9 +51,7 @@
                         </div>
                     </form>
 
-                    <!-- Admin: 추천 검색어 -->
-                    <div th:if="${#authorization.expression('hasRole(''ADMIN'')')}"
-                         id="recommendedQueriesSection" class="recommended-queries-section" style="display:none;">
+                    <div id="recommendedQueriesSection" class="recommended-queries-section" style="display:none;">
                         <span class="recommended-queries-label">추천:</span>
                         <div id="recommendedQueriesList" class="recommended-queries-list"></div>
                     </div>

@@ -7,10 +7,13 @@ class AiSummaryManager {
         this.errorEl = document.getElementById('aiSummaryError');
         this.sourcesEl = document.getElementById('aiSummarySources');
         this.relatedQueriesEl = document.getElementById('aiSummaryRelatedQueries');
+        this.fullText = '';
         this.loadRecommendedQueries();
     }
 
     async loadRecommendedQueries() {
+        const hasKeyword = new URLSearchParams(window.location.search).get('keyword');
+        if (hasKeyword) return;
         try {
             const res = await fetch('/api/search/recommended-queries');
             if (!res.ok) return;
@@ -41,20 +44,29 @@ class AiSummaryManager {
         this.reset();
         this.card.style.display = 'block';
         this.loadingEl.style.display = 'block';
+        const recSection = document.getElementById('recommendedQueriesSection');
+        if (recSection) recSection.style.display = 'none';
 
         this.eventSource = new EventSource('/api/search/ai-summary?q=' + encodeURIComponent(keyword));
 
         this.eventSource.addEventListener('token', (e) => {
             this.loadingEl.style.display = 'none';
-            this.contentEl.textContent += e.data;
+            const text = JSON.parse(e.data);
+            this.fullText += text;
+            this.contentEl.textContent += text;
         });
 
         this.eventSource.addEventListener('done', (e) => {
             try {
                 const data = JSON.parse(e.data);
-                this._renderSources(data.sources || []);
+                this._linkifySources(data.sources || []);
                 this._renderRelatedQueries(data.queries || []);
             } catch (_) {}
+            this._close();
+        });
+
+        this.eventSource.addEventListener('hide', () => {
+            this.hide();
             this._close();
         });
 
@@ -85,9 +97,9 @@ class AiSummaryManager {
 
     reset() {
         this._close();
+        this.fullText = '';
         if (this.contentEl) this.contentEl.textContent = '';
         if (this.errorEl) { this.errorEl.textContent = ''; this.errorEl.style.display = 'none'; }
-        if (this.sourcesEl) { this.sourcesEl.innerHTML = ''; this.sourcesEl.style.display = 'none'; }
         if (this.relatedQueriesEl) { this.relatedQueriesEl.innerHTML = ''; this.relatedQueriesEl.style.display = 'none'; }
         if (this.loadingEl) this.loadingEl.style.display = 'none';
     }
@@ -99,31 +111,30 @@ class AiSummaryManager {
         }
     }
 
-    _renderSources(sources) {
-        if (!sources.length || !this.sourcesEl) return;
-        const label = document.createElement('span');
-        label.className = 'ai-sources-label';
-        label.textContent = '출처';
-        this.sourcesEl.appendChild(label);
-        sources.forEach(s => {
-            const a = document.createElement('a');
-            a.href = s.url;
-            a.target = '_blank';
-            a.rel = 'noopener noreferrer';
-            a.className = 'source-badge';
-            if (s.logoUrl) {
-                const img = document.createElement('img');
-                img.src = s.logoUrl;
-                img.alt = s.title;
-                img.className = 'source-badge-logo';
-                a.appendChild(img);
+    _linkifySources(sources) {
+        if (!sources.length || !this.contentEl || !this.fullText) return;
+        const split = this.fullText.replace(/\[(출처\d+(?:[,，]\s*출처\d+)+)\]/g, (_, inner) =>
+            inner.split(/[,，]\s*/).map(s => `[${s.trim()}]`).join('')
+        );
+        const normalized = split.replace(/(\[출처\d+\])\./g, '.$1');
+        const html = this._escape(normalized)
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(
+            /\[출처(\d+)\]/g,
+            (match, numStr) => {
+                const idx = parseInt(numStr, 10) - 1;
+                const s = sources[idx];
+                if (!s) return '';
+                const inlineLogo = s.logoUrl
+                    ? `<img src="${this._escape(s.logoUrl)}" alt="${this._escape(s.title)}" class="source-inline-logo">`
+                    : `<span class="source-inline-num">${numStr}</span>`;
+                const tooltipLogo = s.logoUrl
+                    ? `<img src="${this._escape(s.logoUrl)}" alt="" class="source-tooltip-logo">`
+                    : '';
+                return `<a href="/articles/${s.id}" class="source-ref">${inlineLogo}<span class="source-tooltip">${tooltipLogo}<span class="source-tooltip-title">${this._escape(s.title)}</span></span></a>`;
             }
-            const span = document.createElement('span');
-            span.textContent = s.title;
-            a.appendChild(span);
-            this.sourcesEl.appendChild(a);
-        });
-        this.sourcesEl.style.display = 'flex';
+        );
+        this.contentEl.innerHTML = html;
     }
 
     _renderRelatedQueries(queries) {
