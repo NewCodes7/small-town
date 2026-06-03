@@ -112,12 +112,16 @@ class AiSummaryManager {
     }
 
     _linkifySources(sources) {
-        if (!sources.length || !this.contentEl || !this.fullText) return;
-        const split = this.fullText.replace(/\[(출처\d+(?:[,，]\s*출처\d+)+)\]/g, (_, inner) =>
-            inner.split(/[,，]\s*/).map(s => `[${s.trim()}]`).join('')
-        );
-        const normalized = split.replace(/(\[출처\d+\])\./g, '.$1');
-        const html = this._escape(normalized)
+        if (!this.contentEl || !this.fullText) return;
+        let text = this.fullText;
+        if (sources.length) {
+            text = text.replace(/\[(출처\d+(?:[,，]\s*출처\d+)+)\]/g, (_, inner) =>
+                inner.split(/[,，]\s*/).map(s => `[${s.trim()}]`).join('')
+            );
+            text = text.replace(/(\[출처\d+\])\./g, '.$1');
+        }
+        text = text.replace(/^(\s+)- /gm, '$1◦ ');
+        const html = this._escape(text)
             .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
             .replace(
             /\[출처(\d+)\]/g,
