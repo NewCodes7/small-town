@@ -2529,8 +2529,9 @@
 }
 
 .source-inline-logo {
-    width: 18px;
-    height: 18px;
+    width: 22px;
+    height: 22px;
+    margin-bottom: 4px;
     object-fit: contain;
     border-radius: 3px;
     vertical-align: middle;
