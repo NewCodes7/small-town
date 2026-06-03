@@ -50,6 +50,13 @@ public class WebDriverConfig {
         options.addArguments("--disable-dev-shm-usage");
         // GPU 가속을 비활성화 (헤드리스 모드나 일부 환경에서 GPU 관련 문제를 방지하기 위해 사용)
         options.addArguments("--disable-gpu");
+        // --no-sandbox가 설정된 환경에서 zygote 프로세스 모델 비활성화 → Chrome 서브프로세스 수 대폭 감소 (700% sys load 방지)
+        options.addArguments("--no-zygote");
+        // renderer 프로세스를 1개로 제한 → 탭별 renderer 프로세스 생성 방지
+        options.addArguments("--renderer-process-limit=1");
+        // Chrome 백그라운드 네트워크 활동 비활성화 (sync, auto-update 등)
+        options.addArguments("--disable-background-networking");
+        options.addArguments("--disable-sync");
         // 브라우저 창의 크기 설정
         options.addArguments("--window-size=" + webDriverProperties.getWindowSize());
         // 특정 User-Agent를 필요로 하는 웹사이트에 접속할 때 사용
@@ -101,7 +108,6 @@ public class WebDriverConfig {
         options.addArguments("--disk-cache-size=0");            // 디스크 캐시 크기 0
 
         // 주의: --single-process는 Chrome 크래시 유발 가능하므로 제거
-        // 주의: --no-zygote는 headless 모드에서 문제 발생 가능하므로 제거
 
         options.setPageLoadStrategy(PageLoadStrategy.NORMAL);
 
