@@ -113,25 +113,29 @@ public class SearchQueryEmbeddingService {
 
     private void persistEmbedding(String keyword, String normalized, float[] embedding, SearchLog searchLog) {
         try {
-            SearchQueryEmbedding entry = repository.findByNormalizedKeyword(normalized)
-                    .orElseGet(() -> SearchQueryEmbedding.builder()
-                            .searchKeyword(keyword)
-                            .normalizedKeyword(normalized)
-                            .build());
+            repository.upsertEmbedding(keyword, normalized, toVectorString(embedding), LocalDateTime.now());
 
-            entry.setSearchKeyword(keyword);
-            entry.setEmbedding(embedding);
-            entry.setEmbeddingGeneratedAt(LocalDateTime.now());
-            if (searchLog != null) {
-                entry.setSearchLog(searchLog);
-            } else {
-                searchLogRepository.findFirstBySearchKeywordOrderByCreatedAtDesc(keyword)
-                        .ifPresent(entry::setSearchLog);
+            SearchLog resolvedLog = searchLog != null ? searchLog
+                    : searchLogRepository.findFirstBySearchKeywordOrderByCreatedAtDesc(keyword).orElse(null);
+            if (resolvedLog != null) {
+                SearchLog finalLog = resolvedLog;
+                repository.findByNormalizedKeyword(normalized).ifPresent(entry -> {
+                    entry.setSearchLog(finalLog);
+                    repository.save(entry);
+                });
             }
-            repository.save(entry);
         } catch (Exception e) {
             log.warn("검색어 임베딩 저장 예외 (무시): {}", e.getMessage());
         }
+    }
+
+    private String toVectorString(float[] array) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < array.length; i++) {
+            if (i > 0) sb.append(",");
+            sb.append(array[i]);
+        }
+        return sb.append("]").toString();
     }
 
     private void updateSearchLogAsync(SearchQueryEmbedding entry, SearchLog searchLog) {

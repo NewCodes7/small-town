@@ -195,7 +195,7 @@ public class AiSummaryService {
                 latencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
                 return;
             } catch (IOException e) {
-                log.error("Gemini API 호출 실패: {}", e.getMessage());
+                log.error("Gemini API 호출 실패: {}", e.getMessage(), e);
                 sendErrorEvent(emitter, "요약을 불러올 수 없습니다");
                 completeEmitter(emitter);
                 failureCounter.increment();
@@ -259,7 +259,9 @@ public class AiSummaryService {
                 .build();
         HttpResponse<Stream<String>> response = httpClient.send(request, HttpResponse.BodyHandlers.ofLines());
         if (response.statusCode() != 200) {
-            throw new IOException("Gemini API 오류: " + response.statusCode());
+            String body = response.body().collect(Collectors.joining("\n"));
+            log.error("Gemini API 오류 - HTTP {}, body: {}", response.statusCode(), body);
+            throw new IOException("Gemini API HTTP " + response.statusCode() + ": " + body);
         }
         return response.body();
     }
