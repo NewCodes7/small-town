@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.cache.CacheManager;
 
 import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
 
@@ -30,6 +32,12 @@ class VectorSearchServiceTest {
 
     @Mock
     private SearchQueryEmbeddingService searchQueryEmbeddingService;
+
+    @Mock
+    private CacheManager cacheManager;
+
+    @Mock
+    private ExecutorService searchExecutor;
 
     @InjectMocks
     private VectorSearchService vectorSearchService;
