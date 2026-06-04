@@ -3,8 +3,10 @@ package com.newcodes7.small_town.search.service;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 
@@ -39,7 +41,7 @@ public class VectorSearchService {
     private final ExecutorService searchExecutor;
 
     private static final String CHUNK_CACHE_NAME = "chunkSearchResults";
-    private static final int SUMMARY_CHUNK_LIMIT = 6;
+    private static final int SUMMARY_CHUNK_LIMIT = 10;
     private static final int SUMMARY_MAX_CHUNKS_PER_ARTICLE = 2;
     private static final int SUMMARY_FETCH_MULTIPLIER = 4;
 
@@ -324,10 +326,19 @@ public class VectorSearchService {
                 vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, DEFAULT_SIMILARITY_THRESHOLD,
                 limit * SUMMARY_FETCH_MULTIPLIER);
 
+        Set<String> seenCorporations = new LinkedHashSet<>();
         Map<Long, Integer> articleChunkCount = new LinkedHashMap<>();
         List<AiSummaryChunkDto> chunks = new ArrayList<>();
         for (Object[] row : results) {
             Long articleId = ((Number) row[0]).longValue();
+            String corporationName = (String) row[6];
+
+            // 이미 등장한 기업의 다른 아티클은 skip (기업당 1 article만 허용)
+            if (corporationName != null && seenCorporations.contains(corporationName)
+                    && !articleChunkCount.containsKey(articleId)) {
+                continue;
+            }
+            // 아티클당 청크 수 제한
             if (articleChunkCount.getOrDefault(articleId, 0) >= SUMMARY_MAX_CHUNKS_PER_ARTICLE) {
                 continue;
             }
@@ -341,9 +352,11 @@ public class VectorSearchService {
                     (String) row[1],
                     (String) row[2],
                     (String) row[3],
-                    logoUrl
+                    logoUrl,
+                    corporationName
             ));
             articleChunkCount.merge(articleId, 1, Integer::sum);
+            if (corporationName != null) seenCorporations.add(corporationName);
             if (chunks.size() >= limit) break;
         }
         return chunks;

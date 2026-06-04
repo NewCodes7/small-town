@@ -70,7 +70,7 @@ class AiSummaryServiceTest {
         when(cacheManager.getCache("aiSummary")).thenReturn(cache);
         when(cache.get(eq(cacheKey), eq(AiSummaryCacheDto.class))).thenReturn(null);
         when(vectorSearchService.getTopChunksForSummary(anyString(), anyInt()))
-                .thenReturn(List.of(new AiSummaryChunkDto(1L, "JPA 성능 최적화", "https://example.com/1", "JPA 성능 관련 내용", null)));
+                .thenReturn(List.of(new AiSummaryChunkDto(1L, "JPA 성능 최적화", "https://example.com/1", "JPA 성능 관련 내용", null, "테스트기업")));
 
         Stream<String> geminiStream = Stream.of(
                 "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"스프링 부트에서는 [출처1]을 활용합니다.\"}]}}]}",
@@ -95,7 +95,7 @@ class AiSummaryServiceTest {
 
         AiSummaryCacheDto cached = new AiSummaryCacheDto(
                 "Redis는 인메모리 캐시입니다.",
-                List.of(new AiSummarySourceDto(1L, "Redis 입문", "https://example.com/redis", null)),
+                List.of(new AiSummarySourceDto(1L, "Redis 입문", "https://example.com/redis", null, "테스트기업")),
                 List.of("Redis Cluster", "캐시 전략", "Eviction Policy")
         );
 
@@ -121,7 +121,7 @@ class AiSummaryServiceTest {
         when(cacheManager.getCache("aiSummary")).thenReturn(cache);
         when(cache.get(any(), eq(AiSummaryCacheDto.class))).thenReturn(null);
         when(vectorSearchService.getTopChunksForSummary(anyString(), anyInt()))
-                .thenReturn(List.of(new AiSummaryChunkDto(1L, "Docker 튜토리얼", "https://example.com/docker", "Docker 컨테이너 기본 설명", null)));
+                .thenReturn(List.of(new AiSummaryChunkDto(1L, "Docker 튜토리얼", "https://example.com/docker", "Docker 컨테이너 기본 설명", null, "테스트기업")));
 
         doThrow(new HttpTimeoutException("Connection timed out"))
                 .when(aiSummaryService).callGeminiStream(anyString());

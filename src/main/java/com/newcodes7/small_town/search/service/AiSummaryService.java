@@ -54,7 +54,7 @@ public class AiSummaryService {
     @Value("${search.recommended-queries:Spring Boot,Redis 캐시,JPA 성능,Docker 배포}")
     private String recommendedQueriesRaw;
 
-    private static final int MAX_CHUNKS = 6;
+    private static final int MAX_CHUNKS = 10;
     private static final int CHUNK_MAX_CHARS = 1000;
     private static final String CACHE_NAME = "aiSummary";
     private static final String CACHE_KEY_PREFIX = "ai-summary:";
@@ -62,19 +62,18 @@ public class AiSummaryService {
             "https://generativelanguage.googleapis.com/v1beta/models/";
 
     private static final String SYSTEM_PROMPT = """
-            당신은 기술 블로그 내용을 요약하는 어시스턴트입니다.
+            당신은 기업 기술 블로그 큐레이터입니다.
+            사용자가 기술/주제를 검색하면, 각 기업이 그 기술을 어떻게 활용했는지 소개해주세요.
+
             [규칙]
-            - 첫 줄: 검색어가 무엇인지 1문장으로 개념을 설명하세요. (출처 없이 순수 개념 설명)
-            - 이후: 제공된 출처 내용을 바탕으로 사용자 검색어에 관련된 범주명을 정해 불렛 포인트(•)로 정리하세요. 외부 지식은 추가하지 마세요.
-            - 불렛은 3~5개이며 두 가지 형식 중 하나를 사용하세요.
-            - 문장이 1개일 때: • **범주명**: 내용.[출처N]
-            - 문장이 2개 이상일 때: 첫 문장을 포함한 모든 문장을 하위 항목으로 내리세요.
-              • **범주명**:
-                - 첫 번째 내용.[출처N]
-                - 두 번째 내용.[출처N]
-            - 출처는 문장 마침표 바로 뒤에 [출처N] 형식으로 표기하세요.
-            - 여러 출처를 하나의 괄호에 묶지 마세요. [출처1, 출처2] 형식은 금지이며, 반드시 [출처1][출처2] 처럼 개별 표기하세요.
-            - 마지막에 반드시 아래 형식으로 추천 검색어 3개를 포함하세요. 이 때 사용자 검색어와 CHUNK 내용을 함께 고려하세요.
+            - 인사말, 도입 문장, 검색어 설명 없이 첫 번째 기업 소개부터 바로 시작하세요.
+            - 기업별로 2~3문장 이내로 작성하세요.
+            - 문장은 짧고 명확하게 끊으세요. 한 문장에 50자를 넘지 마세요.
+            - "[회사명]에서는 ~했어요." 형식으로 친근하게 시작하세요.
+            - 핵심 키워드(기술명, 수치, 성과 등)는 **볼드체**로 강조하세요.
+            - 도입 이유, 해결한 문제, 성과에 집중하세요. 출처에 없는 내용은 추가하지 마세요.
+            - 각 기업 소개 끝에 [출처N] 형식으로 출처를 표기하세요. [출처1][출처2]처럼 개별 표기하세요.
+            - 마지막에 반드시 추천 검색어 3개를 아래 형식으로 포함하세요.
             [QUERIES]{"queries":["검색어1","검색어2","검색어3"]}[/QUERIES]
             """;
 
@@ -279,7 +278,7 @@ public class AiSummaryService {
         return chunks.stream()
                 .collect(Collectors.toMap(
                         AiSummaryChunkDto::articleId,
-                        c -> new AiSummarySourceDto(c.articleId(), c.articleTitle(), c.articleUrl(), c.logoUrl()),
+                        c -> new AiSummarySourceDto(c.articleId(), c.articleTitle(), c.articleUrl(), c.logoUrl(), c.corporationName()),
                         (a, b) -> a,
                         LinkedHashMap::new
                 ))
@@ -297,13 +296,16 @@ public class AiSummaryService {
         for (Map.Entry<Long, List<AiSummaryChunkDto>> entry : byArticle.entrySet()) {
             List<AiSummaryChunkDto> articleChunks = entry.getValue();
             String title = articleChunks.get(0).articleTitle();
-            sb.append("[출처").append(sourceNum++).append("] ").append(title).append("\n");
+            String corpName = articleChunks.get(0).corporationName();
+            sb.append("[출처").append(sourceNum++).append("] ")
+              .append("회사: ").append(corpName != null ? corpName : "Unknown")
+              .append(" | 글 제목: ").append(title).append("\n");
             for (AiSummaryChunkDto chunk : articleChunks) {
                 String content = chunk.content();
                 if (content.length() > CHUNK_MAX_CHARS) {
                     content = content.substring(0, CHUNK_MAX_CHARS);
                 }
-                sb.append("제목: ").append(title).append("\n").append(content).append("\n");
+                sb.append(content).append("\n");
             }
             sb.append("\n");
         }

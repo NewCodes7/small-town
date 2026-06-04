@@ -3,9 +3,8 @@ class AiSummaryManager {
         this.eventSource = null;
         this.card = document.getElementById('aiSummaryCard');
         this.loadingEl = document.getElementById('aiSummaryLoading');
-        this.contentEl = document.getElementById('aiSummaryContent');
+        this.bubblesEl = document.getElementById('aiSummaryBubbles');
         this.errorEl = document.getElementById('aiSummaryError');
-        this.sourcesEl = document.getElementById('aiSummarySources');
         this.relatedQueriesEl = document.getElementById('aiSummaryRelatedQueries');
         this.fullText = '';
         this.loadRecommendedQueries();
@@ -22,7 +21,7 @@ class AiSummaryManager {
             const list = document.getElementById('recommendedQueriesList');
             if (!section || !list || !queries.length) return;
             list.innerHTML = queries.map(q =>
-                `<button class="recommended-query-btn" data-query="${this._escape(q)}">${this._escape(q)}</button>`
+                `<button class="recommended-query-btn" data-query="${this._escapeHtml(q)}">${this._escapeHtml(q)}</button>`
             ).join('');
             list.querySelectorAll('.recommended-query-btn').forEach(btn => {
                 btn.addEventListener('click', () => this._triggerSearch(btn.dataset.query));
@@ -43,24 +42,30 @@ class AiSummaryManager {
         if (!keyword || !this.card) return;
         this.reset();
         this.card.style.display = 'block';
-        this.loadingEl.style.display = 'block';
+        this.loadingEl.style.display = 'flex';
         const recSection = document.getElementById('recommendedQueriesSection');
         if (recSection) recSection.style.display = 'none';
 
         this.eventSource = new EventSource('/api/search/ai-summary?q=' + encodeURIComponent(keyword));
 
+        // token: 화면에 표시하지 않고 fullText에만 축적 (스켈레톤 유지)
         this.eventSource.addEventListener('token', (e) => {
-            this.loadingEl.style.display = 'none';
-            const text = JSON.parse(e.data);
-            this.fullText += text;
-            this.contentEl.textContent += text;
+            this.fullText += JSON.parse(e.data);
         });
 
         this.eventSource.addEventListener('done', (e) => {
             try {
                 const data = JSON.parse(e.data);
-                this._linkifySources(data.sources || []);
-                this._renderRelatedQueries(data.queries || []);
+                const sources = data.sources || [];
+                const queries = data.queries || [];
+
+                this.loadingEl.style.display = 'none';
+
+                const bubbles = this._parseBubbles(this.fullText, sources);
+                if (bubbles.length > 0) {
+                    this._renderBubbles(bubbles);
+                }
+                this._renderRelatedQueries(queries);
             } catch (_) {}
             this._close();
         });
@@ -98,7 +103,7 @@ class AiSummaryManager {
     reset() {
         this._close();
         this.fullText = '';
-        if (this.contentEl) this.contentEl.textContent = '';
+        if (this.bubblesEl) this.bubblesEl.innerHTML = '';
         if (this.errorEl) { this.errorEl.textContent = ''; this.errorEl.style.display = 'none'; }
         if (this.relatedQueriesEl) { this.relatedQueriesEl.innerHTML = ''; this.relatedQueriesEl.style.display = 'none'; }
         if (this.loadingEl) this.loadingEl.style.display = 'none';
@@ -111,34 +116,50 @@ class AiSummaryManager {
         }
     }
 
-    _linkifySources(sources) {
-        if (!this.contentEl || !this.fullText) return;
-        let text = this.fullText;
-        if (sources.length) {
-            text = text.replace(/\[(출처\d+(?:[,，]\s*출처\d+)+)\]/g, (_, inner) =>
-                inner.split(/[,，]\s*/).map(s => `[${s.trim()}]`).join('')
-            );
-            text = text.replace(/(\[출처\d+\])\./g, '.$1');
+    // [출처N] 패턴으로 텍스트를 기업별 버블로 분리
+    _parseBubbles(text, sources) {
+        const bubbles = [];
+        // split으로 분리하면 [^\[] 계열 regex의 [ 경계 문제를 피할 수 있음
+        const parts = text.split(/\[출처(\d+)\]/);
+        // parts = [text0, N0, text1, N1, ..., trailing]
+        for (let i = 0; i < parts.length - 1; i += 2) {
+            let bubbleText = parts[i].trim();
+            const sourceIdx = parseInt(parts[i + 1], 10) - 1;
+            if (!bubbleText || sourceIdx < 0 || sourceIdx >= sources.length) continue;
+            // AI가 [회사명]에서는 형태로 생성할 경우 대괄호만 제거하고 이름은 유지
+            bubbleText = bubbleText.replace(/^\[([^\]]+)\]/, '$1').trim();
+            bubbles.push({ text: bubbleText, source: sources[sourceIdx] });
         }
-        text = text.replace(/^(\s+)- /gm, '$1◦ ');
-        const html = this._escape(text)
-            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-            .replace(
-            /\[출처(\d+)\]/g,
-            (match, numStr) => {
-                const idx = parseInt(numStr, 10) - 1;
-                const s = sources[idx];
-                if (!s) return '';
-                const inlineLogo = s.logoUrl
-                    ? `<img src="${this._escape(s.logoUrl)}" alt="${this._escape(s.title)}" class="source-inline-logo">`
-                    : `<span class="source-inline-num">${numStr}</span>`;
-                const tooltipLogo = s.logoUrl
-                    ? `<img src="${this._escape(s.logoUrl)}" alt="" class="source-tooltip-logo">`
-                    : '';
-                return `<a href="/articles/${s.id}" class="source-ref">${inlineLogo}<span class="source-tooltip">${tooltipLogo}<span class="source-tooltip-title">${this._escape(s.title)}</span></span></a>`;
-            }
-        );
-        this.contentEl.innerHTML = html;
+        return bubbles.slice(0, 5);
+    }
+
+    _renderBubbles(bubbles) {
+        if (!this.bubblesEl) return;
+        this.bubblesEl.innerHTML = '';
+        bubbles.forEach((bubble, idx) => {
+            const { text, source } = bubble;
+            const corpName = source.corporationName || source.title || '';
+            const logoHtml = source.logoUrl
+                ? `<img class="bubble-logo" src="${this._escapeHtml(source.logoUrl)}" alt="${this._escapeHtml(corpName)}">`
+                : `<div class="bubble-logo-fallback">${this._escapeHtml((corpName || '?')[0])}</div>`;
+
+            const el = document.createElement('div');
+            el.className = 'company-bubble';
+            el.style.animationDelay = `${idx * 80}ms`;
+            el.innerHTML = `
+                <div class="bubble-speaker">
+                    ${logoHtml}
+                    <span class="bubble-corp-name">${this._escapeHtml(corpName)}</span>
+                </div>
+                <div class="bubble-body">
+                    <div class="bubble-content">
+                        <p class="bubble-text">${this._escapeHtml(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</p>
+                        <a href="/articles/${source.id}" target="_blank" rel="noopener" class="bubble-source-link">원문 읽기 →</a>
+                    </div>
+                </div>
+            `;
+            this.bubblesEl.appendChild(el);
+        });
     }
 
     _renderRelatedQueries(queries) {
@@ -164,8 +185,13 @@ class AiSummaryManager {
         this.errorEl.style.display = 'block';
     }
 
-    _escape(str) {
-        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    _escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
     }
 }
 

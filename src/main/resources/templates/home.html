@@ -239,20 +239,26 @@
             </div>
         </div>
 
-        <!-- Admin: AI 요약 카드 -->
+        <!-- Admin: AI 기업 사례 카드 -->
         <div th:if="${#authorization.expression('hasRole(''ADMIN'')')}"
              id="aiSummaryCard" class="ai-summary-card" style="display:none;">
             <div class="ai-summary-header">
-                <span class="ai-badge">✨ AI 요약</span>
+                <span class="ai-badge">✨ 기업 사례 모아보기</span>
             </div>
-            <div id="aiSummaryLoading" class="ai-summary-skeleton" style="display:none;">
-                <div class="skeleton-line"></div>
-                <div class="skeleton-line short"></div>
-                <div class="skeleton-line"></div>
+            <div id="aiSummaryLoading" class="ai-bubble-skeleton-wrapper" style="display:none;">
+                <div class="bubble-skeleton" th:each="i : ${#numbers.sequence(1, 3)}">
+                    <div class="bubble-skeleton-speaker">
+                        <div class="bubble-skeleton-logo"></div>
+                        <div class="bubble-skeleton-name"></div>
+                    </div>
+                    <div class="bubble-skeleton-content">
+                        <div class="skeleton-line"></div>
+                        <div class="skeleton-line short"></div>
+                    </div>
+                </div>
             </div>
-            <div id="aiSummaryContent" class="ai-summary-content"></div>
+            <div id="aiSummaryBubbles" class="ai-bubbles-container"></div>
             <div id="aiSummaryError" class="ai-summary-error" style="display:none;"></div>
-            <div id="aiSummarySources" class="ai-summary-sources" style="display:none;"></div>
             <div id="aiSummaryRelatedQueries" class="ai-summary-related-queries" style="display:none;"></div>
         </div>
 
