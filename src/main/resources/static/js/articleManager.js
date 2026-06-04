@@ -26,6 +26,10 @@ class ArticleManager {
         this.bindEvents();
         // 초기 로드는 서버에서 렌더링된 상태이므로 생략
         this.bindArticleEvents();
+        // URL에 keyword가 있으면 aiSummaryManager 초기화 후 AI 요약 시작
+        if (this.currentKeyword) {
+            setTimeout(() => window.aiSummaryManager?.start(this.currentKeyword), 0);
+        }
     }
 
     loadStateFromURL() {
