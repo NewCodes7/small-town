@@ -153,8 +153,7 @@ class AiSummaryManager {
                 </div>
                 <div class="bubble-body">
                     <div class="bubble-content">
-                        <p class="bubble-text">${this._escapeHtml(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</p>
-                        <a href="/articles/${source.id}" target="_blank" rel="noopener" class="bubble-source-link">원문 읽기 →</a>
+                        <p class="bubble-text">${this._escapeHtml(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}<a href="/articles/${source.id}" target="_blank" rel="noopener" class="bubble-source-link">원문 읽기 →</a></p>
                     </div>
                 </div>
             `;
