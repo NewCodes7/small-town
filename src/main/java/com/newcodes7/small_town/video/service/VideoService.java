@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -116,6 +117,13 @@ public class VideoService {
         }
 
         return Page.empty();
+    }
+
+    @Cacheable(value = "homeLatestVideos", key = "#limit")
+    public List<VideoListResponseDto> getHomeLatestVideos(int limit) {
+        return videoRepository.findLatestVideoPerCorporation(limit).stream()
+            .map(video -> new VideoListResponseDto(video, null))
+            .toList();
     }
 
     public Page<VideoResponseDto> getVideosGroupedByCorporationWithPaging(String keyword,
@@ -228,7 +236,10 @@ public class VideoService {
      * 영상 기본 정보 수정
      */
     @Transactional
-    @CacheEvict(value = "corporationVideos", allEntries = true)
+    @Caching(evict = {
+        @CacheEvict(value = "corporationVideos", allEntries = true),
+        @CacheEvict(value = "homeLatestVideos", allEntries = true)
+    })
     public void updateVideoBasicInfo(Long videoId, String title, String translatedTitle,
                                      String link, String thumbnailUrl, String categoryName) {
         Video video = videoRepository.findById(videoId)
@@ -274,7 +285,10 @@ public class VideoService {
      * 영상 번역된 제목 수정
      */
     @Transactional
-    @CacheEvict(value = "corporationVideos", allEntries = true)
+    @Caching(evict = {
+        @CacheEvict(value = "corporationVideos", allEntries = true),
+        @CacheEvict(value = "homeLatestVideos", allEntries = true)
+    })
     public void updateVideoTranslatedTitle(Long videoId, String translatedTitle) {
         Video video = videoRepository.findById(videoId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 영상입니다. ID: " + videoId));
@@ -295,7 +309,10 @@ public class VideoService {
      * 영상 카테고리 수정
      */
     @Transactional
-    @CacheEvict(value = "corporationVideos", allEntries = true)
+    @Caching(evict = {
+        @CacheEvict(value = "corporationVideos", allEntries = true),
+        @CacheEvict(value = "homeLatestVideos", allEntries = true)
+    })
     public void updateVideoCategory(Long videoId, String categoryName) {
         Video video = videoRepository.findById(videoId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 영상입니다. ID: " + videoId));
@@ -324,7 +341,10 @@ public class VideoService {
      * 영상 삭제 (Soft Delete)
      */
     @Transactional
-    @CacheEvict(value = "corporationVideos", allEntries = true)
+    @Caching(evict = {
+        @CacheEvict(value = "corporationVideos", allEntries = true),
+        @CacheEvict(value = "homeLatestVideos", allEntries = true)
+    })
     public void deleteVideo(Long videoId) {
         if (videoId == null || videoId <= 0) {
             throw new IllegalArgumentException("유효하지 않은 영상 ID입니다: " + videoId);

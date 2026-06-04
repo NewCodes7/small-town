@@ -18,6 +18,7 @@ import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
 
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import com.newcodes7.small_town.global.annotation.CachePreload;
 import org.springframework.data.domain.PageImpl;
@@ -253,8 +254,18 @@ public class ArticleService {
         return articleRepository.countByDeletedAtIsNull();
     }
 
+    @Cacheable(value = "homeLatestArticles", key = "#limit")
+    public List<ArticleListResponseDto> getHomeLatestArticles(int limit) {
+        return articleRepository.findLatestArticlePerCorporation(limit).stream()
+            .map(ArticleListResponseDto::new)
+            .toList();
+    }
+
     @Transactional
-    @CacheEvict(value = "corporationArticles", allEntries = true)
+    @Caching(evict = {
+        @CacheEvict(value = "corporationArticles", allEntries = true),
+        @CacheEvict(value = "homeLatestArticles", allEntries = true)
+    })
     @CachePreload
     public void deleteArticle(Long articleId) {
         if (articleId == null || articleId <= 0) {
@@ -277,7 +288,10 @@ public class ArticleService {
      * 글 발행일 수정
      */
     @Transactional
-    @CacheEvict(value = "corporationArticles", allEntries = true)
+    @Caching(evict = {
+        @CacheEvict(value = "corporationArticles", allEntries = true),
+        @CacheEvict(value = "homeLatestArticles", allEntries = true)
+    })
     @CachePreload
     public boolean updateArticlePublishDate(Long articleId, LocalDateTime publishedAt) {
         if (articleId == null || articleId <= 0) {

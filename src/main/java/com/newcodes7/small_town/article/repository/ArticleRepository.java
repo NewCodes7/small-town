@@ -22,6 +22,18 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "WHERE a.deletedAt IS NULL " +
            "ORDER BY a.publishedAt DESC, a.createdAt DESC")
     Page<Article> findAllActiveArticlesWithDetails(Pageable pageable);
+
+    @Query(value = "WITH latest_per_corp AS (" +
+           "    SELECT DISTINCT ON (a.corporation_id) a.* " +
+           "    FROM article a " +
+           "    WHERE a.deleted_at IS NULL " +
+           "    ORDER BY a.corporation_id, a.published_at DESC NULLS LAST, a.created_at DESC NULLS LAST" +
+           ") " +
+           "SELECT * FROM latest_per_corp " +
+           "ORDER BY published_at DESC NULLS LAST, created_at DESC NULLS LAST " +
+           "LIMIT :limit",
+           nativeQuery = true)
+    List<Article> findLatestArticlePerCorporation(@Param("limit") int limit);
     
     @Query("SELECT a FROM Article a " +
            "JOIN FETCH a.corporation c " +

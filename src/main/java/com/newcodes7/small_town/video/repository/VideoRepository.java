@@ -22,6 +22,18 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
            "ORDER BY v.publishedAt DESC, v.createdAt DESC")
     Page<Video> findAllActiveVideosWithDetails(Pageable pageable);
 
+    @Query(value = "WITH latest_per_corp AS (" +
+           "    SELECT DISTINCT ON (v.corporation_id) v.* " +
+           "    FROM video v " +
+           "    WHERE v.deleted_at IS NULL " +
+           "    ORDER BY v.corporation_id, v.published_at DESC NULLS LAST, v.created_at DESC NULLS LAST" +
+           ") " +
+           "SELECT * FROM latest_per_corp " +
+           "ORDER BY published_at DESC NULLS LAST, created_at DESC NULLS LAST " +
+           "LIMIT :limit",
+           nativeQuery = true)
+    List<Video> findLatestVideoPerCorporation(@Param("limit") int limit);
+
     @Query("SELECT v FROM Video v " +
            "JOIN FETCH v.corporation c " +
            "LEFT JOIN FETCH v.category " +

@@ -26,7 +26,9 @@ public class CacheConfig {
             buildTtlCache("weeklyPopularArticles", 5, TimeUnit.MINUTES),
             buildTtlCache("relatedArticles", 24, TimeUnit.HOURS),
             buildTtlCache("aiSummary", 1, TimeUnit.HOURS),
-            buildTtlCache("chunkSearchResults", 5, TimeUnit.MINUTES)
+            buildTtlCache("chunkSearchResults", 5, TimeUnit.MINUTES),
+            buildTtlCache("homeLatestArticles", 10, TimeUnit.MINUTES),
+            buildTtlCache("homeLatestVideos", 10, TimeUnit.MINUTES)
         ));
         return cacheManager;
     }
