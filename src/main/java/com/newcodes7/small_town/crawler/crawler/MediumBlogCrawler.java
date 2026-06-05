@@ -132,6 +132,13 @@ public class MediumBlogCrawler implements BlogCrawler {
 
             log.info("{} - APOLLO_STATE에서 추출한 아티클 수: {}", link, articles.size());
 
+            // APOLLO_STATE 파싱 실패 시 RSS 직접 파싱으로 fallback
+            if (articles.isEmpty()) {
+                log.info("{} - APOLLO_STATE 파싱 실패, RSS 직접 파싱으로 fallback", link);
+                articles = crawlFromRssFallback(link, corporation);
+                log.info("{} - RSS fallback으로 추출한 아티클 수: {}", link, articles.size());
+            }
+
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw CrawlerTimeoutException.pageLoadTimeout(link, 10);
@@ -154,11 +161,11 @@ public class MediumBlogCrawler implements BlogCrawler {
             for (SyndEntry entry : feed.getEntries()) {
                 String content = extractTextFromRssEntry(entry);
                 if (entry.getLink() != null && !content.isEmpty()) {
-                    contentMap.put(entry.getLink(), content);
+                    contentMap.put(stripQueryParams(entry.getLink()), content);
                 }
                 // uri도 키로 등록 (Medium에서 link와 uri가 다를 수 있음)
                 if (entry.getUri() != null && !content.isEmpty()) {
-                    contentMap.put(entry.getUri(), content);
+                    contentMap.put(stripQueryParams(entry.getUri()), content);
                 }
             }
             log.info("RSS 본문 수집 완료: {}개 아티클, feedUrl: {}", contentMap.size(), feedUrl);
@@ -230,6 +237,94 @@ public class MediumBlogCrawler implements BlogCrawler {
         }
 
         return "";
+    }
+
+    /**
+     * RSS feed에서 직접 Article 목록 파싱 (APOLLO_STATE 파싱 실패 시 fallback)
+     */
+    private List<Article> crawlFromRssFallback(String blogLink, Corporation corporation) {
+        List<Article> articles = new ArrayList<>();
+        try {
+            String feedUrl = buildFeedUrlFromBlogLink(blogLink);
+            SyndFeedInput input = new SyndFeedInput();
+            SyndFeed feed = input.build(new XmlReader(new URL(feedUrl)));
+
+            for (SyndEntry entry : feed.getEntries()) {
+                try {
+                    String title = entry.getTitle();
+                    String link = stripQueryParams(entry.getLink());
+                    if (title == null || title.isBlank() || link == null || link.isBlank()) continue;
+
+                    String content = extractTextFromRssEntry(entry);
+                    String thumbnailImage = extractThumbnailFromRssEntry(entry);
+
+                    LocalDateTime publishedAt = null;
+                    if (entry.getPublishedDate() != null) {
+                        publishedAt = entry.getPublishedDate().toInstant()
+                                .atZone(ZoneId.of("Asia/Seoul"))
+                                .toLocalDateTime();
+                    } else if (entry.getUpdatedDate() != null) {
+                        publishedAt = entry.getUpdatedDate().toInstant()
+                                .atZone(ZoneId.of("Asia/Seoul"))
+                                .toLocalDateTime();
+                    } else {
+                        publishedAt = TimeUtil.nowInSeoul();
+                    }
+
+                    articles.add(Article.builder()
+                            .corporation(corporation)
+                            .title(title)
+                            .link(link)
+                            .content(content)
+                            .thumbnailImage(thumbnailImage)
+                            .publishedAt(publishedAt)
+                            .viewCount(0)
+                            .likeCount(0)
+                            .build());
+                } catch (Exception e) {
+                    log.warn("RSS entry 파싱 실패: {}", e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("RSS fallback 크롤링 실패: {} - {}", blogLink, e.getMessage());
+        }
+        return articles;
+    }
+
+    /**
+     * RSS entry에서 썸네일 이미지 URL 추출
+     * content:encoded 또는 description HTML에서 첫 번째 실제 이미지 추출
+     * 1x1 추적 픽셀은 제외
+     */
+    private String extractThumbnailFromRssEntry(SyndEntry entry) {
+        String html = null;
+        List<SyndContent> contents = entry.getContents();
+        if (!contents.isEmpty() && contents.get(0).getValue() != null) {
+            html = contents.get(0).getValue();
+        } else if (entry.getDescription() != null && entry.getDescription().getValue() != null) {
+            html = entry.getDescription().getValue();
+        }
+        if (html == null) return "";
+
+        Document doc = Jsoup.parse(html);
+        for (Element img : doc.select("img[src]")) {
+            String src = img.attr("src");
+            // 1x1 추적 픽셀 제외
+            String width = img.attr("width");
+            String height = img.attr("height");
+            if ("1".equals(width) || "1".equals(height)) continue;
+            if (!src.isBlank()) return src;
+        }
+        return "";
+    }
+
+    /**
+     * URL에서 쿼리 파라미터 제거 (RSS ?source=rss-... 파라미터 정리용)
+     */
+    private String stripQueryParams(String url) {
+        if (url == null) return null;
+        int idx = url.indexOf('?');
+        return idx >= 0 ? url.substring(0, idx) : url;
     }
 
     /**
