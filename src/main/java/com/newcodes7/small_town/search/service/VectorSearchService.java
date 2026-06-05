@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.Cache;
@@ -44,6 +45,9 @@ public class VectorSearchService {
     private static final int SUMMARY_CHUNK_LIMIT = 10;
     private static final int SUMMARY_MAX_CHUNKS_PER_ARTICLE = 2;
     private static final int SUMMARY_FETCH_MULTIPLIER = 4;
+
+    private static final int SINGLE_TERM_MAX_CORPS = 3;
+    private static final int SINGLE_TERM_FETCH_LIMIT = 20;
 
     // 기본 유사도 임계값
     private static final double DEFAULT_SIMILARITY_THRESHOLD = 0.52;
@@ -300,6 +304,107 @@ public class VectorSearchService {
         }
     }
 
+    /**
+     * 단일 term 쿼리 AI 요약용 청크 조회
+     * 기업당 1개 아티클(최대 3개 기업), 아티클당 [최고유사도 + 첫번째 + 마지막] 청크 3종
+     * 최대 9개 청크 반환
+     */
+    public List<AiSummaryChunkDto> getTopChunksForSummarySingleTerm(String keyword) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return List.of();
+        }
+
+        String cacheKey = "single:" + keyword.toLowerCase().trim();
+        Cache cache = cacheManager.getCache(CHUNK_CACHE_NAME);
+        if (cache != null) {
+            Cache.ValueWrapper wrapper = cache.get(cacheKey);
+            if (wrapper != null) {
+                @SuppressWarnings("unchecked")
+                List<AiSummaryChunkDto> cached = (List<AiSummaryChunkDto>) wrapper.get();
+                if (cached != null) {
+                    log.debug("단일 term AI 요약 chunk 캐시 히트 - 키워드: '{}', {}개", keyword, cached.size());
+                    return cached;
+                }
+            }
+        }
+
+        try {
+            float[] queryEmbedding = searchQueryEmbeddingService.getOrCreateEmbedding(keyword);
+            if (queryEmbedding == null) {
+                log.warn("단일 term AI 요약 임베딩 생성 실패: {}", keyword);
+                return List.of();
+            }
+
+            List<AiSummaryChunkDto> chunks = fetchTopChunksSingleTerm(queryEmbedding);
+
+            if (cache != null && !chunks.isEmpty()) {
+                cache.put(cacheKey, chunks);
+            }
+
+            log.debug("단일 term AI 요약 chunk 조회 완료 - 키워드: '{}', 결과: {}개", keyword, chunks.size());
+            return chunks;
+
+        } catch (Exception e) {
+            log.error("단일 term AI 요약 chunk 조회 실패: {}", e.getMessage(), e);
+            return List.of();
+        }
+    }
+
+    private List<AiSummaryChunkDto> fetchTopChunksSingleTerm(float[] queryEmbedding) {
+        String vectorString = formatVectorForPostgres(queryEmbedding);
+        String binaryString = toBinaryString(queryEmbedding);
+
+        List<Object[]> results = chunkRepository.findTopChunksForAiSummary(
+                vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, DEFAULT_SIMILARITY_THRESHOLD, SINGLE_TERM_FETCH_LIMIT);
+
+        // 기업당 1개 아티클, 최대 3개 기업 선택 (최고유사도 청크 기준)
+        Set<String> seenCorps = new LinkedHashSet<>();
+        Map<Long, AiSummaryChunkDto> bestChunkByArticle = new LinkedHashMap<>();
+
+        for (Object[] row : results) {
+            Long articleId = ((Number) row[0]).longValue();
+            String corpName = (String) row[6];
+
+            if (bestChunkByArticle.containsKey(articleId)) continue;
+            if (corpName != null && seenCorps.contains(corpName)) continue;
+            if (seenCorps.size() >= SINGLE_TERM_MAX_CORPS) break;
+
+            String logoS3Url = (String) row[4];
+            String logoFilename = (String) row[5];
+            String logoUrl = (logoS3Url != null && !logoS3Url.isBlank()) ? logoS3Url
+                    : (logoFilename != null && !logoFilename.isBlank()) ? "/images/logos/" + logoFilename
+                    : null;
+            bestChunkByArticle.put(articleId, new AiSummaryChunkDto(
+                    articleId, (String) row[1], (String) row[2], (String) row[3],
+                    logoUrl, corpName, (String) row[7]));
+            if (corpName != null) seenCorps.add(corpName);
+        }
+
+        // 각 아티클에 대해 첫번째 + 마지막 청크 추가
+        List<AiSummaryChunkDto> chunks = new ArrayList<>();
+        for (Map.Entry<Long, AiSummaryChunkDto> entry : bestChunkByArticle.entrySet()) {
+            Long articleId = entry.getKey();
+            AiSummaryChunkDto bestChunk = entry.getValue();
+
+            chunks.add(bestChunk);
+
+            Set<String> addedContents = new java.util.HashSet<>();
+            addedContents.add(bestChunk.content());
+
+            List<Object[]> positions = chunkRepository.findFirstAndLastChunkContentByArticleId(articleId);
+            for (Object[] pos : positions) {
+                String content = (String) pos[0];
+                if (content != null && addedContents.add(content)) {
+                    chunks.add(new AiSummaryChunkDto(
+                            articleId, bestChunk.articleTitle(), bestChunk.articleUrl(),
+                            content, bestChunk.logoUrl(), bestChunk.corporationName(), bestChunk.thumbnailImage()));
+                }
+            }
+        }
+
+        return chunks;
+    }
+
     private void warmChunkCacheAsync(String keyword, float[] queryEmbedding) {
         String cacheKey = keyword.toLowerCase().trim();
         Cache cache = cacheManager.getCache(CHUNK_CACHE_NAME);
@@ -361,6 +466,44 @@ public class VectorSearchService {
             if (chunks.size() >= limit) break;
         }
         return chunks;
+    }
+
+    /**
+     * AI 요약용: 지정 아티클 목록에서 아티클별 첫 청크 + 최고 유사도 청크 반환
+     * 하이브리드 검색으로 선정된 articleIds를 받아 청크 텍스트만 조회
+     */
+    public List<AiSummaryChunkDto> getChunksForArticlesByIds(String keyword, List<Long> articleIds) {
+        if (keyword == null || keyword.trim().isEmpty() || articleIds == null || articleIds.isEmpty()) {
+            return List.of();
+        }
+        try {
+            float[] queryEmbedding = searchQueryEmbeddingService.getOrCreateEmbedding(keyword);
+            if (queryEmbedding == null) {
+                log.warn("AI 요약 chunk 조회 임베딩 생성 실패: {}", keyword);
+                return List.of();
+            }
+            String vectorString = formatVectorForPostgres(queryEmbedding);
+            List<Object[]> results = chunkRepository.findFirstAndBestChunksByArticleIds(vectorString, articleIds);
+
+            return results.stream().map(row -> {
+                String logoS3Url   = (String) row[4];
+                String logoFilename = (String) row[5];
+                String logoUrl = (logoS3Url != null && !logoS3Url.isBlank()) ? logoS3Url
+                        : (logoFilename != null && !logoFilename.isBlank()) ? "/images/logos/" + logoFilename
+                        : null;
+                return new AiSummaryChunkDto(
+                        ((Number) row[0]).longValue(),
+                        (String) row[1],
+                        (String) row[2],
+                        (String) row[3],
+                        logoUrl,
+                        (String) row[6],
+                        (String) row[7]);
+            }).collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("AI 요약 chunk 조회 실패: {}", e.getMessage(), e);
+            return List.of();
+        }
     }
 
     /**

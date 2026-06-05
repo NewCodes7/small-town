@@ -41,6 +41,7 @@ import lombok.extern.slf4j.Slf4j;
 public class AiSummaryService {
 
     private final VectorSearchService vectorSearchService;
+    private final ArticleSearchService articleSearchService;
     private final CacheManager cacheManager;
     private final MeterRegistry meterRegistry;
     private final ObjectMapper objectMapper;
@@ -54,7 +55,7 @@ public class AiSummaryService {
     @Value("${search.recommended-queries:Spring Boot,Redis 캐시,JPA 성능,Docker 배포}")
     private String recommendedQueriesRaw;
 
-    private static final int MAX_CHUNKS = 10;
+    private static final int TOP_ARTICLES = 4;
     private static final int CHUNK_MAX_CHARS = 1000;
     private static final String CACHE_NAME = "aiSummary";
     private static final String CACHE_KEY_PREFIX = "ai-summary:";
@@ -73,6 +74,8 @@ public class AiSummaryService {
             - 핵심 키워드(기술명, 수치, 성과 등)는 **볼드체**로 강조하세요.
             - 도입 이유, 해결한 문제, 성과에 집중하세요. 출처에 없는 내용은 추가하지 마세요.
             - 각 기업 소개 끝에 [출처N] 형식으로 출처를 표기하세요. [출처1][출처2]처럼 개별 표기하세요.
+            - 각 출처는 아티클의 첫 번째 청크(서론)와 가장 관련성 높은 청크를 포함합니다.
+              서론과 관련성 높은 부분을 참고해 글의 전체 맥락과 핵심 내용을 파악하여 요약에 반영하세요.
             - 마지막에 반드시 추천 검색어 3개를 아래 형식으로 포함하세요.
             [QUERIES]{"queries":["검색어1","검색어2","검색어3"]}[/QUERIES]
             """;
@@ -129,7 +132,8 @@ public class AiSummaryService {
                 }
             }
 
-            List<AiSummaryChunkDto> chunks = vectorSearchService.getTopChunksForSummary(normalizedQuery, MAX_CHUNKS);
+            List<Long> topArticleIds = articleSearchService.getTopArticleIdsByHybrid(normalizedQuery, TOP_ARTICLES);
+            List<AiSummaryChunkDto> chunks = vectorSearchService.getChunksForArticlesByIds(normalizedQuery, topArticleIds);
             if (chunks.isEmpty()) {
                 sendHideEvent(emitter);
                 completeEmitter(emitter);
@@ -323,7 +327,8 @@ public class AiSummaryService {
                 )),
                 "generationConfig", Map.of(
                         "temperature", 0.7,
-                        "maxOutputTokens", 8192
+                        "maxOutputTokens", 1500,
+                        "thinkingConfig", Map.of("thinkingLevel", "minimal")
                 )
         );
         return objectMapper.writeValueAsString(body);

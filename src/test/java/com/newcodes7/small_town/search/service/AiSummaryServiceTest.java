@@ -3,6 +3,7 @@ package com.newcodes7.small_town.search.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -30,6 +31,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.newcodes7.small_town.search.service.ArticleSearchService;
 import com.newcodes7.small_town.search.dto.AiSummaryCacheDto;
 import com.newcodes7.small_town.search.dto.AiSummaryChunkDto;
 import com.newcodes7.small_town.search.dto.AiSummarySourceDto;
@@ -40,6 +42,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 class AiSummaryServiceTest {
 
     @Mock private VectorSearchService vectorSearchService;
+    @Mock private ArticleSearchService articleSearchService;
     @Mock private CacheManager cacheManager;
     @Mock private Cache cache;
     @Mock private SseEmitter emitter;
@@ -50,6 +53,7 @@ class AiSummaryServiceTest {
     void setUp() {
         AiSummaryService realService = new AiSummaryService(
                 vectorSearchService,
+                articleSearchService,
                 cacheManager,
                 new SimpleMeterRegistry(),
                 new ObjectMapper()
@@ -69,8 +73,10 @@ class AiSummaryServiceTest {
 
         when(cacheManager.getCache("aiSummary")).thenReturn(cache);
         when(cache.get(eq(cacheKey), eq(AiSummaryCacheDto.class))).thenReturn(null);
-        when(vectorSearchService.getTopChunksForSummary(anyString(), anyInt()))
-                .thenReturn(List.of(new AiSummaryChunkDto(1L, "JPA 성능 최적화", "https://example.com/1", "JPA 성능 관련 내용", null, "테스트기업")));
+        when(articleSearchService.getTopArticleIdsByHybrid(anyString(), anyInt()))
+                .thenReturn(List.of(1L));
+        when(vectorSearchService.getChunksForArticlesByIds(anyString(), anyList()))
+                .thenReturn(List.of(new AiSummaryChunkDto(1L, "JPA 성능 최적화", "https://example.com/1", "JPA 성능 관련 내용", null, "테스트기업", null)));
 
         Stream<String> geminiStream = Stream.of(
                 "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"스프링 부트에서는 [출처1]을 활용합니다.\"}]}}]}",
@@ -95,7 +101,7 @@ class AiSummaryServiceTest {
 
         AiSummaryCacheDto cached = new AiSummaryCacheDto(
                 "Redis는 인메모리 캐시입니다.",
-                List.of(new AiSummarySourceDto(1L, "Redis 입문", "https://example.com/redis", null, "테스트기업")),
+                List.of(new AiSummarySourceDto(1L, "Redis 입문", "https://example.com/redis", null, "테스트기업", null)),
                 List.of("Redis Cluster", "캐시 전략", "Eviction Policy")
         );
 
@@ -106,8 +112,9 @@ class AiSummaryServiceTest {
 
         // Gemini 미호출
         verify(aiSummaryService, never()).callGeminiStream(anyString());
-        // chunk 조회 미호출
-        verify(vectorSearchService, never()).getTopChunksForSummary(anyString(), anyInt());
+        // 하이브리드 검색 / chunk 조회 미호출
+        verify(articleSearchService, never()).getTopArticleIdsByHybrid(anyString(), anyInt());
+        verify(vectorSearchService, never()).getChunksForArticlesByIds(anyString(), anyList());
         // token + done 이벤트 전송 후 complete
         verify(emitter, atLeast(2)).send(any(SseEmitter.SseEventBuilder.class));
         verify(emitter).complete();
@@ -120,8 +127,10 @@ class AiSummaryServiceTest {
 
         when(cacheManager.getCache("aiSummary")).thenReturn(cache);
         when(cache.get(any(), eq(AiSummaryCacheDto.class))).thenReturn(null);
-        when(vectorSearchService.getTopChunksForSummary(anyString(), anyInt()))
-                .thenReturn(List.of(new AiSummaryChunkDto(1L, "Docker 튜토리얼", "https://example.com/docker", "Docker 컨테이너 기본 설명", null, "테스트기업")));
+        when(articleSearchService.getTopArticleIdsByHybrid(anyString(), anyInt()))
+                .thenReturn(List.of(1L));
+        when(vectorSearchService.getChunksForArticlesByIds(anyString(), anyList()))
+                .thenReturn(List.of(new AiSummaryChunkDto(1L, "Docker 튜토리얼", "https://example.com/docker", "Docker 컨테이너 기본 설명", null, "테스트기업", null)));
 
         doThrow(new HttpTimeoutException("Connection timed out"))
                 .when(aiSummaryService).callGeminiStream(anyString());
@@ -142,7 +151,9 @@ class AiSummaryServiceTest {
 
         when(cacheManager.getCache("aiSummary")).thenReturn(cache);
         when(cache.get(any(), eq(AiSummaryCacheDto.class))).thenReturn(null);
-        when(vectorSearchService.getTopChunksForSummary(anyString(), anyInt()))
+        when(articleSearchService.getTopArticleIdsByHybrid(anyString(), anyInt()))
+                .thenReturn(List.of());
+        when(vectorSearchService.getChunksForArticlesByIds(anyString(), anyList()))
                 .thenReturn(List.of());
 
         aiSummaryService.streamAiSummary(query, emitter);
@@ -162,8 +173,9 @@ class AiSummaryServiceTest {
         // error 이벤트 1회 전송 후 complete
         verify(emitter, times(1)).send(any(SseEmitter.SseEventBuilder.class));
         verify(emitter).complete();
-        // 벡터 검색 및 Gemini 미호출
-        verify(vectorSearchService, never()).getTopChunksForSummary(anyString(), anyInt());
+        // 하이브리드 검색 / chunk 조회 / Gemini 미호출
+        verify(articleSearchService, never()).getTopArticleIdsByHybrid(anyString(), anyInt());
+        verify(vectorSearchService, never()).getChunksForArticlesByIds(anyString(), anyList());
         verify(aiSummaryService, never()).callGeminiStream(anyString());
     }
 

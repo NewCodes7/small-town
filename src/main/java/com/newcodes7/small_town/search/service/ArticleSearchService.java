@@ -612,6 +612,78 @@ public class ArticleSearchService {
     }
 
     /**
+     * AI 요약용: 하이브리드 검색(BM25 + Vector NSF 리랭킹) 기준 상위 limit개 아티클 ID 반환
+     * Article 로딩, 좋아요, 시간 감쇠 등 불필요한 처리 없이 NSF 스코어 순으로만 반환
+     */
+    @Transactional(readOnly = true)
+    public List<Long> getTopArticleIdsByHybrid(String keyword, int limit) {
+        if (keyword == null || keyword.trim().isEmpty()) return List.of();
+
+        SemanticTermExpansionService.QueryComplexity complexity =
+                semanticExpansionService.classifyQueryComplexity(keyword);
+        SearchWeightConfigService.WeightEntry weights = weightConfig.getWeights(complexity);
+
+        String bm25SearchQuery = buildBM25SearchQuery(keyword, weights.titleMultiplier());
+        if (bm25SearchQuery == null || bm25SearchQuery.isEmpty()) return List.of();
+
+        CompletableFuture<VectorSearchService.VectorSearchResult> vectorFuture =
+                CompletableFuture.supplyAsync(
+                        () -> vectorSearchService.searchByKeywordWithEmbedding(keyword), searchExecutor);
+
+        Map<Long, Double> bm25Results = new HashMap<>();
+        for (Object[] row : executeBM25Search(bm25SearchQuery, null, null)) {
+            Long id = ((Number) row[0]).longValue();
+            Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
+            if (score != null) bm25Results.put(id, score);
+        }
+
+        Map<Long, Double> vectorResults = new HashMap<>();
+        float[] queryEmbedding = null;
+        try {
+            VectorSearchService.VectorSearchResult vsr = vectorFuture.get(5, TimeUnit.SECONDS);
+            vectorResults = new HashMap<>(vsr.getScores());
+            queryEmbedding = vsr.getQueryEmbedding();
+        } catch (Exception e) {
+            log.warn("AI 요약 Vector 검색 실패: {}", e.getMessage());
+        }
+
+        Set<Long> bm25OnlyIds = new HashSet<>(bm25Results.keySet());
+        bm25OnlyIds.removeAll(vectorResults.keySet());
+        Set<Long> vectorOnlyIds = new HashSet<>(vectorResults.keySet());
+        vectorOnlyIds.removeAll(bm25Results.keySet());
+
+        final float[] cachedEmbedding = queryEmbedding;
+        if (!bm25OnlyIds.isEmpty() && cachedEmbedding != null) {
+            vectorResults.putAll(vectorSearchService.computeSimilarityForArticlesWithEmbedding(
+                    cachedEmbedding, new ArrayList<>(bm25OnlyIds)));
+        }
+        if (!vectorOnlyIds.isEmpty()) {
+            for (Object[] row : computeBM25ScoreForArticles(bm25SearchQuery, null, null, new ArrayList<>(vectorOnlyIds))) {
+                Long id = ((Number) row[0]).longValue();
+                Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
+                if (score != null) bm25Results.put(id, score);
+            }
+        }
+
+        HybridSearchScorer.NSFResult nsfResult = hybridSearchScorer.calculateNSFScores(
+                bm25Results, vectorResults, weights.bm25NsfWeight(), weights.vectorNsfWeight());
+        Map<Long, Double> nsfScores = nsfResult.getNsfScores();
+        if (nsfScores.isEmpty()) return List.of();
+
+        Set<Long> validIds = new HashSet<>();
+        for (Object[] row : articleRepository.findIdAndPublishedAtByIdIn(new ArrayList<>(nsfScores.keySet()))) {
+            validIds.add(((Number) row[0]).longValue());
+        }
+
+        return nsfScores.entrySet().stream()
+                .filter(e -> validIds.contains(e.getKey()))
+                .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
+                .limit(limit)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * 여러 term으로 검색 (유의어 포함)
      *
      * @param termStrings 검색할 term 문자열 목록

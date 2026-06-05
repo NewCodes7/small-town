@@ -394,6 +394,81 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
     );
 
     /**
+     * 아티클의 첫 번째 청크(chunk_index 최소)와 마지막 청크(chunk_index 최대) content 조회
+     * 단일 term 쿼리 AI 요약 전략에서 아티클 전체 맥락 파악용으로 사용
+     */
+    @Query(value = """
+            (SELECT cc.content, cac.chunk_index
+             FROM clova_article_chunk cac
+             JOIN clova_chunk_contents cc ON cc.id = cac.id
+             WHERE cac.article_id = :articleId
+             ORDER BY cac.chunk_index ASC LIMIT 1)
+            UNION ALL
+            (SELECT cc.content, cac.chunk_index
+             FROM clova_article_chunk cac
+             JOIN clova_chunk_contents cc ON cc.id = cac.id
+             WHERE cac.article_id = :articleId
+             ORDER BY cac.chunk_index DESC LIMIT 1)
+            """, nativeQuery = true)
+    List<Object[]> findFirstAndLastChunkContentByArticleId(@Param("articleId") Long articleId);
+
+    /**
+     * AI 요약용: 지정 아티클 목록에서 아티클별 첫 청크 + 최고 유사도 청크 반환
+     * UNION으로 중복 chunk_id 제거 (첫 청크 = 최고 유사도 청크인 경우 1개만 반환)
+     */
+    @Query(value = """
+            WITH query_vec AS (
+                SELECT l2_normalize(CAST(:queryEmbedding AS halfvec)) AS vec
+            ),
+            all_chunks AS (
+                SELECT
+                    cac.article_id,
+                    cac.id            AS chunk_id,
+                    cc.content,
+                    cac.chunk_index,
+                    -(ccv.embedding_normalized <#> q.vec) AS similarity,
+                    a.title           AS article_title,
+                    a.link            AS article_url,
+                    corp.logo_s3_url,
+                    corp.logo_filename,
+                    corp.name         AS corp_name,
+                    a.thumbnail_image
+                FROM clova_article_chunk cac
+                JOIN article a          ON a.id    = cac.article_id
+                JOIN corporation corp   ON corp.id = a.corporation_id
+                JOIN clova_chunk_contents cc  ON cc.id  = cac.id
+                JOIN clova_chunk_vectors  ccv ON ccv.id = cac.id
+                CROSS JOIN query_vec q
+                WHERE cac.article_id IN (:articleIds)
+                  AND ccv.embedding_normalized IS NOT NULL
+            ),
+            first_chunk_ids AS (
+                SELECT DISTINCT ON (article_id) chunk_id
+                FROM all_chunks
+                ORDER BY article_id, chunk_index ASC
+            ),
+            best_chunk_ids AS (
+                SELECT DISTINCT ON (article_id) chunk_id
+                FROM all_chunks
+                ORDER BY article_id, similarity DESC
+            ),
+            selected_ids AS (
+                SELECT chunk_id FROM first_chunk_ids
+                UNION
+                SELECT chunk_id FROM best_chunk_ids
+            )
+            SELECT ac.article_id, ac.article_title, ac.article_url, ac.content,
+                   ac.logo_s3_url, ac.logo_filename, ac.corp_name, ac.thumbnail_image
+            FROM all_chunks ac
+            WHERE ac.chunk_id IN (SELECT chunk_id FROM selected_ids)
+            ORDER BY ac.article_id, ac.chunk_index
+            """, nativeQuery = true)
+    List<Object[]> findFirstAndBestChunksByArticleIds(
+            @Param("queryEmbedding") String queryEmbedding,
+            @Param("articleIds") List<Long> articleIds
+    );
+
+    /**
      * Binary embedding이 없는 청크 수
      */
     @Query("SELECT COUNT(c) FROM ArticleChunk c WHERE c.embeddingBinary IS NULL")
