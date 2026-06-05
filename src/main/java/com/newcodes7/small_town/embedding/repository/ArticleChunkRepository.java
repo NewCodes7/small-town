@@ -373,7 +373,8 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
                 cc.content AS chunk_content,
                 corp.logo_s3_url AS logo_s3_url,
                 corp.logo_filename AS logo_filename,
-                corp.name AS corporation_name
+                corp.name AS corporation_name,
+                a.thumbnail_image AS thumbnail_image
             FROM candidates c
             JOIN article a ON a.id = c.article_id
             JOIN corporation corp ON corp.id = a.corporation_id

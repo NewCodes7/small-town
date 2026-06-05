@@ -353,7 +353,8 @@ public class VectorSearchService {
                     (String) row[2],
                     (String) row[3],
                     logoUrl,
-                    corporationName
+                    corporationName,
+                    (String) row[7]
             ));
             articleChunkCount.merge(articleId, 1, Integer::sum);
             if (corporationName != null) seenCorporations.add(corporationName);

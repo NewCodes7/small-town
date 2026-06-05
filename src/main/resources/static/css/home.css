@@ -2745,23 +2745,63 @@
     word-break: keep-all;
 }
 
+.bubble-source-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.5rem;
+}
+
 .bubble-source-link {
-    display: inline;
-    margin-left: 0.3rem;
-    font-size: 0.75rem;
+    display: inline-block;
+    font-size: 0.82rem;
+    font-weight: 600;
     color: var(--primary-green-dark);
+    background: var(--white);
     text-decoration: none;
-    padding: 1px 8px;
+    padding: 3px 10px;
     border-radius: 10px;
-    border: 1px solid var(--primary-green);
+    border: 1.5px solid var(--primary-green-dark);
     transition: background 0.15s, color 0.15s;
+    max-width: 18em;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
-    vertical-align: middle;
 }
 
 .bubble-source-link:hover {
-    background: var(--primary-green);
+    background: var(--primary-green-dark);
     color: var(--white);
+}
+
+.bubble-source-tooltip {
+    display: none;
+    position: absolute;
+    z-index: 9999;
+    background: var(--white);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.13);
+    padding: 8px;
+    width: 200px;
+    pointer-events: none;
+}
+
+.source-tooltip-thumb {
+    display: block;
+    width: 100%;
+    height: 110px;
+    object-fit: cover;
+    border-radius: 6px;
+    margin-bottom: 6px;
+}
+
+.source-tooltip-title {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1.4;
+    word-break: break-word;
 }
 
 /* 스켈레톤 버블 */

@@ -153,12 +153,60 @@ class AiSummaryManager {
                 </div>
                 <div class="bubble-body">
                     <div class="bubble-content">
-                        <p class="bubble-text">${this._escapeHtml(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}<a href="/articles/${source.id}" target="_blank" rel="noopener" class="bubble-source-link">원문 읽기 →</a></p>
+                        <p class="bubble-text">${this._escapeHtml(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</p>
+                        <div class="bubble-source-row">
+                            <a href="/articles/${source.id}" target="_blank" rel="noopener" class="bubble-source-link" data-title="${this._escapeHtml(source.title || '')}" data-thumbnail="${this._escapeHtml(source.thumbnailImage || '')}">${this._escapeHtml(source.title || '원문 읽기')} →</a>
+                        </div>
                     </div>
                 </div>
             `;
             this.bubblesEl.appendChild(el);
         });
+        this._initSourceLinkTooltips();
+    }
+
+    _initSourceLinkTooltips() {
+        const tooltip = this._getOrCreateTooltip();
+        this.bubblesEl.querySelectorAll('.bubble-source-link').forEach(link => {
+            link.addEventListener('mouseenter', (e) => {
+                const title = link.dataset.title;
+                const thumbnail = link.dataset.thumbnail;
+                if (!title && !thumbnail) return;
+                tooltip.innerHTML = thumbnail
+                    ? `<img class="source-tooltip-thumb" src="${thumbnail}" alt=""><span class="source-tooltip-title">${this._escapeHtml(title)}</span>`
+                    : `<span class="source-tooltip-title">${this._escapeHtml(title)}</span>`;
+                tooltip.style.display = 'block';
+                this._positionTooltip(tooltip, link);
+            });
+            link.addEventListener('mouseleave', () => {
+                tooltip.style.display = 'none';
+            });
+        });
+    }
+
+    _getOrCreateTooltip() {
+        let tooltip = document.getElementById('bubbleSourceTooltip');
+        if (!tooltip) {
+            tooltip = document.createElement('div');
+            tooltip.id = 'bubbleSourceTooltip';
+            tooltip.className = 'bubble-source-tooltip';
+            document.body.appendChild(tooltip);
+        }
+        return tooltip;
+    }
+
+    _positionTooltip(tooltip, anchor) {
+        tooltip.style.visibility = 'hidden';
+        tooltip.style.display = 'block';
+        const rect = anchor.getBoundingClientRect();
+        const tw = tooltip.offsetWidth;
+        const th = tooltip.offsetHeight;
+        let left = rect.left + rect.width / 2 - tw / 2;
+        let top = rect.top - th - 8 + window.scrollY;
+        left = Math.max(8, Math.min(left, window.innerWidth - tw - 8));
+        tooltip.style.left = left + 'px';
+        tooltip.style.top = top + 'px';
+        tooltip.style.visibility = 'visible';
     }
 
     _renderRelatedQueries(queries) {

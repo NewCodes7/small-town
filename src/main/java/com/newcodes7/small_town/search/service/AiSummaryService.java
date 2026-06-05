@@ -280,7 +280,7 @@ public class AiSummaryService {
         return chunks.stream()
                 .collect(Collectors.toMap(
                         AiSummaryChunkDto::articleId,
-                        c -> new AiSummarySourceDto(c.articleId(), c.articleTitle(), c.articleUrl(), c.logoUrl(), c.corporationName()),
+                        c -> new AiSummarySourceDto(c.articleId(), c.articleTitle(), c.articleUrl(), c.logoUrl(), c.corporationName(), c.thumbnailImage()),
                         (a, b) -> a,
                         LinkedHashMap::new
                 ))
