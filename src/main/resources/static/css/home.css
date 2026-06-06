@@ -2745,6 +2745,23 @@
     word-break: keep-all;
 }
 
+.bubble-list {
+    margin: 0;
+    padding-left: 1.2rem;
+    font-size: 0.95rem;
+    line-height: 1.7;
+    color: var(--text-dark);
+    word-break: keep-all;
+}
+
+.bubble-list li {
+    margin-bottom: 0.25rem;
+}
+
+.bubble-list li:last-child {
+    margin-bottom: 0;
+}
+
 .bubble-source-row {
     display: flex;
     justify-content: flex-end;
@@ -2856,6 +2873,7 @@
     .bubble-logo, .bubble-logo-fallback { width: 30px; height: 30px; }
     .bubble-corp-name { font-size: 0.65rem; max-width: 46px; word-break: keep-all; overflow-wrap: break-word; }
     .bubble-text { font-size: 0.85rem; }
+    .bubble-list { font-size: 0.85rem; }
     .bubble-skeleton-speaker { min-width: 40px; }
     .bubble-skeleton-logo { width: 30px; height: 30px; }
 }

@@ -8,6 +8,7 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,7 +56,7 @@ public class AiSummaryService {
     @Value("${search.recommended-queries:Spring Boot,Redis 캐시,JPA 성능,Docker 배포}")
     private String recommendedQueriesRaw;
 
-    private static final int TOP_ARTICLES = 4;
+    private static final int TOP_ARTICLES = 3;
     private static final int CHUNK_MAX_CHARS = 1000;
     private static final String CACHE_NAME = "aiSummary";
     private static final String CACHE_KEY_PREFIX = "ai-summary:";
@@ -68,9 +69,7 @@ public class AiSummaryService {
 
             [규칙]
             - 인사말, 도입 문장, 검색어 설명 없이 첫 번째 기업 소개부터 바로 시작하세요.
-            - 기업별로 2~3문장 이내로 작성하세요.
-            - 문장은 짧고 명확하게 끊으세요. 한 문장에 50자를 넘지 마세요.
-            - "[회사명]에서는 ~했어요." 형식으로 친근하게 시작하세요.
+            - 기업별 내용은 마크다운 불렛 포인트(- 으로 시작)로 2~3개 항목을 작성하세요.
             - 핵심 키워드(기술명, 수치, 성과 등)는 **볼드체**로 강조하세요.
             - 도입 이유, 해결한 문제, 성과에 집중하세요. 출처에 없는 내용은 추가하지 마세요.
             - 각 기업 소개 끝에 [출처N] 형식으로 출처를 표기하세요. [출처1][출처2]처럼 개별 표기하세요.
@@ -141,8 +140,11 @@ public class AiSummaryService {
                 return;
             }
 
-            List<AiSummarySourceDto> sources = buildSources(chunks);
-            String userMessage = "검색어: " + query + "\n\n" + buildContext(chunks);
+            List<AiSummaryChunkDto> orderedChunks = chunks.stream()
+                    .sorted(Comparator.comparingInt(c -> topArticleIds.indexOf(c.articleId())))
+                    .collect(Collectors.toList());
+            List<AiSummarySourceDto> sources = buildSources(orderedChunks);
+            String userMessage = "검색어: " + query + "\n\n" + buildContext(orderedChunks);
             String requestBody = buildGeminiRequestBody(SYSTEM_PROMPT, userMessage);
 
             StringBuilder fullText = new StringBuilder();

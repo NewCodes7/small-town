@@ -153,7 +153,7 @@ class AiSummaryManager {
                 </div>
                 <div class="bubble-body">
                     <div class="bubble-content">
-                        <p class="bubble-text">${this._escapeHtml(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</p>
+                        ${this._textToHtml(text)}
                         <div class="bubble-source-row">
                             <a href="/articles/${source.id}" target="_blank" rel="noopener" class="bubble-source-link" data-title="${this._escapeHtml(source.title || '')}" data-thumbnail="${this._escapeHtml(source.thumbnailImage || '')}">${this._escapeHtml(source.title || '원문 읽기')} →</a>
                         </div>
@@ -230,6 +230,20 @@ class AiSummaryManager {
         this.loadingEl.style.display = 'none';
         this.errorEl.textContent = message;
         this.errorEl.style.display = 'block';
+    }
+
+    _textToHtml(text) {
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+        const bulletLines = lines.filter(l => l.startsWith('- '));
+        if (bulletLines.length > 0) {
+            const items = bulletLines.map(l => `<li>${this._formatInline(l.slice(2).trim())}</li>`).join('');
+            return `<ul class="bubble-list">${items}</ul>`;
+        }
+        return `<p class="bubble-text">${this._formatInline(text)}</p>`;
+    }
+
+    _formatInline(text) {
+        return this._escapeHtml(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     }
 
     _escapeHtml(str) {
