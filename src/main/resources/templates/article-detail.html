@@ -15,6 +15,8 @@
     <meta property="og:type" content="article">
     <meta name="twitter:card" content="summary_large_image">
 
+    <link rel="stylesheet" type="text/css" th:href="@{/css/default-thumbnail.css}">
+
     <!-- 구조화 데이터 (JSON-LD) -->
     <script type="application/ld+json" th:inline="javascript">
     {
@@ -609,47 +611,37 @@
     <div layout:fragment="content">
         <div class="article-detail-container">
             <!-- Main Article Card -->
-            <article class="article-detail-card">
-                <!-- Thumbnail -->
-                <div class="article-detail-thumbnail">
-                    <img th:if="${article.thumbnailImage != null}"
-                         th:src="${article.thumbnailImage}"
-                         th:alt="${article.translatedTitle != null ? article.translatedTitle : article.title}">
-                    <i th:if="${article.thumbnailImage == null}" class="fas fa-code article-detail-thumbnail-placeholder"></i>
-                </div>
+            <div class="article-card mb-4" style="cursor: default;">
+                <!-- Article Content (Left Side) -->
+                <div class="article-content">
+                    <h1 class="mb-3 lh-base"
+                        style="color: var(--text-dark); font-weight: 800; font-size: 1.3rem; word-break: keep-all;"
+                        th:text="${article.translatedTitle != null ? article.translatedTitle : article.title}">
+                        Article Title
+                    </h1>
 
-                <div class="article-detail-body">
-                    <!-- Header -->
-                    <header class="article-detail-header">
-                        <h1 class="article-detail-title" th:text="${article.translatedTitle != null ? article.translatedTitle : article.title}">
-                            Article Title
-                        </h1>
-
-                        <div class="article-detail-meta">
-                            <!-- Company -->
-                            <a th:href="@{/corporations/{id}(id=${article.corporation.id})}"
-                               class="article-detail-company">
-                                <img th:if="${article.corporation.effectiveLogoUrl != null}"
-                                     th:src="${article.corporation.effectiveLogoUrl}"
-                                     th:alt="${article.corporation.name}"
-                                     class="article-detail-company-logo">
-                                <span class="article-detail-company-name" th:text="${article.corporation.name}">Company</span>
-                            </a>
-
-                            <!-- Date -->
-                            <span class="article-detail-date">
-                                <i class="far fa-clock"></i>
-                                <span th:text="${#strings.replace(#strings.substring(article.publishedAt.toString(), 0, 10), '-', '.')}"></span>
-                            </span>
-                        </div>
-                    </header>
+                    <!-- Company & Date -->
+                    <div class="d-flex align-items-center flex-wrap mb-3" style="gap: 12px;">
+                        <a th:href="@{/corporations/{id}(id=${article.corporation.id})}"
+                           class="d-flex align-items-center text-decoration-none"
+                           style="gap: 6px;">
+                            <img th:if="${article.corporation.effectiveLogoUrl != null}"
+                                 th:src="${article.corporation.effectiveLogoUrl}"
+                                 th:alt="${article.corporation.name}"
+                                 class="company-logo" style="width: 20px; height: 20px;">
+                            <span class="fw-bold" style="color: var(--primary-green); font-size: 0.9rem;"
+                                  th:text="${article.corporation.name}">Company</span>
+                        </a>
+                        <small class="text-muted" style="white-space: nowrap; font-size: 0.85rem;"
+                               th:text="${#strings.replace(#strings.substring(article.publishedAt.toString(), 0, 10), '-', '.')}">2024-01-01</small>
+                    </div>
 
                     <!-- Actions -->
-                    <div class="article-detail-actions">
+                    <div class="d-flex gap-2">
                         <a th:href="${article.link}"
                            target="_blank"
                            rel="noopener noreferrer"
-                           class="article-detail-link-btn">
+                           class="article-detail-link-btn" style="flex: 1;">
                             <span>원문 읽기</span>
                             <i class="fas fa-external-link-alt"></i>
                         </a>
@@ -660,6 +652,7 @@
                         </button>
                     </div>
 
+                    <!-- Admin Debug Info -->
                     <div sec:authorize="hasRole('ADMIN')"
                          class="admin-debug-info"
                          style="margin-top:12px;padding:10px;background:#f0f4ff;border-radius:8px;font-size:12px;color:#555;border:1px solid #d0d8f0;">
@@ -678,7 +671,24 @@
                              style="color:#aaa;">대표 chunk 없음</div>
                     </div>
                 </div>
-            </article>
+
+                <!-- Thumbnail (Right Side) -->
+                <div class="article-thumbnail-container">
+                    <img th:if="${article.thumbnailImage != null}"
+                         th:src="${article.thumbnailImage}"
+                         th:alt="${article.translatedTitle != null ? article.translatedTitle : article.title}"
+                         width="300"
+                         height="155"
+                         class="article-thumbnail">
+                    <div th:unless="${article.thumbnailImage != null}"
+                         class="article-thumbnail default-thumbnail">
+                        <div class="default-thumbnail-content">
+                            <i class="fas fa-code"></i>
+                            <div class="thumbnail-pattern"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <!-- Related Articles Section -->
             <section class="related-section">
