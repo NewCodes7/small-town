@@ -2752,6 +2752,7 @@
     line-height: 1.7;
     color: var(--text-dark);
     word-break: keep-all;
+    list-style-type: disc;
 }
 
 .bubble-list li {

@@ -116,19 +116,26 @@ class AiSummaryManager {
         }
     }
 
-    // [출처N] 패턴으로 텍스트를 기업별 버블로 분리
+    // [출처N] 패턴으로 텍스트를 기업별 버블로 분리 (같은 출처는 하나의 버블로 병합)
     _parseBubbles(text, sources) {
-        const bubbles = [];
-        // split으로 분리하면 [^\[] 계열 regex의 [ 경계 문제를 피할 수 있음
         const parts = text.split(/\[출처(\d+)\]/);
         // parts = [text0, N0, text1, N1, ..., trailing]
+        const bubbleMap = new Map(); // sourceIdx -> accumulated text (insertion-order)
         for (let i = 0; i < parts.length - 1; i += 2) {
             let bubbleText = parts[i].trim();
             const sourceIdx = parseInt(parts[i + 1], 10) - 1;
             if (!bubbleText || sourceIdx < 0 || sourceIdx >= sources.length) continue;
             // AI가 [회사명]에서는 형태로 생성할 경우 대괄호만 제거하고 이름은 유지
             bubbleText = bubbleText.replace(/^\[([^\]]+)\]/, '$1').trim();
-            bubbles.push({ text: bubbleText, source: sources[sourceIdx] });
+            if (bubbleMap.has(sourceIdx)) {
+                bubbleMap.set(sourceIdx, bubbleMap.get(sourceIdx) + '\n' + bubbleText);
+            } else {
+                bubbleMap.set(sourceIdx, bubbleText);
+            }
+        }
+        const bubbles = [];
+        for (const [sourceIdx, t] of bubbleMap) {
+            bubbles.push({ text: t, source: sources[sourceIdx] });
         }
         return bubbles.slice(0, 5);
     }
