@@ -28,6 +28,19 @@ public class AdminCrawlingController {
     private final CrawlingService crawlingService;
 
     /**
+     * 특정 기업 최신 페이지만 크롤링 (본문/Term/Embedding 포함)
+     */
+    @PostMapping("/corporation/{corporationId}/crawl-latest")
+    @ResponseBody
+    public ResponseEntity<CrawlResult> crawlLatestPageForCorporation(
+        @PathVariable Long corporationId
+    ) {
+        log.info("Admin: 기업 {} 단일 페이지 크롤링 요청", corporationId);
+        CrawlResult result = crawlingService.crawlLatestPageForCorporation(corporationId);
+        return ResponseEntity.ok(result);
+    }
+
+    /**
      * 특정 기업 전체 페이지 크롤링
      */
     @PostMapping("/corporation/{corporationId}/crawl-all")

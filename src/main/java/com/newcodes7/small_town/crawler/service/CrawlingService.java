@@ -393,6 +393,19 @@ public class CrawlingService {
     }
 
     /**
+     * 특정 기업 최신 페이지만 크롤링 (Admin 전용)
+     * 일반 스케줄 크롤링과 동일하게 본문/Term/Embedding까지 처리
+     */
+    public CrawlResult crawlLatestPageForCorporation(Long corporationId) {
+        log.info("Admin 단일 페이지 크롤링 시작 - 기업 ID: {}", corporationId);
+        CrawlResult result = crawlSingleBlog(corporationId, null);
+        if (result.hasNewArticles()) {
+            selectRepresentativeChunksForArticles(result.getArticles(), true);
+        }
+        return result;
+    }
+
+    /**
      * 특정 기업의 모든 페이지 크롤링 (Admin 전용)
      * @param corporationId 기업 ID
      * @return 크롤링 결과
