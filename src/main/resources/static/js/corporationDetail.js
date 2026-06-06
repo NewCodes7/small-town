@@ -319,38 +319,32 @@ async function saveArticleEdit(articleId, publishedAt, thumbnail) {
     }
 }
 
-// 기업 크롤링 시작
+// 기업 크롤링 시작 (단일 페이지)
 async function startCrawling(corporationId) {
     const crawlBtn = document.getElementById('adminCrawlBtn');
     const originalHtml = crawlBtn.innerHTML;
 
-    // 버튼 비활성화 및 로딩 표시
     crawlBtn.disabled = true;
     crawlBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>크롤링 중...';
 
     try {
-        const response = await fetch(`/api/crawling/corporation/${corporationId}`, {
-            method: 'GET',
+        const response = await fetch(`/admin/crawling/corporation/${corporationId}/crawl-latest`, {
+            method: 'POST',
             credentials: 'same-origin'
         });
 
         const data = await response.json();
 
         if (response.ok && data.success) {
-            const message = `크롤링이 완료되었습니다!\n\n` +
-                          `기업: ${data.corporationName}\n` +
-                          `전체 글: ${data.totalArticles}개\n` +
-                          `새로운 글: ${data.newArticles}개`;
-            alert(message);
+            alert(`단일 페이지 크롤링 완료!\n\n신규 글: ${data.newArticles}개`);
             window.location.reload();
         } else {
-            alert(data.message || '크롤링에 실패했습니다.');
+            alert(data.errorMessage || '크롤링에 실패했습니다.');
         }
     } catch (error) {
         console.error('크롤링 중 오류 발생:', error);
         alert('크롤링 중 오류가 발생했습니다.');
     } finally {
-        // 버튼 복원
         crawlBtn.disabled = false;
         crawlBtn.innerHTML = originalHtml;
     }
