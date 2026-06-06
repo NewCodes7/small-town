@@ -123,6 +123,7 @@
                                 <img th:src="${article.thumbnailImage}"
                                      alt=""
                                      loading="lazy"
+                                     onerror="this.parentElement.remove()"
                                      class="popular-card-thumbnail-image">
                             </div>
                             <div th:unless="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}"

@@ -189,6 +189,7 @@
                         <img th:if="${article.thumbnailImage != null && article.thumbnailImage.length() > 2}"
                              th:src="${article.thumbnailImage}"
                              th:alt="${article.title}"
+                             onerror="this.remove()"
                              class="article-thumbnail">
                         <!-- 기본 썸네일 -->
                         <div th:unless="${article.thumbnailImage != null && article.thumbnailImage.length() > 2}"
