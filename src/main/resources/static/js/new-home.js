@@ -1,3 +1,8 @@
+function searchKeyword(keyword) {
+    document.getElementById('searchInput').value = keyword;
+    document.getElementById('searchForm').submit();
+}
+
 // localStorage 유틸리티 (비인증 사용자 좋아요)
 const LIKED_ARTICLES_KEY = 'likedArticles';
 const LIKED_VIDEOS_KEY = 'likedVideos';
