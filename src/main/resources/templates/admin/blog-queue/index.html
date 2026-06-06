@@ -268,8 +268,15 @@
                         <input type="url" id="reg-blogLink" class="form-control" placeholder="https://tech.example.com">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label fw-semibold">로고 URL</label>
-                        <input type="url" id="reg-logoUrl" class="form-control" placeholder="https://example.com/logo.png">
+                        <label class="form-label fw-semibold">로고 이미지</label>
+                        <div class="input-group mb-1">
+                            <span class="input-group-text" style="background: var(--secondary-green); color: var(--primary-green-dark);">
+                                <i class="fas fa-upload"></i>
+                            </span>
+                            <input type="file" id="reg-logoFile" class="form-control" accept="image/jpeg,image/png,image/gif">
+                        </div>
+                        <input type="url" id="reg-logoUrl" class="form-control form-control-sm" placeholder="또는 URL 직접 입력">
+                        <div id="reg-logoUploadStatus" class="small mt-1" style="display:none;"></div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-semibold">채용 URL</label>
@@ -842,6 +849,51 @@ function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// ─── 로고 파일 업로드 ───
+async function uploadLogoFile(file, companyName, statusEl, urlEl) {
+    statusEl.textContent = '업로드 중...';
+    statusEl.className = 'small mt-1 text-muted';
+    statusEl.style.display = 'block';
+
+    const formData = new FormData();
+    formData.append('file', file);
+    if (companyName) formData.append('name', companyName);
+
+    try {
+        const res = await fetch('/admin/blog-queue/upload-logo', {method: 'POST', body: formData});
+        const data = await res.json();
+        if (data.success) {
+            urlEl.value = data.logoUrl;
+            statusEl.textContent = '업로드 완료';
+            statusEl.className = 'small mt-1 text-success';
+        } else {
+            statusEl.textContent = '업로드 실패: ' + (data.message || '오류');
+            statusEl.className = 'small mt-1 text-danger';
+        }
+    } catch (err) {
+        statusEl.textContent = '업로드 오류: ' + err.message;
+        statusEl.className = 'small mt-1 text-danger';
+    }
+}
+
+// 대기열 추가 폼 로고 파일 선택
+document.getElementById('logoFileInput').addEventListener('change', function() {
+    if (!this.files[0]) return;
+    const companyName = document.getElementById('companyNameInput').value.trim();
+    uploadLogoFile(this.files[0], companyName,
+        document.getElementById('logoQueueUploadStatus'),
+        document.getElementById('logoUrlInput'));
+});
+
+// 등록 모달 로고 파일 선택
+document.getElementById('reg-logoFile').addEventListener('change', function() {
+    if (!this.files[0]) return;
+    const companyName = document.getElementById('reg-name').value.trim();
+    uploadLogoFile(this.files[0], companyName,
+        document.getElementById('reg-logoUploadStatus'),
+        document.getElementById('reg-logoUrl'));
+});
 </script>
 </section>
 </html>

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.newcodes7.small_town.corporation.dto.BlogQueueResponseDto;
 import com.newcodes7.small_town.corporation.dto.CorporationCreateDto;
 import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
+import com.newcodes7.small_town.corporation.service.FileUploadService;
 import com.newcodes7.small_town.crawler.entity.CorporationBlogQueue;
 import com.newcodes7.small_town.crawler.service.BlogAnalysisService;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +20,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -31,6 +34,7 @@ import java.util.Map;
 public class AdminBlogQueueController {
 
     private final BlogAnalysisService blogAnalysisService;
+    private final FileUploadService fileUploadService;
     private final ObjectMapper objectMapper;
 
     @GetMapping
@@ -145,6 +149,25 @@ public class AdminBlogQueueController {
             log.error("기업 등록 실패 id={}: {}", id, e.getMessage(), e);
             response.put("success", false);
             response.put("message", "기업 등록 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    @PostMapping("/upload-logo")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> uploadLogo(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "name", required = false, defaultValue = "unknown") String name) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            String logoUrl = fileUploadService.saveLogoFileToS3(file, name);
+            response.put("success", true);
+            response.put("logoUrl", logoUrl);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("로고 업로드 실패: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "로고 업로드 실패: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
     }
