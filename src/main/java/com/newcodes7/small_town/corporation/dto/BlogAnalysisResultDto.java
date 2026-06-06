@@ -29,8 +29,6 @@ public class BlogAnalysisResultDto {
 
     private List<PreviewArticleDto> previewArticles;
     private String confidence;
-    private String notes;
-
     @Data
     @AllArgsConstructor
     @NoArgsConstructor

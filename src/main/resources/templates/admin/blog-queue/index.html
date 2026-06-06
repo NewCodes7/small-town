@@ -45,8 +45,15 @@
                     <input type="url" id="homeLinkInput" class="form-control" placeholder="https://example.com">
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-semibold">로고 URL</label>
-                    <input type="url" id="logoUrlInput" class="form-control" placeholder="https://example.com/logo.png">
+                    <label class="form-label fw-semibold">로고 이미지</label>
+                    <div class="input-group mb-1">
+                        <span class="input-group-text" style="background: var(--secondary-green); color: var(--primary-green-dark);">
+                            <i class="fas fa-upload"></i>
+                        </span>
+                        <input type="file" id="logoFileInput" class="form-control" accept="image/jpeg,image/png,image/gif">
+                    </div>
+                    <input type="url" id="logoUrlInput" class="form-control form-control-sm" placeholder="또는 URL 직접 입력">
+                    <div id="logoQueueUploadStatus" class="small mt-1" style="display:none;"></div>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">채용 URL</label>
@@ -212,9 +219,6 @@
                     <div>
                         <span class="fw-semibold me-2">AI 분석 신뢰도:</span>
                         <span id="confidenceBadge" class="badge fs-6"></span>
-                    </div>
-                    <div id="notesSection" class="text-muted small flex-grow-1" style="display: none;">
-                        <i class="fas fa-info-circle me-1"></i><span id="notesText"></span>
                     </div>
                 </div>
 
@@ -467,14 +471,6 @@
                     </div>
                 </div>
 
-                <h6 class="mb-3" style="color: var(--text-dark);">
-                    <i class="fas fa-sticky-note me-2" style="color: var(--primary-green);"></i>AI 노트
-                </h6>
-                <div class="row g-3">
-                    <div class="col-12">
-                        <input type="text" id="view-notes" class="form-control" placeholder="AI 분석 노트">
-                    </div>
-                </div>
             </div>
             <div class="modal-footer" style="border-radius: 0 0 20px 20px;">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
@@ -611,15 +607,6 @@ function openRegistrationModal(ds) {
     confidenceEl.textContent = conf === 'HIGH' ? '높음 (HIGH)' : conf === 'MEDIUM' ? '보통 (MEDIUM)' : '낮음 (LOW)';
     confidenceEl.className = 'badge fs-6 ' + (conf === 'HIGH' ? 'bg-success' : conf === 'MEDIUM' ? 'bg-warning text-dark' : 'bg-danger');
 
-    // AI 노트
-    const notesSection = document.getElementById('notesSection');
-    if (result.notes) {
-        document.getElementById('notesText').textContent = result.notes;
-        notesSection.style.display = 'block';
-    } else {
-        notesSection.style.display = 'none';
-    }
-
     // 미리보기
     const previewList = document.getElementById('previewList');
     if (result.previewArticles && result.previewArticles.length > 0) {
@@ -752,7 +739,6 @@ function openViewAnalysisModal(id, analysisJson) {
     setViewValue('view-pageUrlPattern', result.pageUrlPattern);
     setViewValue('view-nextPageSelector', result.nextPageSelector);
     setViewValue('view-maxPages', result.maxPages || '');
-    setViewValue('view-notes', result.notes);
 
     new bootstrap.Modal(document.getElementById('viewAnalysisModal')).show();
 }
@@ -773,8 +759,7 @@ document.getElementById('saveAnalysisBtn').addEventListener('click', async funct
         paginationType: getViewVal('view-paginationType') || 'NONE',
         pageUrlPattern: getViewVal('view-pageUrlPattern') || null,
         nextPageSelector: getViewVal('view-nextPageSelector') || null,
-        maxPages: getViewVal('view-maxPages') ? parseInt(getViewVal('view-maxPages')) : null,
-        notes: getViewVal('view-notes') || null
+        maxPages: getViewVal('view-maxPages') ? parseInt(getViewVal('view-maxPages')) : null
     };
 
     const origHtml = btn.innerHTML;

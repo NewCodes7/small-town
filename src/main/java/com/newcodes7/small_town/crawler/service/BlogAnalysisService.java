@@ -309,7 +309,7 @@ public class BlogAnalysisService {
         )));
         body.put("generationConfig", Map.of(
                 "temperature", 0.1,
-                "maxOutputTokens", 500,
+                "maxOutputTokens", 1024,
                 "responseMimeType", "application/json",
                 "responseSchema", buildResponseSchema()
         ));
@@ -330,7 +330,6 @@ public class BlogAnalysisService {
         props.put("paginationType",        enumSchema("NONE", "URL_PARAMETER", "NEXT_BUTTON", "INFINITE_SCROLL"));
         props.put("pageUrlPattern",        strSchema(true));
         props.put("nextPageSelector",      strSchema(true));
-        props.put("notes",                 strSchema(true));
 
         Map<String, Object> schema = new LinkedHashMap<>();
         schema.put("type", "OBJECT");
@@ -367,7 +366,6 @@ public class BlogAnalysisService {
                 - paginationType: NONE(단일페이지), URL_PARAMETER(URL 파라미터), NEXT_BUTTON(다음 버튼), INFINITE_SCROLL(무한스크롤)
                 - pageUrlPattern: URL 파라미터 패턴 (예: "?page={page}", "/page/{page}")
                 - nextPageSelector: 다음 페이지 버튼 CSS 셀렉터
-                - notes: 분석 결과에 대한 간단한 메모 (선택)
 
                 [규칙]
                 - 존재하지 않는 필드는 null로 설정
