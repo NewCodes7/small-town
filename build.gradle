@@ -99,6 +99,10 @@ dependencies {
     // Apache HttpClient 5 (Spring Boot 관리 버전 사용)
     implementation 'org.apache.httpcomponents.client5:httpclient5'
 
+	// DB 마이그레이션
+	implementation 'org.flywaydb:flyway-core'
+	runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

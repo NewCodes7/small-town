@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<section layout:fragment="content">
+<div class="container mt-4">
+
+    <!-- Header -->
+    <div class="hero-section text-center mb-5">
+        <h1 class="hero-title">
+            <i class="fas fa-robot me-3" style="color: var(--primary-green);"></i>
+            AI 블로그 등록
+        </h1>
+        <p class="hero-subtitle">블로그 URL을 입력하면 AI가 CSS 셀렉터를 자동으로 분석해드립니다</p>
+    </div>
+
+    <!-- URL 등록 폼 -->
+    <div class="card mb-4" style="border-radius: 20px; background: var(--white);">
+        <div class="card-body p-4">
+            <h4 class="mb-3" style="color: var(--text-dark);">
+                <i class="fas fa-plus-circle me-2" style="color: var(--primary-green);"></i>대기열에 추가
+            </h4>
+            <div class="row g-3">
+                <!-- Row 1: 필수 -->
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">블로그 URL <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <span class="input-group-text" style="background: var(--secondary-green); color: var(--primary-green-dark);">
+                            <i class="fas fa-link"></i>
+                        </span>
+                        <input type="url" id="blogUrlInput" class="form-control" placeholder="https://tech.example.com/blog" required>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">회사명 <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <span class="input-group-text" style="background: var(--secondary-green); color: var(--primary-green-dark);">
+                            <i class="fas fa-building"></i>
+                        </span>
+                        <input type="text" id="companyNameInput" class="form-control" placeholder="기업명 (AI 분석 힌트로도 사용)">
+                    </div>
+                </div>
+                <!-- Row 2: 기업 정보 -->
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">홈페이지 URL</label>
+                    <input type="url" id="homeLinkInput" class="form-control" placeholder="https://example.com">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">로고 URL</label>
+                    <input type="url" id="logoUrlInput" class="form-control" placeholder="https://example.com/logo.png">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">채용 URL</label>
+                    <input type="url" id="crewLinkInput" class="form-control" placeholder="https://careers.example.com">
+                </div>
+                <!-- Row 3: 옵션 + 버튼 -->
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">대체명</label>
+                    <input type="text" id="alternateNameInput" class="form-control" placeholder="영문명 등">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-semibold">국내/해외</label>
+                    <select id="isDomesticInput" class="form-select">
+                        <option value="1">국내</option>
+                        <option value="0">해외</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">블로그 타입</label>
+                    <select id="blogTypeInput" class="form-select">
+                        <option value="DEFAULT">DEFAULT</option>
+                        <option value="MEDIUM">MEDIUM</option>
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button id="addQueueBtn" class="btn w-100" style="background: var(--primary-green); color: white; border-radius: 12px;">
+                        <i class="fas fa-plus me-1"></i>대기열 추가
+                    </button>
+                </div>
+            </div>
+            <div id="addQueueError" class="text-danger mt-2 small" style="display: none;"></div>
+        </div>
+    </div>
+
+    <!-- 대기열 테이블 -->
+    <div class="card" style="border-radius: 20px; background: var(--white);">
+        <div class="card-body p-4">
+            <h4 class="mb-3" style="color: var(--text-dark);">
+                <i class="fas fa-list me-2" style="color: var(--primary-green);"></i>대기열
+                <span class="badge ms-2" style="background: var(--secondary-green); color: var(--primary-green-dark);"
+                      th:text="${#lists.size(queueItems)}">0</span>
+            </h4>
+
+            <div th:if="${#lists.isEmpty(queueItems)}" class="text-center py-5 text-muted">
+                <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                <p>대기열이 비어있습니다. URL을 추가해주세요.</p>
+            </div>
+
+            <div th:if="${!#lists.isEmpty(queueItems)}" class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr style="background: var(--secondary-green);">
+                            <th>회사명</th>
+                            <th>블로그 URL</th>
+                            <th>상태</th>
+                            <th>등록일시</th>
+                            <th>액션</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="item : ${queueItems}" th:id="'row-' + ${item.id}">
+                            <td>
+                                <span th:text="${item.companyName != null ? item.companyName : '-'}"
+                                      class="fw-semibold"></span>
+                            </td>
+                            <td>
+                                <a th:href="${item.blogUrl}" target="_blank" class="text-truncate d-inline-block"
+                                   style="max-width: 250px;" th:text="${item.blogUrl}"></a>
+                            </td>
+                            <td>
+                                <span th:if="${item.status == 'PENDING'}"
+                                      class="badge bg-secondary">대기중</span>
+                                <span th:if="${item.status == 'ANALYZING'}"
+                                      class="badge bg-warning text-dark">
+                                    <span class="spinner-border spinner-border-sm me-1"></span>분석중
+                                </span>
+                                <span th:if="${item.status == 'ANALYZED'}"
+                                      class="badge bg-success">분석완료</span>
+                                <span th:if="${item.status == 'FAILED'}"
+                                      class="badge bg-danger"
+                                      th:title="${item.errorMessage}">실패</span>
+                                <span th:if="${item.status == 'REGISTERED'}"
+                                      class="badge bg-info">등록완료</span>
+                            </td>
+                            <td>
+                                <small class="text-muted"
+                                       th:text="${#temporals.format(item.createdAt, 'MM-dd HH:mm')}"></small>
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <!-- PENDING / FAILED: AI 분석 버튼 -->
+                                    <button th:if="${item.status == 'PENDING' or item.status == 'FAILED'}"
+                                            class="btn btn-primary analyze-btn"
+                                            th:id="'analyzeBtn-' + ${item.id}"
+                                            th:attr="data-id=${item.id}">
+                                        <i class="fas fa-brain me-1"></i>AI 분석
+                                    </button>
+                                    <!-- ANALYZED: 결과보기 + 등록 + 재분석 버튼 -->
+                                    <button th:if="${item.status == 'ANALYZED'}"
+                                            class="btn btn-outline-info btn-view-analysis"
+                                            th:attr="data-id=${item.id}, data-analysis=${item.analysisResultJson}">
+                                        <i class="fas fa-eye me-1"></i>결과
+                                    </button>
+                                    <button th:if="${item.status == 'ANALYZED'}"
+                                            class="btn btn-success"
+                                            th:attr="data-id=${item.id}, data-analysis=${item.analysisResultJson},
+                                                     data-url=${item.blogUrl}, data-name=${item.companyName},
+                                                     data-homelink=${item.homeLink}, data-logourl=${item.logoUrl},
+                                                     data-crewlink=${item.crewLink}, data-alternatename=${item.alternateName},
+                                                     data-isdomestic=${item.isDomestic}, data-blogtype=${item.blogType}">
+                                        <i class="fas fa-check me-1"></i>등록
+                                    </button>
+                                    <button th:if="${item.status == 'ANALYZED'}"
+                                            class="btn btn-outline-primary analyze-btn"
+                                            th:id="'analyzeBtn-' + ${item.id}"
+                                            th:attr="data-id=${item.id}">
+                                        <i class="fas fa-redo me-1"></i>재분석
+                                    </button>
+                                    <!-- REGISTERED: 결과보기 버튼 + 완료 표시 -->
+                                    <button th:if="${item.status == 'REGISTERED'}"
+                                            class="btn btn-outline-secondary btn-view-analysis"
+                                            th:attr="data-id=${item.id}, data-analysis=${item.analysisResultJson}">
+                                        <i class="fas fa-eye me-1"></i>결과
+                                    </button>
+                                    <span th:if="${item.status == 'REGISTERED'}"
+                                          class="text-muted small">등록됨</span>
+                                    <!-- 삭제 버튼 (항상) -->
+                                    <button th:unless="${item.status == 'ANALYZING'}"
+                                            class="btn btn-outline-danger delete-btn"
+                                            th:attr="data-id=${item.id}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                                <!-- FAILED 에러 메시지 -->
+                                <div th:if="${item.status == 'FAILED' and item.errorMessage != null}"
+                                     class="text-danger small mt-1"
+                                     style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+                                     th:title="${item.errorMessage}"
+                                     th:text="${item.errorMessage}"></div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 분석결과 / 기업 등록 모달 -->
+<div class="modal fade" id="registrationModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content" style="border-radius: 20px;">
+            <div class="modal-header" style="background: var(--secondary-green); border-radius: 20px 20px 0 0;">
+                <h5 class="modal-title">
+                    <i class="fas fa-robot me-2" style="color: var(--primary-green);"></i>AI 분석 결과 &amp; 기업 등록
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+
+                <!-- 신뢰도 + 노트 -->
+                <div class="mb-4 d-flex align-items-start gap-3">
+                    <div>
+                        <span class="fw-semibold me-2">AI 분석 신뢰도:</span>
+                        <span id="confidenceBadge" class="badge fs-6"></span>
+                    </div>
+                    <div id="notesSection" class="text-muted small flex-grow-1" style="display: none;">
+                        <i class="fas fa-info-circle me-1"></i><span id="notesText"></span>
+                    </div>
+                </div>
+
+                <!-- 미리보기 -->
+                <div class="card mb-4" style="border-radius: 12px; background: #f8f9fa;">
+                    <div class="card-body p-3">
+                        <h6 class="mb-2"><i class="fas fa-eye me-2" style="color: var(--primary-green);"></i>크롤링 미리보기</h6>
+                        <div id="previewList">
+                            <span class="text-muted small">미리보기 없음</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 등록 폼 -->
+                <h6 class="mb-3" style="color: var(--text-dark);">
+                    <i class="fas fa-building me-2" style="color: var(--primary-green);"></i>기업 정보
+                </h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">기업명 <span class="text-danger">*</span></label>
+                        <input type="text" id="reg-name" class="form-control" placeholder="기업명">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">대체명</label>
+                        <input type="text" id="reg-alternateName" class="form-control" placeholder="영문명 등">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">국내/해외</label>
+                        <select id="reg-isDomestic" class="form-select">
+                            <option value="1">국내</option>
+                            <option value="0">해외</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">블로그 타입</label>
+                        <select id="reg-blogType" class="form-select">
+                            <option value="DEFAULT">DEFAULT</option>
+                            <option value="MEDIUM">MEDIUM</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">홈 URL</label>
+                        <input type="url" id="reg-homeLink" class="form-control" placeholder="https://example.com">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">블로그 URL</label>
+                        <input type="url" id="reg-blogLink" class="form-control" placeholder="https://tech.example.com">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">로고 URL</label>
+                        <input type="url" id="reg-logoUrl" class="form-control" placeholder="https://example.com/logo.png">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">채용 URL</label>
+                        <input type="url" id="reg-crewLink" class="form-control" placeholder="https://careers.example.com">
+                    </div>
+                </div>
+
+                <h6 class="mb-3" style="color: var(--text-dark);">
+                    <i class="fas fa-code me-2" style="color: var(--primary-green);"></i>AI 분석 셀렉터
+                    <small class="text-muted fw-normal">(필요시 수정 가능)</small>
+                </h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Base URL</label>
+                        <input type="text" id="reg-baseUrl" class="form-control font-monospace" placeholder="https://blog.example.com">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Article 셀렉터</label>
+                        <input type="text" id="reg-article" class="form-control font-monospace" placeholder="li.post-item">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Title 셀렉터</label>
+                        <input type="text" id="reg-title" class="form-control font-monospace" placeholder="h2.title">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Link 셀렉터</label>
+                        <input type="text" id="reg-link" class="form-control font-monospace" placeholder="a.post-link">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Thumbnail 셀렉터</label>
+                        <input type="text" id="reg-thumbnail" class="form-control font-monospace" placeholder="img.thumb">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Publish 셀렉터</label>
+                        <input type="text" id="reg-publish" class="form-control font-monospace" placeholder="time.date">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">날짜 포맷</label>
+                        <input type="text" id="reg-publishFormat" class="form-control font-monospace" placeholder="yyyy-MM-dd">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Publish 타입</label>
+                        <select id="reg-publishType" class="form-select">
+                            <option value="OUTER">OUTER (목록에서 추출)</option>
+                            <option value="INNER">INNER (개별 글 페이지)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label fw-semibold">Inner Publish 셀렉터</label>
+                        <input type="text" id="reg-innerPublishSelector" class="form-control font-monospace"
+                               placeholder="INNER 타입일 때만 사용">
+                    </div>
+                </div>
+
+                <h6 class="mb-3" style="color: var(--text-dark);">
+                    <i class="fas fa-file-alt me-2" style="color: var(--primary-green);"></i>페이지네이션
+                </h6>
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">페이지네이션 타입</label>
+                        <select id="reg-paginationType" class="form-select">
+                            <option value="NONE">NONE</option>
+                            <option value="URL_PARAMETER">URL_PARAMETER</option>
+                            <option value="NEXT_BUTTON">NEXT_BUTTON</option>
+                            <option value="INFINITE_SCROLL">INFINITE_SCROLL</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">URL 패턴</label>
+                        <input type="text" id="reg-pageUrlPattern" class="form-control font-monospace"
+                               placeholder="?page={page}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">다음 버튼 셀렉터</label>
+                        <input type="text" id="reg-nextPageSelector" class="form-control font-monospace"
+                               placeholder="a.next-page">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">최대 페이지</label>
+                        <input type="number" id="reg-maxPages" class="form-control" placeholder="∞">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-radius: 0 0 20px 20px;">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" id="submitRegisterBtn" class="btn"
+                        style="background: var(--primary-green); color: white; border-radius: 12px;">
+                    <i class="fas fa-check me-1"></i>기업 등록
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 분석결과 보기/수정 모달 -->
+<div class="modal fade" id="viewAnalysisModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content" style="border-radius: 20px;">
+            <div class="modal-header" style="background: var(--secondary-green); border-radius: 20px 20px 0 0;">
+                <h5 class="modal-title">
+                    <i class="fas fa-search-plus me-2" style="color: var(--primary-green);"></i>분석 결과 보기 / 수정
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+
+                <!-- 신뢰도 + 노트 -->
+                <div class="mb-4 d-flex align-items-start gap-3">
+                    <div>
+                        <span class="fw-semibold me-2">AI 분석 신뢰도:</span>
+                        <span id="view-confidenceBadge" class="badge fs-6"></span>
+                    </div>
+                </div>
+
+                <!-- 미리보기 -->
+                <div class="card mb-4" style="border-radius: 12px; background: #f8f9fa;">
+                    <div class="card-body p-3">
+                        <h6 class="mb-2"><i class="fas fa-eye me-2" style="color: var(--primary-green);"></i>크롤링 미리보기</h6>
+                        <div id="view-previewList">
+                            <span class="text-muted small">미리보기 없음</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 셀렉터 필드 -->
+                <h6 class="mb-3" style="color: var(--text-dark);">
+                    <i class="fas fa-code me-2" style="color: var(--primary-green);"></i>AI 분석 셀렉터
+                    <small class="text-muted fw-normal">(수정 후 저장 가능)</small>
+                </h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Base URL</label>
+                        <input type="text" id="view-baseUrl" class="form-control font-monospace" placeholder="https://blog.example.com">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Article 셀렉터</label>
+                        <input type="text" id="view-article" class="form-control font-monospace" placeholder="li.post-item">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Title 셀렉터</label>
+                        <input type="text" id="view-title" class="form-control font-monospace" placeholder="h2.title">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Link 셀렉터</label>
+                        <input type="text" id="view-link" class="form-control font-monospace" placeholder="a.post-link">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Thumbnail 셀렉터</label>
+                        <input type="text" id="view-thumbnail" class="form-control font-monospace" placeholder="img.thumb">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Publish 셀렉터</label>
+                        <input type="text" id="view-publish" class="form-control font-monospace" placeholder="time.date">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">날짜 포맷</label>
+                        <input type="text" id="view-publishFormat" class="form-control font-monospace" placeholder="yyyy-MM-dd">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Publish 타입</label>
+                        <select id="view-publishType" class="form-select">
+                            <option value="OUTER">OUTER (목록에서 추출)</option>
+                            <option value="INNER">INNER (개별 글 페이지)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label fw-semibold">Inner Publish 셀렉터</label>
+                        <input type="text" id="view-innerPublishSelector" class="form-control font-monospace"
+                               placeholder="INNER 타입일 때만 사용">
+                    </div>
+                </div>
+
+                <h6 class="mb-3" style="color: var(--text-dark);">
+                    <i class="fas fa-file-alt me-2" style="color: var(--primary-green);"></i>페이지네이션
+                </h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">페이지네이션 타입</label>
+                        <select id="view-paginationType" class="form-select">
+                            <option value="NONE">NONE</option>
+                            <option value="URL_PARAMETER">URL_PARAMETER</option>
+                            <option value="NEXT_BUTTON">NEXT_BUTTON</option>
+                            <option value="INFINITE_SCROLL">INFINITE_SCROLL</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">URL 패턴</label>
+                        <input type="text" id="view-pageUrlPattern" class="form-control font-monospace"
+                               placeholder="?page={page}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">다음 버튼 셀렉터</label>
+                        <input type="text" id="view-nextPageSelector" class="form-control font-monospace"
+                               placeholder="a.next-page">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">최대 페이지</label>
+                        <input type="number" id="view-maxPages" class="form-control" placeholder="∞">
+                    </div>
+                </div>
+
+                <h6 class="mb-3" style="color: var(--text-dark);">
+                    <i class="fas fa-sticky-note me-2" style="color: var(--primary-green);"></i>AI 노트
+                </h6>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <input type="text" id="view-notes" class="form-control" placeholder="AI 분석 노트">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-radius: 0 0 20px 20px;">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+                <button type="button" id="saveAnalysisBtn" class="btn"
+                        style="background: var(--primary-green); color: white; border-radius: 12px;">
+                    <i class="fas fa-save me-1"></i>저장
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script th:inline="javascript">
+let currentQueueId = null;
+let currentViewQueueId = null;
+
+// ─── 대기열 추가 ───
+document.getElementById('addQueueBtn').addEventListener('click', async function() {
+    const btn = this;
+    const blogUrl = document.getElementById('blogUrlInput').value.trim();
+    const companyName = document.getElementById('companyNameInput').value.trim();
+    const errorDiv = document.getElementById('addQueueError');
+
+    if (!blogUrl) {
+        errorDiv.textContent = '블로그 URL을 입력해주세요.';
+        errorDiv.style.display = 'block';
+        return;
+    }
+    errorDiv.style.display = 'none';
+
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>추가 중...';
+
+    const payload = {
+        blogUrl,
+        companyName: companyName || null,
+        homeLink: document.getElementById('homeLinkInput').value.trim() || null,
+        logoUrl: document.getElementById('logoUrlInput').value.trim() || null,
+        crewLink: document.getElementById('crewLinkInput').value.trim() || null,
+        alternateName: document.getElementById('alternateNameInput').value.trim() || null,
+        isDomestic: document.getElementById('isDomesticInput').value,
+        blogType: document.getElementById('blogTypeInput').value
+    };
+
+    try {
+        const res = await fetch('/admin/blog-queue', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            window.location.reload();
+        } else {
+            errorDiv.textContent = data.message || '추가 실패';
+            errorDiv.style.display = 'block';
+        }
+    } catch (err) {
+        errorDiv.textContent = '네트워크 오류: ' + err.message;
+        errorDiv.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+    }
+});
+
+// ─── AI 분석 ───
+document.querySelectorAll('.analyze-btn').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        const id = this.dataset.id;
+        const origHtml = this.innerHTML;
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>분석 중...';
+
+        try {
+            const res = await fetch('/admin/blog-queue/' + id + '/analyze', {method: 'POST'});
+            const data = await res.json();
+            if (res.status === 409) {
+                alert('이미 분석 중이거나 완료된 항목입니다.');
+                window.location.reload();
+                return;
+            }
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('분석 실패: ' + (data.message || '알 수 없는 오류'));
+                window.location.reload();
+            }
+        } catch (err) {
+            alert('네트워크 오류: ' + err.message);
+            this.disabled = false;
+            this.innerHTML = origHtml;
+        }
+    });
+});
+
+// ─── 삭제 ───
+document.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        const id = this.dataset.id;
+        if (!confirm('이 항목을 삭제하시겠습니까?')) return;
+
+        try {
+            const res = await fetch('/admin/blog-queue/' + id, {method: 'DELETE'});
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('row-' + id)?.remove();
+            } else {
+                alert('삭제 실패: ' + data.message);
+            }
+        } catch (err) {
+            alert('네트워크 오류: ' + err.message);
+        }
+    });
+});
+
+// ─── 등록 모달 열기 ───
+document.querySelectorAll('.btn-success[data-analysis]').forEach(btn => {
+    btn.addEventListener('click', function() {
+        openRegistrationModal(this.dataset);
+    });
+});
+
+function openRegistrationModal(ds) {
+    currentQueueId = ds.id;
+
+    let result = {};
+    try { result = JSON.parse(ds.analysis || '{}'); } catch(e) {}
+
+    // 신뢰도
+    const confidenceEl = document.getElementById('confidenceBadge');
+    const conf = result.confidence || 'LOW';
+    confidenceEl.textContent = conf === 'HIGH' ? '높음 (HIGH)' : conf === 'MEDIUM' ? '보통 (MEDIUM)' : '낮음 (LOW)';
+    confidenceEl.className = 'badge fs-6 ' + (conf === 'HIGH' ? 'bg-success' : conf === 'MEDIUM' ? 'bg-warning text-dark' : 'bg-danger');
+
+    // AI 노트
+    const notesSection = document.getElementById('notesSection');
+    if (result.notes) {
+        document.getElementById('notesText').textContent = result.notes;
+        notesSection.style.display = 'block';
+    } else {
+        notesSection.style.display = 'none';
+    }
+
+    // 미리보기
+    const previewList = document.getElementById('previewList');
+    if (result.previewArticles && result.previewArticles.length > 0) {
+        previewList.innerHTML = result.previewArticles.map(p => renderPreviewItem(p)).join('');
+    } else {
+        previewList.innerHTML = '<span class="text-muted small"><i class="fas fa-exclamation-circle me-1"></i>미리보기 없음 — 셀렉터를 수동으로 확인해주세요</span>';
+    }
+
+    // 기업 기본 정보 (대기열 입력값으로 pre-fill)
+    setValue('reg-name', ds.name || '');
+    setValue('reg-alternateName', ds.alternatename || '');
+    setValue('reg-blogLink', ds.url || '');
+    setValue('reg-homeLink', ds.homelink || '');
+    setValue('reg-logoUrl', ds.logourl || '');
+    setValue('reg-crewLink', ds.crewlink || '');
+    setSelectValue('reg-isDomestic', ds.isdomestic || '1');
+    setSelectValue('reg-blogType', ds.blogtype || 'DEFAULT');
+
+    // 셀렉터 필드
+    setValue('reg-baseUrl', result.baseUrl);
+    setValue('reg-article', result.article);
+    setValue('reg-title', result.title);
+    setValue('reg-link', result.link);
+    setValue('reg-thumbnail', result.thumbnail);
+    setValue('reg-publish', result.publish);
+    setValue('reg-publishFormat', result.publishFormat || 'yyyy-MM-dd');
+    setSelectValue('reg-publishType', result.publishType || 'OUTER');
+    setValue('reg-innerPublishSelector', result.innerPublishSelector);
+    setSelectValue('reg-paginationType', result.paginationType || 'NONE');
+    setValue('reg-pageUrlPattern', result.pageUrlPattern);
+    setValue('reg-nextPageSelector', result.nextPageSelector);
+    setValue('reg-maxPages', result.maxPages || '');
+
+    new bootstrap.Modal(document.getElementById('registrationModal')).show();
+}
+
+// ─── 기업 등록 제출 ───
+document.getElementById('submitRegisterBtn').addEventListener('click', async function() {
+    const btn = this;
+    const name = document.getElementById('reg-name').value.trim();
+    if (!name) { alert('기업명을 입력해주세요.'); return; }
+
+    const dto = {
+        name,
+        alternateName: getVal('reg-alternateName') || null,
+        isDomestic: parseInt(document.getElementById('reg-isDomestic').value),
+        blogType: getVal('reg-blogType'),
+        homeLink: getVal('reg-homeLink') || null,
+        blogLink: getVal('reg-blogLink') || null,
+        crewLink: getVal('reg-crewLink') || null,
+        logoUrl: getVal('reg-logoUrl') || null,
+        baseUrl: getVal('reg-baseUrl') || null,
+        article: getVal('reg-article') || null,
+        title: getVal('reg-title') || null,
+        link: getVal('reg-link') || null,
+        thumbnail: getVal('reg-thumbnail') || null,
+        publish: getVal('reg-publish') || null,
+        publishFormat: getVal('reg-publishFormat') || null,
+        publishType: getVal('reg-publishType') || 'OUTER',
+        innerPublishSelector: getVal('reg-innerPublishSelector') || null,
+        paginationType: getVal('reg-paginationType') || 'NONE',
+        pageUrlPattern: getVal('reg-pageUrlPattern') || null,
+        nextPageSelector: getVal('reg-nextPageSelector') || null,
+        maxPages: getVal('reg-maxPages') ? parseInt(getVal('reg-maxPages')) : null,
+        industryIds: []
+    };
+
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>등록 중...';
+
+    try {
+        const res = await fetch('/admin/blog-queue/' + currentQueueId + '/register', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(dto)
+        });
+        const data = await res.json();
+        if (data.success) {
+            window.location.href = data.redirectUrl;
+        } else {
+            alert('등록 실패: ' + (data.message || '알 수 없는 오류'));
+        }
+    } catch (err) {
+        alert('네트워크 오류: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+    }
+});
+
+// ─── 결과 보기/수정 모달 ───
+document.querySelectorAll('.btn-view-analysis').forEach(btn => {
+    btn.addEventListener('click', function() {
+        openViewAnalysisModal(this.dataset.id, this.dataset.analysis);
+    });
+});
+
+function openViewAnalysisModal(id, analysisJson) {
+    currentViewQueueId = id;
+
+    let result = {};
+    try { result = JSON.parse(analysisJson || '{}'); } catch(e) {}
+
+    // 신뢰도
+    const conf = result.confidence || 'LOW';
+    const confEl = document.getElementById('view-confidenceBadge');
+    confEl.textContent = conf === 'HIGH' ? '높음 (HIGH)' : conf === 'MEDIUM' ? '보통 (MEDIUM)' : '낮음 (LOW)';
+    confEl.className = 'badge fs-6 ' + (conf === 'HIGH' ? 'bg-success' : conf === 'MEDIUM' ? 'bg-warning text-dark' : 'bg-danger');
+
+    // 미리보기
+    const previewList = document.getElementById('view-previewList');
+    if (result.previewArticles && result.previewArticles.length > 0) {
+        previewList.innerHTML = result.previewArticles.map(p => renderPreviewItem(p)).join('');
+    } else {
+        previewList.innerHTML = '<span class="text-muted small"><i class="fas fa-exclamation-circle me-1"></i>미리보기 없음</span>';
+    }
+
+    // 셀렉터 필드
+    setViewValue('view-baseUrl', result.baseUrl);
+    setViewValue('view-article', result.article);
+    setViewValue('view-title', result.title);
+    setViewValue('view-link', result.link);
+    setViewValue('view-thumbnail', result.thumbnail);
+    setViewValue('view-publish', result.publish);
+    setViewValue('view-publishFormat', result.publishFormat);
+    setViewSelectValue('view-publishType', result.publishType || 'OUTER');
+    setViewValue('view-innerPublishSelector', result.innerPublishSelector);
+    setViewSelectValue('view-paginationType', result.paginationType || 'NONE');
+    setViewValue('view-pageUrlPattern', result.pageUrlPattern);
+    setViewValue('view-nextPageSelector', result.nextPageSelector);
+    setViewValue('view-maxPages', result.maxPages || '');
+    setViewValue('view-notes', result.notes);
+
+    new bootstrap.Modal(document.getElementById('viewAnalysisModal')).show();
+}
+
+// ─── 분석결과 저장 ───
+document.getElementById('saveAnalysisBtn').addEventListener('click', async function() {
+    const btn = this;
+    const dto = {
+        baseUrl: getViewVal('view-baseUrl') || null,
+        article: getViewVal('view-article') || null,
+        title: getViewVal('view-title') || null,
+        link: getViewVal('view-link') || null,
+        thumbnail: getViewVal('view-thumbnail') || null,
+        publish: getViewVal('view-publish') || null,
+        publishFormat: getViewVal('view-publishFormat') || null,
+        publishType: getViewVal('view-publishType') || 'OUTER',
+        innerPublishSelector: getViewVal('view-innerPublishSelector') || null,
+        paginationType: getViewVal('view-paginationType') || 'NONE',
+        pageUrlPattern: getViewVal('view-pageUrlPattern') || null,
+        nextPageSelector: getViewVal('view-nextPageSelector') || null,
+        maxPages: getViewVal('view-maxPages') ? parseInt(getViewVal('view-maxPages')) : null,
+        notes: getViewVal('view-notes') || null
+    };
+
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>저장 중...';
+
+    try {
+        const res = await fetch('/admin/blog-queue/' + currentViewQueueId + '/analysis', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(dto)
+        });
+        const data = await res.json();
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('viewAnalysisModal')).hide();
+            window.location.reload();
+        } else {
+            alert('저장 실패: ' + (data.message || '알 수 없는 오류'));
+        }
+    } catch (err) {
+        alert('네트워크 오류: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+    }
+});
+
+// ─── 유틸 (view modal) ───
+function setViewValue(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.value = val || '';
+}
+function setViewSelectValue(id, val) {
+    const el = document.getElementById(id);
+    if (el && val) el.value = val;
+}
+function getViewVal(id) {
+    const el = document.getElementById(id);
+    return el ? el.value.trim() : '';
+}
+
+// ─── 미리보기 카드 렌더 ───
+function renderPreviewItem(p) {
+    const thumb = p.thumbnail
+        ? `<img src="${escapeHtml(p.thumbnail)}" alt="" loading="lazy"
+               style="width:72px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;"
+               onerror="this.style.display='none'">`
+        : `<div style="width:72px;height:48px;border-radius:6px;background:#e9ecef;flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+               <i class="fas fa-image text-muted small"></i>
+           </div>`;
+    const date = p.publishDate
+        ? `<div class="text-muted mt-1" style="font-size:0.72rem;"><i class="fas fa-calendar-alt me-1"></i>${escapeHtml(p.publishDate)}</div>`
+        : '';
+    return `<div class="d-flex gap-2 align-items-center mb-2 p-2" style="border-radius:8px;background:#fff;border:1px solid #e9ecef;">
+        ${thumb}
+        <div class="flex-grow-1 overflow-hidden">
+            <a href="${escapeHtml(p.link)}" target="_blank" class="text-decoration-none small fw-semibold text-dark"
+               style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
+                <i class="fas fa-external-link-alt me-1 text-muted" style="font-size:0.65rem;"></i>${escapeHtml(p.title)}
+            </a>
+            ${date}
+        </div>
+    </div>`;
+}
+
+// ─── 유틸 ───
+function setValue(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.value = val || '';
+}
+function setSelectValue(id, val) {
+    const el = document.getElementById(id);
+    if (el && val) el.value = val;
+}
+function getVal(id) {
+    const el = document.getElementById(id);
+    return el ? el.value.trim() : '';
+}
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</section>
+</html>

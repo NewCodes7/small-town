@@ -102,11 +102,24 @@
                             <li><a class="dropdown-item" th:href="@{/admin/corporations}">
                                 <i class="fas fa-building me-2"></i>기업 관리
                             </a></li>
+                            <li><a class="dropdown-item" th:href="@{/admin/blog-queue}">
+                                <i class="fas fa-robot me-2"></i>AI 블로그 등록
+                            </a></li>
                             <li><a class="dropdown-item" th:href="@{/admin/articles}">
                                 <i class="fas fa-newspaper me-2"></i>글 관리
                             </a></li>
                             <li><a class="dropdown-item" th:href="@{/admin/themes}">
                                 <i class="fas fa-bookmark me-2"></i>테마 관리
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" th:href="@{/admin/feedback}">
+                                <i class="fas fa-comment-dots me-2"></i>피드백 관리
+                            </a></li>
+                            <li><a class="dropdown-item" th:href="@{/admin/search/weights}">
+                                <i class="fas fa-sliders-h me-2"></i>검색 가중치
+                            </a></li>
+                            <li><a class="dropdown-item" th:href="@{/admin/search/test}">
+                                <i class="fas fa-flask me-2"></i>검색 테스트
                             </a></li>
                         </ul>
                     </li>
@@ -200,6 +213,10 @@
                         <i class="fas fa-building"></i>
                         <span>기업 관리</span>
                     </a>
+                    <a class="mobile-nav-link mobile-nav-sub-link" th:href="@{/admin/blog-queue}">
+                        <i class="fas fa-robot"></i>
+                        <span>AI 블로그 등록</span>
+                    </a>
                     <a class="mobile-nav-link mobile-nav-sub-link" th:href="@{/admin/articles}">
                         <i class="fas fa-newspaper"></i>
                         <span>글 관리</span>
@@ -207,6 +224,18 @@
                     <a class="mobile-nav-link mobile-nav-sub-link" th:href="@{/admin/themes}">
                         <i class="fas fa-bookmark"></i>
                         <span>테마 관리</span>
+                    </a>
+                    <a class="mobile-nav-link mobile-nav-sub-link" th:href="@{/admin/feedback}">
+                        <i class="fas fa-comment-dots"></i>
+                        <span>피드백 관리</span>
+                    </a>
+                    <a class="mobile-nav-link mobile-nav-sub-link" th:href="@{/admin/search/weights}">
+                        <i class="fas fa-sliders-h"></i>
+                        <span>검색 가중치</span>
+                    </a>
+                    <a class="mobile-nav-link mobile-nav-sub-link" th:href="@{/admin/search/test}">
+                        <i class="fas fa-flask"></i>
+                        <span>검색 테스트</span>
                     </a>
                 </li>
             </ul>
