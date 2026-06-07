@@ -320,7 +320,7 @@
                             th:alt="${article.title}"
                             width="300"
                             height="155"
-                            onerror="this.parentElement.remove()"
+                            onerror="handleThumbnailError(this)"
                             class="article-thumbnail">
                         <div th:unless="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}" 
                             class="article-thumbnail default-thumbnail">
@@ -425,7 +425,7 @@
                                 th:alt="${firstArticle.title}"
                                 width="300"
                                 height="155"
-                                onerror="this.parentElement.remove()"
+                                onerror="handleThumbnailError(this)"
                                 class="article-thumbnail">
                             <div th:unless="${firstArticle.thumbnailImage != null && !firstArticle.thumbnailImage.isEmpty()}" class="article-thumbnail default-thumbnail">
                                 <div class="default-thumbnail-content">

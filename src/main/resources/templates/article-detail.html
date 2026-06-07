@@ -679,7 +679,7 @@
                          th:alt="${article.translatedTitle != null ? article.translatedTitle : article.title}"
                          width="300"
                          height="155"
-                         onerror="this.parentElement.remove()"
+                         onerror="handleThumbnailError(this)"
                          class="article-thumbnail">
                     <div th:unless="${article.thumbnailImage != null}"
                          class="article-thumbnail default-thumbnail">
