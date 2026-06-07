@@ -3,12 +3,14 @@ package com.newcodes7.small_town.auth.service;
 import com.newcodes7.small_town.auth.entity.User;
 import com.newcodes7.small_town.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CustomUserDetailsService implements UserDetailsService {
@@ -18,7 +20,7 @@ public class CustomUserDetailsService implements UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        System.out.println("Loading user by username: " + username);
+        log.debug("Loading user by username: {}", username);
 
         User user = null;
 
@@ -52,14 +54,13 @@ public class CustomUserDetailsService implements UserDetailsService {
         }
 
         if (user == null) {
-            System.err.println("User not found with username: " + username);
+            log.warn("User not found with username: {}", username);
             throw new UsernameNotFoundException("User not found with username: " + username);
         }
 
-        System.out.println("Found user: ID=" + user.getId() + ", email=" + user.getEmail() +
-                          ", oauthUsername=" + user.getOauthUsername() +
-                          ", status: " + user.getStatus() +
-                          ", role: " + (user.getRole() != null ? user.getRole().getName() : "null"));
+        log.debug("Found user: ID={}, email={}, status={}, role={}",
+                user.getId(), user.getEmail(), user.getStatus(),
+                user.getRole() != null ? user.getRole().getName() : "null");
 
         return user;
     }
