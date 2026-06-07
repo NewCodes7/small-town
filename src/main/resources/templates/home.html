@@ -1453,8 +1453,28 @@
                 </div>
             </div>
         </div>
+
+    <!-- Prompt Preview Modal (Admin Only) -->
+    <div th:if="${#authorization.expression('hasRole(''ADMIN'')')}"
+         id="promptPreviewModal" class="prompt-modal-overlay" style="display:none;" onclick="if(event.target===this)closePromptModal()">
+        <div class="prompt-modal-box">
+            <div class="prompt-modal-header">
+                <span>Gemini 프롬프트 미리보기</span>
+                <button class="prompt-modal-close" onclick="closePromptModal()">&times;</button>
+            </div>
+            <div id="promptModalMeta" class="prompt-modal-meta"></div>
+            <div class="prompt-modal-section">
+                <div class="prompt-modal-label">System Prompt</div>
+                <pre id="promptModalSystem" class="prompt-pre"></pre>
+            </div>
+            <div class="prompt-modal-section">
+                <div class="prompt-modal-label">User Message</div>
+                <pre id="promptModalUser" class="prompt-pre"></pre>
+            </div>
+        </div>
     </div>
-    
+    </div>
+
     <div layout:fragment="scripts">
         <script th:src="@{/js/articleManager.js(v='1.0.1')}"></script>
         <script th:src="@{/js/home.js}"></script>
@@ -1636,24 +1656,5 @@
         </script>
     </div>
 
-    <!-- Prompt Preview Modal (Admin Only) -->
-    <div th:if="${#authorization.expression('hasRole(''ADMIN'')')}"
-         id="promptPreviewModal" class="prompt-modal-overlay" style="display:none;" onclick="if(event.target===this)closePromptModal()">
-        <div class="prompt-modal-box">
-            <div class="prompt-modal-header">
-                <span>Gemini 프롬프트 미리보기</span>
-                <button class="prompt-modal-close" onclick="closePromptModal()">&times;</button>
-            </div>
-            <div id="promptModalMeta" class="prompt-modal-meta"></div>
-            <div class="prompt-modal-section">
-                <div class="prompt-modal-label">System Prompt</div>
-                <pre id="promptModalSystem" class="prompt-pre"></pre>
-            </div>
-            <div class="prompt-modal-section">
-                <div class="prompt-modal-label">User Message</div>
-                <pre id="promptModalUser" class="prompt-pre"></pre>
-            </div>
-        </div>
-    </div>
 </body>
 </html>
