@@ -6,8 +6,41 @@ class AiSummaryManager {
         this.bubblesEl = document.getElementById('aiSummaryBubbles');
         this.errorEl = document.getElementById('aiSummaryError');
         this.relatedQueriesEl = document.getElementById('aiSummaryRelatedQueries');
+        this.promptBtn = document.getElementById('promptPreviewBtn');
         this.fullText = '';
+        this.currentKeyword = null;
         this.loadRecommendedQueries();
+        this._initPromptBtn();
+    }
+
+    _initPromptBtn() {
+        if (!this.promptBtn) return;
+        this.promptBtn.addEventListener('click', () => this._showPromptPreview());
+    }
+
+    async _showPromptPreview() {
+        if (!this.currentKeyword) return;
+        const modal = document.getElementById('promptPreviewModal');
+        const metaEl = document.getElementById('promptModalMeta');
+        const sysEl = document.getElementById('promptModalSystem');
+        const userEl = document.getElementById('promptModalUser');
+        if (!modal || !sysEl || !userEl) return;
+
+        metaEl.textContent = '불러오는 중...';
+        sysEl.textContent = '';
+        userEl.textContent = '';
+        modal.style.display = 'flex';
+
+        try {
+            const res = await fetch('/api/search/ai-summary-prompt?q=' + encodeURIComponent(this.currentKeyword));
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+            metaEl.textContent = `아티클 ${data.articleCount}개 · 청크 ${data.chunkCount}개 선택됨 · 검색어: "${this.currentKeyword}"`;
+            sysEl.textContent = data.systemPrompt;
+            userEl.textContent = data.userMessage;
+        } catch (e) {
+            metaEl.textContent = '프롬프트를 불러오지 못했습니다.';
+        }
     }
 
     async loadRecommendedQueries() {
@@ -40,6 +73,7 @@ class AiSummaryManager {
 
     start(keyword) {
         if (!keyword || !this.card) return;
+        this.currentKeyword = keyword;
         this.reset();
         this.card.style.display = 'block';
         this.loadingEl.style.display = 'flex';
@@ -64,6 +98,7 @@ class AiSummaryManager {
                 const bubbles = this._parseBubbles(this.fullText, sources);
                 if (bubbles.length > 0) {
                     this._renderBubbles(bubbles);
+                    if (this.promptBtn) this.promptBtn.style.display = 'inline-block';
                 }
                 this._renderRelatedQueries(queries);
             } catch (_) {}
@@ -107,6 +142,7 @@ class AiSummaryManager {
         if (this.errorEl) { this.errorEl.textContent = ''; this.errorEl.style.display = 'none'; }
         if (this.relatedQueriesEl) { this.relatedQueriesEl.innerHTML = ''; this.relatedQueriesEl.style.display = 'none'; }
         if (this.loadingEl) this.loadingEl.style.display = 'none';
+        if (this.promptBtn) this.promptBtn.style.display = 'none';
     }
 
     _close() {
@@ -268,3 +304,8 @@ document.addEventListener('DOMContentLoaded', () => {
         window.aiSummaryManager = new AiSummaryManager();
     }
 });
+
+function closePromptModal() {
+    const modal = document.getElementById('promptPreviewModal');
+    if (modal) modal.style.display = 'none';
+}

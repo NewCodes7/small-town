@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.newcodes7.small_town.search.dto.AiSummaryCacheDto;
 import com.newcodes7.small_town.search.dto.AiSummaryChunkDto;
 import com.newcodes7.small_town.search.dto.AiSummaryDoneDto;
+import com.newcodes7.small_town.search.dto.AiSummaryPromptDto;
 import com.newcodes7.small_town.search.dto.AiSummarySourceDto;
 
 import io.micrometer.core.instrument.Counter;
@@ -246,6 +247,19 @@ public class AiSummaryService {
             completeEmitter(emitter);
             failureCounter.increment();
         }
+    }
+
+    public AiSummaryPromptDto buildPromptPreview(String query) {
+        String normalizedQuery = query.toLowerCase().trim();
+        List<Long> topArticleIds = articleSearchService.getTopArticleIdsByHybrid(normalizedQuery, TOP_ARTICLES);
+        List<AiSummaryChunkDto> chunks = vectorSearchService.getChunksForArticlesByIds(normalizedQuery, topArticleIds);
+
+        List<AiSummaryChunkDto> orderedChunks = chunks.stream()
+                .sorted(Comparator.comparingInt(c -> topArticleIds.indexOf(c.articleId())))
+                .collect(Collectors.toList());
+
+        String userMessage = "검색어: " + query + "\n\n" + buildContext(orderedChunks);
+        return new AiSummaryPromptDto(SYSTEM_PROMPT, userMessage, topArticleIds.size(), chunks.size());
     }
 
     public List<String> getRecommendedQueries() {
