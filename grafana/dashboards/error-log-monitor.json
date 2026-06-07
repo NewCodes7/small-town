@@ -1,0 +1,496 @@
+{
+  "__requires": [
+    { "type": "datasource", "id": "loki",       "name": "Loki",       "version": "1.0.0" },
+    { "type": "panel",      "id": "logs",        "name": "Logs",       "version": "" },
+    { "type": "panel",      "id": "stat",        "name": "Stat",       "version": "" },
+    { "type": "panel",      "id": "timeseries",  "name": "Time series","version": "" },
+    { "type": "panel",      "id": "bargauge",    "name": "Bar gauge",  "version": "" }
+  ],
+
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+
+  "description": "운영 환경 ERROR 레벨 로그 모니터링 — small-town 앱 + 크롤러 (Loki)",
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "refresh": "1m",
+  "schemaVersion": 30,
+  "style": "dark",
+  "tags": ["loki", "error", "small-town"],
+
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": true, "text": "All", "value": "$__all" },
+        "datasource": { "type": "loki", "uid": "loki" },
+        "definition": "label_values({level=\"error\"}, instance)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Instance",
+        "multi": false,
+        "name": "instance",
+        "options": [],
+        "query": "label_values({level=\"error\"}, instance)",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": { "selected": true, "text": "All", "value": "$__all" },
+        "datasource": { "type": "loki", "uid": "loki" },
+        "definition": "label_values({level=\"error\"}, job)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Job",
+        "multi": false,
+        "name": "job",
+        "options": [],
+        "query": "label_values({level=\"error\"}, job)",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "Asia/Seoul",
+  "title": "Small Town — Error Log Monitor",
+  "uid": "small-town-error-logs",
+  "version": 1,
+
+  "panels": [
+
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "전체 에러 건수",
+      "description": "선택된 기간 내 전체 ERROR 로그 합계",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "text": {},
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red",    "value": 50 }
+            ]
+          },
+          "unit": "short",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "pluginVersion": "8.3.3",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({level=\"error\", job=~\"$job\", instance=~\"$instance\"}[$__range]))",
+          "hide": false,
+          "instant": true,
+          "range": false,
+          "legendFormat": "총 에러",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "앱 에러 건수",
+      "description": "small-town 애플리케이션 ERROR 로그 합계",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "text": {},
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red",    "value": 30 }
+            ]
+          },
+          "unit": "short",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "pluginVersion": "8.3.3",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({level=\"error\", job=\"small-town\", instance=~\"$instance\"}[$__range]))",
+          "hide": false,
+          "instant": true,
+          "range": false,
+          "legendFormat": "앱 에러",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "크롤러 에러 건수",
+      "description": "크롤러 ERROR 로그 합계",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "text": {},
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 3 },
+              { "color": "red",    "value": 20 }
+            ]
+          },
+          "unit": "short",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "pluginVersion": "8.3.3",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({level=\"error\", job=\"crawler\", instance=~\"$instance\"}[$__range]))",
+          "hide": false,
+          "instant": true,
+          "range": false,
+          "legendFormat": "크롤러 에러",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "최근 1시간 에러",
+      "description": "대시보드 시간 범위와 무관하게 지난 1시간 기준",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "timeFrom": "1h",
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "text": {},
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 3 },
+              { "color": "red",    "value": 10 }
+            ]
+          },
+          "unit": "short",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "pluginVersion": "8.3.3",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({level=\"error\", job=~\"$job\", instance=~\"$instance\"}[1h]))",
+          "hide": false,
+          "instant": true,
+          "range": false,
+          "legendFormat": "1h 에러",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "에러 발생 추이 (job별, 5분 단위)",
+      "description": "rate() × 300 = 5분 누적 건수로 환산하여 표시",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "legend": {
+          "calcs": ["sum", "max", "mean"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": { "mode": "multi" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "에러 건수 / 5분",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "normal" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "unit": "short",
+          "min": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red",   "value": 80 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "pluginVersion": "8.3.3",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by (job) (rate({level=\"error\", job=~\"$job\", instance=~\"$instance\"}[5m])) * 300",
+          "hide": false,
+          "instant": false,
+          "range": true,
+          "legendFormat": "{{job}}",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by (instance) (rate({level=\"error\", job=~\"$job\", instance=~\"$instance\"}[5m])) * 300",
+          "hide": true,
+          "instant": false,
+          "range": true,
+          "legendFormat": "{{instance}}",
+          "refId": "B"
+        }
+      ]
+    },
+
+    {
+      "id": 6,
+      "type": "logs",
+      "title": "앱 에러 로그 스트림 (small-town)",
+      "description": "small-town-error.log 실시간 스트림. 최신 순 정렬.",
+      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      },
+      "pluginVersion": "8.3.3",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{level=\"error\", job=\"small-town\", instance=~\"$instance\"}",
+          "hide": false,
+          "instant": false,
+          "range": true,
+          "legendFormat": "",
+          "refId": "A",
+          "maxLines": 500
+        }
+      ]
+    },
+
+    {
+      "id": 7,
+      "type": "logs",
+      "title": "크롤러 에러 로그 스트림 (crawler)",
+      "description": "crawler-error.log 실시간 스트림. 최신 순 정렬.",
+      "gridPos": { "h": 12, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      },
+      "pluginVersion": "8.3.3",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{level=\"error\", job=\"crawler\", instance=~\"$instance\"}",
+          "hide": false,
+          "instant": false,
+          "range": true,
+          "legendFormat": "",
+          "refId": "A",
+          "maxLines": 500
+        }
+      ]
+    },
+
+    {
+      "id": 8,
+      "type": "bargauge",
+      "title": "에러 다발 클래스 Top 10 (앱)",
+      "description": "로그 패턴 `] [thread] <logger> :` 에서 클래스명 추출. 기간 내 에러 건수 기준.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "text": {}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red",    "value": 20 }
+            ]
+          },
+          "unit": "short",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "pluginVersion": "8.3.3",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "topk(10, sum by (logger) (count_over_time({level=\"error\", job=\"small-town\", instance=~\"$instance\"} | regexp `\\] \\[(?P<thread>[^\\]]+)\\] (?P<logger>\\S+)\\s+:` [$__range])))",
+          "hide": false,
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{logger}}",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 9,
+      "type": "bargauge",
+      "title": "인스턴스 / Job별 에러 분포",
+      "description": "Blue vs Green, App vs Crawler 에러 건수 비교",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "text": {}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red",   "value": 50 }
+            ]
+          },
+          "unit": "short",
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "pluginVersion": "8.3.3",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by (instance, job) (count_over_time({level=\"error\", job=~\"$job\", instance=~\"$instance\"}[$__range]))",
+          "hide": false,
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{instance}} / {{job}}",
+          "refId": "A"
+        }
+      ]
+    }
+
+  ]
+}
