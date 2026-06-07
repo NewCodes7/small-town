@@ -1078,7 +1078,6 @@ public class ArticleController {
         model.addAttribute("popularArticles", popularArticles);
         model.addAttribute("hackerNewsItems", hackerNewsItems);
         model.addAttribute("suggestedKeywords", suggestedSearchTermService.getActiveKeywords());
-        model.addAttribute("isAdmin", userDetails != null && isAdmin(userDetails));
 
         model.addAttribute("canonicalUrl", baseUrl + "/");
         return "new-home";

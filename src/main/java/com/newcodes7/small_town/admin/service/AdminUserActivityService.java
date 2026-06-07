@@ -38,9 +38,9 @@ public class AdminUserActivityService {
     public Page<User> getUsers(String search, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         if (search != null && !search.isBlank()) {
-            return userRepository.findByEmailOrNicknameContaining(search, pageable);
+            return userRepository.findByEmailOrNicknameContainingOrderByLastActivityDesc(search, pageable);
         }
-        return userRepository.findAll(pageable);
+        return userRepository.findAllOrderByLastActivityDesc(pageable);
     }
 
     public User getUser(Long userId) {

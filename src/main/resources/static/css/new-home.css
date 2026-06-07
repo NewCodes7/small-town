@@ -132,18 +132,25 @@
             box-shadow: 0 4px 10px rgba(34, 197, 94, 0.25);
         }
 
+        /* 관리자 추천 검색어 편집 버튼 행 */
+        .suggested-keywords-admin-row {
+            display: flex;
+            justify-content: center;
+            margin-top: 8px;
+        }
+
         /* 관리자 추천 검색어 편집 버튼 */
         .keyword-edit-btn {
             background: transparent;
             border: 1.5px solid #d1fae5;
             color: #1a7a4a;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
+            border-radius: 50px;
+            padding: 4px 12px;
             font-size: 0.75rem;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
+            gap: 5px;
             justify-content: center;
             transition: all 0.2s ease;
         }

@@ -32,6 +32,45 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT u FROM User u WHERE u.email LIKE %:search% OR u.nickname LIKE %:search%")
     Page<User> findByEmailOrNicknameContaining(@Param("search") String search, Pageable pageable);
 
+    @Query(value = """
+            SELECT u.* FROM users u
+            LEFT JOIN (
+                SELECT user_id, MAX(created_at) AS last_activity
+                FROM (
+                    SELECT user_id, created_at FROM view_log WHERE user_id IS NOT NULL
+                    UNION ALL
+                    SELECT user_id, created_at FROM video_view_log WHERE user_id IS NOT NULL
+                    UNION ALL
+                    SELECT user_id, created_at FROM search_logs WHERE user_id IS NOT NULL
+                ) all_activities
+                GROUP BY user_id
+            ) la ON la.user_id = u.id
+            ORDER BY la.last_activity DESC NULLS LAST
+            """,
+            countQuery = "SELECT COUNT(*) FROM users",
+            nativeQuery = true)
+    Page<User> findAllOrderByLastActivityDesc(Pageable pageable);
+
+    @Query(value = """
+            SELECT u.* FROM users u
+            LEFT JOIN (
+                SELECT user_id, MAX(created_at) AS last_activity
+                FROM (
+                    SELECT user_id, created_at FROM view_log WHERE user_id IS NOT NULL
+                    UNION ALL
+                    SELECT user_id, created_at FROM video_view_log WHERE user_id IS NOT NULL
+                    UNION ALL
+                    SELECT user_id, created_at FROM search_logs WHERE user_id IS NOT NULL
+                ) all_activities
+                GROUP BY user_id
+            ) la ON la.user_id = u.id
+            WHERE u.email LIKE %:search% OR u.nickname LIKE %:search%
+            ORDER BY la.last_activity DESC NULLS LAST
+            """,
+            countQuery = "SELECT COUNT(*) FROM users u WHERE u.email LIKE %:search% OR u.nickname LIKE %:search%",
+            nativeQuery = true)
+    Page<User> findByEmailOrNicknameContainingOrderByLastActivityDesc(@Param("search") String search, Pageable pageable);
+
     // OAuth provider ID 기반 조회
     @Query("SELECT u FROM User u JOIN FETCH u.role LEFT JOIN FETCH u.provider WHERE u.provider = :provider AND u.oauthProviderId = :oauthProviderId")
     Optional<User> findByProviderAndOauthProviderId(@Param("provider") Provider provider, @Param("oauthProviderId") String oauthProviderId);

@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ko"
         xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+        xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
       layout:decorate="~{layout/base}">
 <head>
     <title>기술 블로그 모음 - NewCodes | 국내외 IT 기업 블로그 한곳에서</title>
@@ -83,15 +84,17 @@
                 <!-- 추천 검색어 -->
                 <div class="suggested-keywords">
                     <span class="suggested-keywords-label">추천 검색어</span>
-                    <button th:if="${isAdmin}" type="button" class="keyword-edit-btn" id="openKeywordModal" title="추천 검색어 편집">
-                        <i class="fas fa-pencil-alt"></i>
-                    </button>
                     <button th:each="kw : ${suggestedKeywords}" type="button" class="keyword-chip"
                             th:onclick="|searchKeyword('${kw}')|" th:text="${kw}"></button>
                 </div>
+                <div sec:authorize="hasRole('ADMIN')" class="suggested-keywords-admin-row">
+                    <button type="button" class="keyword-edit-btn" id="openKeywordModal" title="추천 검색어 편집">
+                        <i class="fas fa-pencil-alt"></i> 추천 검색어 편집
+                    </button>
+                </div>
 
                 <!-- 관리자 전용: 추천 검색어 편집 모달 -->
-                <div th:if="${isAdmin}" id="keywordEditModal" class="keyword-modal-overlay" style="display:none">
+                <div sec:authorize="hasRole('ADMIN')" id="keywordEditModal" class="keyword-modal-overlay" style="display:none">
                     <div class="keyword-modal">
                         <div class="keyword-modal-header">
                             <h3>추천 검색어 편집</h3>
