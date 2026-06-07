@@ -64,6 +64,16 @@
         "regex": "",
         "sort": 1,
         "type": "query"
+      },
+      {
+        "current": { "selected": false, "text": "", "value": "" },
+        "hide": 0,
+        "label": "로그 검색",
+        "name": "search",
+        "options": [{ "selected": true, "text": "", "value": "" }],
+        "query": "",
+        "skipUrlSync": false,
+        "type": "textbox"
       }
     ]
   },
@@ -488,6 +498,38 @@
           "range": false,
           "legendFormat": "{{instance}} / {{job}}",
           "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 10,
+      "type": "logs",
+      "title": "로그 검색 결과",
+      "description": "상단 '로그 검색' 입력창에 키워드를 입력하면 해당 텍스트가 포함된 에러 로그만 표시됩니다. 비워두면 전체 에러 로그를 표시합니다. (대소문자 구분 없음)",
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 32 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "pluginVersion": "8.3.3",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{level=\"error\", job=~\"$job\", instance=~\"$instance\"} |~ \"(?i)$search\"",
+          "hide": false,
+          "instant": false,
+          "range": true,
+          "legendFormat": "",
+          "refId": "A",
+          "maxLines": 1000
         }
       ]
     }
