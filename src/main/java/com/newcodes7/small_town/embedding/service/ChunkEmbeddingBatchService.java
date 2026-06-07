@@ -222,10 +222,10 @@ public class ChunkEmbeddingBatchService {
             return chunks;
         }
 
-        // 한국어 비율에 따라 청크 크기 결정
-        boolean isKorean = isKoreanDominant(text);
-        int chunkSize = isKorean ? CHUNK_SIZE_TOKENS_KO : CHUNK_SIZE_TOKENS;
-        int overlapSize = isKorean ? CHUNK_OVERLAP_TOKENS_KO : CHUNK_OVERLAP_TOKENS;
+        // CJK(한/일/중) 비율에 따라 청크 크기 결정 (CJK는 토큰 수가 영문 대비 많아 2배 적용)
+        boolean isCJK = isKoreanDominant(text);
+        int chunkSize = isCJK ? CHUNK_SIZE_TOKENS_KO : CHUNK_SIZE_TOKENS;
+        int overlapSize = isCJK ? CHUNK_OVERLAP_TOKENS_KO : CHUNK_OVERLAP_TOKENS;
 
         int totalTokens = ENCODING.encode(text).size();
 
@@ -274,11 +274,11 @@ public class ChunkEmbeddingBatchService {
 
     /**
      * 텍스트를 문장 단위로 분할
-     * 마침표(.), 느낌표(!), 물음표(?) 뒤의 공백을 기준으로 분할
+     * ASCII 및 전각(일본어/중국어) 문장 부호 뒤에서 분할. 공백은 선택적으로 처리.
      */
     private List<String> splitIntoSentences(String text) {
         List<String> sentences = new ArrayList<>();
-        String[] parts = text.split("(?<=[.!?])\\s+");
+        String[] parts = text.split("(?<=[.!?。！？])\\s*");
         for (String part : parts) {
             if (!part.trim().isEmpty()) {
                 sentences.add(part.trim());
@@ -312,7 +312,7 @@ public class ChunkEmbeddingBatchService {
      * 한글 문자 비율이 KOREAN_RATIO_THRESHOLD 이상이면 한국어로 판단
      */
     private boolean isKoreanDominant(String text) {
-        int koreanCount = 0;
+        int cjkCount = 0;
         int totalCount = 0;
 
         for (char c : text.toCharArray()) {
@@ -320,12 +320,14 @@ public class ChunkEmbeddingBatchService {
                 continue;
             }
             totalCount++;
-            if (c >= '\uAC00' && c <= '\uD7A3') {
-                koreanCount++;
+            if ((c >= '\uAC00' && c <= '\uD7A3')   // \uD55C\uAE00 \uC74C\uC808
+             || (c >= '\u3040' && c <= '\u30FF')    // \uD788\uB77C\uAC00\uB098 + \uCE74\uD0C0\uCE74\uB098
+             || (c >= '\u4E00' && c <= '\u9FFF')) { // CJK \uD1B5\uD569 \uD55C\uC790
+                cjkCount++;
             }
         }
 
-        return totalCount > 0 && (double) koreanCount / totalCount >= KOREAN_RATIO_THRESHOLD;
+        return totalCount > 0 && (double) cjkCount / totalCount >= KOREAN_RATIO_THRESHOLD;
     }
 
     /**
