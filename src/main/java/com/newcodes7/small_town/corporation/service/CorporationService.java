@@ -74,6 +74,14 @@ public class CorporationService {
         ParsingSelector parsingSelector = parsingSelectorRepository.findByCorporationIdOrDefault(corporation.getId());
         return CorporationResponseDto.from(corporation, parsingSelector);
     }
+
+    public List<Integer> getCorporationIndustryIds(Long corporationId) {
+        Corporation corporation = corporationRepository.findActiveById(corporationId)
+                .orElseThrow(() -> new CorporationNotFoundException(corporationId));
+        return corporation.getCorporationIndustries().stream()
+                .map(ci -> ci.getIndustry().getId())
+                .toList();
+    }
     
     @Transactional
     public CorporationResponseDto createCorporation(CorporationCreateDto dto) {

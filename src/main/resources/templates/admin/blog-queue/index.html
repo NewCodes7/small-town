@@ -221,14 +221,17 @@
                                             th:attr="data-id=${item.id}">
                                         <i class="fas fa-redo me-1"></i>재분석
                                     </button>
-                                    <!-- REGISTERED: 결과보기 버튼 + 완료 표시 -->
+                                    <!-- REGISTERED: 결과보기 + 기업 수정 버튼 -->
                                     <button th:if="${item.status == 'REGISTERED'}"
                                             class="btn btn-outline-secondary btn-view-analysis"
                                             th:attr="data-id=${item.id}, data-analysis=${item.analysisResultJson}">
                                         <i class="fas fa-eye me-1"></i>결과
                                     </button>
-                                    <span th:if="${item.status == 'REGISTERED'}"
-                                          class="text-muted small">등록됨</span>
+                                    <button th:if="${item.status == 'REGISTERED'}"
+                                            class="btn btn-outline-primary btn-edit-corporation"
+                                            th:attr="data-id=${item.id}">
+                                        <i class="fas fa-edit me-1"></i>기업 수정
+                                    </button>
                                     <!-- 삭제 버튼 (항상) -->
                                     <button th:unless="${item.status == 'ANALYZING'}"
                                             class="btn btn-outline-danger delete-btn"
@@ -556,9 +559,196 @@
     </div>
 </div>
 
+<!-- 기업 정보 수정 모달 -->
+<div class="modal fade" id="editCorporationModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content" style="border-radius: 20px;">
+            <div class="modal-header" style="background: var(--secondary-green); border-radius: 20px 20px 0 0;">
+                <h5 class="modal-title">
+                    <i class="fas fa-building me-2" style="color: var(--primary-green);"></i>기업 정보 수정
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+
+                <!-- 로딩 -->
+                <div id="editCorpLoading" class="text-center py-5">
+                    <div class="spinner-border" style="color: var(--primary-green);"></div>
+                    <p class="mt-2 text-muted">기업 정보를 불러오는 중...</p>
+                </div>
+
+                <!-- 본문 -->
+                <div id="editCorpContent" style="display:none;">
+
+                    <!-- 기본 정보 -->
+                    <h6 class="mb-3" style="color: var(--text-dark);">
+                        <i class="fas fa-info-circle me-2" style="color: var(--primary-green);"></i>기본 정보
+                    </h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">기업명 <span class="text-danger">*</span></label>
+                            <input type="text" id="ec-name" class="form-control" placeholder="기업명">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">대체명</label>
+                            <input type="text" id="ec-alternateName" class="form-control" placeholder="영문명 등">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-semibold">국내/해외</label>
+                            <select id="ec-isDomestic" class="form-select">
+                                <option value="1">국내</option>
+                                <option value="0">해외</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-semibold">블로그 타입</label>
+                            <select id="ec-blogType" class="form-select">
+                                <option value="DEFAULT">DEFAULT</option>
+                                <option value="MEDIUM">MEDIUM</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">홈 URL</label>
+                            <input type="url" id="ec-homeLink" class="form-control" placeholder="https://example.com">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">블로그 URL</label>
+                            <input type="url" id="ec-blogLink" class="form-control" placeholder="https://tech.example.com">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">채용 URL</label>
+                            <input type="url" id="ec-crewLink" class="form-control" placeholder="https://careers.example.com">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">유튜브 URL</label>
+                            <input type="url" id="ec-youtubeUrl" class="form-control" placeholder="https://youtube.com/@example">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">로고 이미지</label>
+                            <div class="input-group mb-1">
+                                <span class="input-group-text" style="background: var(--secondary-green); color: var(--primary-green-dark);">
+                                    <i class="fas fa-upload"></i>
+                                </span>
+                                <input type="file" id="ec-logoFile" class="form-control" accept="image/jpeg,image/png,image/gif">
+                            </div>
+                            <input type="url" id="ec-logoUrl" class="form-control form-control-sm" placeholder="또는 URL 직접 입력">
+                            <div id="ec-logoUploadStatus" class="small mt-1" style="display:none;"></div>
+                        </div>
+                    </div>
+
+                    <!-- 업종 -->
+                    <h6 class="mb-2" style="color: var(--text-dark);">
+                        <i class="fas fa-tags me-2" style="color: var(--primary-green);"></i>업종 (카테고리)
+                    </h6>
+                    <div class="d-flex flex-wrap gap-2 mb-4" id="ecIndustryCheckboxes">
+                        <div th:each="industry : ${industries}"
+                             class="form-check form-check-inline"
+                             style="background: var(--background-light); border: 1px solid var(--border-light); border-radius: 8px; padding: 6px 12px; margin:0;">
+                            <input type="checkbox" class="form-check-input ec-industry-check"
+                                   th:id="'ec-industry-' + ${industry.id}"
+                                   th:value="${industry.id}">
+                            <label class="form-check-label small fw-semibold ms-1"
+                                   th:for="'ec-industry-' + ${industry.id}"
+                                   th:text="${industry.name}"></label>
+                        </div>
+                    </div>
+
+                    <!-- CSS 셀렉터 -->
+                    <h6 class="mb-3" style="color: var(--text-dark);">
+                        <i class="fas fa-code me-2" style="color: var(--primary-green);"></i>CSS 셀렉터
+                    </h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Base URL</label>
+                            <input type="text" id="ec-baseUrl" class="form-control font-monospace" placeholder="https://blog.example.com">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Article 셀렉터</label>
+                            <input type="text" id="ec-article" class="form-control font-monospace" placeholder="li.post-item">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Title 셀렉터</label>
+                            <input type="text" id="ec-title" class="form-control font-monospace" placeholder="h2.title">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Link 셀렉터</label>
+                            <input type="text" id="ec-link" class="form-control font-monospace" placeholder="a.post-link">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Thumbnail 셀렉터</label>
+                            <input type="text" id="ec-thumbnail" class="form-control font-monospace" placeholder="img.thumb">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Publish 셀렉터</label>
+                            <input type="text" id="ec-publish" class="form-control font-monospace" placeholder="time.date">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">날짜 포맷</label>
+                            <input type="text" id="ec-publishFormat" class="form-control font-monospace" placeholder="yyyy-MM-dd">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Publish 타입</label>
+                            <select id="ec-publishType" class="form-select">
+                                <option value="OUTER">OUTER (목록에서 추출)</option>
+                                <option value="INNER">INNER (개별 글 페이지)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold">Inner Publish 셀렉터</label>
+                            <input type="text" id="ec-innerPublishSelector" class="form-control font-monospace"
+                                   placeholder="INNER 타입일 때만 사용">
+                        </div>
+                    </div>
+
+                    <!-- 페이지네이션 -->
+                    <h6 class="mb-3" style="color: var(--text-dark);">
+                        <i class="fas fa-file-alt me-2" style="color: var(--primary-green);"></i>페이지네이션
+                    </h6>
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">페이지네이션 타입</label>
+                            <select id="ec-paginationType" class="form-select">
+                                <option value="NONE">NONE</option>
+                                <option value="URL_PARAMETER">URL_PARAMETER</option>
+                                <option value="NEXT_BUTTON">NEXT_BUTTON</option>
+                                <option value="INFINITE_SCROLL">INFINITE_SCROLL</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">URL 패턴</label>
+                            <input type="text" id="ec-pageUrlPattern" class="form-control font-monospace"
+                                   placeholder="?page={page}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">다음 버튼 셀렉터</label>
+                            <input type="text" id="ec-nextPageSelector" class="form-control font-monospace"
+                                   placeholder="a.next-page">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label fw-semibold">최대 페이지</label>
+                            <input type="number" id="ec-maxPages" class="form-control" placeholder="∞">
+                        </div>
+                    </div>
+
+                </div>
+                <!-- /editCorpContent -->
+
+            </div>
+            <div class="modal-footer" style="border-radius: 0 0 20px 20px;">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" id="saveEditCorpBtn" class="btn"
+                        style="background: var(--primary-green); color: white; border-radius: 12px;" disabled>
+                    <i class="fas fa-save me-1"></i>저장
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script th:inline="javascript">
 let currentQueueId = null;
 let currentViewQueueId = null;
+let currentEditCorpQueueId = null;
 
 // ─── 대기열 추가 ───
 document.getElementById('addQueueBtn').addEventListener('click', async function() {
@@ -664,6 +854,165 @@ document.querySelectorAll('.delete-btn').forEach(btn => {
         }
     });
 });
+
+// ─── 기업 수정 모달 ───
+document.querySelectorAll('.btn-edit-corporation').forEach(btn => {
+    btn.addEventListener('click', function() {
+        openEditCorporationModal(this.dataset.id);
+    });
+});
+
+async function openEditCorporationModal(queueId) {
+    currentEditCorpQueueId = queueId;
+
+    const modal = new bootstrap.Modal(document.getElementById('editCorporationModal'));
+    document.getElementById('editCorpLoading').style.display = 'block';
+    document.getElementById('editCorpContent').style.display = 'none';
+    document.getElementById('saveEditCorpBtn').disabled = true;
+    modal.show();
+
+    try {
+        const res = await fetch('/admin/blog-queue/' + queueId + '/corporation');
+        const data = await res.json();
+        if (!data.success) {
+            alert('기업 정보 조회 실패: ' + (data.message || '알 수 없는 오류'));
+            modal.hide();
+            return;
+        }
+
+        // 기본 정보
+        setEcVal('ec-name', data.name);
+        setEcVal('ec-alternateName', data.alternateName);
+        setEcSel('ec-isDomestic', data.isDomestic != null ? String(data.isDomestic) : '1');
+        setEcSel('ec-blogType', data.blogType || 'DEFAULT');
+        setEcVal('ec-homeLink', data.homeLink);
+        setEcVal('ec-blogLink', data.blogLink);
+        setEcVal('ec-crewLink', data.crewLink);
+        setEcVal('ec-youtubeUrl', data.youtubeUrl);
+        setEcVal('ec-logoUrl', data.logoUrl);
+        document.getElementById('ec-logoFile').value = '';
+        document.getElementById('ec-logoUploadStatus').style.display = 'none';
+
+        // 업종 체크박스
+        document.querySelectorAll('.ec-industry-check').forEach(cb => { cb.checked = false; });
+        (data.industryIds || []).forEach(id => {
+            const cb = document.getElementById('ec-industry-' + id);
+            if (cb) cb.checked = true;
+        });
+
+        // CSS 셀렉터
+        setEcVal('ec-baseUrl', data.baseUrl);
+        setEcVal('ec-article', data.article);
+        setEcVal('ec-title', data.title);
+        setEcVal('ec-link', data.link);
+        setEcVal('ec-thumbnail', data.thumbnail);
+        setEcVal('ec-publish', data.publish);
+        setEcVal('ec-publishFormat', data.publishFormat);
+        setEcSel('ec-publishType', data.publishType || 'OUTER');
+        setEcVal('ec-innerPublishSelector', data.innerPublishSelector);
+        setEcSel('ec-paginationType', data.paginationType || 'NONE');
+        setEcVal('ec-pageUrlPattern', data.pageUrlPattern);
+        setEcVal('ec-nextPageSelector', data.nextPageSelector);
+        setEcVal('ec-maxPages', data.maxPages != null ? String(data.maxPages) : '');
+
+        document.getElementById('editCorpLoading').style.display = 'none';
+        document.getElementById('editCorpContent').style.display = 'block';
+        document.getElementById('saveEditCorpBtn').disabled = false;
+    } catch (err) {
+        alert('네트워크 오류: ' + err.message);
+        bootstrap.Modal.getInstance(document.getElementById('editCorporationModal')).hide();
+    }
+}
+
+document.getElementById('saveEditCorpBtn').addEventListener('click', async function() {
+    const btn = this;
+    const name = getEcVal('ec-name');
+    if (!name) { alert('기업명을 입력해주세요.'); return; }
+
+    const industryIds = Array.from(document.querySelectorAll('.ec-industry-check:checked'))
+        .map(cb => parseInt(cb.value));
+
+    const dto = {
+        name,
+        alternateName: getEcVal('ec-alternateName') || null,
+        isDomestic: parseInt(document.getElementById('ec-isDomestic').value),
+        blogType: getEcVal('ec-blogType'),
+        homeLink: getEcVal('ec-homeLink') || null,
+        blogLink: getEcVal('ec-blogLink') || null,
+        crewLink: getEcVal('ec-crewLink') || null,
+        youtubeUrl: getEcVal('ec-youtubeUrl') || null,
+        logoUrl: getEcVal('ec-logoUrl') || null,
+        baseUrl: getEcVal('ec-baseUrl') || null,
+        article: getEcVal('ec-article') || null,
+        title: getEcVal('ec-title') || null,
+        link: getEcVal('ec-link') || null,
+        thumbnail: getEcVal('ec-thumbnail') || null,
+        publish: getEcVal('ec-publish') || null,
+        publishFormat: getEcVal('ec-publishFormat') || null,
+        publishType: getEcVal('ec-publishType') || 'OUTER',
+        innerPublishSelector: getEcVal('ec-innerPublishSelector') || null,
+        paginationType: getEcVal('ec-paginationType') || 'NONE',
+        pageUrlPattern: getEcVal('ec-pageUrlPattern') || null,
+        nextPageSelector: getEcVal('ec-nextPageSelector') || null,
+        maxPages: getEcVal('ec-maxPages') ? parseInt(getEcVal('ec-maxPages')) : null,
+        industryIds
+    };
+
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>저장 중...';
+
+    try {
+        const res = await fetch('/admin/blog-queue/' + currentEditCorpQueueId + '/corporation', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(dto)
+        });
+        const data = await res.json();
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('editCorporationModal')).hide();
+            // 성공 토스트 표시
+            showToast('기업 정보가 저장되었습니다.');
+        } else {
+            alert('저장 실패: ' + (data.message || '알 수 없는 오류'));
+        }
+    } catch (err) {
+        alert('네트워크 오류: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+    }
+});
+
+// 기업 수정 모달 로고 파일 선택
+document.getElementById('ec-logoFile').addEventListener('change', function() {
+    if (!this.files[0]) return;
+    const companyName = document.getElementById('ec-name').value.trim();
+    uploadLogoFile(this.files[0], companyName,
+        document.getElementById('ec-logoUploadStatus'),
+        document.getElementById('ec-logoUrl'));
+});
+
+function setEcVal(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.value = val || '';
+}
+function setEcSel(id, val) {
+    const el = document.getElementById(id);
+    if (el && val != null) el.value = val;
+}
+function getEcVal(id) {
+    const el = document.getElementById(id);
+    return el ? el.value.trim() : '';
+}
+
+function showToast(message) {
+    const toastEl = document.createElement('div');
+    toastEl.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;background:#198754;color:#fff;padding:12px 20px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-weight:500;';
+    toastEl.textContent = message;
+    document.body.appendChild(toastEl);
+    setTimeout(() => toastEl.remove(), 3000);
+}
 
 // ─── 등록 모달 열기 ───
 document.querySelectorAll('.btn-open-register').forEach(btn => {

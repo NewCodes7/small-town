@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.newcodes7.small_town.corporation.dto.BlogQueueResponseDto;
 import com.newcodes7.small_town.corporation.dto.CorporationCreateDto;
 import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
+import com.newcodes7.small_town.corporation.dto.CorporationUpdateDto;
 import com.newcodes7.small_town.corporation.repository.IndustryRepository;
 import com.newcodes7.small_town.corporation.service.FileUploadService;
 import com.newcodes7.small_town.crawler.entity.CorporationBlogQueue;
@@ -165,6 +166,49 @@ public class AdminBlogQueueController {
             log.error("기업 등록 실패 id={}: {}", id, e.getMessage(), e);
             response.put("success", false);
             response.put("message", "기업 등록 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    @GetMapping("/{id}/corporation")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getCorporation(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            Map<String, Object> data = blogAnalysisService.getCorporationForQueue(id);
+            response.put("success", true);
+            response.putAll(data);
+            return ResponseEntity.ok(response);
+        } catch (IllegalStateException e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        } catch (Exception e) {
+            log.error("기업 정보 조회 실패 id={}: {}", id, e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "조회 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    @PutMapping("/{id}/corporation")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> updateCorporation(
+            @PathVariable Long id,
+            @RequestBody CorporationUpdateDto dto) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            blogAnalysisService.updateCorporationForQueue(id, dto);
+            response.put("success", true);
+            return ResponseEntity.ok(response);
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        } catch (Exception e) {
+            log.error("기업 정보 수정 실패 id={}: {}", id, e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "수정 중 오류가 발생했습니다: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
     }

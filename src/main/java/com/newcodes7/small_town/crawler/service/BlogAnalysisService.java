@@ -6,6 +6,7 @@ import com.newcodes7.small_town.corporation.dto.BlogAnalysisResultDto;
 import com.newcodes7.small_town.corporation.dto.BlogQueueResponseDto;
 import com.newcodes7.small_town.corporation.dto.CorporationCreateDto;
 import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
+import com.newcodes7.small_town.corporation.dto.CorporationUpdateDto;
 import com.newcodes7.small_town.corporation.service.CorporationService;
 import com.newcodes7.small_town.crawler.entity.CorporationBlogQueue;
 import com.newcodes7.small_town.crawler.repository.CorporationBlogQueueRepository;
@@ -195,8 +196,58 @@ public class BlogAnalysisService {
         }
         CorporationResponseDto result = corporationService.createCorporation(dto);
         item.setStatus("REGISTERED");
+        item.setCorporationId(result.getId());
         queueRepository.save(item);
         return result;
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getCorporationForQueue(Long queueId) {
+        CorporationBlogQueue item = queueRepository.findById(queueId)
+                .orElseThrow(() -> new IllegalArgumentException("Queue item not found: " + queueId));
+        if (item.getCorporationId() == null) {
+            throw new IllegalStateException("이 항목에 연결된 기업 정보가 없습니다.");
+        }
+        Long corpId = item.getCorporationId();
+        CorporationResponseDto dto = corporationService.getCorporationById(corpId);
+        List<Integer> industryIds = corporationService.getCorporationIndustryIds(corpId);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", dto.getId());
+        result.put("name", dto.getName());
+        result.put("alternateName", dto.getAlternateName());
+        result.put("homeLink", dto.getHomeLink());
+        result.put("blogLink", dto.getBlogLink());
+        result.put("blogType", dto.getBlogType());
+        result.put("crewLink", dto.getCrewLink());
+        result.put("logoUrl", dto.getEffectiveLogoUrl());
+        result.put("youtubeUrl", dto.getYoutubeUrl());
+        result.put("isDomestic", Boolean.TRUE.equals(dto.getIsDomestic()) ? 1 : 0);
+        result.put("baseUrl", dto.getBaseUrl());
+        result.put("article", dto.getArticle());
+        result.put("title", dto.getTitle());
+        result.put("link", dto.getLink());
+        result.put("thumbnail", dto.getThumbnail());
+        result.put("publish", dto.getPublish());
+        result.put("publishFormat", dto.getPublishFormat());
+        result.put("publishType", dto.getPublishType());
+        result.put("innerPublishSelector", dto.getInnerPublishSelector());
+        result.put("paginationType", dto.getPaginationType());
+        result.put("pageUrlPattern", dto.getPageUrlPattern());
+        result.put("nextPageSelector", dto.getNextPageSelector());
+        result.put("maxPages", dto.getMaxPages());
+        result.put("industryIds", industryIds);
+        return result;
+    }
+
+    @Transactional
+    public void updateCorporationForQueue(Long queueId, CorporationUpdateDto dto) {
+        CorporationBlogQueue item = queueRepository.findById(queueId)
+                .orElseThrow(() -> new IllegalArgumentException("Queue item not found: " + queueId));
+        if (item.getCorporationId() == null) {
+            throw new IllegalStateException("이 항목에 연결된 기업 정보가 없습니다.");
+        }
+        corporationService.updateCorporation(item.getCorporationId(), dto);
     }
 
     // ─────────────────────────── HTML Preprocessing ───────────────────────────
