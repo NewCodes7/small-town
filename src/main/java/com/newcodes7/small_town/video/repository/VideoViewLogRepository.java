@@ -1,6 +1,8 @@
 package com.newcodes7.small_town.video.repository;
 
 import com.newcodes7.small_town.video.entity.VideoViewLog;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -29,4 +31,14 @@ public interface VideoViewLogRepository extends JpaRepository<VideoViewLog, Long
     // 전체 조회수 카운트 (중복 제거하지 않음 - 실제 조회 기록)
     @Query("SELECT COUNT(vl) FROM VideoViewLog vl WHERE vl.video.id = :videoId")
     long countByVideoId(@Param("videoId") Long videoId);
+
+    // 어드민: 특정 사용자의 영상 조회 기록 (video, corporation 함께 로드)
+    @Query(value = "SELECT vl FROM VideoViewLog vl JOIN FETCH vl.video v LEFT JOIN FETCH v.corporation WHERE vl.user.id = :userId ORDER BY vl.createdAt DESC",
+           countQuery = "SELECT COUNT(vl) FROM VideoViewLog vl WHERE vl.user.id = :userId")
+    Page<VideoViewLog> findByUserIdWithDetails(@Param("userId") Long userId, Pageable pageable);
+
+    // 어드민: 특정 IP의 비로그인 영상 조회 기록
+    @Query(value = "SELECT vl FROM VideoViewLog vl JOIN FETCH vl.video v LEFT JOIN FETCH v.corporation WHERE vl.ipAddress = :ip AND vl.user IS NULL ORDER BY vl.createdAt DESC",
+           countQuery = "SELECT COUNT(vl) FROM VideoViewLog vl WHERE vl.ipAddress = :ip AND vl.user IS NULL")
+    Page<VideoViewLog> findAnonymousByIpAddressWithDetails(@Param("ip") String ip, Pageable pageable);
 }

@@ -62,4 +62,14 @@ public interface SearchLogRepository extends JpaRepository<SearchLog, Long> {
     long countByUser(User user);
 
     Optional<SearchLog> findFirstBySearchKeywordOrderByCreatedAtDesc(String searchKeyword);
+
+    // 어드민: 특정 사용자의 검색 기록 (페이징)
+    @Query(value = "SELECT sl FROM SearchLog sl WHERE sl.user.id = :userId ORDER BY sl.createdAt DESC",
+           countQuery = "SELECT COUNT(sl) FROM SearchLog sl WHERE sl.user.id = :userId")
+    Page<SearchLog> findByUserIdOrderByCreatedAtDesc(@Param("userId") Long userId, Pageable pageable);
+
+    // 어드민: 특정 IP의 비로그인 검색 기록
+    @Query(value = "SELECT sl FROM SearchLog sl WHERE sl.ipAddress = :ip AND sl.user IS NULL ORDER BY sl.createdAt DESC",
+           countQuery = "SELECT COUNT(sl) FROM SearchLog sl WHERE sl.ipAddress = :ip AND sl.user IS NULL")
+    Page<SearchLog> findAnonymousByIpAddressOrderByCreatedAtDesc(@Param("ip") String ip, Pageable pageable);
 }

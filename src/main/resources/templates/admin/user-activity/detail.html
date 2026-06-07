@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>사용자 기록 조회</title>
+    <style>
+        .status-badge {
+            padding: 0.25em 0.6em;
+            border-radius: 0.25rem;
+            font-size: 0.8em;
+            font-weight: 600;
+            color: #fff;
+        }
+        .status-active { background-color: #198754; }
+        .status-banned { background-color: #dc3545; }
+        .status-withdrawn { background-color: #6c757d; }
+        .liked-badge { background-color: #dc3545; }
+        .not-liked-badge { background-color: #dee2e6; color: #6c757d; }
+        .article-title-cell { max-width: 300px; }
+        .article-title-cell a { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+        .ua-cell { max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    </style>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container-fluid">
+
+        <!-- 뒤로가기 -->
+        <div class="mb-3">
+            <a href="/admin/user-activity" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>목록으로
+            </a>
+        </div>
+
+        <!-- 사용자 기본 정보 -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex align-items-center">
+                <h6 class="m-0 font-weight-bold text-primary me-3">사용자 정보</h6>
+                <span class="status-badge"
+                      th:classappend="${user.status.name() == 'ACTIVE'} ? 'status-active' : (${user.status.name() == 'BANNED'} ? 'status-banned' : 'status-withdrawn')"
+                      th:text="${user.status.name()}">ACTIVE</span>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <small class="text-muted d-block">ID</small>
+                        <span th:text="${user.id}">1</span>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted d-block">닉네임</small>
+                        <span th:text="${user.nickname}">닉네임</span>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted d-block">이메일</small>
+                        <span th:text="${user.email ?: '-'}">이메일</span>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted d-block">로그인 방식</small>
+                        <span th:text="${user.provider != null ? user.provider.name : '-'}">GOOGLE</span>
+                    </div>
+                    <div class="col-md-3 mt-3">
+                        <small class="text-muted d-block">역할</small>
+                        <span th:text="${user.role != null ? user.role.name : '-'}">USER</span>
+                    </div>
+                    <div class="col-md-3 mt-3">
+                        <small class="text-muted d-block">마지막 로그인</small>
+                        <span th:text="${user.lastLoginAt != null ? #temporals.format(user.lastLoginAt, 'yyyy-MM-dd HH:mm') : '-'}">-</span>
+                    </div>
+                    <div class="col-md-3 mt-3">
+                        <small class="text-muted d-block">가입일</small>
+                        <span th:text="${#temporals.format(user.createdAt, 'yyyy-MM-dd HH:mm')}">-</span>
+                    </div>
+                    <div class="col-md-3 mt-3" th:if="${user.deletedAt != null}">
+                        <small class="text-muted d-block">탈퇴일</small>
+                        <span class="text-danger" th:text="${#temporals.format(user.deletedAt, 'yyyy-MM-dd HH:mm')}">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 탭 -->
+        <ul class="nav nav-tabs mb-0">
+            <li class="nav-item">
+                <a class="nav-link" th:classappend="${currentTab == 'articles'} ? 'active'"
+                   th:href="@{/admin/user-activity/{id}(id=${user.id}, tab='articles')}">
+                    <i class="fas fa-newspaper me-1"></i>글 조회 기록
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" th:classappend="${currentTab == 'videos'} ? 'active'"
+                   th:href="@{/admin/user-activity/{id}(id=${user.id}, tab='videos')}">
+                    <i class="fas fa-video me-1"></i>영상 조회 기록
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" th:classappend="${currentTab == 'searches'} ? 'active'"
+                   th:href="@{/admin/user-activity/{id}(id=${user.id}, tab='searches')}">
+                    <i class="fas fa-search me-1"></i>검색 기록
+                </a>
+            </li>
+        </ul>
+
+        <!-- 글 조회 기록 탭 -->
+        <div class="card shadow border-top-0" th:if="${currentTab == 'articles'}">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover table-sm" width="100%" cellspacing="0">
+                        <thead class="table-light">
+                        <tr>
+                            <th>조회 ID</th>
+                            <th>글 ID</th>
+                            <th>글 제목</th>
+                            <th>기업</th>
+                            <th>전체 조회수</th>
+                            <th>전체 좋아요수</th>
+                            <th>IP 주소</th>
+                            <th>조회 시각</th>
+                            <th>좋아요</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="v : ${articleViews.content}">
+                            <td th:text="${v.viewLogId}">1</td>
+                            <td th:text="${v.articleId}">1</td>
+                            <td class="article-title-cell">
+                                <a th:href="${v.articleLink}" th:text="${v.articleTitle}"
+                                   target="_blank" th:title="${v.articleTitle}">제목</a>
+                            </td>
+                            <td th:text="${v.corporationName}">기업명</td>
+                            <td th:text="${v.articleViewCount}">0</td>
+                            <td th:text="${v.articleLikeCount}">0</td>
+                            <td th:text="${v.ipAddress ?: '-'}">127.0.0.1</td>
+                            <td th:text="${#temporals.format(v.viewedAt, 'yyyy-MM-dd HH:mm:ss')}">2024-01-01</td>
+                            <td>
+                                <span class="status-badge"
+                                      th:classappend="${v.liked} ? 'liked-badge' : 'not-liked-badge'"
+                                      th:text="${v.liked} ? '좋아요' : '-'">-</span>
+                            </td>
+                        </tr>
+                        <tr th:if="${articleViews.empty}">
+                            <td colspan="9" class="text-center text-muted py-4">글 조회 기록이 없습니다.</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <nav th:if="${!articleViews.empty && articleViews.totalPages > 1}" aria-label="Page navigation">
+                    <ul class="pagination justify-content-center mt-3">
+                        <li class="page-item" th:classappend="${articleViews.first} ? 'disabled'">
+                            <a class="page-link" th:href="@{/admin/user-activity/{id}(id=${user.id}, tab='articles', page=${articleViews.number - 1})}">이전</a>
+                        </li>
+                        <li class="page-item"
+                            th:each="i : ${#numbers.sequence(0, articleViews.totalPages - 1)}"
+                            th:classappend="${i == articleViews.number} ? 'active'">
+                            <a class="page-link"
+                               th:href="@{/admin/user-activity/{id}(id=${user.id}, tab='articles', page=${i})}"
+                               th:text="${i + 1}">1</a>
+                        </li>
+                        <li class="page-item" th:classappend="${articleViews.last} ? 'disabled'">
+                            <a class="page-link" th:href="@{/admin/user-activity/{id}(id=${user.id}, tab='articles', page=${articleViews.number + 1})}">다음</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+
+        <!-- 영상 조회 기록 탭 -->
+        <div class="card shadow border-top-0" th:if="${currentTab == 'videos'}">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover table-sm" width="100%" cellspacing="0">
+                        <thead class="table-light">
+                        <tr>
+                            <th>조회 ID</th>
+                            <th>영상 ID</th>
+                            <th>영상 제목</th>
+                            <th>기업</th>
+                            <th>전체 조회수</th>
+                            <th>전체 좋아요수</th>
+                            <th>IP 주소</th>
+                            <th>조회 시각</th>
+                            <th>좋아요</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="v : ${videoViews.content}">
+                            <td th:text="${v.viewLogId}">1</td>
+                            <td th:text="${v.videoId}">1</td>
+                            <td class="article-title-cell">
+                                <a th:href="${v.videoLink}" th:text="${v.videoTitle}"
+                                   target="_blank" th:title="${v.videoTitle}">제목</a>
+                            </td>
+                            <td th:text="${v.corporationName}">기업명</td>
+                            <td th:text="${v.videoViewCount}">0</td>
+                            <td th:text="${v.videoLikeCount}">0</td>
+                            <td th:text="${v.ipAddress ?: '-'}">127.0.0.1</td>
+                            <td th:text="${#temporals.format(v.viewedAt, 'yyyy-MM-dd HH:mm:ss')}">2024-01-01</td>
+                            <td>
+                                <span class="status-badge"
+                                      th:classappend="${v.liked} ? 'liked-badge' : 'not-liked-badge'"
+                                      th:text="${v.liked} ? '좋아요' : '-'">-</span>
+                            </td>
+                        </tr>
+                        <tr th:if="${videoViews.empty}">
+                            <td colspan="9" class="text-center text-muted py-4">영상 조회 기록이 없습니다.</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <nav th:if="${!videoViews.empty && videoViews.totalPages > 1}" aria-label="Page navigation">
+                    <ul class="pagination justify-content-center mt-3">
+                        <li class="page-item" th:classappend="${videoViews.first} ? 'disabled'">
+                            <a class="page-link" th:href="@{/admin/user-activity/{id}(id=${user.id}, tab='videos', page=${videoViews.number - 1})}">이전</a>
+                        </li>
+                        <li class="page-item"
+                            th:each="i : ${#numbers.sequence(0, videoViews.totalPages - 1)}"
+                            th:classappend="${i == videoViews.number} ? 'active'">
+                            <a class="page-link"
+                               th:href="@{/admin/user-activity/{id}(id=${user.id}, tab='videos', page=${i})}"
+                               th:text="${i + 1}">1</a>
+                        </li>
+                        <li class="page-item" th:classappend="${videoViews.last} ? 'disabled'">
+                            <a class="page-link" th:href="@{/admin/user-activity/{id}(id=${user.id}, tab='videos', page=${videoViews.number + 1})}">다음</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+
+        <!-- 검색 기록 탭 -->
+        <div class="card shadow border-top-0" th:if="${currentTab == 'searches'}">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover table-sm" width="100%" cellspacing="0">
+                        <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>검색어</th>
+                            <th>검색 타입</th>
+                            <th>대상 ID</th>
+                            <th>IP 주소</th>
+                            <th>User-Agent</th>
+                            <th>검색 시각</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="sl : ${searches.content}">
+                            <td th:text="${sl.id}">1</td>
+                            <td th:text="${sl.searchKeyword}">검색어</td>
+                            <td>
+                                <span class="badge bg-secondary" th:text="${sl.searchType}">ARTICLE</span>
+                            </td>
+                            <td th:text="${sl.targetId ?: '-'}">-</td>
+                            <td th:text="${sl.ipAddress ?: '-'}">127.0.0.1</td>
+                            <td class="ua-cell" th:text="${sl.userAgent ?: '-'}" th:title="${sl.userAgent}">-</td>
+                            <td th:text="${#temporals.format(sl.createdAt, 'yyyy-MM-dd HH:mm:ss')}">2024-01-01</td>
+                        </tr>
+                        <tr th:if="${searches.empty}">
+                            <td colspan="7" class="text-center text-muted py-4">검색 기록이 없습니다.</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <nav th:if="${!searches.empty && searches.totalPages > 1}" aria-label="Page navigation">
+                    <ul class="pagination justify-content-center mt-3">
+                        <li class="page-item" th:classappend="${searches.first} ? 'disabled'">
+                            <a class="page-link" th:href="@{/admin/user-activity/{id}(id=${user.id}, tab='searches', page=${searches.number - 1})}">이전</a>
+                        </li>
+                        <li class="page-item"
+                            th:each="i : ${#numbers.sequence(0, searches.totalPages - 1)}"
+                            th:classappend="${i == searches.number} ? 'active'">
+                            <a class="page-link"
+                               th:href="@{/admin/user-activity/{id}(id=${user.id}, tab='searches', page=${i})}"
+                               th:text="${i + 1}">1</a>
+                        </li>
+                        <li class="page-item" th:classappend="${searches.last} ? 'disabled'">
+                            <a class="page-link" th:href="@{/admin/user-activity/{id}(id=${user.id}, tab='searches', page=${searches.number + 1})}">다음</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+
+    </div>
+</div>
+</body>
+</html>

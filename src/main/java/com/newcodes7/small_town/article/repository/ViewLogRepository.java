@@ -1,6 +1,8 @@
 package com.newcodes7.small_town.article.repository;
 
 import com.newcodes7.small_town.article.entity.ViewLog;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -32,4 +34,14 @@ public interface ViewLogRepository extends JpaRepository<ViewLog, Long> {
 
     // 특정 아티클의 모든 조회 로그 삭제
     void deleteByArticleId(Long articleId);
+
+    // 어드민: 특정 사용자의 글 조회 기록 (article, corporation 함께 로드)
+    @Query(value = "SELECT vl FROM ViewLog vl JOIN FETCH vl.article a LEFT JOIN FETCH a.corporation WHERE vl.user.id = :userId ORDER BY vl.createdAt DESC",
+           countQuery = "SELECT COUNT(vl) FROM ViewLog vl WHERE vl.user.id = :userId")
+    Page<ViewLog> findByUserIdWithDetails(@Param("userId") Long userId, Pageable pageable);
+
+    // 어드민: 특정 IP의 비로그인 글 조회 기록
+    @Query(value = "SELECT vl FROM ViewLog vl JOIN FETCH vl.article a LEFT JOIN FETCH a.corporation WHERE vl.ipAddress = :ip AND vl.user IS NULL ORDER BY vl.createdAt DESC",
+           countQuery = "SELECT COUNT(vl) FROM ViewLog vl WHERE vl.ipAddress = :ip AND vl.user IS NULL")
+    Page<ViewLog> findAnonymousByIpAddressWithDetails(@Param("ip") String ip, Pageable pageable);
 }
