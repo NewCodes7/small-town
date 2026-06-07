@@ -151,6 +151,9 @@ public class BlogAnalysisService {
         if (updated == 0) {
             updated = queueRepository.compareAndSetStatus(id, "FAILED", "ANALYZING");
         }
+        if (updated == 0) {
+            updated = queueRepository.compareAndSetStatus(id, "ANALYZED", "ANALYZING");
+        }
         return updated;
     }
 
