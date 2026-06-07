@@ -1,5 +1,6 @@
 package com.newcodes7.small_town.corporation.dto;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.newcodes7.small_town.crawler.entity.CorporationBlogQueue;
 import lombok.AllArgsConstructor;
@@ -8,6 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -25,6 +27,8 @@ public class BlogQueueResponseDto {
     private Integer isDomestic;
     private String blogType;
     private String status;
+    private List<Integer> industryIds;
+    private String industryIdsJson;
     private BlogAnalysisResultDto analysisResult;
     private String analysisResultJson;
     private String errorMessage;
@@ -38,6 +42,13 @@ public class BlogQueueResponseDto {
                 result = mapper.readValue(resultJson, BlogAnalysisResultDto.class);
             } catch (Exception ignored) {}
         }
+        List<Integer> industryIds = null;
+        String industryIdsJson = entity.getIndustryIds();
+        if (industryIdsJson != null) {
+            try {
+                industryIds = mapper.readValue(industryIdsJson, new TypeReference<List<Integer>>() {});
+            } catch (Exception ignored) {}
+        }
         return BlogQueueResponseDto.builder()
                 .id(entity.getId())
                 .blogUrl(entity.getBlogUrl())
@@ -49,6 +60,8 @@ public class BlogQueueResponseDto {
                 .isDomestic(entity.getIsDomestic())
                 .blogType(entity.getBlogType())
                 .status(entity.getStatus())
+                .industryIds(industryIds)
+                .industryIdsJson(industryIdsJson)
                 .analysisResult(result)
                 .analysisResultJson(resultJson)
                 .errorMessage(entity.getErrorMessage())

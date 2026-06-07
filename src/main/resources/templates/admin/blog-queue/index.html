@@ -59,7 +59,7 @@
                     <label class="form-label fw-semibold">채용 URL</label>
                     <input type="url" id="crewLinkInput" class="form-control" placeholder="https://careers.example.com">
                 </div>
-                <!-- Row 3: 옵션 + 버튼 -->
+                <!-- Row 3: 옵션 -->
                 <div class="col-md-3">
                     <label class="form-label fw-semibold">대체명</label>
                     <input type="text" id="alternateNameInput" class="form-control" placeholder="영문명 등">
@@ -82,6 +82,24 @@
                     <button id="addQueueBtn" class="btn w-100" style="background: var(--primary-green); color: white; border-radius: 12px;">
                         <i class="fas fa-plus me-1"></i>대기열 추가
                     </button>
+                </div>
+                <!-- Row 4: 업종 선택 -->
+                <div class="col-12">
+                    <label class="form-label fw-semibold">
+                        <i class="fas fa-tags me-1" style="color: var(--primary-green);"></i>업종 (카테고리)
+                    </label>
+                    <div class="d-flex flex-wrap gap-2" id="queueIndustryCheckboxes">
+                        <div th:each="industry : ${industries}"
+                             class="form-check form-check-inline"
+                             style="background: var(--background-light); border: 1px solid var(--border-light); border-radius: 8px; padding: 6px 12px; margin:0;">
+                            <input type="checkbox" class="form-check-input queue-industry-check"
+                                   th:id="'queue-industry-' + ${industry.id}"
+                                   th:value="${industry.id}">
+                            <label class="form-check-label small fw-semibold ms-1"
+                                   th:for="'queue-industry-' + ${industry.id}"
+                                   th:text="${industry.name}"></label>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div id="addQueueError" class="text-danger mt-2 small" style="display: none;"></div>
@@ -106,7 +124,7 @@
                 <table class="table table-hover align-middle">
                     <thead>
                         <tr style="background: var(--secondary-green);">
-                            <th>회사명</th>
+                            <th>기업 정보</th>
                             <th>블로그 URL</th>
                             <th>상태</th>
                             <th>등록일시</th>
@@ -116,12 +134,42 @@
                     <tbody>
                         <tr th:each="item : ${queueItems}" th:id="'row-' + ${item.id}">
                             <td>
-                                <span th:text="${item.companyName != null ? item.companyName : '-'}"
-                                      class="fw-semibold"></span>
+                                <div class="d-flex align-items-start gap-2">
+                                    <!-- 로고 미리보기 -->
+                                    <div th:if="${item.logoUrl != null}" style="flex-shrink:0;">
+                                        <img th:src="${item.logoUrl}" alt=""
+                                             style="width:36px;height:36px;object-fit:contain;border-radius:6px;border:1px solid var(--border-light);"
+                                             onerror="this.style.display='none'">
+                                    </div>
+                                    <div>
+                                        <span th:text="${item.companyName != null ? item.companyName : '-'}"
+                                              class="fw-semibold d-block"></span>
+                                        <span th:if="${item.alternateName != null}"
+                                              class="text-muted small d-block"
+                                              th:text="${item.alternateName}"></span>
+                                        <!-- 기본 정보 링크 -->
+                                        <div class="mt-1 d-flex gap-2 flex-wrap">
+                                            <a th:if="${item.homeLink != null}" th:href="${item.homeLink}"
+                                               target="_blank" class="badge text-decoration-none"
+                                               style="background: var(--secondary-green); color: var(--primary-green-dark); font-weight:500;">
+                                                <i class="fas fa-home me-1"></i>홈
+                                            </a>
+                                            <a th:if="${item.crewLink != null}" th:href="${item.crewLink}"
+                                               target="_blank" class="badge text-decoration-none"
+                                               style="background: #e8f4fd; color: #0d6efd; font-weight:500;">
+                                                <i class="fas fa-users me-1"></i>채용
+                                            </a>
+                                            <span th:if="${item.isDomestic == 1}"
+                                                  class="badge" style="background:#f0f0f0;color:#555;">국내</span>
+                                            <span th:if="${item.isDomestic == 0}"
+                                                  class="badge" style="background:#f0f0f0;color:#555;">해외</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </td>
                             <td>
                                 <a th:href="${item.blogUrl}" target="_blank" class="text-truncate d-inline-block"
-                                   style="max-width: 250px;" th:text="${item.blogUrl}"></a>
+                                   style="max-width: 220px;" th:text="${item.blogUrl}"></a>
                             </td>
                             <td>
                                 <span th:if="${item.status == 'PENDING'}"
@@ -158,12 +206,13 @@
                                         <i class="fas fa-eye me-1"></i>결과
                                     </button>
                                     <button th:if="${item.status == 'ANALYZED'}"
-                                            class="btn btn-success"
+                                            class="btn btn-success btn-open-register"
                                             th:attr="data-id=${item.id}, data-analysis=${item.analysisResultJson},
                                                      data-url=${item.blogUrl}, data-name=${item.companyName},
                                                      data-homelink=${item.homeLink}, data-logourl=${item.logoUrl},
                                                      data-crewlink=${item.crewLink}, data-alternatename=${item.alternateName},
-                                                     data-isdomestic=${item.isDomestic}, data-blogtype=${item.blogType}">
+                                                     data-isdomestic=${item.isDomestic}, data-blogtype=${item.blogType},
+                                                     data-industryids=${item.industryIdsJson}">
                                         <i class="fas fa-check me-1"></i>등록
                                     </button>
                                     <button th:if="${item.status == 'ANALYZED'}"
@@ -232,7 +281,7 @@
                     </div>
                 </div>
 
-                <!-- 등록 폼 -->
+                <!-- 등록 폼: 기업 기본 정보 -->
                 <h6 class="mb-3" style="color: var(--text-dark);">
                     <i class="fas fa-building me-2" style="color: var(--primary-green);"></i>기업 정보
                 </h6>
@@ -281,6 +330,23 @@
                     <div class="col-md-6">
                         <label class="form-label fw-semibold">채용 URL</label>
                         <input type="url" id="reg-crewLink" class="form-control" placeholder="https://careers.example.com">
+                    </div>
+                </div>
+
+                <!-- 업종 선택 -->
+                <h6 class="mb-2" style="color: var(--text-dark);">
+                    <i class="fas fa-tags me-2" style="color: var(--primary-green);"></i>업종 (카테고리)
+                </h6>
+                <div class="d-flex flex-wrap gap-2 mb-4" id="regIndustryCheckboxes">
+                    <div th:each="industry : ${industries}"
+                         class="form-check form-check-inline"
+                         style="background: var(--background-light); border: 1px solid var(--border-light); border-radius: 8px; padding: 6px 12px; margin:0;">
+                        <input type="checkbox" class="form-check-input reg-industry-check"
+                               th:id="'reg-industry-' + ${industry.id}"
+                               th:value="${industry.id}">
+                        <label class="form-check-label small fw-semibold ms-1"
+                               th:for="'reg-industry-' + ${industry.id}"
+                               th:text="${industry.name}"></label>
                     </div>
                 </div>
 
@@ -383,7 +449,7 @@
             </div>
             <div class="modal-body p-4">
 
-                <!-- 신뢰도 + 노트 -->
+                <!-- 신뢰도 -->
                 <div class="mb-4 d-flex align-items-start gap-3">
                     <div>
                         <span class="fw-semibold me-2">AI 분석 신뢰도:</span>
@@ -512,6 +578,9 @@ document.getElementById('addQueueBtn').addEventListener('click', async function(
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>추가 중...';
 
+    const industryIds = Array.from(document.querySelectorAll('.queue-industry-check:checked'))
+        .map(cb => parseInt(cb.value));
+
     const payload = {
         blogUrl,
         companyName: companyName || null,
@@ -519,8 +588,9 @@ document.getElementById('addQueueBtn').addEventListener('click', async function(
         logoUrl: document.getElementById('logoUrlInput').value.trim() || null,
         crewLink: document.getElementById('crewLinkInput').value.trim() || null,
         alternateName: document.getElementById('alternateNameInput').value.trim() || null,
-        isDomestic: document.getElementById('isDomesticInput').value,
-        blogType: document.getElementById('blogTypeInput').value
+        isDomestic: parseInt(document.getElementById('isDomesticInput').value),
+        blogType: document.getElementById('blogTypeInput').value,
+        industryIds
     };
 
     try {
@@ -596,7 +666,7 @@ document.querySelectorAll('.delete-btn').forEach(btn => {
 });
 
 // ─── 등록 모달 열기 ───
-document.querySelectorAll('.btn-success[data-analysis]').forEach(btn => {
+document.querySelectorAll('.btn-open-register').forEach(btn => {
     btn.addEventListener('click', function() {
         openRegistrationModal(this.dataset);
     });
@@ -632,6 +702,15 @@ function openRegistrationModal(ds) {
     setSelectValue('reg-isDomestic', ds.isdomestic || '1');
     setSelectValue('reg-blogType', ds.blogtype || 'DEFAULT');
 
+    // 업종 체크박스 초기화 후 pre-fill
+    document.querySelectorAll('.reg-industry-check').forEach(cb => { cb.checked = false; });
+    let savedIds = [];
+    try { savedIds = JSON.parse(ds.industryids || '[]'); } catch(e) {}
+    savedIds.forEach(id => {
+        const cb = document.getElementById('reg-industry-' + id);
+        if (cb) cb.checked = true;
+    });
+
     // 셀렉터 필드
     setValue('reg-baseUrl', result.baseUrl);
     setValue('reg-article', result.article);
@@ -656,6 +735,9 @@ document.getElementById('submitRegisterBtn').addEventListener('click', async fun
     const name = document.getElementById('reg-name').value.trim();
     if (!name) { alert('기업명을 입력해주세요.'); return; }
 
+    const industryIds = Array.from(document.querySelectorAll('.reg-industry-check:checked'))
+        .map(cb => parseInt(cb.value));
+
     const dto = {
         name,
         alternateName: getVal('reg-alternateName') || null,
@@ -678,7 +760,7 @@ document.getElementById('submitRegisterBtn').addEventListener('click', async fun
         pageUrlPattern: getVal('reg-pageUrlPattern') || null,
         nextPageSelector: getVal('reg-nextPageSelector') || null,
         maxPages: getVal('reg-maxPages') ? parseInt(getVal('reg-maxPages')) : null,
-        industryIds: []
+        industryIds
     };
 
     const origHtml = btn.innerHTML;

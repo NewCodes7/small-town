@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.Collections;
 
 @Service
 @RequiredArgsConstructor
@@ -73,7 +74,12 @@ public class BlogAnalysisService {
     @Transactional
     public CorporationBlogQueue addToQueue(String blogUrl, String companyName,
                                            String homeLink, String logoUrl, String crewLink,
-                                           String alternateName, Integer isDomestic, String blogType) {
+                                           String alternateName, Integer isDomestic, String blogType,
+                                           List<Integer> industryIds) {
+        String industryIdsJson = null;
+        if (industryIds != null && !industryIds.isEmpty()) {
+            try { industryIdsJson = objectMapper.writeValueAsString(industryIds); } catch (Exception ignored) {}
+        }
         CorporationBlogQueue item = CorporationBlogQueue.builder()
                 .blogUrl(blogUrl)
                 .companyName(companyName)
@@ -83,6 +89,7 @@ public class BlogAnalysisService {
                 .alternateName(alternateName)
                 .isDomestic(isDomestic != null ? isDomestic : 1)
                 .blogType(blogType != null ? blogType : "DEFAULT")
+                .industryIds(industryIdsJson)
                 .status("PENDING")
                 .build();
         return queueRepository.save(item);

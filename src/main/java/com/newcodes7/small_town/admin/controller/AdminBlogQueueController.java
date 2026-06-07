@@ -1,9 +1,11 @@
 package com.newcodes7.small_town.admin.controller;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.newcodes7.small_town.corporation.dto.BlogQueueResponseDto;
 import com.newcodes7.small_town.corporation.dto.CorporationCreateDto;
 import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
+import com.newcodes7.small_town.corporation.repository.IndustryRepository;
 import com.newcodes7.small_town.corporation.service.FileUploadService;
 import com.newcodes7.small_town.crawler.entity.CorporationBlogQueue;
 import com.newcodes7.small_town.crawler.service.BlogAnalysisService;
@@ -24,7 +26,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Controller
@@ -35,19 +39,21 @@ public class AdminBlogQueueController {
 
     private final BlogAnalysisService blogAnalysisService;
     private final FileUploadService fileUploadService;
+    private final IndustryRepository industryRepository;
     private final ObjectMapper objectMapper;
 
     @GetMapping
     public String queuePage(Model model) {
         model.addAttribute("queueItems", blogAnalysisService.getAllQueueItems());
+        model.addAttribute("industries", industryRepository.findAll());
         return "admin/blog-queue/index";
     }
 
     @PostMapping
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> addToQueue(@RequestBody Map<String, String> req) {
+    public ResponseEntity<Map<String, Object>> addToQueue(@RequestBody Map<String, Object> req) {
         Map<String, Object> response = new HashMap<>();
-        String blogUrl = req.get("blogUrl");
+        String blogUrl = (String) req.get("blogUrl");
         if (blogUrl == null || blogUrl.isBlank()) {
             response.put("success", false);
             response.put("message", "블로그 URL을 입력해주세요.");
@@ -59,16 +65,26 @@ public class AdminBlogQueueController {
             return ResponseEntity.badRequest().body(response);
         }
         try {
-            String companyName = req.get("companyName");
-            String homeLink = req.get("homeLink");
-            String logoUrl = req.get("logoUrl");
-            String crewLink = req.get("crewLink");
-            String alternateName = req.get("alternateName");
+            String companyName = (String) req.get("companyName");
+            String homeLink = (String) req.get("homeLink");
+            String logoUrl = (String) req.get("logoUrl");
+            String crewLink = (String) req.get("crewLink");
+            String alternateName = (String) req.get("alternateName");
             Integer isDomestic = null;
-            try { isDomestic = Integer.parseInt(req.get("isDomestic")); } catch (Exception ignored) {}
-            String blogType = req.get("blogType");
+            Object isDomesticRaw = req.get("isDomestic");
+            if (isDomesticRaw instanceof Number n) isDomestic = n.intValue();
+            else if (isDomesticRaw instanceof String s) try { isDomestic = Integer.parseInt(s); } catch (Exception ignored) {}
+            String blogType = (String) req.get("blogType");
+            List<Integer> industryIds = Collections.emptyList();
+            Object idsRaw = req.get("industryIds");
+            if (idsRaw instanceof List<?> list) {
+                industryIds = list.stream()
+                        .filter(o -> o instanceof Number)
+                        .map(o -> ((Number) o).intValue())
+                        .toList();
+            }
             CorporationBlogQueue item = blogAnalysisService.addToQueue(blogUrl, companyName,
-                    homeLink, logoUrl, crewLink, alternateName, isDomestic, blogType);
+                    homeLink, logoUrl, crewLink, alternateName, isDomestic, blogType, industryIds);
             response.put("success", true);
             response.put("id", item.getId());
             response.put("status", item.getStatus());

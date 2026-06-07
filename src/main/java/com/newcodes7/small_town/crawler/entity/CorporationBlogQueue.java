@@ -62,6 +62,9 @@ public class CorporationBlogQueue {
     @Column(name = "blog_type", length = 20, nullable = false)
     private String blogType = "DEFAULT";
 
+    @Column(name = "industry_ids", columnDefinition = "TEXT")
+    private String industryIds;
+
     @Column(name = "analysis_result", columnDefinition = "TEXT")
     private String analysisResult;
 
