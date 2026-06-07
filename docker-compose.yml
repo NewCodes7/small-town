@@ -117,6 +117,8 @@ services:
       - GF_SMTP_FROM_ADDRESS=${MY_EMAIL}
       - GF_SMTP_FROM_NAME=Grafana Alerts
       - GF_SMTP_STARTTLS_POLICY=
+      - GF_UNIFIED_ALERTING_ENABLED=true
+      - GF_ALERTING_ENABLED=false
     restart: always
     networks:
       - app-network
