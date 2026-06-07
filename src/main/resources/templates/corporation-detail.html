@@ -113,10 +113,16 @@
             </div>
         </div>
         
-        <!-- 관리자 전용 크롤링 버튼 (JavaScript로 표시 여부 제어) -->
-        <button id="adminCrawlBtn" class="btn btn-success d-none mb-3" th:attr="data-corporation-id=${corporation.id}">
-            <i class="fas fa-bolt me-2"></i>단일 페이지 크롤링
-        </button>
+        <!-- 관리자 전용 버튼 (JavaScript로 표시 여부 제어) -->
+        <div id="adminActionBtns" class="d-none mb-3 d-flex gap-2 flex-wrap" th:attr="data-corporation-id=${corporation.id}">
+            <button id="adminCrawlBtn" class="btn btn-success" th:attr="data-corporation-id=${corporation.id}">
+                <i class="fas fa-bolt me-2"></i>단일 페이지 크롤링
+            </button>
+            <button id="adminRegenerateEmbeddingsBtn" class="btn btn-primary" th:attr="data-corporation-id=${corporation.id}">
+                <i class="fas fa-brain me-2"></i>청크/벡터 재생성
+            </button>
+        </div>
+        <div id="embeddingResultAlert" class="d-none mb-3"></div>
 
         <!-- Navigation Buttons -->
         <div class="mb-4 d-flex justify-content-center">

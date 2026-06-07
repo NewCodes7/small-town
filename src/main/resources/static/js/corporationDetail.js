@@ -213,15 +213,58 @@ async function checkAdminStatus() {
                     container.classList.remove('d-none');
                 });
 
-                // 크롤링 버튼 표시
-                const crawlBtn = document.getElementById('adminCrawlBtn');
-                if (crawlBtn) {
-                    crawlBtn.classList.remove('d-none');
+                // 관리자 액션 버튼 영역 표시
+                const adminActionBtns = document.getElementById('adminActionBtns');
+                if (adminActionBtns) {
+                    adminActionBtns.classList.remove('d-none');
                 }
             }
         }
     } catch (error) {
         console.error('관리자 권한 확인 중 오류 발생:', error);
+    }
+}
+
+// 청크/벡터 임베딩 재생성
+async function regenerateEmbeddings(corporationId) {
+    if (!confirm('이 기업의 모든 아티클에 대해 chunk와 vector를 재생성합니다.\n아티클 수에 따라 수 분~수십 분이 소요될 수 있습니다. 계속하시겠습니까?')) {
+        return;
+    }
+
+    const btn = document.getElementById('adminRegenerateEmbeddingsBtn');
+    const resultAlert = document.getElementById('embeddingResultAlert');
+    const originalHtml = btn.innerHTML;
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>재생성 중...';
+    resultAlert.classList.add('d-none');
+
+    try {
+        const response = await fetch(`/admin/corporations/${corporationId}/regenerate-embeddings`, {
+            method: 'POST',
+            credentials: 'same-origin'
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            resultAlert.className = 'alert alert-success mb-3';
+            resultAlert.innerHTML =
+                `<strong><i class="fas fa-check-circle me-1"></i>완료</strong><br>` +
+                `총 ${data.totalArticles}개 아티클 / 성공 ${data.successArticles}개 / 실패 ${data.failureArticles}개 / 생성된 청크 ${data.totalChunksGenerated}개`;
+        } else {
+            resultAlert.className = 'alert alert-danger mb-3';
+            resultAlert.innerHTML = `<strong><i class="fas fa-exclamation-circle me-1"></i>오류</strong> ${data.message}`;
+        }
+        resultAlert.classList.remove('d-none');
+    } catch (error) {
+        console.error('임베딩 재생성 중 오류 발생:', error);
+        resultAlert.className = 'alert alert-danger mb-3';
+        resultAlert.innerHTML = '<strong>요청 실패:</strong> 서버 오류가 발생했습니다.';
+        resultAlert.classList.remove('d-none');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
     }
 }
 
@@ -437,6 +480,15 @@ document.addEventListener('DOMContentLoaded', function() {
             if (confirm('이 기업의 블로그를 크롤링하시겠습니까?')) {
                 startCrawling(corporationId);
             }
+        });
+    }
+
+    // 청크/벡터 재생성 버튼 이벤트 리스너
+    const regenerateBtn = document.getElementById('adminRegenerateEmbeddingsBtn');
+    if (regenerateBtn) {
+        regenerateBtn.addEventListener('click', function() {
+            const corporationId = this.getAttribute('data-corporation-id');
+            regenerateEmbeddings(corporationId);
         });
     }
 
