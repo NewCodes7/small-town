@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.amazonaws.AmazonClientException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -138,6 +139,9 @@ public class S3ImageService {
 
             return resultUrl;
 
+        } catch (AmazonClientException e) {
+            log.error("S3 업로드 실패 (원본 URL 사용): {}", imageUrl, e);
+            return imageUrl;
         } catch (IOException e) {
             // 티스토리/카카오 이미지 403 에러는 예상되는 상황이므로 warn 레벨로 로그
             if (imageUrl.contains("daumcdn.net") || imageUrl.contains("kakaocdn.net") || imageUrl.contains("tistory.com")) {
@@ -145,10 +149,10 @@ public class S3ImageService {
             } else {
                 log.error("이미지 업로드 실패: {}", imageUrl, e);
             }
-            return imageUrl; // 업로드 실패 시 원본 URL 반환
+            return imageUrl;
         } catch (URISyntaxException e) {
             log.error("URL 인코딩 실패: {}", imageUrl, e);
-            return imageUrl; // URL 인코딩 실패 시 원본 URL 반환
+            return imageUrl;
         }
     }
 

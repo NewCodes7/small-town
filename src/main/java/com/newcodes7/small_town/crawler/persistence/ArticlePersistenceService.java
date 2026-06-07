@@ -12,7 +12,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,51 +43,68 @@ public class ArticlePersistenceService {
     private final TranslationService translationService;
     private final CrawlingRunService crawlingRunService;
 
+    @Autowired @Lazy
+    private ArticlePersistenceService self;
+
     /**
      * 개별 Article 저장 및 AI 분석
+     *
+     * 외부 API 호출(S3, DeepL, OpenAI)을 트랜잭션 밖에서 먼저 수행한 뒤
+     * DB 저장만 짧은 트랜잭션으로 처리하여 커넥션 누수를 방지한다.
      */
-    @Transactional
     @CacheEvict(value = "corporationArticles", allEntries = true)
     @CachePreload
     public void saveArticleWithAnalysis(Article article, Corporation corporation, BlogCrawler crawler) throws IOException {
-        saveArticleInternal(article, corporation, crawler);
+        ArticleAnalysisResponse openAiResponse = callExternalApis(article, corporation, crawler);
+        self.persistArticleData(article, openAiResponse);
     }
 
     /**
      * 전체 페이지 크롤링용 - Article 저장 및 AI 분석 (캐시 작업 없음)
      */
-    @Transactional
     public void saveArticleWithAnalysisNoCache(Article article, Corporation corporation, BlogCrawler crawler) throws IOException {
-        saveArticleInternal(article, corporation, crawler);
+        ArticleAnalysisResponse openAiResponse = callExternalApis(article, corporation, crawler);
+        self.persistArticleData(article, openAiResponse);
     }
 
     /**
-     * Article 저장 및 AI 분석 내부 로직
+     * 외부 API 호출 단계 — S3 이미지 업로드, DeepL 번역, OpenAI 분석.
+     * DB 커넥션을 잡지 않으므로 시간이 오래 걸려도 안전하다.
      */
-    private void saveArticleInternal(Article article, Corporation corporation, BlogCrawler crawler) throws IOException {
-        // 이미지 업로드 처리
+    private ArticleAnalysisResponse callExternalApis(Article article, Corporation corporation, BlogCrawler crawler) throws IOException {
         crawler.processImageUpload(article, corporation);
-
-        // article 저장
-        crawlerArticleRepository.save(article);
-
-        crawlingRunService.ensureArticleLogForCurrentRun(article);
-
-        // 해외 기업의 영어 제목 자동 번역
         translateTitleIfNeeded(article, corporation);
 
-        // OpenAI 분석 및 카테고리 저장 (실패 시 article은 유지)
         try {
-            ArticleAnalysisResponse openAiResponse = openaiService.sendArticleAnalysis(article);
-            Category category = categoryRepository.findByName(openAiResponse.getCategory())
-                                .orElseGet(() -> categoryRepository.save(openAiResponse.toCategoryEntity()));
-            article.setCategory(category);
-            crawlerArticleRepository.save(article);
-            log.debug("OpenAI 분석 완료 - Article: {}, Category: {}", article.getTitle(), category.getName());
-            crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CATEGORY_ANALYSIS, CrawlingStepStatus.SUCCESS, null);
+            return openaiService.sendArticleAnalysis(article);
         } catch (Exception e) {
             log.warn("OpenAI 분석 실패 - Article: {}, 오류: {}", article.getTitle(), e.getMessage(), e);
-            crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CATEGORY_ANALYSIS, CrawlingStepStatus.FAILURE, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * DB 저장 단계 — 짧은 트랜잭션 안에서만 커넥션을 보유한다.
+     */
+    @Transactional
+    public void persistArticleData(Article article, ArticleAnalysisResponse openAiResponse) {
+        crawlerArticleRepository.save(article);
+        crawlingRunService.ensureArticleLogForCurrentRun(article);
+
+        if (openAiResponse != null) {
+            try {
+                Category category = categoryRepository.findByName(openAiResponse.getCategory())
+                        .orElseGet(() -> categoryRepository.save(openAiResponse.toCategoryEntity()));
+                article.setCategory(category);
+                crawlerArticleRepository.save(article);
+                log.debug("OpenAI 분석 완료 - Article: {}, Category: {}", article.getTitle(), category.getName());
+                crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CATEGORY_ANALYSIS, CrawlingStepStatus.SUCCESS, null);
+            } catch (Exception e) {
+                log.warn("카테고리 저장 실패 - Article: {}, 오류: {}", article.getTitle(), e.getMessage(), e);
+                crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CATEGORY_ANALYSIS, CrawlingStepStatus.FAILURE, e.getMessage());
+            }
+        } else {
+            crawlingRunService.recordStepForCurrentRun(article, CrawlingStepType.CATEGORY_ANALYSIS, CrawlingStepStatus.FAILURE, "OpenAI 분석 실패");
         }
     }
 
@@ -288,8 +307,6 @@ public class ArticlePersistenceService {
                     if (translatedTitle != null && !translatedTitle.trim().isEmpty()
                             && translationService.containsKorean(translatedTitle)) {
                         article.setTranslatedTitle(translatedTitle);
-                        crawlerArticleRepository.save(article);
-
                         log.info("제목 번역 완료 (DeepL) - 기업: {}, 원본: '{}' → 번역: '{}'",
                             corporation.getName(), title, translatedTitle);
                     }
