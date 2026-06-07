@@ -618,3 +618,94 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // ===== 검색 자동완성 기능 =====
 // searchAutocomplete.js 모듈로 이전됨 (SearchAutocomplete 클래스 사용)
+
+// ===== 관리자 추천 검색어 편집 모달 =====
+(function () {
+    const overlay = document.getElementById('keywordEditModal');
+    if (!overlay) return; // 관리자가 아닐 때는 요소 자체가 없음
+
+    const openBtn = document.getElementById('openKeywordModal');
+    const closeBtn = document.getElementById('closeKeywordModal');
+    const cancelBtn = document.getElementById('cancelKeywordEdit');
+    const saveBtn = document.getElementById('saveKeywordEdit');
+    const textarea = document.getElementById('keywordTextarea');
+
+    function openModal() {
+        fetch('/api/admin/suggested-search-terms', { credentials: 'include' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    textarea.value = (data.keywords || []).join('\n');
+                }
+                overlay.style.display = 'flex';
+                document.body.style.overflow = 'hidden';
+            })
+            .catch(() => {
+                textarea.value = '';
+                overlay.style.display = 'flex';
+                document.body.style.overflow = 'hidden';
+            });
+    }
+
+    function closeModal() {
+        overlay.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+
+    function saveKeywords() {
+        const keywords = textarea.value
+            .split('\n')
+            .map(k => k.trim())
+            .filter(k => k.length > 0)
+            .slice(0, 8);
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = '저장 중...';
+
+        fetch('/api/admin/suggested-search-terms', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ keywords })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                // DOM에서 keyword-chip 영역 즉시 교체
+                const container = document.querySelector('.suggested-keywords');
+                const existingChips = container.querySelectorAll('.keyword-chip');
+                existingChips.forEach(el => el.remove());
+
+                (data.keywords || []).forEach(kw => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'keyword-chip';
+                    btn.textContent = kw;
+                    btn.onclick = () => searchKeyword(kw);
+                    container.appendChild(btn);
+                });
+                closeModal();
+            } else {
+                alert('저장 실패: ' + (data.message || '알 수 없는 오류'));
+            }
+        })
+        .catch(() => alert('저장 중 오류가 발생했습니다.'))
+        .finally(() => {
+            saveBtn.disabled = false;
+            saveBtn.textContent = '저장';
+        });
+    }
+
+    openBtn.addEventListener('click', openModal);
+    closeBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+    saveBtn.addEventListener('click', saveKeywords);
+
+    overlay.addEventListener('click', function (e) {
+        if (e.target === overlay) closeModal();
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && overlay.style.display !== 'none') closeModal();
+    });
+}());

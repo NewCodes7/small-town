@@ -105,6 +105,7 @@ public class ArticleController {
     private final ThemeRepository themeRepository;
     private final RelatedArticleService relatedArticleService;
     private final com.newcodes7.small_town.hackernews.service.HackerNewsService hackerNewsService;
+    private final com.newcodes7.small_town.search.service.SuggestedSearchTermService suggestedSearchTermService;
 
     @GetMapping("/articles")
     public String home(
@@ -1076,6 +1077,8 @@ public class ArticleController {
         model.addAttribute("themes", themes);
         model.addAttribute("popularArticles", popularArticles);
         model.addAttribute("hackerNewsItems", hackerNewsItems);
+        model.addAttribute("suggestedKeywords", suggestedSearchTermService.getActiveKeywords());
+        model.addAttribute("isAdmin", userDetails != null && isAdmin(userDetails));
 
         model.addAttribute("canonicalUrl", baseUrl + "/");
         return "new-home";

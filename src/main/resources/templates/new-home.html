@@ -83,10 +83,29 @@
                 <!-- 추천 검색어 -->
                 <div class="suggested-keywords">
                     <span class="suggested-keywords-label">추천 검색어</span>
-                    <button type="button" class="keyword-chip" onclick="searchKeyword('대용량 트래픽 처리')">대용량 트래픽 처리</button>
-                    <button type="button" class="keyword-chip" onclick="searchKeyword('React 성능 최적화')">React 성능 최적화</button>
-                    <button type="button" class="keyword-chip" onclick="searchKeyword('MSA 전환 경험')">MSA 전환 경험</button>
-                    <button type="button" class="keyword-chip" onclick="searchKeyword('Kafka 실시간 처리')">Kafka 실시간 처리</button>
+                    <button th:if="${isAdmin}" type="button" class="keyword-edit-btn" id="openKeywordModal" title="추천 검색어 편집">
+                        <i class="fas fa-pencil-alt"></i>
+                    </button>
+                    <button th:each="kw : ${suggestedKeywords}" type="button" class="keyword-chip"
+                            th:onclick="|searchKeyword('${kw}')|" th:text="${kw}"></button>
+                </div>
+
+                <!-- 관리자 전용: 추천 검색어 편집 모달 -->
+                <div th:if="${isAdmin}" id="keywordEditModal" class="keyword-modal-overlay" style="display:none">
+                    <div class="keyword-modal">
+                        <div class="keyword-modal-header">
+                            <h3>추천 검색어 편집</h3>
+                            <button type="button" class="keyword-modal-close" id="closeKeywordModal">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <p class="keyword-modal-hint">한 줄에 하나씩 입력 (최대 8개)</p>
+                        <textarea id="keywordTextarea" rows="8" placeholder="예: MSA 전환 경험&#10;React 성능 최적화"></textarea>
+                        <div class="keyword-modal-actions">
+                            <button type="button" id="cancelKeywordEdit" class="keyword-btn-cancel">취소</button>
+                            <button type="button" id="saveKeywordEdit" class="keyword-btn-save">저장</button>
+                        </div>
+                    </div>
                 </div>
             </section>
 
