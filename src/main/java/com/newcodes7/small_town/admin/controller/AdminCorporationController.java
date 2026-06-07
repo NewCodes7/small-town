@@ -46,6 +46,7 @@ import com.newcodes7.small_town.crawler.repository.ArticleTagRepository;
 import com.newcodes7.small_town.crawler.repository.CrawlerArticleRepository;
 import com.newcodes7.small_town.crawler.repository.CrawlerCorporationRepository;
 import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
+import com.newcodes7.small_town.embedding.service.ChunkEmbeddingBatchService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.theme.repository.ThemeArticleRepository;
@@ -72,6 +73,7 @@ public class AdminCorporationController {
     // Article 삭제 시 연관 데이터 삭제를 위한 Repository들
     private final ArticleTermRepository articleTermRepository;
     private final ArticleChunkRepository articleChunkRepository;
+    private final ChunkEmbeddingBatchService chunkEmbeddingBatchService;
     private final ArticleTagRepository articleTagRepository;
     private final ArticleSummaryRepository articleSummaryRepository;
     private final ThemeArticleRepository themeArticleRepository;
@@ -305,6 +307,84 @@ public class AdminCorporationController {
             log.error("전체 크롤링 상태 리셋 실패 - ID: {}, 오류: {}", id, e.getMessage(), e);
             response.put("success", false);
             response.put("message", "리셋 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * 기업의 모든 아티클 청크/벡터 임베딩 재생성
+     * 기존 chunk, chunk_content, chunk_vector를 삭제하고 article.content 기반으로 재생성
+     *
+     * Example: POST /admin/corporations/3/regenerate-embeddings
+     */
+    @PostMapping("/corporations/{id}/regenerate-embeddings")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> regenerateCorporationEmbeddings(@PathVariable Long id) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            Corporation corporation = crawlerCorporationRepository.findByIdAndNotDeleted(id);
+            if (corporation == null) {
+                response.put("success", false);
+                response.put("message", "기업을 찾을 수 없습니다: " + id);
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            List<Long> targetIds = articleChunkRepository
+                    .findArticleIdsWithEmbeddingByCorporationIdOrderByIdDesc(id);
+
+            if (targetIds.isEmpty()) {
+                response.put("success", true);
+                response.put("corporationId", id);
+                response.put("corporationName", corporation.getName());
+                response.put("totalArticles", 0);
+                response.put("message", "재생성할 아티클이 없습니다.");
+                return ResponseEntity.ok(response);
+            }
+
+            log.info("기업 {} ({}) 임베딩 재생성 시작 - {}개 아티클", corporation.getName(), id, targetIds.size());
+
+            int batchSize = chunkEmbeddingBatchService.getBatchSize();
+            int totalSuccess = 0;
+            int totalFailure = 0;
+            int totalChunks = 0;
+            int batchNumber = 0;
+
+            for (int i = 0; i < targetIds.size(); i += batchSize) {
+                List<Long> batchIds = targetIds.subList(i, Math.min(i + batchSize, targetIds.size()));
+                batchNumber++;
+
+                try {
+                    Map<String, Object> batchResult = chunkEmbeddingBatchService.processRegenerateBatch(batchIds);
+                    totalSuccess += (int) batchResult.get("successCount");
+                    totalFailure += (int) batchResult.get("failureCount");
+                    totalChunks += (int) batchResult.get("totalChunks");
+                } catch (Exception ex) {
+                    log.error("기업 {} 재생성 배치 {} 실패: {}", id, batchNumber, ex.getMessage());
+                    totalFailure += batchIds.size();
+                }
+            }
+
+            log.info("기업 {} 임베딩 재생성 완료 - 성공: {}/{}, 청크: {}",
+                    corporation.getName(), totalSuccess, targetIds.size(), totalChunks);
+
+            response.put("success", true);
+            response.put("corporationId", id);
+            response.put("corporationName", corporation.getName());
+            response.put("totalArticles", targetIds.size());
+            response.put("totalBatches", batchNumber);
+            response.put("successArticles", totalSuccess);
+            response.put("failureArticles", totalFailure);
+            response.put("totalChunksGenerated", totalChunks);
+            response.put("message", String.format("임베딩 재생성 완료: %d/%d Articles, %d 청크",
+                    totalSuccess, targetIds.size(), totalChunks));
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("기업 {} 임베딩 재생성 중 오류 발생", id, e);
+            response.put("success", false);
+            response.put("message", "재생성 중 오류 발생: " + e.getMessage());
             return ResponseEntity.internalServerError().body(response);
         }
     }
