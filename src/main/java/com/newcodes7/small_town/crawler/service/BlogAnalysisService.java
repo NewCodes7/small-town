@@ -8,17 +8,20 @@ import com.newcodes7.small_town.corporation.dto.CorporationCreateDto;
 import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
 import com.newcodes7.small_town.corporation.dto.CorporationUpdateDto;
 import com.newcodes7.small_town.corporation.service.CorporationService;
+import com.newcodes7.small_town.crawler.config.WebDriverConfig;
 import com.newcodes7.small_town.crawler.entity.CorporationBlogQueue;
 import com.newcodes7.small_town.crawler.repository.CorporationBlogQueueRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jsoup.HttpStatusException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Attribute;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.TextNode;
 import org.jsoup.select.Elements;
+import org.openqa.selenium.WebDriver;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
@@ -47,6 +50,7 @@ public class BlogAnalysisService {
     private final CorporationBlogQueueRepository queueRepository;
     private final CorporationService corporationService;
     private final ObjectMapper objectMapper;
+    private final WebDriverConfig webDriverConfig;
 
     @Autowired
     @Lazy
@@ -256,10 +260,45 @@ public class BlogAnalysisService {
     // ─────────────────────────── HTML Preprocessing ───────────────────────────
 
     Document fetchDocument(String url) throws IOException {
-        return Jsoup.connect(url)
-                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                .timeout(10_000)
-                .get();
+        try {
+            return Jsoup.connect(url)
+                    .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+                    .header("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7")
+                    .referrer("https://www.google.com/")
+                    .timeout(10_000)
+                    .get();
+        } catch (HttpStatusException e) {
+            // 403/429 등 봇 차단 → 실제 브라우저(Selenium)로 폴백
+            log.warn("Jsoup fetch 차단(HTTP {}) — Selenium 폴백 시도: {}", e.getStatusCode(), url);
+            return fetchDocumentWithSelenium(url);
+        }
+    }
+
+    /**
+     * Jsoup 단순 HTTP 요청이 봇 차단(403 등)으로 막힐 때 실제 Chrome으로 렌더링해 HTML을 확보한다.
+     * WebDriver는 반드시 finally에서 forceCloseWebDriver로 종료한다 (OOM Exit 137 방지).
+     */
+    Document fetchDocumentWithSelenium(String url) throws IOException {
+        WebDriver driver = null;
+        try {
+            driver = webDriverConfig.createWebDriver();
+            driver.get(url);
+            String html = driver.getPageSource();
+            if (html == null || html.isBlank()) {
+                throw new IOException("Selenium 폴백 결과가 비어있습니다: " + url);
+            }
+            // baseUri를 넘겨 abs:href / abs:src 가 정상 해석되도록 한다.
+            return Jsoup.parse(html, url);
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IOException("Selenium 폴백 실패: " + e.getMessage(), e);
+        } finally {
+            if (driver != null) {
+                webDriverConfig.forceCloseWebDriver(driver);
+            }
+        }
     }
 
     String preprocessHtml(Document doc) {
