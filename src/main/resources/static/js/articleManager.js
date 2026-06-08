@@ -18,6 +18,7 @@ class ArticleManager {
         this.userExplicitViewChange = false; // 사용자가 명시적으로 뷰를 변경했는지 추적
         this.userExplicitSortChange = false; // 사용자가 명시적으로 정렬을 변경했는지 추적
         this.isAdmin = false;
+        this.lastTotalResults = 0;
         this.init();
     }
 
@@ -359,6 +360,7 @@ class ArticleManager {
 
             // admin 여부 갱신
             this.isAdmin = data.isAdmin === true;
+            this.lastTotalResults = data.totalElements ?? 0;
 
             // UI 업데이트
             if (data.view === 'grouped') {
@@ -453,7 +455,7 @@ class ArticleManager {
         }
 
         listContainer.innerHTML = '<div class="articles-list-container">' +
-            articles.map(article => this.generateListArticleHTML(article)).join('') + '</div>';
+            articles.map((article, index) => this.generateListArticleHTML(article, index)).join('') + '</div>';
 
         this.bindArticleEvents();
         this.updateRelativeTimes();
@@ -491,7 +493,7 @@ class ArticleManager {
         </div>`;
     }
 
-    generateListArticleHTML(article) {
+    generateListArticleHTML(article, listIndex = 0) {
         const title = article.translatedTitle && article.translatedTitle.length > 0
             ? article.translatedTitle : article.title;
         const thumbnailHTML = article.thumbnailImage
@@ -507,6 +509,10 @@ class ArticleManager {
 
         return `<div class="article-card-wrapper">
             <div class="article-card" data-article-id="${article.id}" data-detail-url="${this.escapeHtml(article.detailUrl || '')}"
+                 data-click-position="${this.currentPage * 10 + listIndex}"
+                 data-bm25-score="${article.bm25Score ?? ''}" data-vector-score="${article.vectorScore ?? ''}"
+                 data-final-score="${article.finalScore ?? ''}" data-bm25-rank="${article.bm25Rank ?? ''}"
+                 data-vector-rank="${article.vectorRank ?? ''}"
                  style="cursor: pointer;">
                 <div class="article-content">
                     <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
@@ -871,6 +877,9 @@ class ArticleManager {
                                 credentials: 'same-origin',
                                 redirect: 'manual'
                             });
+                            if (this.currentKeyword) {
+                                this._logSearchClick(articleId, parent);
+                            }
                         }
                         break;
                     }
@@ -880,6 +889,28 @@ class ArticleManager {
             
             card.style.cursor = 'pointer';
         });
+    }
+
+    _logSearchClick(articleId, cardElement) {
+        const payload = {
+            searchKeyword:  this.currentKeyword,
+            clickPosition:  parseInt(cardElement.getAttribute('data-click-position') ?? '0'),
+            pageNumber:     this.currentPage,
+            pageSize:       10,
+            sortType:       this.currentSort,
+            totalResults:   this.lastTotalResults,
+            bm25Score:      parseFloat(cardElement.getAttribute('data-bm25-score')) || null,
+            vectorScore:    parseFloat(cardElement.getAttribute('data-vector-score')) || null,
+            finalScore:     parseFloat(cardElement.getAttribute('data-final-score')) || null,
+            bm25Rank:       parseInt(cardElement.getAttribute('data-bm25-rank')) || null,
+            vectorRank:     parseInt(cardElement.getAttribute('data-vector-rank')) || null,
+        };
+        fetch(`/api/search/articles/${articleId}/click`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify(payload)
+        }).catch(() => {});
     }
 
     bindLikeButtons() {

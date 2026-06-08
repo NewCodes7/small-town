@@ -10,10 +10,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import com.newcodes7.small_town.search.dto.SearchClickRequestDto;
+import com.newcodes7.small_town.search.service.SearchClickLogService;
 
 import com.newcodes7.small_town.article.dto.ArticleResponseDto;
 import com.newcodes7.small_town.article.service.ArticleService;
@@ -37,6 +37,7 @@ public class ArticleSearchController {
     private final ArticleSearchService articleSearchService;
     private final SemanticTermExpansionService semanticExpansionService;
     private final SearchLogService searchLogService;
+    private final SearchClickLogService searchClickLogService;
 
     @GetMapping("/articles")
     public ResponseEntity<Map<String, Object>> searchArticles(
@@ -136,5 +137,18 @@ public class ArticleSearchController {
         }
 
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/articles/{articleId}/click")
+    public ResponseEntity<Void> recordClick(
+            @PathVariable Long articleId,
+            @RequestBody SearchClickRequestDto dto,
+            @AuthenticationPrincipal UserDetails userDetails,
+            HttpServletRequest request) {
+        String username = userDetails != null ? userDetails.getUsername() : null;
+        String ip = Client.getClientIpAddress(request);
+        String userAgent = request.getHeader("User-Agent");
+        searchClickLogService.logClick(articleId, dto, username, ip, userAgent);
+        return ResponseEntity.noContent().build();
     }
 }
