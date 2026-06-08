@@ -368,12 +368,16 @@ public class BlogAnalysisService {
                 "role", "user",
                 "parts", List.of(Map.of("text", userMessage))
         )));
-        body.put("generationConfig", Map.of(
-                "temperature", 0.1,
-                "maxOutputTokens", 1024,
-                "responseMimeType", "application/json",
-                "responseSchema", buildResponseSchema()
-        ));
+        // gemini-3.x-flash 등 thinking 모델은 thinking 토큰이 maxOutputTokens 예산을 공유한다.
+        // 예산이 작으면 thinking이 다 소모해 실제 JSON 출력이 잘려(truncated) 파싱이 실패한다.
+        // → maxOutputTokens를 넉넉히 주고 thinkingBudget을 낮게 제한해 출력이 굶지 않도록 한다.
+        Map<String, Object> generationConfig = new LinkedHashMap<>();
+        generationConfig.put("temperature", 0.1);
+        generationConfig.put("maxOutputTokens", 8192);
+        generationConfig.put("responseMimeType", "application/json");
+        generationConfig.put("responseSchema", buildResponseSchema());
+        generationConfig.put("thinkingConfig", Map.of("thinkingBudget", 512));
+        body.put("generationConfig", generationConfig);
         return objectMapper.writeValueAsString(body);
     }
 
@@ -441,9 +445,17 @@ public class BlogAnalysisService {
         if (candidates.isEmpty()) {
             throw new IOException("Gemini returned no candidates");
         }
-        String text = candidates.get(0).path("content").path("parts").get(0).path("text").asText("");
+        JsonNode candidate = candidates.get(0);
+        String finishReason = candidate.path("finishReason").asText("");
+        String text = candidate.path("content").path("parts").get(0).path("text").asText("");
+
+        // MAX_TOKENS 등으로 출력이 잘리면 JSON이 불완전해 파싱이 깨진다 — 원인을 명확히 알린다.
+        if ("MAX_TOKENS".equals(finishReason)) {
+            throw new IOException("Gemini 응답이 토큰 한도(MAX_TOKENS)로 잘렸습니다. "
+                    + "maxOutputTokens 증가 또는 thinkingBudget 축소 필요");
+        }
         if (text.isBlank()) {
-            throw new IOException("Gemini returned empty text");
+            throw new IOException("Gemini returned empty text (finishReason=" + finishReason + ")");
         }
         return objectMapper.readValue(text, BlogAnalysisResultDto.class);
     }
