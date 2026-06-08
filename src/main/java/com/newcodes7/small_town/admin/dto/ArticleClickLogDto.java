@@ -1,6 +1,6 @@
 package com.newcodes7.small_town.admin.dto;
 
-import com.newcodes7.small_town.article.entity.ArticleClickLog;
+import com.newcodes7.small_town.activity.entity.ArticleClickLog;
 
 import java.time.LocalDateTime;
 

@@ -1,9 +1,9 @@
 package com.newcodes7.small_town.admin.service;
 
 import com.newcodes7.small_town.admin.dto.ArticleClickLogDto;
-import com.newcodes7.small_town.article.entity.ArticleClickLog;
-import com.newcodes7.small_town.article.entity.ReferralSource;
-import com.newcodes7.small_town.article.repository.ArticleClickLogRepository;
+import com.newcodes7.small_town.activity.entity.ArticleClickLog;
+import com.newcodes7.small_town.activity.entity.ReferralSource;
+import com.newcodes7.small_town.activity.repository.ArticleClickLogRepository;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.global.entity.Article;
 import lombok.RequiredArgsConstructor;

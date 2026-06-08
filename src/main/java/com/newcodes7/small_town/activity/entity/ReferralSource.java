@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.entity;
+package com.newcodes7.small_town.activity.entity;
 
 /**
  * 아티클 클릭 유입경로(referrer source).

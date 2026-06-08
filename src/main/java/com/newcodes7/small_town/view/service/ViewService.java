@@ -1,8 +1,8 @@
-package com.newcodes7.small_town.article.service;
+package com.newcodes7.small_town.view.service;
 
-import com.newcodes7.small_town.article.entity.ViewLog;
+import com.newcodes7.small_town.view.entity.ViewLog;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.article.repository.ViewLogRepository;
+import com.newcodes7.small_town.view.repository.ViewLogRepository;
 import com.newcodes7.small_town.auth.entity.User;
 import com.newcodes7.small_town.auth.repository.UserRepository;
 import com.newcodes7.small_town.global.entity.Article;

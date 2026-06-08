@@ -40,7 +40,7 @@ import com.newcodes7.small_town.corporation.service.CorporationService;
 import com.newcodes7.small_town.term.repository.ArticleTermRepository;
 import com.newcodes7.small_town.like.repository.LikeLogRepository;
 import com.newcodes7.small_town.like.repository.LikeRepository;
-import com.newcodes7.small_town.article.repository.ViewLogRepository;
+import com.newcodes7.small_town.view.repository.ViewLogRepository;
 import com.newcodes7.small_town.crawler.repository.ArticleSummaryRepository;
 import com.newcodes7.small_town.crawler.repository.ArticleTagRepository;
 import com.newcodes7.small_town.crawler.repository.CrawlerArticleRepository;

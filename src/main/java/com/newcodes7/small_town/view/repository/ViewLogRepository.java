@@ -1,6 +1,6 @@
-package com.newcodes7.small_town.article.repository;
+package com.newcodes7.small_town.view.repository;
 
-import com.newcodes7.small_town.article.entity.ViewLog;
+import com.newcodes7.small_town.view.entity.ViewLog;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

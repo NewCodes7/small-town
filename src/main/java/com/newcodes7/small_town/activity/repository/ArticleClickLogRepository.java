@@ -1,7 +1,7 @@
-package com.newcodes7.small_town.article.repository;
+package com.newcodes7.small_town.activity.repository;
 
-import com.newcodes7.small_town.article.entity.ArticleClickLog;
-import com.newcodes7.small_town.article.entity.ReferralSource;
+import com.newcodes7.small_town.activity.entity.ArticleClickLog;
+import com.newcodes7.small_town.activity.entity.ReferralSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

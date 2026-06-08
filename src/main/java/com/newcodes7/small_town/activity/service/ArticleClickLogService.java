@@ -1,9 +1,9 @@
-package com.newcodes7.small_town.article.service;
+package com.newcodes7.small_town.activity.service;
 
-import com.newcodes7.small_town.article.dto.ArticleReferralRequestDto;
-import com.newcodes7.small_town.article.entity.ArticleClickLog;
-import com.newcodes7.small_town.article.entity.ReferralSource;
-import com.newcodes7.small_town.article.repository.ArticleClickLogRepository;
+import com.newcodes7.small_town.activity.dto.ArticleReferralRequestDto;
+import com.newcodes7.small_town.activity.entity.ArticleClickLog;
+import com.newcodes7.small_town.activity.entity.ReferralSource;
+import com.newcodes7.small_town.activity.repository.ArticleClickLogRepository;
 import com.newcodes7.small_town.auth.entity.User;
 import com.newcodes7.small_town.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
