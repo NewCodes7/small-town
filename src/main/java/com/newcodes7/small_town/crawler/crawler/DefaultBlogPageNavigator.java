@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import com.newcodes7.small_town.crawler.entity.ParsingSelector;
 import com.newcodes7.small_town.crawler.exception.CrawlerException;
 import com.newcodes7.small_town.crawler.exception.CrawlerTimeoutException;
+import com.newcodes7.small_town.crawler.exception.WebDriverException;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 
@@ -48,6 +49,11 @@ public class DefaultBlogPageNavigator {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw CrawlerTimeoutException.pageLoadTimeout(corporation.getBlogLink(), 2);
+        } catch (java.io.UncheckedIOException e) {
+            if (e.getCause() instanceof java.net.ConnectException) {
+                throw new WebDriverException("Chrome session disconnected for: " + corporation.getBlogLink(), e);
+            }
+            throw new CrawlerException("CRAWLER_ERROR", "Error during first-page crawling", e) {};
         } catch (Exception e) {
             throw new CrawlerException("CRAWLER_ERROR", "Error during first-page crawling", e) {};
         }
@@ -120,6 +126,11 @@ public class DefaultBlogPageNavigator {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new CrawlerException("CRAWLER_INTERRUPTED", "Crawling interrupted", e) {};
+        } catch (java.io.UncheckedIOException e) {
+            if (e.getCause() instanceof java.net.ConnectException) {
+                throw new WebDriverException("Chrome session disconnected for: " + corporation.getBlogLink(), e);
+            }
+            throw new CrawlerException("CRAWLER_ERROR", "Error during multi-page crawling", e) {};
         } catch (CrawlerException e) {
             throw e;
         } catch (Exception e) {

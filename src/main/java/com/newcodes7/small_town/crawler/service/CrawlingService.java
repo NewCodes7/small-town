@@ -21,6 +21,7 @@ import com.newcodes7.small_town.crawler.entity.CrawlingStepType;
 import com.newcodes7.small_town.crawler.exception.CorporationCrawlingException;
 import com.newcodes7.small_town.crawler.exception.CrawlerException;
 import com.newcodes7.small_town.crawler.exception.CrawlerNotFoundException;
+import com.newcodes7.small_town.crawler.exception.WebDriverException;
 import com.newcodes7.small_town.crawler.integration.robotstxt.RobotsTxtService;
 import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
 import com.newcodes7.small_town.crawler.repository.CrawlerArticleRepository;
@@ -73,6 +74,9 @@ public class CrawlingService {
                 allNewArticles.addAll(result.getArticles());
                 log.info("기업 크롤링 완료 - {}: {}/{} 진행", corporation.getName(),
                     results.size() + 1, corporations.size());
+            } catch (WebDriverException e) {
+                log.warn("Chrome 크래시 감지 - 새 드라이버로 재시도: {} ({})", corporation.getName(), e.getMessage());
+                result = retryCrawlWithFreshDriver(corporation, allNewArticles);
             } catch (Exception e) {
                 log.error("기업 ID {} 크롤링 중 오류 발생: {}", corporation.getId(), e.getMessage(), e);
                 result = CrawlResult.failure(corporation, "크롤링 실행 실패: " + e.getMessage());
@@ -98,6 +102,24 @@ public class CrawlingService {
         }
 
         return results;
+    }
+
+    private CrawlResult retryCrawlWithFreshDriver(Corporation corporation, List<Article> allNewArticles) {
+        WebDriver retryDriver = null;
+        try {
+            retryDriver = webDriverConfig.createWebDriver();
+            CrawlResult result = crawlSingleBlog(corporation.getId(), retryDriver);
+            allNewArticles.addAll(result.getArticles());
+            log.info("Chrome 재시도 성공 - 기업: {}", corporation.getName());
+            return result;
+        } catch (Exception e) {
+            log.error("Chrome 재시도 실패 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
+            return CrawlResult.failure(corporation, "크롤링 재시도 실패: " + e.getMessage());
+        } finally {
+            if (retryDriver != null) {
+                webDriverConfig.forceCloseWebDriver(retryDriver);
+            }
+        }
     }
 
     /**
