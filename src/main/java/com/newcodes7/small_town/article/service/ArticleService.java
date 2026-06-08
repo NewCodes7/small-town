@@ -244,7 +244,10 @@ public class ArticleService {
     }
     
     public Page<ArticleListResponseDto> getArticlesByCorporation(Long corporationId, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
+        // page/size가 음수로 들어오면 PageRequest.of가 IllegalArgumentException을 던지므로 방어
+        int safePage = Math.max(page, 0);
+        int safeSize = size <= 0 ? 1 : size;
+        Pageable pageable = PageRequest.of(safePage, safeSize);
         Page<Article> articles = articleRepository.findByCorporationId(corporationId, pageable);
 
         // 좋아요 상태는 별도 API로 조회하므로 null로 설정
