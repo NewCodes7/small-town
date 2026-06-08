@@ -35,17 +35,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query(value = """
             SELECT u.* FROM users u
             LEFT JOIN (
-                SELECT user_id, MAX(created_at) AS last_activity
-                FROM (
-                    SELECT user_id, created_at FROM view_log WHERE user_id IS NOT NULL
-                    UNION ALL
-                    SELECT user_id, created_at FROM video_view_log WHERE user_id IS NOT NULL
-                    UNION ALL
-                    SELECT user_id, created_at FROM search_logs WHERE user_id IS NOT NULL
-                ) all_activities
+                SELECT user_id, MAX(created_at) AS last_article_view
+                FROM view_log
+                WHERE user_id IS NOT NULL
                 GROUP BY user_id
             ) la ON la.user_id = u.id
-            ORDER BY la.last_activity DESC NULLS LAST
+            ORDER BY la.last_article_view DESC NULLS LAST
             """,
             countQuery = "SELECT COUNT(*) FROM users",
             nativeQuery = true)
@@ -54,18 +49,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query(value = """
             SELECT u.* FROM users u
             LEFT JOIN (
-                SELECT user_id, MAX(created_at) AS last_activity
-                FROM (
-                    SELECT user_id, created_at FROM view_log WHERE user_id IS NOT NULL
-                    UNION ALL
-                    SELECT user_id, created_at FROM video_view_log WHERE user_id IS NOT NULL
-                    UNION ALL
-                    SELECT user_id, created_at FROM search_logs WHERE user_id IS NOT NULL
-                ) all_activities
+                SELECT user_id, MAX(created_at) AS last_article_view
+                FROM view_log
+                WHERE user_id IS NOT NULL
                 GROUP BY user_id
             ) la ON la.user_id = u.id
             WHERE u.email LIKE %:search% OR u.nickname LIKE %:search%
-            ORDER BY la.last_activity DESC NULLS LAST
+            ORDER BY la.last_article_view DESC NULLS LAST
             """,
             countQuery = "SELECT COUNT(*) FROM users u WHERE u.email LIKE %:search% OR u.nickname LIKE %:search%",
             nativeQuery = true)

@@ -1,5 +1,6 @@
 package com.newcodes7.small_town.admin.controller;
 
+import com.newcodes7.small_town.admin.dto.AdminUserListDto;
 import com.newcodes7.small_town.admin.service.AdminUserActivityService;
 import com.newcodes7.small_town.auth.entity.User;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +25,7 @@ public class AdminUserActivityController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             Model model) {
-        Page<User> users = adminUserActivityService.getUsers(search, page, size);
+        Page<AdminUserListDto> users = adminUserActivityService.getUsers(search, page, size);
         model.addAttribute("users", users);
         model.addAttribute("search", search);
         return "admin/user-activity/list";

@@ -1,5 +1,6 @@
 package com.newcodes7.small_town.admin.service;
 
+import com.newcodes7.small_town.admin.dto.AdminUserListDto;
 import com.newcodes7.small_town.admin.dto.ArticleViewLogDto;
 import com.newcodes7.small_town.admin.dto.VideoViewLogDto;
 import com.newcodes7.small_town.article.entity.ViewLog;
@@ -20,8 +21,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -35,12 +39,29 @@ public class AdminUserActivityService {
     private final LikeLogRepository likeLogRepository;
     private final VideoLikeLogRepository videoLikeLogRepository;
 
-    public Page<User> getUsers(String search, int page, int size) {
+    public Page<AdminUserListDto> getUsers(String search, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
-        if (search != null && !search.isBlank()) {
-            return userRepository.findByEmailOrNicknameContainingOrderByLastActivityDesc(search, pageable);
-        }
-        return userRepository.findAllOrderByLastActivityDesc(pageable);
+        Page<User> users = search != null && !search.isBlank()
+                ? userRepository.findByEmailOrNicknameContainingOrderByLastActivityDesc(search, pageable)
+                : userRepository.findAllOrderByLastActivityDesc(pageable);
+
+        List<Long> userIds = users.map(User::getId).toList();
+        Map<Long, LocalDateTime> lastViewAtMap = viewLogRepository.findLastArticleViewAtByUserIds(userIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> (LocalDateTime) row[1]
+                ));
+
+        return users.map(u -> new AdminUserListDto(
+                u.getId(),
+                u.getNickname(),
+                u.getEmail(),
+                u.getStatus().name(),
+                u.getLastLoginAt(),
+                u.getCreatedAt(),
+                lastViewAtMap.get(u.getId())
+        ));
     }
 
     public User getUser(Long userId) {

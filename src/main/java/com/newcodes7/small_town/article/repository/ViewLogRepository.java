@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -44,4 +45,8 @@ public interface ViewLogRepository extends JpaRepository<ViewLog, Long> {
     @Query(value = "SELECT vl FROM ViewLog vl JOIN FETCH vl.article a LEFT JOIN FETCH a.corporation WHERE vl.ipAddress = :ip AND vl.user IS NULL ORDER BY vl.createdAt DESC",
            countQuery = "SELECT COUNT(vl) FROM ViewLog vl WHERE vl.ipAddress = :ip AND vl.user IS NULL")
     Page<ViewLog> findAnonymousByIpAddressWithDetails(@Param("ip") String ip, Pageable pageable);
+
+    // 어드민: 사용자별 최신 글 조회 시각 (user_id, max_created_at) 목록
+    @Query(value = "SELECT vl.user.id, MAX(vl.createdAt) FROM ViewLog vl WHERE vl.user.id IN :userIds GROUP BY vl.user.id")
+    List<Object[]> findLastArticleViewAtByUserIds(@Param("userIds") List<Long> userIds);
 }
