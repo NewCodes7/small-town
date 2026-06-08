@@ -38,8 +38,8 @@ import com.newcodes7.small_town.corporation.dto.CorporationDetailDto;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.term.repository.ArticleTermRepository;
 import com.newcodes7.small_town.article.service.ArticleService;
-import com.newcodes7.small_town.article.service.LikeService;
-import com.newcodes7.small_town.article.service.UserLikeService;
+import com.newcodes7.small_town.like.service.LikeService;
+import com.newcodes7.small_town.like.service.UserLikeService;
 import com.newcodes7.small_town.article.service.ViewService;
 import com.newcodes7.small_town.article.service.ArticleClickLogService;
 import com.newcodes7.small_town.article.dto.ArticleReferralRequestDto;
@@ -100,7 +100,7 @@ public class ArticleController {
     private final SearchLogRepository searchLogRepository;
     private final ArticleRepository articleRepository;
     private final com.newcodes7.small_town.auth.repository.UserRepository userRepository;
-    private final com.newcodes7.small_town.article.repository.LikeLogRepository likeLogRepository;
+    private final com.newcodes7.small_town.like.repository.LikeLogRepository likeLogRepository;
     private final com.newcodes7.small_town.video.repository.VideoLikeLogRepository videoLikeLogRepository;
     private final SemanticTermExpansionService semanticExpansionService;
     private final com.newcodes7.small_town.video.service.VideoService videoService;
@@ -878,7 +878,7 @@ public class ArticleController {
         }
 
         // 아티클 좋아요 조회
-        java.util.List<com.newcodes7.small_town.article.entity.LikeLog> articleLikes =
+        java.util.List<com.newcodes7.small_town.like.entity.LikeLog> articleLikes =
             likeLogRepository.findLikedArticlesWithTimestampByUserId(user.getId());
 
         // 비디오 좋아요 조회
@@ -886,15 +886,15 @@ public class ArticleController {
             videoLikeLogRepository.findLikedVideosWithTimestampByUserId(user.getId());
 
         // LikedItemDto로 변환
-        java.util.List<com.newcodes7.small_town.article.dto.LikedItemDto> allItems = new java.util.ArrayList<>();
+        java.util.List<com.newcodes7.small_town.like.dto.LikedItemDto> allItems = new java.util.ArrayList<>();
 
-        for (com.newcodes7.small_town.article.entity.LikeLog like : articleLikes) {
-            allItems.add(new com.newcodes7.small_town.article.dto.LikedItemDto(
+        for (com.newcodes7.small_town.like.entity.LikeLog like : articleLikes) {
+            allItems.add(new com.newcodes7.small_town.like.dto.LikedItemDto(
                 like.getArticle(), like.getCreatedAt()));
         }
 
         for (com.newcodes7.small_town.video.entity.VideoLikeLog like : videoLikes) {
-            allItems.add(new com.newcodes7.small_town.article.dto.LikedItemDto(
+            allItems.add(new com.newcodes7.small_town.like.dto.LikedItemDto(
                 like.getVideo(), like.getCreatedAt()));
         }
 
@@ -904,7 +904,7 @@ public class ArticleController {
         // 페이지네이션 적용
         int start = page * size;
         int end = Math.min(start + size, allItems.size());
-        java.util.List<com.newcodes7.small_town.article.dto.LikedItemDto> pagedItems =
+        java.util.List<com.newcodes7.small_town.like.dto.LikedItemDto> pagedItems =
             start < allItems.size() ? allItems.subList(start, end) : java.util.Collections.emptyList();
 
         Map<String, Object> response = new HashMap<>();

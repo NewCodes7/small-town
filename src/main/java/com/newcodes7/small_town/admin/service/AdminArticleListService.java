@@ -52,7 +52,7 @@ public class AdminArticleListService {
     private final VideoTermRepository videoTermRepository;
     private final SearchLogService searchLogService;
     private final UserRepository userRepository;
-    private final com.newcodes7.small_town.article.repository.LikeLogRepository likeLogRepository;
+    private final com.newcodes7.small_town.like.repository.LikeLogRepository likeLogRepository;
     private final CrawlingSchedulerRunRepository crawlingSchedulerRunRepository;
     private final ArticleSearchService articleSearchService;
 
@@ -77,7 +77,7 @@ public class AdminArticleListService {
         private int videoTermTotalPages;
         private Page<SearchLog> searchLogs;
         private Page<com.newcodes7.small_town.auth.entity.User> users;
-        private Page<com.newcodes7.small_town.article.entity.LikeLog> likeLogs;
+        private Page<com.newcodes7.small_town.like.entity.LikeLog> likeLogs;
         private Page<CrawlingSchedulerRun> crawlingRuns;
     }
 
@@ -294,7 +294,7 @@ public class AdminArticleListService {
         }
     }
 
-    private Page<com.newcodes7.small_town.article.entity.LikeLog> getLikeLogs(String tab, int page, int size) {
+    private Page<com.newcodes7.small_town.like.entity.LikeLog> getLikeLogs(String tab, int page, int size) {
         if (!tab.equals("likelogs")) {
             return null;
         }

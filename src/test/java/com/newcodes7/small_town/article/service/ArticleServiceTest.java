@@ -1,5 +1,7 @@
 package com.newcodes7.small_town.article.service;
 
+import com.newcodes7.small_town.like.service.UserLikeService;
+
 import static org.assertj.core.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;

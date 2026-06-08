@@ -4,7 +4,7 @@ import com.newcodes7.small_town.admin.dto.AdminUserListDto;
 import com.newcodes7.small_town.admin.dto.ArticleViewLogDto;
 import com.newcodes7.small_town.admin.dto.VideoViewLogDto;
 import com.newcodes7.small_town.article.entity.ViewLog;
-import com.newcodes7.small_town.article.repository.LikeLogRepository;
+import com.newcodes7.small_town.like.repository.LikeLogRepository;
 import com.newcodes7.small_town.article.repository.ViewLogRepository;
 import com.newcodes7.small_town.auth.entity.User;
 import com.newcodes7.small_town.auth.repository.UserRepository;

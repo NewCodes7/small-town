@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.service;
+package com.newcodes7.small_town.like.service;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -23,7 +23,7 @@ import com.newcodes7.small_town.article.exception.InvalidParameterException;
 import com.newcodes7.small_town.article.exception.UserNotFoundException;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.corporation.repository.CorporationRepository;
-import com.newcodes7.small_town.article.repository.LikeLogRepository;
+import com.newcodes7.small_town.like.repository.LikeLogRepository;
 import com.newcodes7.small_town.auth.entity.Provider;
 import com.newcodes7.small_town.auth.entity.Role;
 import com.newcodes7.small_town.auth.entity.User;

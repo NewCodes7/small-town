@@ -1,5 +1,7 @@
 package com.newcodes7.small_town.article.service;
 
+import com.newcodes7.small_town.like.service.UserLikeService;
+
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.search.service.ArticleSearchService;

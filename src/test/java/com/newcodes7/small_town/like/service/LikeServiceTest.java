@@ -1,7 +1,7 @@
-package com.newcodes7.small_town.article.service;
+package com.newcodes7.small_town.like.service;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.article.repository.LikeRepository;
+import com.newcodes7.small_town.like.repository.LikeRepository;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.corporation.repository.CorporationRepository;

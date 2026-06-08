@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.entity;
+package com.newcodes7.small_town.like.entity;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;

@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.dto;
+package com.newcodes7.small_town.like.dto;
 
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Video;

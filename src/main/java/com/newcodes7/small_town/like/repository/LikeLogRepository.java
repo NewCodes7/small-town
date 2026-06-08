@@ -1,6 +1,6 @@
-package com.newcodes7.small_town.article.repository;
+package com.newcodes7.small_town.like.repository;
 
-import com.newcodes7.small_town.article.entity.LikeLog;
+import com.newcodes7.small_town.like.entity.LikeLog;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
