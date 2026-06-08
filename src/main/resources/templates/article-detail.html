@@ -949,12 +949,16 @@
                                      data-detail-url="${escapeHtml(article.detailUrl)}"
                                      onclick="window.location.href=this.getAttribute('data-detail-url')"
                                      style="cursor: pointer;">
-                                    <div class="blog-card-thumbnail" ${article.thumbnailImage ? `style="background-image: url('${escapeHtml(article.thumbnailImage)}'); background-size: cover; background-position: center;"` : ''}>
-                                        ${!article.thumbnailImage ? `
+                                    <div class="blog-card-thumbnail">
+                                        ${article.thumbnailImage ? `
+                                            <img src="${escapeHtml(article.thumbnailImage)}"
+                                                 alt=""
+                                                 onerror="handleThumbnailError(this)">
+                                        ` : `
                                             <div class="default-thumbnail-content">
                                                 <i class="fas fa-code"></i>
                                             </div>
-                                        ` : ''}
+                                        `}
                                     </div>
                                     <div class="blog-card-content">
                                         <div class="blog-card-company">
