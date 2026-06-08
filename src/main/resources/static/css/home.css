@@ -883,6 +883,7 @@
 }
 
 .title-link:hover {
+    color: var(--primary-green);
     text-decoration: underline;
 }
 

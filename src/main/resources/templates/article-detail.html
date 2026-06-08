@@ -137,6 +137,17 @@
             word-break: keep-all;
         }
 
+        .article-detail-title-link {
+            text-decoration: none;
+            color: inherit;
+            transition: color 0.15s ease;
+        }
+
+        .article-detail-title-link:hover {
+            color: var(--primary-green);
+            text-decoration: underline;
+        }
+
         .article-detail-meta {
             display: flex;
             align-items: center;
@@ -620,9 +631,14 @@
                 <!-- Article Content (Left Side) -->
                 <div class="article-content">
                     <h1 class="mb-3 lh-base"
-                        style="color: var(--text-dark); font-weight: 800; font-size: 1.3rem; word-break: keep-all;"
-                        th:text="${article.translatedTitle != null ? article.translatedTitle : article.title}">
-                        Article Title
+                        style="color: var(--text-dark); font-weight: 800; font-size: 1.3rem; word-break: keep-all;">
+                        <a class="article-detail-title-link"
+                           th:href="${article.link}"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           th:text="${article.translatedTitle != null ? article.translatedTitle : article.title}">
+                            Article Title
+                        </a>
                     </h1>
 
                     <!-- Company & Date -->
