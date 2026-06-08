@@ -284,7 +284,12 @@
                     <div class="article-content">
                         <!-- Title -->
                         <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
-                            <span class="title-link" th:text="${article.translatedTitle != null && !article.translatedTitle.isEmpty() ? article.translatedTitle : article.title}">Article Title</span>
+                            <a class="title-link"
+                               th:href="${article.link}"
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               th:text="${article.translatedTitle != null && !article.translatedTitle.isEmpty() ? article.translatedTitle : article.title}"
+                               onclick="event.stopPropagation()">Article Title</a>
                         </h5>
                         
                         <!-- Company Info & Stats -->
@@ -397,7 +402,12 @@
                         <div class="article-content">
                             <!-- Title -->
                             <h5 class="mb-3 lh-base" style="color: var(--text-dark); font-weight: 700; font-size: 1.15rem;">
-                                <span class="title-link" th:text="${firstArticle.translatedTitle != null && !firstArticle.translatedTitle.isEmpty() ? firstArticle.translatedTitle : firstArticle.title}"></span>
+                                <a class="title-link"
+                                   th:href="${firstArticle.link}"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   th:text="${firstArticle.translatedTitle != null && !firstArticle.translatedTitle.isEmpty() ? firstArticle.translatedTitle : firstArticle.title}"
+                                   onclick="event.stopPropagation()"></a>
                             </h5>
                             
                             <!-- Company Info & Stats -->
@@ -443,7 +453,12 @@
                                  onclick="if(!event.target.closest('.like-button')) { event.stopPropagation(); window.location.href=this.getAttribute('data-detail-url'); }"
                                  style="cursor: pointer;">
                                 <h6 class="fw-bold d-flex align-items-center" style="margin: 0;">
-                                    <span class="title-link" th:text="${child.translatedTitle != null && !child.translatedTitle.isEmpty() ? child.translatedTitle : child.title}"></span>
+                                    <a class="title-link"
+                                       th:href="${child.link}"
+                                       target="_blank"
+                                       rel="noopener noreferrer"
+                                       th:text="${child.translatedTitle != null && !child.translatedTitle.isEmpty() ? child.translatedTitle : child.title}"
+                                       onclick="event.stopPropagation()"></a>
                                 </h6>
                                 <span class="child-date d-flex align-items-center flex-wrap">
                                     <span class="d-flex align-items-center gap-2">
