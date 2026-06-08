@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.article.dto.RelatedArticleDto;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.article.repository.ArticleTermRepository;
+import com.newcodes7.small_town.term.repository.ArticleTermRepository;
 import com.newcodes7.small_town.embedding.entity.ArticleChunk;
 import com.newcodes7.small_town.embedding.entity.ChunkVector;
 import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;

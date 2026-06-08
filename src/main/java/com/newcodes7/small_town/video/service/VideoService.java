@@ -18,8 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.corporation.dto.CorporationDto;
 import com.newcodes7.small_town.corporation.repository.CorporationRepository;
-import com.newcodes7.small_town.article.repository.TermRepository;
-import com.newcodes7.small_town.article.service.TermSynonymService;
+import com.newcodes7.small_town.term.repository.TermRepository;
+import com.newcodes7.small_town.term.service.TermSynonymService;
 import com.newcodes7.small_town.crawler.repository.CategoryRepository;
 import com.newcodes7.small_town.global.entity.Category;
 import com.newcodes7.small_town.global.entity.Corporation;

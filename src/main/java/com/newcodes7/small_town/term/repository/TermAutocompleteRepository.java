@@ -1,11 +1,11 @@
-package com.newcodes7.small_town.article.repository;
+package com.newcodes7.small_town.term.repository;
 
 import java.util.List;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-import com.newcodes7.small_town.article.dto.TermAutocompleteDto;
+import com.newcodes7.small_town.term.dto.TermAutocompleteDto;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

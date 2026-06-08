@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.dto;
+package com.newcodes7.small_town.term.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

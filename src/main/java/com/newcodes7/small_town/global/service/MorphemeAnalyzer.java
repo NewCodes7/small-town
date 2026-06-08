@@ -13,7 +13,7 @@ import org.apache.lucene.analysis.ko.tokenattributes.PartOfSpeechAttribute;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.springframework.stereotype.Service;
 
-import com.newcodes7.small_town.article.repository.StopwordRepository;
+import com.newcodes7.small_town.term.repository.StopwordRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

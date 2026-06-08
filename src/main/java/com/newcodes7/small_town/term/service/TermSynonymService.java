@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.service;
+package com.newcodes7.small_town.term.service;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -8,8 +8,8 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.newcodes7.small_town.article.repository.TermRepository;
-import com.newcodes7.small_town.article.repository.TermSynonymRepository;
+import com.newcodes7.small_town.term.repository.TermRepository;
+import com.newcodes7.small_town.term.repository.TermSynonymRepository;
 import com.newcodes7.small_town.global.entity.Term;
 import com.newcodes7.small_town.global.entity.TermSynonym;
 

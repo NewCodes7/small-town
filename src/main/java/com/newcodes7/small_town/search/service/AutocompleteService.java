@@ -8,8 +8,8 @@ import java.util.concurrent.ExecutorService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
-import com.newcodes7.small_town.article.dto.TermAutocompleteDto;
-import com.newcodes7.small_town.article.repository.TermAutocompleteRepository;
+import com.newcodes7.small_town.term.dto.TermAutocompleteDto;
+import com.newcodes7.small_town.term.repository.TermAutocompleteRepository;
 import com.newcodes7.small_town.corporation.repository.CorporationAutocompleteRepository;
 import com.newcodes7.small_town.corporation.dto.CorporationAutocompleteDto;
 import com.newcodes7.small_town.theme.repository.ThemeAutocompleteRepository;

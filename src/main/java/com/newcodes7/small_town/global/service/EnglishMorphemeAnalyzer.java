@@ -12,7 +12,7 @@ import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.springframework.stereotype.Service;
 
-import com.newcodes7.small_town.article.repository.StopwordRepository;
+import com.newcodes7.small_town.term.repository.StopwordRepository;
 import com.newcodes7.small_town.global.service.MorphemeAnalyzer.TermInfo;
 
 import lombok.RequiredArgsConstructor;

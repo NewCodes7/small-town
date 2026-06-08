@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.service;
+package com.newcodes7.small_town.term.service;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -19,10 +19,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.article.repository.ArticleTermRepository;
-import com.newcodes7.small_town.article.repository.StopwordRepository;
-import com.newcodes7.small_town.article.repository.TermRepository;
-import com.newcodes7.small_town.article.repository.TermSynonymRepository;
+import com.newcodes7.small_town.article.service.ArticleAnalyzedContentService;
+import com.newcodes7.small_town.term.repository.ArticleTermRepository;
+import com.newcodes7.small_town.term.repository.StopwordRepository;
+import com.newcodes7.small_town.term.repository.TermRepository;
+import com.newcodes7.small_town.term.repository.TermSynonymRepository;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.ArticleTerm;
 import com.newcodes7.small_town.global.entity.Stopword;

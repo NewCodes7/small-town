@@ -1,10 +1,10 @@
 package com.newcodes7.small_town.search.service;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.article.repository.ArticleTermRepository;
-import com.newcodes7.small_town.article.repository.TermRepository;
+import com.newcodes7.small_town.term.repository.ArticleTermRepository;
+import com.newcodes7.small_town.term.repository.TermRepository;
 import com.newcodes7.small_town.article.service.ArticleEmbeddingService;
-import com.newcodes7.small_town.article.service.TermSynonymService;
+import com.newcodes7.small_town.term.service.TermSynonymService;
 import com.newcodes7.small_town.article.service.UserLikeService;
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.global.entity.Article;

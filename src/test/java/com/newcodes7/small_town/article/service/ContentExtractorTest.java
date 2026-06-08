@@ -1,5 +1,7 @@
 package com.newcodes7.small_town.article.service;
 
+import com.newcodes7.small_town.term.service.RelatedContentKeywordService;
+
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 

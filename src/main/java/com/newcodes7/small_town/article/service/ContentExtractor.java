@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.newcodes7.small_town.term.service.RelatedContentKeywordService;
 import net.dankito.readability4j.Article;
 import net.dankito.readability4j.Readability4J;
 

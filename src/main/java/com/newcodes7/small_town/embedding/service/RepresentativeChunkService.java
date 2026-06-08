@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.newcodes7.small_town.article.repository.ArticleTermRepository;
+import com.newcodes7.small_town.term.repository.ArticleTermRepository;
 import com.newcodes7.small_town.embedding.entity.ArticleChunk;
 import com.newcodes7.small_town.embedding.entity.ChunkContent;
 import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;

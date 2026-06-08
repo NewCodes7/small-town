@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.repository;
+package com.newcodes7.small_town.term.repository;
 
 import java.util.List;
 

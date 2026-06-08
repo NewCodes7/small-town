@@ -9,8 +9,8 @@ import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.newcodes7.small_town.article.repository.StopwordRepository;
-import com.newcodes7.small_town.article.repository.UserDictionaryRepository;
+import com.newcodes7.small_town.term.repository.StopwordRepository;
+import com.newcodes7.small_town.term.repository.UserDictionaryRepository;
 import com.newcodes7.small_town.global.entity.UserDictionary;
 
 import lombok.RequiredArgsConstructor;

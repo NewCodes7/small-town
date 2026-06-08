@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.service;
+package com.newcodes7.small_town.term.service;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -6,7 +6,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.newcodes7.small_town.article.repository.RelatedContentKeywordRepository;
+import com.newcodes7.small_town.term.repository.RelatedContentKeywordRepository;
 import com.newcodes7.small_town.global.entity.RelatedContentKeyword;
 
 import lombok.RequiredArgsConstructor;

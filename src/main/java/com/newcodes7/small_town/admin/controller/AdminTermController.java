@@ -19,12 +19,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.article.repository.ArticleTermRepository;
-import com.newcodes7.small_town.article.repository.TermRepository;
-import com.newcodes7.small_town.article.repository.UserDictionaryRepository;
-import com.newcodes7.small_town.article.service.ArticleTermService;
+import com.newcodes7.small_town.term.repository.ArticleTermRepository;
+import com.newcodes7.small_town.term.repository.TermRepository;
+import com.newcodes7.small_town.term.repository.UserDictionaryRepository;
+import com.newcodes7.small_town.term.service.ArticleTermService;
 import com.newcodes7.small_town.crawler.integration.translation.TranslationService;
-import com.newcodes7.small_town.article.service.TermSynonymService;
+import com.newcodes7.small_town.term.service.TermSynonymService;
 import com.newcodes7.small_town.term.service.TechTermService;
 import com.newcodes7.small_town.term.service.StackExchangeApiService;
 import com.newcodes7.small_town.global.entity.Article;

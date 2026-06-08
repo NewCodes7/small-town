@@ -15,9 +15,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.newcodes7.small_town.article.repository.TermRepository;
+import com.newcodes7.small_town.term.repository.TermRepository;
 import com.newcodes7.small_town.article.service.ArticleEmbeddingService;
-import com.newcodes7.small_town.article.service.TermSynonymService;
+import com.newcodes7.small_town.term.service.TermSynonymService;
 import com.newcodes7.small_town.global.entity.Term;
 import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
 import com.newcodes7.small_town.search.service.SemanticTermExpansionService.QueryComplexity;

@@ -15,8 +15,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.newcodes7.small_town.article.dto.TermAutocompleteDto;
-import com.newcodes7.small_town.article.repository.TermAutocompleteRepository;
+import com.newcodes7.small_town.term.dto.TermAutocompleteDto;
+import com.newcodes7.small_town.term.repository.TermAutocompleteRepository;
 import com.newcodes7.small_town.corporation.repository.CorporationAutocompleteRepository;
 import com.newcodes7.small_town.corporation.dto.CorporationAutocompleteDto;
 import com.newcodes7.small_town.theme.repository.ThemeAutocompleteRepository;

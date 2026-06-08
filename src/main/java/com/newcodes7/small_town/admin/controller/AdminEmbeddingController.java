@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.admin.service.EmbeddingBatchService;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.article.service.TermEmbeddingService;
+import com.newcodes7.small_town.term.service.TermEmbeddingService;
 import com.newcodes7.small_town.crawler.dto.ArticleSummaryResponse;
 import com.newcodes7.small_town.crawler.integration.openai.OpenaiService;
 import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;

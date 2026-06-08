@@ -37,7 +37,7 @@ import com.newcodes7.small_town.corporation.dto.CorporationUpdateDto;
 import com.newcodes7.small_town.corporation.exception.CorporationException;
 import com.newcodes7.small_town.corporation.repository.IndustryRepository;
 import com.newcodes7.small_town.corporation.service.CorporationService;
-import com.newcodes7.small_town.article.repository.ArticleTermRepository;
+import com.newcodes7.small_town.term.repository.ArticleTermRepository;
 import com.newcodes7.small_town.article.repository.LikeLogRepository;
 import com.newcodes7.small_town.article.repository.LikeRepository;
 import com.newcodes7.small_town.article.repository.ViewLogRepository;

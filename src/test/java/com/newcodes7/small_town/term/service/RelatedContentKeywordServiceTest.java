@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.service;
+package com.newcodes7.small_town.term.service;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -11,7 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.newcodes7.small_town.article.repository.RelatedContentKeywordRepository;
+import com.newcodes7.small_town.term.repository.RelatedContentKeywordRepository;
 import com.newcodes7.small_town.global.entity.RelatedContentKeyword;
 
 /**

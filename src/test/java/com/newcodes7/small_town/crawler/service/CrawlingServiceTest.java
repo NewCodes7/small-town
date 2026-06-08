@@ -25,7 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.openqa.selenium.WebDriver;
 import org.springframework.context.ApplicationContext;
 
-import com.newcodes7.small_town.article.service.ArticleTermService;
+import com.newcodes7.small_town.term.service.ArticleTermService;
 import com.newcodes7.small_town.crawler.config.WebDriverConfig;
 import com.newcodes7.small_town.crawler.crawler.BlogCrawler;
 import com.newcodes7.small_town.crawler.dto.CrawlResult;

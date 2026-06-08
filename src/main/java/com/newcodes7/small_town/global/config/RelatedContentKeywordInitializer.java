@@ -7,7 +7,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
-import com.newcodes7.small_town.article.repository.RelatedContentKeywordRepository;
+import com.newcodes7.small_town.term.repository.RelatedContentKeywordRepository;
 import com.newcodes7.small_town.global.entity.RelatedContentKeyword;
 
 import lombok.RequiredArgsConstructor;

@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.service;
+package com.newcodes7.small_town.term.service;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -15,10 +15,10 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.article.repository.ArticleTermRepository;
+import com.newcodes7.small_town.term.repository.ArticleTermRepository;
 import com.newcodes7.small_town.corporation.repository.CorporationRepository;
-import com.newcodes7.small_town.article.repository.TermRepository;
-import com.newcodes7.small_town.article.service.ArticleTermService.ArticleTermExtractionResult;
+import com.newcodes7.small_town.term.repository.TermRepository;
+import com.newcodes7.small_town.term.service.ArticleTermService.ArticleTermExtractionResult;
 import com.newcodes7.small_town.auth.entity.Provider;
 import com.newcodes7.small_town.auth.entity.Role;
 import com.newcodes7.small_town.auth.entity.User;
