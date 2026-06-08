@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.service;
+package com.newcodes7.small_town.crawler.service;
 
 import java.net.URI;
 import java.util.Arrays;

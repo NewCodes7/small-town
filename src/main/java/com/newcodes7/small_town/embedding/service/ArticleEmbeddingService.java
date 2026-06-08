@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.service;
+package com.newcodes7.small_town.embedding.service;
 
 import org.springframework.stereotype.Service;
 

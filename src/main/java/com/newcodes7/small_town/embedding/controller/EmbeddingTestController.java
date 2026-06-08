@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.controller;
+package com.newcodes7.small_town.embedding.controller;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.newcodes7.small_town.article.service.ArticleEmbeddingService;
+import com.newcodes7.small_town.embedding.service.ArticleEmbeddingService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

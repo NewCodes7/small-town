@@ -1,4 +1,4 @@
-package com.newcodes7.small_town.article.service;
+package com.newcodes7.small_town.crawler.service;
 
 import com.newcodes7.small_town.term.service.RelatedContentKeywordService;
 
