@@ -138,7 +138,7 @@
                         <div class="popular-track">
                         <div th:each="article, iterStat : ${popularArticles}"
                              class="popular-card"
-                             th:attr="data-detail-url=${article.detailUrl}">
+                             th:attr="data-detail-url=${article.detailUrl}, data-article-id=${article.id}, data-source='POPULAR_HOME'">
                             <span class="popular-rank" th:classappend="${iterStat.index < 3 ? ' top-rank' : ''}"
                                   th:text="${iterStat.index + 1}">1</span>
                             <div th:if="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}"
@@ -220,7 +220,7 @@
                     <!-- Blog Cards - Dynamic -->
                     <div th:each="article : ${articles}"
                          class="blog-card"
-                         th:attr="data-detail-url=${article.detailUrl}, data-link=${article.link}"
+                         th:attr="data-detail-url=${article.detailUrl}, data-link=${article.link}, data-article-id=${article.id}, data-source='LATEST_HOME'"
                          onclick="window.location.href=this.getAttribute('data-detail-url')"
                          style="cursor: pointer;">
                         <div th:if="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}"

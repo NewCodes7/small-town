@@ -138,7 +138,7 @@ function createArticleCard(article) {
     wrapper.className = 'article-card-wrapper';
 
     wrapper.innerHTML = `
-        <div class="article-card" data-article-id="${article.id}">
+        <div class="article-card" data-article-id="${article.id}" data-source="LIKED_ARTICLES">
             <!-- Article Content (Left Side) -->
             <div class="article-content">
                 <!-- Title -->

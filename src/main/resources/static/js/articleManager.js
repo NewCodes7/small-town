@@ -877,6 +877,12 @@ class ArticleManager {
                                 credentials: 'same-origin',
                                 redirect: 'manual'
                             });
+                            // 유입경로 추적: 검색 결과 / 리스트 / 그룹 뷰 구분
+                            const referralSource = this.currentKeyword
+                                ? 'SEARCH_RESULT'
+                                : (this.currentView === 'grouped' ? 'GROUPED_VIEW' : 'LIST_VIEW');
+                            window.trackReferral?.(articleId, referralSource);
+                            // 검색 결과 클릭의 상세 점수 로그(검색 알고리즘 튜닝용)는 별도 유지
                             if (this.currentKeyword) {
                                 this._logSearchClick(articleId, parent);
                             }

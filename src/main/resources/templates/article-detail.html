@@ -963,6 +963,9 @@
                             container.innerHTML = data.relatedArticles.map(article => `
                                 <div class="blog-card"
                                      data-detail-url="${escapeHtml(article.detailUrl)}"
+                                     data-article-id="${article.id}"
+                                     data-source="RELATED_ARTICLE"
+                                     data-source-context-id="${articleId}"
                                      onclick="window.location.href=this.getAttribute('data-detail-url')"
                                      style="cursor: pointer;">
                                     <div class="blog-card-thumbnail">

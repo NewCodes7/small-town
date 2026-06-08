@@ -41,6 +41,8 @@ import com.newcodes7.small_town.article.service.ArticleService;
 import com.newcodes7.small_town.article.service.LikeService;
 import com.newcodes7.small_town.article.service.UserLikeService;
 import com.newcodes7.small_town.article.service.ViewService;
+import com.newcodes7.small_town.article.service.ArticleClickLogService;
+import com.newcodes7.small_town.article.dto.ArticleReferralRequestDto;
 import com.newcodes7.small_town.search.service.ArticleSearchService;
 import com.newcodes7.small_town.search.service.AutocompleteService;
 import com.newcodes7.small_town.search.service.SemanticTermExpansionService;
@@ -88,6 +90,7 @@ public class ArticleController {
     private final LikeService likeService;
     private final UserLikeService userLikeService;
     private final ViewService viewService;
+    private final ArticleClickLogService articleClickLogService;
     private final CorporationService corporationService;
     private final CategoryRepository categoryRepository;
     private final VideoRepository videoRepository;
@@ -388,12 +391,32 @@ public class ArticleController {
         }
         
         long viewCount = viewService.getViewCount(articleId);
-        
+
         Map<String, Object> response = new HashMap<>();
         response.put("incremented", incremented);
         response.put("authenticated", userDetails != null);
-        
+
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 아티클 유입경로(referral) 추적 API.
+     * 조회수 쿨다운과 무관하게 클릭마다 1건씩 source/context를 비동기로 기록한다.
+     */
+    @PostMapping("/api/articles/{articleId}/referral")
+    @ResponseBody
+    public ResponseEntity<Void> recordReferral(
+            @PathVariable Long articleId,
+            @RequestBody ArticleReferralRequestDto dto,
+            @AuthenticationPrincipal UserDetails userDetails,
+            HttpServletRequest request) {
+
+        String username = userDetails != null ? userDetails.getUsername() : null;
+        String ipAddress = Client.getClientIpAddress(request);
+        String userAgent = request.getHeader("User-Agent");
+
+        articleClickLogService.logReferral(articleId, dto, username, ipAddress, userAgent);
+        return ResponseEntity.noContent().build();
     }
 
     /**

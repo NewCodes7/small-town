@@ -8,6 +8,8 @@ plugins {
 group = 'com.newcodes7'
 version = '1.0.0-SNAPSHOT'
 
+ext['selenium.version'] = '4.44.0'
+
 java {
 	toolchain {
 		languageVersion = JavaLanguageVersion.of(17)
@@ -50,7 +52,7 @@ dependencies {
 	implementation 'io.jsonwebtoken:jjwt-jackson:0.12.3'
 
     // Selenium 관련 의존성
-    implementation 'org.seleniumhq.selenium:selenium-java:4.41.0'
+    implementation 'org.seleniumhq.selenium:selenium-java'
     implementation 'io.github.bonigarcia:webdrivermanager:6.3.3'
     
     // 스케줄링

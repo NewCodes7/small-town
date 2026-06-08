@@ -153,7 +153,7 @@
             <!-- 블로그 글 목록 -->
             <div class="articles-container">
                 <div class="article-card" th:each="article : ${articles.content}"
-                     th:attr="data-article-id=${article.id}, data-detail-url=${article.detailUrl}"
+                     th:attr="data-article-id=${article.id}, data-detail-url=${article.detailUrl}, data-source='CORPORATION_ARTICLES', data-source-context-id=${corporation.id}"
                      onclick="window.location.href=this.getAttribute('data-detail-url')"
                      style="cursor: pointer;">
                     <!-- Article Content (Left Side) -->
