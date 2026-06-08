@@ -333,7 +333,29 @@ public class DefaultBlogArticleParser {
         if (publishFormat == null) {
             return LocalDateTime.now();
         }
+        return parseWithConfiguredFormatOrFallback(dateText, publishElement, publishFormat);
+    }
 
+    /**
+     * 설정된 publishFormat으로 먼저 파싱을 시도하고, 실패하면(설정값이 실제 날짜 형식과
+     * 불일치하는 경우) 흔한 날짜 형식들로 유연하게 재시도한다.
+     * 이렇게 해야 포맷 설정이 한 칸 어긋나도 아티클이 통째로 누락되지 않는다.
+     */
+    private LocalDateTime parseWithConfiguredFormatOrFallback(String dateText, Element publishElement, String publishFormat) {
+        try {
+            return dispatchByConfiguredFormat(dateText, publishElement, publishFormat);
+        } catch (DateTimeParseException | IllegalArgumentException e) {
+            LocalDateTime fallback = parseFlexibleDate(dateText);
+            if (fallback != null) {
+                log.warn("설정 포맷({})으로 날짜 파싱 실패, 유연 파싱으로 복구 - 텍스트: '{}'", publishFormat, dateText);
+                return fallback;
+            }
+            log.warn("날짜 파싱 실패(폴백 포함) - 포맷: {}, 텍스트: '{}', 오류: {}", publishFormat, dateText, e.getMessage());
+            return LocalDateTime.now();
+        }
+    }
+
+    private LocalDateTime dispatchByConfiguredFormat(String dateText, Element publishElement, String publishFormat) {
         if (publishFormat.equals("yyyy.MM.dd") || publishFormat.equals("yyyy.M.dd") || publishFormat.equals("yyyy-MM-dd")) {
             return parseKoreanDateFormat(dateText);
         }
@@ -361,6 +383,61 @@ public class DefaultBlogArticleParser {
         return parseDateText(dateText, publishFormat);
     }
 
+    /**
+     * publishFormat에 의존하지 않고 흔한 날짜 형식들을 순서대로 시도하는 유연 파서.
+     * 영어 월 이름은 약어로 정규화하여 전체/약어 표기를 모두 처리한다.
+     */
+    private LocalDateTime parseFlexibleDate(String dateText) {
+        String englishCandidate = normalizeEnglishMonths(
+            dateText.split("/")[0].trim().replaceAll("[^a-zA-Z0-9\\s,]", " ").replaceAll("\\s+", " ").trim());
+
+        // 년도 포함 형식 (연도 명시)
+        LocalDate withYear = tryParse(englishCandidate, Locale.ENGLISH, true,
+            "MMMM d, yyyy", "MMM d, yyyy", "d MMMM yyyy", "dd MMM yyyy", "d MMM yyyy");
+        if (withYear != null) {
+            return TimeUtil.dateWithSeoulTime(withYear);
+        }
+
+        // 한국어 숫자 형식 (yyyy.MM.dd 등)
+        try {
+            String koreanCandidate = extractDateOnly(dateText);
+            if (koreanCandidate.matches("\\d{4}\\.\\d{1,2}\\.\\d{1,2}")) {
+                return parseKoreanDateFormat(dateText);
+            }
+        } catch (RuntimeException ignored) {
+            // 한국어 형식 아님 — 다음 후보로
+        }
+
+        // 연도 없는 형식 → 올해로 보정
+        LocalDate noYear = tryParse(englishCandidate, Locale.ENGLISH, false,
+            "MMMM d", "MMM d", "d MMMM", "d MMM", "dd MMM", "MMM dd");
+        if (noYear != null) {
+            return TimeUtil.dateWithSeoulTime(noYear);
+        }
+
+        return null;
+    }
+
+    private LocalDate tryParse(String text, Locale locale, boolean hasYear, String... patterns) {
+        for (String pattern : patterns) {
+            try {
+                DateTimeFormatter formatter = new DateTimeFormatterBuilder()
+                    .parseCaseInsensitive()
+                    .appendPattern(pattern)
+                    .toFormatter(locale);
+                if (hasYear) {
+                    return LocalDate.parse(text, formatter);
+                }
+                TemporalAccessor ta = formatter.parse(text);
+                return LocalDate.of(LocalDate.now().getYear(),
+                    ta.get(ChronoField.MONTH_OF_YEAR), ta.get(ChronoField.DAY_OF_MONTH));
+            } catch (DateTimeParseException ignored) {
+                // 다음 패턴 시도
+            }
+        }
+        return null;
+    }
+
     private LocalDateTime parsePublishedDate(Element element, ParsingSelector selector) {
         String publishSelector = selector.getPublish();
         if (publishSelector == null || "NONE".equalsIgnoreCase(publishSelector.trim())) {
@@ -382,26 +459,7 @@ public class DefaultBlogArticleParser {
             throw new IllegalStateException("publishFormat이 설정되지 않았습니다.");
         }
 
-        LocalDateTime publishedAt;
-        if (publishFormat.equals("yyyy.MM.dd") || publishFormat.equals("yyyy.M.dd") || publishFormat.equals("yyyy-MM-dd")) {
-            publishedAt = parseKoreanDateFormat(dateText);
-        } else if (publishFormat.equals("yy.MM.dd") || publishFormat.equals("yy.M.dd")) {
-            publishedAt = parseShortYearKoreanDateFormat(dateText);
-        } else if (publishFormat.equals("yyyy년 MM월 dd일") || publishFormat.equals("yyyy년 M월 d일")) {
-            publishedAt = parseKoreanYearMonthDayFormat(dateText);
-        } else if (publishFormat.equals("ISO8601")) {
-            publishedAt = parseISO8601Format(publishElement);
-        } else if (publishFormat.equals("MMM d, yyyy") || publishFormat.equals("MMMM d, yyyy") || publishFormat.equals("MMMM dd, yyyy") || publishFormat.equals("MMM dd, yyyy")) {
-            publishedAt = parseEnglishDateFormat(dateText);
-        } else if (publishFormat.trim().equals("dd MMM yyyy") || publishFormat.trim().equals("d MMM yyyy")) {
-            publishedAt = parseDayMonthYearFormat(dateText);
-        } else if (publishFormat.trim().equals("dd MMM")) {
-            publishedAt = parseShortEnglishDateFormat(dateText);
-        } else if (publishFormat.trim().equals("MMM dd") || publishFormat.trim().equals("MMM d")) {
-            publishedAt = parseMonthDayFormat(dateText);
-        } else {
-            publishedAt = parseDateText(dateText, publishFormat);
-        }
+        LocalDateTime publishedAt = parseWithConfiguredFormatOrFallback(dateText, publishElement, publishFormat);
 
         if (publishedAt.isAfter(LocalDateTime.now())) {
             return LocalDateTime.now();

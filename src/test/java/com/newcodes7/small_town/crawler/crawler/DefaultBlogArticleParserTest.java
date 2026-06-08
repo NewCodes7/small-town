@@ -361,6 +361,77 @@ public class DefaultBlogArticleParserTest {
             // 날짜 요소를 찾지 못하면 예외 → 해당 항목 skip → 빈 리스트
             assertThat(articles).isEmpty();
         }
+
+        // ──────────────────────────────────────────────────────────────
+        // 설정 포맷이 실제 날짜 형식과 불일치할 때의 유연 파싱 폴백
+        // (예: Rakuten Cloud 'January 22, 2026' — 운영 중 발생한 회귀)
+        // ──────────────────────────────────────────────────────────────
+
+        @Test
+        @DisplayName("폴백 - 설정은 'dd MMM'인데 실제는 'January 22, 2026' (운영 회귀 케이스)")
+        void parseDate_formatMismatch_recoversFullMonthName() {
+            List<Article> articles = parser.parseArticlesFromPage(
+                    articleHtml("January 22, 2026"),
+                    corporation("https://blog.example.com"),
+                    dateSelector("dd MMM"));
+
+            assertThat(articles).hasSize(1);
+            assertThat(articles.get(0).getPublishedAt())
+                    .hasYear(2026).hasMonthValue(1).hasDayOfMonth(22);
+        }
+
+        @Test
+        @DisplayName("폴백 - 설정은 'yyyy.MM.dd'인데 실제는 'Mar 5, 2024' (영문 약어)")
+        void parseDate_formatMismatch_recoversEnglishAbbrev() {
+            List<Article> articles = parser.parseArticlesFromPage(
+                    articleHtml("Mar 5, 2024"),
+                    corporation("https://blog.example.com"),
+                    dateSelector("yyyy.MM.dd"));
+
+            assertThat(articles).hasSize(1);
+            assertThat(articles.get(0).getPublishedAt())
+                    .hasYear(2024).hasMonthValue(3).hasDayOfMonth(5);
+        }
+
+        @Test
+        @DisplayName("폴백 - 설정은 'MMM d, yyyy'인데 실제는 'dd MMM yyyy' (05 Mar 2024)")
+        void parseDate_formatMismatch_recoversDayMonthYear() {
+            List<Article> articles = parser.parseArticlesFromPage(
+                    articleHtml("05 Mar 2024"),
+                    corporation("https://blog.example.com"),
+                    dateSelector("MMM d, yyyy"));
+
+            assertThat(articles).hasSize(1);
+            assertThat(articles.get(0).getPublishedAt())
+                    .hasYear(2024).hasMonthValue(3).hasDayOfMonth(5);
+        }
+
+        @Test
+        @DisplayName("폴백 - 한국어 'yyyy.MM.dd'가 영문 포맷 설정과 불일치해도 복구")
+        void parseDate_formatMismatch_recoversKoreanNumeric() {
+            List<Article> articles = parser.parseArticlesFromPage(
+                    articleHtml("2024.03.15"),
+                    corporation("https://blog.example.com"),
+                    dateSelector("MMM d, yyyy"));
+
+            assertThat(articles).hasSize(1);
+            assertThat(articles.get(0).getPublishedAt())
+                    .hasYear(2024).hasMonthValue(3).hasDayOfMonth(15);
+        }
+
+        @Test
+        @DisplayName("폴백도 실패하는 완전 비정상 텍스트 → now()로 대체, 아티클은 유지")
+        void parseDate_unparseable_keepsArticleWithNow() {
+            List<Article> articles = parser.parseArticlesFromPage(
+                    articleHtml("날짜아님 garbage"),
+                    corporation("https://blog.example.com"),
+                    dateSelector("MMM d, yyyy"));
+
+            assertThat(articles).hasSize(1);
+            assertThat(articles.get(0).getPublishedAt())
+                    .isNotNull()
+                    .isBefore(LocalDateTime.now().plusMinutes(1));
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────
