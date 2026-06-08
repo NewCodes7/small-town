@@ -2,7 +2,7 @@ package com.newcodes7.small_town.video.dto;
 
 import java.time.format.DateTimeFormatter;
 
-import com.newcodes7.small_town.article.dto.CorporationDto;
+import com.newcodes7.small_town.corporation.dto.CorporationDto;
 import com.newcodes7.small_town.global.entity.Video;
 
 import lombok.Getter;

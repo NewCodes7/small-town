@@ -1,5 +1,7 @@
 package com.newcodes7.small_town.article.dto;
 
+import com.newcodes7.small_town.corporation.dto.CorporationDto;
+
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

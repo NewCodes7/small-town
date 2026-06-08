@@ -1,5 +1,7 @@
 package com.newcodes7.small_town.article.dto;
 
+import com.newcodes7.small_town.corporation.dto.CorporationDto;
+
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;

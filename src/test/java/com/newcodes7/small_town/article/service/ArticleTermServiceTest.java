@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.ArticleTermRepository;
-import com.newcodes7.small_town.article.repository.CorporationRepository;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.article.repository.TermRepository;
 import com.newcodes7.small_town.article.service.ArticleTermService.ArticleTermExtractionResult;
 import com.newcodes7.small_town.auth.entity.Provider;

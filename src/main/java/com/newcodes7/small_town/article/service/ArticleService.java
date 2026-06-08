@@ -1,16 +1,15 @@
 package com.newcodes7.small_town.article.service;
 
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.article.repository.CorporationRepository;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.search.service.ArticleSearchService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 
-import org.springframework.beans.factory.annotation.Qualifier;
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.dto.ArticleResponseDto;
-import com.newcodes7.small_town.article.dto.CorporationDetailDto;
-import com.newcodes7.small_town.article.dto.CorporationDto;
+import com.newcodes7.small_town.corporation.dto.CorporationDetailDto;
+import com.newcodes7.small_town.corporation.dto.CorporationDto;
 import com.newcodes7.small_town.article.dto.GroupedArticlesDto;
 import com.newcodes7.small_town.article.exception.CorporationNotFoundException;
 import com.newcodes7.small_town.article.exception.InvalidParameterException;
@@ -49,7 +48,7 @@ public class ArticleService {
     private final ArticleAnalyzedContentService articleAnalyzedContentService;
 
     public ArticleService(ArticleRepository articleRepository,
-                         @Qualifier("articleCorporationRepository") CorporationRepository corporationRepository,
+                         CorporationRepository corporationRepository,
                          ArticleSearchService articleSearchService,
                          UserLikeService userLikeService,
                          ArticleAnalyzedContentService articleAnalyzedContentService) {

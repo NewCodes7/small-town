@@ -2,7 +2,7 @@ package com.newcodes7.small_town.video.dto;
 
 import java.util.List;
 
-import com.newcodes7.small_town.article.dto.CorporationDto;
+import com.newcodes7.small_town.corporation.dto.CorporationDto;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

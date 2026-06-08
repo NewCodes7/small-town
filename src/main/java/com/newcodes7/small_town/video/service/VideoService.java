@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
@@ -17,8 +16,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.newcodes7.small_town.article.dto.CorporationDto;
-import com.newcodes7.small_town.article.repository.CorporationRepository;
+import com.newcodes7.small_town.corporation.dto.CorporationDto;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.article.repository.TermRepository;
 import com.newcodes7.small_town.article.service.TermSynonymService;
 import com.newcodes7.small_town.crawler.repository.CategoryRepository;
@@ -49,7 +48,7 @@ public class VideoService {
     private final VideoLikeService videoLikeService;
 
     public VideoService(VideoRepository videoRepository,
-                       @Qualifier("articleCorporationRepository") CorporationRepository corporationRepository,
+                       CorporationRepository corporationRepository,
                        CategoryRepository categoryRepository,
                        VideoTermRepository videoTermRepository,
                        TermRepository termRepository,

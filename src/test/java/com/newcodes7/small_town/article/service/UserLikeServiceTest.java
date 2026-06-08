@@ -10,7 +10,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Page;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -23,7 +22,7 @@ import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
 import com.newcodes7.small_town.article.exception.InvalidParameterException;
 import com.newcodes7.small_town.article.exception.UserNotFoundException;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.article.repository.CorporationRepository;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.article.repository.LikeLogRepository;
 import com.newcodes7.small_town.auth.entity.Provider;
 import com.newcodes7.small_town.auth.entity.Role;
@@ -64,7 +63,6 @@ public class UserLikeServiceTest {
     private ProviderRepository providerRepository;
 
     @Autowired
-    @Qualifier("articleCorporationRepository")
     private CorporationRepository corporationRepository;
 
     @Autowired

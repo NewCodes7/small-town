@@ -1,6 +1,6 @@
 package com.newcodes7.small_town.video.service;
 
-import com.newcodes7.small_town.article.repository.CorporationRepository;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.entity.Video;
 import com.newcodes7.small_town.video.dto.VideoResponseDto;
@@ -9,7 +9,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Page;
 import org.springframework.test.context.TestPropertySource;
@@ -32,7 +31,6 @@ public class VideoServiceTest {
     private VideoRepository videoRepository;
 
     @Autowired
-    @Qualifier("articleCorporationRepository")
     private CorporationRepository corporationRepository;
 
     private Corporation testCorporation;

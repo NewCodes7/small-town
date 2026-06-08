@@ -2,7 +2,7 @@ package com.newcodes7.small_town.video.service;
 
 import com.newcodes7.small_town.article.exception.InvalidParameterException;
 import com.newcodes7.small_town.article.exception.UserNotFoundException;
-import com.newcodes7.small_town.article.repository.CorporationRepository;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.auth.entity.Provider;
 import com.newcodes7.small_town.auth.entity.Role;
 import com.newcodes7.small_town.auth.entity.User;
@@ -19,7 +19,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.TestPropertySource;
@@ -53,7 +52,6 @@ public class VideoLikeServiceTest {
     private ProviderRepository providerRepository;
 
     @Autowired
-    @Qualifier("articleCorporationRepository")
     private CorporationRepository corporationRepository;
 
     @Autowired

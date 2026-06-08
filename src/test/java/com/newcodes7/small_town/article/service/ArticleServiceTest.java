@@ -31,8 +31,8 @@ import org.springframework.data.domain.Pageable;
 
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.dto.ArticleResponseDto;
-import com.newcodes7.small_town.article.dto.CorporationDetailDto;
-import com.newcodes7.small_town.article.dto.CorporationDto;
+import com.newcodes7.small_town.corporation.dto.CorporationDetailDto;
+import com.newcodes7.small_town.corporation.dto.CorporationDto;
 import com.newcodes7.small_town.article.dto.GroupedArticlesDto;
 import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
 import com.newcodes7.small_town.article.exception.CorporationNotFoundException;
@@ -49,7 +49,7 @@ public class ArticleServiceTest {
     private ArticleRepository articleRepository;
 
     @Mock
-    private com.newcodes7.small_town.article.repository.CorporationRepository corporationRepository;
+    private com.newcodes7.small_town.corporation.repository.CorporationRepository corporationRepository;
 
     @Mock
     private com.newcodes7.small_town.search.service.ArticleSearchService articleSearchService;

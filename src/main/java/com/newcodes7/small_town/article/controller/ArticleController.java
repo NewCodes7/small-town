@@ -34,7 +34,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.dto.ArticleResponseDto;
-import com.newcodes7.small_town.article.dto.CorporationDetailDto;
+import com.newcodes7.small_town.corporation.dto.CorporationDetailDto;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.repository.ArticleTermRepository;
 import com.newcodes7.small_town.article.service.ArticleService;
@@ -71,7 +71,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 
-import com.newcodes7.small_town.article.dto.CorporationDto;
+import com.newcodes7.small_town.corporation.dto.CorporationDto;
 import com.newcodes7.small_town.article.dto.GroupedArticlesDto;
 
 import java.util.stream.Collectors;

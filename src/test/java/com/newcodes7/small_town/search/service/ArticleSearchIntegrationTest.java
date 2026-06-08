@@ -12,7 +12,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.domain.Page;
@@ -21,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.newcodes7.small_town.search.dto.ArticleSearchResultDto;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.article.repository.CorporationRepository;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.search.service.VectorSearchService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
@@ -45,7 +44,6 @@ public class ArticleSearchIntegrationTest {
     private ArticleRepository articleRepository;
 
     @Autowired
-    @Qualifier("articleCorporationRepository")
     private CorporationRepository corporationRepository;
 
     @MockBean
