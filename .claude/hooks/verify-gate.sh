@@ -95,9 +95,20 @@ else
   warn="⚠️ DB($db_host:$db_port) 미가용 → 통합 테스트를 건너뛰었습니다(코드 검증 미완)."
 fi
 
-# 5) 에이전트 리뷰 — 로직/요구사항 충족 (결정론적 게이트가 못 잡는 것 보강)
+# 5) 에이전트 리뷰 — 로직/요구사항/성능 충족 (결정론적 게이트가 못 잡는 것 보강)
 if ! review=$(IN_VERIFY_GATE=1 bash "$PROJECT_DIR/.claude/hooks/agent-review.sh" "$BASE" 2>/dev/null); then
-  fail "에이전트 리뷰(로직/요구사항)" "$review"
+  fail "에이전트 리뷰(로직/요구사항/성능)" "$review"
+fi
+# 통과했어도 비차단 경고(WARN: …, 성능 등 심각도 low)는 systemMessage 로 노출
+if [ -n "$review" ]; then
+  review_block="🔎 에이전트 리뷰 경고(비차단):
+$review"
+  if [ -n "$warn" ]; then
+    warn="$warn
+$review_block"
+  else
+    warn="$review_block"
+  fi
 fi
 
 # 전부 통과

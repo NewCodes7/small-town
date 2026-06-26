@@ -94,7 +94,9 @@ fi
 section "⑤ AI 리뷰 (claude -p sonnet)"
 if [ "$DO_REVIEW" = 1 ]; then
   if review=$(IN_VERIFY_GATE=1 bash "$PROJECT_DIR/.claude/hooks/agent-review.sh" "$BASE" 2>/dev/null); then
-    pass "로직/요구사항 이슈 없음"
+    pass "로직/요구사항/성능 이슈 없음"
+    # 비차단 경고(WARN: …, 심각도 low)는 통과해도 안내
+    [ -n "$review" ] && printf '%s\n' "$review" | sed 's/^/    /'
   else
     miss "리뷰 지적 사항"; printf '%s\n' "$review"
   fi
