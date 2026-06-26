@@ -3,6 +3,8 @@ plugins {
  	id 'org.springframework.boot' version '3.5.0'
 	id 'io.spring.dependency-management' version '1.1.7'
 	id 'jacoco'
+	id 'com.diffplug.spotless' version '6.25.0'
+	id 'com.github.spotbugs' version '6.0.26'
 }
 
 group = 'com.newcodes7'
@@ -110,6 +112,9 @@ dependencies {
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.assertj:assertj-core'
+
+	// SAST 보안 규칙 (SpotBugs 플러그인)
+	spotbugsPlugins 'com.h3xstream.findsecbugs:findsecbugs-plugin:1.13.0'
 }
 
 tasks.named('test') {
@@ -129,4 +134,56 @@ jacocoTestReport {
 
 jar {
     enabled = false
+}
+
+// ---------------------------------------------------------------------------
+// 검증 파이프라인 — 포맷/린트(Spotless) + SAST(SpotBugs + find-sec-bugs)
+// 자세한 설계: .claude/hooks/ 및 plans 문서 참고
+// ---------------------------------------------------------------------------
+
+spotless {
+	// 작업 트리에서 변경된(커밋 전) 파일만 검사 → 레거시/기존 커밋에 막히지 않음.
+	// (로컬 main 이 origin/main 보다 많이 앞서 있어 origin/main 기준은 부적합)
+	ratchetFrom 'HEAD'
+	java {
+		target 'src/**/*.java'
+		// 세션 시작 시점에 이미 더럽던 파일(기존 WIP)은 게이트 대상에서 제외
+		def gateBaseline = file('.claude/.cache/baseline-files')
+		if (gateBaseline.exists()) {
+			def excl = gateBaseline.readLines().findAll { it.endsWith('.java') }
+			if (excl) { targetExclude(excl as String[]) }
+		}
+		// 라이트터치: 재정렬/재들여쓰기 없이 진단 위주.
+		// (googleJavaFormat 기본은 2-space 라 프로젝트 4-space 컨벤션과 충돌하므로 미사용)
+		importOrder()
+		removeUnusedImports()
+		trimTrailingWhitespace()
+		endWithNewline()
+	}
+}
+
+def spotbugsExclude = file('config/spotbugs/exclude.xml')
+
+spotbugs {
+	// 게이트 판정은 훅(.claude/hooks/sast-filter.py)이 "변경된 라인"만 대상으로 수행한다.
+	// → SpotBugs 자체는 항상 리포트만 남기고 성공으로 끝낸다(레거시 결함/분석 경고로 막히지 않음).
+	ignoreFailures = true
+	// NOTE: Confidence 는 constant 별 본문 enum 이라 `Confidence.MEDIUM` 이
+	// 중첩 클래스로 해석됨 → valueOf 로 enum 상수를 명시적으로 가져온다.
+	effort = com.github.spotbugs.snom.Effort.valueOf('MAX')
+	reportLevel = com.github.spotbugs.snom.Confidence.valueOf('MEDIUM')
+	if (spotbugsExclude.exists()) {
+		excludeFilter = spotbugsExclude
+	}
+}
+
+// 테스트 코드는 SAST 대상에서 제외 (메인 소스만 검사)
+tasks.named('spotbugsTest') { enabled = false }
+
+tasks.named('spotbugsMain') {
+	reports {
+		xml.required = true   // baseline 생성/대조용
+		text.required = true  // 훅에서 파싱하기 쉬운 형식
+		html.required = false
+	}
 }

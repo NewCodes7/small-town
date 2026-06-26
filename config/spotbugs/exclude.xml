@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SpotBugs / find-sec-bugs 제외 필터.
+  게이트(sast-filter.py)는 SECURITY 카테고리 결함만, 그것도 변경된 라인 위의 것만 차단한다.
+  여기에는 신호 대비 잡음이 큰 보안 규칙만 영구 제외한다.
+-->
+<FindBugsFilter>
+    <!--
+      CRLF_INJECTION_LOGS: 파라미터화된 SLF4J 로깅 전반을 무차별 플래그(코드베이스 142건).
+      실질 위험이 낮고 잡음이 커서 게이트에서 제외. (SQL injection/path traversal/SSRF/XXE 등
+      고가치 보안 규칙은 그대로 유지된다.)
+    -->
+    <Match>
+        <Bug pattern="CRLF_INJECTION_LOGS"/>
+    </Match>
+</FindBugsFilter>

@@ -8,5 +8,9 @@ bin/
 # Logs
 logs/
 .devcontainer/postgres_backup_data
+*.sql.gz
 # GA 인증 파일 (민감 정보)
 credentials/
+
+# Claude Code 검증 게이트 상태 파일
+.claude/.cache/
