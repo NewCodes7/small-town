@@ -11,6 +11,9 @@ Spring Boot 3.5 / Java 17 기반 기업 기술 블로그·유튜브 큐레이션
 ## Commands
 
 ```bash
+# 테스트/실행 전 .env 로드 필수 (TEST_DB_PASSWORD 주입) — 아래 Testing 참고
+set -a; . ./.env; set +a
+
 ./gradlew build
 ./gradlew test
 ./gradlew test --tests "*ClassName*"
@@ -251,6 +254,7 @@ CI에서 테스트 건너뛰려면 커밋 메시지에 `[skip tests]` 포함.
 
 - **DB**: `small_town_test` PostgreSQL (H2 아님), `pgvector` extension 필요
 - **DDL**: `create-drop` (각 테스트 후 롤백 — `@Transactional`)
+- **`.env` 로드 필수**: `set -a; . ./.env; set +a` 후 `./gradlew test` 실행. `TEST_DB_PASSWORD`가 주입되지 않으면 `application-test.properties`의 fallback 기본값(`test_db_password`)을 쓰는데, devcontainer postgres 데이터는 백업 복원본이라 비밀번호가 달라 TCP scram 인증 실패 → `TestDatabaseInitializer` 컨텍스트 로딩이 **전 테스트 대량 실패**. 테스트 코드 문제 아님.
 
 ```java
 @SpringBootTest
