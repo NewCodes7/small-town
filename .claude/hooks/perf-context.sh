@@ -14,6 +14,36 @@ PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}
 CACHE_DIR="$PROJECT_DIR/.claude/.cache"
 mkdir -p "$CACHE_DIR"
 STATS_CACHE="$CACHE_DIR/table-stats.json"
+TOKEN_CACHE="$CACHE_DIR/perf-token"   # 로그인으로 새로 발급한 admin JWT 캐시(.cache 는 gitignore)
+
+# 주어진 토큰으로 통계 API 호출. 성공(HTTP 200) 시 본문을 stdout 으로, 아니면 비0 반환.
+fetch_stats() {
+  local token="$1" hdr=() body code
+  [ -n "$token" ] && hdr=(-H "Authorization: Bearer $token")
+  body=$(curl -sS --max-time 10 -w $'\n%{http_code}' "${hdr[@]}" "$PERF_STATS_URL" 2>/dev/null) || return 1
+  code=${body##*$'\n'}; body=${body%$'\n'*}
+  [ "$code" = 200 ] && [ -n "$body" ] || return 1
+  printf '%s' "$body"
+}
+
+# .env 의 admin 이메일/비밀번호로 로그인 → accessToken 을 stdout 으로. 실패 시 비0.
+# 로그인 URL 은 PERF_LOGIN_URL 이 있으면 그것을, 없으면 PERF_STATS_URL 에서 유추(.../api/auth/login).
+login_token() {
+  [ -n "${PERF_ADMIN_EMAIL:-}" ] && [ -n "${PERF_ADMIN_PASSWORD:-}" ] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  local login_url="${PERF_LOGIN_URL:-}" base payload resp tok
+  if [ -z "$login_url" ]; then
+    base="${PERF_STATS_URL%%/api/*}"
+    [ "$base" = "$PERF_STATS_URL" ] && return 1   # URL 에 /api/ 가 없으면 유추 불가
+    login_url="$base/api/auth/login"
+  fi
+  payload=$(jq -n --arg e "$PERF_ADMIN_EMAIL" --arg p "$PERF_ADMIN_PASSWORD" '{email:$e,password:$p}')
+  resp=$(curl -sS --max-time 10 -H 'Content-Type: application/json' \
+              -d "$payload" "$login_url" 2>/dev/null) || return 1
+  tok=$(printf '%s' "$resp" | jq -r '.accessToken // empty' 2>/dev/null)
+  [ -n "$tok" ] || return 1
+  printf '%s' "$tok"
+}
 
 # ── ① 고정 서버 사양 ─────────────────────────────────────────────
 cat <<'SPECS'
@@ -27,15 +57,19 @@ cat <<'SPECS'
 SPECS
 
 # ── ② 실제 데이터량 ─────────────────────────────────────────────
+# 토큰 후보 순서: .env 토큰 → 직전 로그인으로 캐시한 토큰 → (둘 다 무효면) 새로 로그인.
+# 토큰이 만료/무효(401 등)면 admin 자격으로 로그인해 JWT 를 재발급받아 재시도한다.
 fetched=""
 if [ -n "${PERF_STATS_URL:-}" ]; then
-  auth=()
-  [ -n "${PERF_STATS_TOKEN:-}" ] && auth=(-H "Authorization: Bearer $PERF_STATS_TOKEN")
-  if resp=$(curl -fsS --max-time 10 "${auth[@]}" "$PERF_STATS_URL" 2>/dev/null) \
-     && [ -n "$resp" ]; then
-    printf '%s' "$resp" > "$STATS_CACHE"
-    fetched="live"
+  for token in "${PERF_STATS_TOKEN:-}" "$(cat "$TOKEN_CACHE" 2>/dev/null)"; do
+    [ -n "$token" ] || continue
+    if resp=$(fetch_stats "$token"); then fetched="live"; break; fi
+  done
+  if [ -z "$fetched" ] && tok=$(login_token); then
+    printf '%s' "$tok" > "$TOKEN_CACHE"; chmod 600 "$TOKEN_CACHE" 2>/dev/null || true
+    if resp=$(fetch_stats "$tok"); then fetched="live"; fi
   fi
+  [ -n "$fetched" ] && printf '%s' "$resp" > "$STATS_CACHE"
 fi
 
 # 라이브 실패 → 캐시 폴백
