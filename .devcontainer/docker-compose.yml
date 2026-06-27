@@ -17,7 +17,10 @@ services:
       context: .
       dockerfile: postgres.Dockerfile
     # container_name: postgres ◀ ⚠️ 삭제 (Docker Compose 프로젝트 내 호스트네임 충돌 방지)
-    restart: always
+    # unless-stopped: 점검 중 수동 정지한 컨테이너가 멋대로 재시작해 같은 data
+    # 디렉토리를 두 postmaster가 점유하는(=손상) 상황을 막는다. always는 daemon
+    # 재시작 시에도 무조건 띄워 중복 기동 위험이 더 크다.
+    restart: unless-stopped
     ports:
       - "5432:5432"
     environment:
@@ -27,7 +30,12 @@ services:
     volumes:
       - ../.devcontainer/postgres_backup_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
-    # Codespace 종료 시 WAL 손상 방지: SIGTERM → pg_ctl stop (fast mode)
-    stop_grace_period: 30s
-    stop_signal: SIGTERM
+    # Codespace 종료 시 깨끗한 종료가 핵심이다.
+    #  - SIGINT  = fast shutdown: 활성 연결을 즉시 끊고 체크포인트 후 종료(빠르고 깨끗)
+    #  - SIGTERM = smart shutdown: 클라이언트가 스스로 끊길 때까지 대기 → grace
+    #              타임아웃에 걸려 SIGKILL → 불결한 종료 → 다음 기동에 crash recovery
+    # 따라서 fast shutdown(SIGINT)으로 바꾸고, 느린 bind mount에서도 체크포인트가
+    # 끝나도록 grace를 넉넉히(60s) 준다. (resetwal 자동화 금지 — poststart.sh 참고)
+    stop_grace_period: 60s
+    stop_signal: SIGINT
     # healthcheck: ◀ ⚠️ 전체 삭제 (poststart.sh에서 대신 처리할 것이므로 필요 없음)

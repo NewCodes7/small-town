@@ -1,77 +1,119 @@
 #!/bin/bash
 set -e
 
-# Codespaces가 생성하는 실제 DB 컨테이너 이름을 추적합니다.
-# 일반적으로 '프로젝트명-postgres-1' 형태가 됩니다.
-TARGET_CONTAINER=$(docker ps -a --filter "label=com.docker.compose.service=postgres" --format "{{.Names}}" | head -n 1)
+# =============================================================================
+# Codespace postStart: PostgreSQL 안전 기동 + hostname 등록
+#
+# ⚠️ 절대 하지 말 것: 컨테이너가 exited라고 해서 pg_resetwal 자동 실행.
+#    pg_resetwal -f 는 WAL을 "버리는" 명령이라, 정상적인 crash recovery(WAL
+#    replay)를 막고 시스템 카탈로그를 손상시킨다("cache lookup failed for
+#    relation 1259"). Codespace는 종료 시 컨테이너를 강제 종료할 수 있어
+#    exited 상태가 흔하며, 그때 postgres는 다음 기동에서 WAL replay로 스스로
+#    복구한다. 자동 resetwal은 복구 수단이 아니라 손상 원인이다.
+#    손상이 의심되면 사람이 진단 후 최후수단으로만 수동 실행한다.
+# =============================================================================
 
-# 만약 라벨로 못 찾으면 폴백(Fallback)으로 기본 조합 사용
+DATA_DIR_HINT="postgres_backup_data"   # data 디렉토리를 마운트한 컨테이너 식별용
+
+# -----------------------------------------------------------------------------
+# 0) 현재 compose 프로젝트 파악 (app 컨테이너 라벨 기준)
+# -----------------------------------------------------------------------------
+CUR_PROJECT=$(docker inspect small-town-dev \
+    --format '{{index .Config.Labels "com.docker.compose.project"}}' 2>/dev/null || true)
+
+# postgres 서비스 컨테이너 후보 전체
+mapfile -t PG_CONTAINERS < <(docker ps -a \
+    --filter "label=com.docker.compose.service=postgres" --format '{{.Names}}')
+
+# -----------------------------------------------------------------------------
+# 1) 같은 data 디렉토리를 마운트한 "중복" postgres 컨테이너 제거
+#    이중 postmaster가 동일 데이터 디렉토리에 동시 기록하면 페이지가 찢어져
+#    (torn page) 카탈로그가 손상된다. 현재 프로젝트 소속 1개만 남긴다.
+# -----------------------------------------------------------------------------
+TARGET_CONTAINER=""
+for c in "${PG_CONTAINERS[@]}"; do
+    MOUNTS_DATA=$(docker inspect "$c" \
+        --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Source}}{{end}}{{end}}' 2>/dev/null || true)
+    case "$MOUNTS_DATA" in
+        *"$DATA_DIR_HINT"*) ;;          # 우리 data 디렉토리를 마운트한 컨테이너
+        *) continue ;;                  # 무관한 컨테이너는 건너뜀
+    esac
+
+    C_PROJECT=$(docker inspect "$c" \
+        --format '{{index .Config.Labels "com.docker.compose.project"}}' 2>/dev/null || true)
+
+    if [ -n "$CUR_PROJECT" ] && [ "$C_PROJECT" = "$CUR_PROJECT" ] && [ -z "$TARGET_CONTAINER" ]; then
+        TARGET_CONTAINER="$c"           # 현재 프로젝트 소속 → 유지
+    else
+        echo "[poststart] Removing duplicate/orphan postgres container: $c (project=$C_PROJECT)"
+        docker update --restart=no "$c" >/dev/null 2>&1 || true
+        docker rm -f "$c" >/dev/null 2>&1 || true
+    fi
+done
+
+# 라벨로 못 찾았을 때 폴백
+if [ -z "$TARGET_CONTAINER" ]; then
+    TARGET_CONTAINER=$(docker ps -a \
+        --filter "label=com.docker.compose.service=postgres" --format '{{.Names}}' | head -n 1)
+fi
 if [ -z "$TARGET_CONTAINER" ]; then
     TARGET_CONTAINER="small-town_devcontainer-postgres-1"
 fi
+echo "[poststart] Target postgres container: $TARGET_CONTAINER"
 
-echo "[poststart] Found postgres container: $TARGET_CONTAINER"
-
-# WAL 손상 감지: 컨테이너가 종료 상태인 경우 pg_resetwal로 복구
+# -----------------------------------------------------------------------------
+# 2) 컨테이너가 멈춰 있으면 그냥 start → postgres가 WAL replay로 스스로 복구
+#    (resetwal 금지). 기동 실패가 반복되면 로그를 남기고 사람에게 위임한다.
+# -----------------------------------------------------------------------------
 CONTAINER_STATUS=$(docker inspect "$TARGET_CONTAINER" --format '{{.State.Status}}' 2>/dev/null || echo "missing")
-if [ "$CONTAINER_STATUS" = "exited" ]; then
-    EXIT_CODE=$(docker inspect "$TARGET_CONTAINER" --format '{{.State.ExitCode}}' 2>/dev/null || echo "1")
-    echo "[poststart] Postgres container exited (code $EXIT_CODE). Checking for WAL corruption..."
-
-    # 컨테이너 이미지로 pg_resetwal 실행
-    DATA_DIR=$(docker inspect "$TARGET_CONTAINER" --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Source}}{{end}}{{end}}')
-    IMAGE=$(docker inspect "$TARGET_CONTAINER" --format '{{.Config.Image}}')
-
-    if [ -n "$DATA_DIR" ] && [ -n "$IMAGE" ]; then
-        echo "[poststart] Running pg_resetwal on $DATA_DIR ..."
-        docker run --rm -v "$DATA_DIR:/var/lib/postgresql/data" --user postgres "$IMAGE" \
-            pg_resetwal -f /var/lib/postgresql/data 2>&1 && echo "[poststart] WAL reset successful."
-    fi
-
-    echo "[poststart] Restarting postgres container..."
-    docker start "$TARGET_CONTAINER"
+if [ "$CONTAINER_STATUS" != "running" ]; then
+    echo "[poststart] Postgres is '$CONTAINER_STATUS' → starting (WAL replay handles unclean shutdown)..."
+    docker start "$TARGET_CONTAINER" >/dev/null 2>&1 || true
 fi
 
-echo "[poststart] Waiting for postgres to be healthy..."
-
-# pg_isready를 이용해 DB가 완전히 켜질 때까지 대기
+# -----------------------------------------------------------------------------
+# 3) 헬스 대기 (pg_isready)
+# -----------------------------------------------------------------------------
+echo "[poststart] Waiting for postgres to be ready..."
 ATTEMPTS=0
 until docker exec "$TARGET_CONTAINER" pg_isready -U newcodes -d small_town 2>/dev/null; do
     ATTEMPTS=$((ATTEMPTS + 1))
     if [ $ATTEMPTS -ge 30 ]; then
-        echo "[poststart] ERROR: Postgres did not become ready after 60s"
-        docker logs "$TARGET_CONTAINER" --tail 20
+        echo "[poststart] ERROR: Postgres did not become ready after 60s."
+        echo "[poststart] 손상이 의심되면 .devcontainer/RECOVERY.md 참고 — pg_resetwal은 자동 실행하지 않습니다."
+        docker logs "$TARGET_CONTAINER" --tail 30 || true
         exit 1
     fi
     echo "Database is starting up... sleeping 2s"
     sleep 2
 done
 
+# -----------------------------------------------------------------------------
+# 4) devcontainer가 'postgres' 호스트네임으로 접근할 수 있도록 /etc/hosts 등록
+# -----------------------------------------------------------------------------
 echo "[poststart] Registering postgres hostname in /etc/hosts..."
+DEVCONTAINER_NETWORK=$(docker inspect small-town-dev \
+    --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' 2>/dev/null | head -n 1)
 
-# devcontainer와 같은 네트워크의 IP를 우선 사용
-DEVCONTAINER_NETWORK=$(docker inspect small-town-dev --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' 2>/dev/null | head -n 1)
-
+POSTGRES_IP=""
 if [ -n "$DEVCONTAINER_NETWORK" ]; then
-    # postgres 컨테이너가 같은 네트워크에 연결되어 있는지 확인, 없으면 연결
-    ALREADY_CONNECTED=$(docker inspect "$TARGET_CONTAINER" --format "{{index .NetworkSettings.Networks \"$DEVCONTAINER_NETWORK\"}}" 2>/dev/null)
+    ALREADY_CONNECTED=$(docker inspect "$TARGET_CONTAINER" \
+        --format "{{index .NetworkSettings.Networks \"$DEVCONTAINER_NETWORK\"}}" 2>/dev/null)
     if [ -z "$ALREADY_CONNECTED" ] || [ "$ALREADY_CONNECTED" = "<no value>" ]; then
         echo "[poststart] Connecting postgres to network: $DEVCONTAINER_NETWORK"
         docker network connect "$DEVCONTAINER_NETWORK" "$TARGET_CONTAINER" 2>/dev/null || true
     fi
-    POSTGRES_IP=$(docker inspect "$TARGET_CONTAINER" --format "{{(index .NetworkSettings.Networks \"$DEVCONTAINER_NETWORK\").IPAddress}}" 2>/dev/null)
+    POSTGRES_IP=$(docker inspect "$TARGET_CONTAINER" \
+        --format "{{(index .NetworkSettings.Networks \"$DEVCONTAINER_NETWORK\").IPAddress}}" 2>/dev/null)
 fi
-
-# 폴백: 첫 번째 네트워크 IP 사용
 if [ -z "$POSTGRES_IP" ]; then
-    POSTGRES_IP=$(docker inspect "$TARGET_CONTAINER" --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' | awk '{print $1}')
+    POSTGRES_IP=$(docker inspect "$TARGET_CONTAINER" \
+        --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' | awk '{print $1}')
 fi
-
 if [ -z "$POSTGRES_IP" ]; then
     POSTGRES_IP=$(docker inspect "$TARGET_CONTAINER" --format '{{.NetworkSettings.IPAddress}}')
 fi
 
-# /etc/hosts에 IP 등록
-sudo bash -c "grep -v '[[:space:]]postgres$' /etc/hosts > /tmp/hosts.new && cat /tmp/hosts.new > /etc/hosts && echo '$POSTGRES_IP postgres' >> /etc/hosts"
+sudo bash -c "grep -v '[[:space:]]postgres\$' /etc/hosts > /tmp/hosts.new && cat /tmp/hosts.new > /etc/hosts && echo '$POSTGRES_IP postgres' >> /etc/hosts"
 
 echo "[poststart] Done! PostgreSQL ready at postgres($POSTGRES_IP):5432"
