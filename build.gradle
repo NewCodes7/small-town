@@ -87,8 +87,8 @@ dependencies {
     implementation 'com.amazonaws:aws-java-sdk-core:1.12.261'
 
     // WebP 이미지 변환 (scrimage - 더 간단하고 강력한 이미지 처리 라이브러리)
-    implementation 'com.sksamuel.scrimage:scrimage-core:4.1.1'
-    implementation 'com.sksamuel.scrimage:scrimage-webp:4.1.1'
+    implementation 'com.sksamuel.scrimage:scrimage-core:4.6.5'
+    implementation 'com.sksamuel.scrimage:scrimage-webp:4.6.5'
 
     // 한국어 형태소 분석기 (Lucene Nori - MeCab-Ko 사전 기반)
     implementation 'org.apache.lucene:lucene-analysis-nori:9.12.3'
