@@ -73,7 +73,8 @@
         const deepLink = buildDeepLink(notification);
         item.href = deepLink || '#';
         item.className = 'list-group-item list-group-item-action';
-        if (!notification.isRead) {
+        // 서버 DTO의 boolean isRead는 Jackson 직렬화 시 키가 `read`로 나간다.
+        if (!notification.read) {
             item.classList.add('list-group-item-warning');
         }
 
@@ -104,7 +105,7 @@
             if (!deepLink) {
                 event.preventDefault();
             }
-            if (!notification.isRead) {
+            if (!notification.read) {
                 await markAsRead(notification.id);
             }
             // deepLink가 있으면 기본 동작(이동)이 진행된다.
