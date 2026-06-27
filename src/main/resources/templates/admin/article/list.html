@@ -26,6 +26,12 @@
                     <a class="nav-link text-light" href="/admin/user-activity">
                         <i class="fas fa-history me-2"></i>사용자 기록 조회
                     </a>
+                    <a class="nav-link text-light position-relative" href="#" id="adminNotificationToggle"
+                       data-bs-toggle="offcanvas" data-bs-target="#adminNotificationPanel">
+                        <i class="fas fa-bell me-2"></i>알림
+                        <span id="adminNotificationBadge"
+                              class="badge bg-danger rounded-pill position-absolute top-0 end-0 mt-1 d-none">0</span>
+                    </a>
                 </nav>
             </div>
 
@@ -238,6 +244,27 @@
     <!-- 모달들 -->
     <div th:replace="~{admin/article/modals/all-modals}"></div>
 
+    <!-- 알림 패널 -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="adminNotificationPanel"
+         aria-labelledby="adminNotificationPanelLabel">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="adminNotificationPanelLabel">
+                <i class="fas fa-bell me-2"></i>알림
+            </h5>
+            <div class="ms-auto d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="adminNotificationMarkAllBtn">
+                    전체 읽음
+                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+            </div>
+        </div>
+        <div class="offcanvas-body">
+            <div id="adminNotificationList">
+                <div class="text-center text-muted py-4">불러오는 중...</div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 
     <!-- Admin Article List Modules (역할별로 분리된 JS 파일들) -->
@@ -250,6 +277,7 @@
     <script th:src="@{/js/admin/articleList/keywords.js}"></script>
     <script th:src="@{/js/admin/articleList/users.js}"></script>
     <script th:src="@{/js/admin/articleList/crawlinglogs.js}"></script>
+    <script th:src="@{/js/admin/articleList/notifications.js}"></script>
     <script th:src="@{/js/admin/articleList/main.js}"></script>
     <script th:src="@{/js/admin/articleList/translated-terms.js}"></script>
 </body>

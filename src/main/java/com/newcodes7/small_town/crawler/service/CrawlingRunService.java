@@ -1,11 +1,5 @@
 package com.newcodes7.small_town.crawler.service;
 
-import java.time.LocalDateTime;
-import java.util.Optional;
-
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.newcodes7.small_town.crawler.entity.CrawlingArticleProcessingLog;
 import com.newcodes7.small_town.crawler.entity.CrawlingJobType;
 import com.newcodes7.small_town.crawler.entity.CrawlingRunStatus;
@@ -15,9 +9,15 @@ import com.newcodes7.small_town.crawler.entity.CrawlingStepType;
 import com.newcodes7.small_town.crawler.repository.CrawlingArticleProcessingLogRepository;
 import com.newcodes7.small_town.crawler.repository.CrawlingSchedulerRunRepository;
 import com.newcodes7.small_town.global.entity.Article;
-
+import com.newcodes7.small_town.notification.service.AdminNotificationService;
+import java.time.LocalDateTime;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CrawlingRunService {
@@ -25,6 +25,7 @@ public class CrawlingRunService {
     private final CrawlingSchedulerRunRepository runRepository;
     private final CrawlingArticleProcessingLogRepository logRepository;
     private final CrawlingRunContext runContext;
+    private final AdminNotificationService adminNotificationService;
 
     @Transactional
     public CrawlingSchedulerRun startRun(CrawlingJobType jobType) {
@@ -56,6 +57,14 @@ public class CrawlingRunService {
         run.setNewItemsCount(newItemsCount);
         run.setErrorMessage(errorMessage);
         runRepository.save(run);
+
+        if (status == CrawlingRunStatus.FAILURE || status == CrawlingRunStatus.PARTIAL_SUCCESS) {
+            try {
+                adminNotificationService.notifyCrawlingFailure(run);
+            } catch (Exception e) {
+                log.warn("관리자 알림 생성 실패 runId={}", runId, e);
+            }
+        }
     }
 
     @Transactional

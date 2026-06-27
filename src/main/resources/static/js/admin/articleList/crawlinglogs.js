@@ -258,4 +258,14 @@
                 });
         });
     }
+
+    // 알림 딥링크(?runId=)로 진입한 경우 해당 run 상세를 자동으로 연다.
+    const requestedRunId = new URLSearchParams(window.location.search).get('runId');
+    if (requestedRunId) {
+        const targetRow = document.querySelector(`.crawling-run-row[data-run-id="${requestedRunId}"]`);
+        if (targetRow) {
+            targetRow.scrollIntoView({ block: 'center' });
+            loadRunDetail(requestedRunId);
+        }
+    }
 })();
