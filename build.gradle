@@ -3,7 +3,7 @@ plugins {
  	id 'org.springframework.boot' version '3.5.0'
 	id 'io.spring.dependency-management' version '1.1.7'
 	id 'jacoco'
-	id 'com.diffplug.spotless' version '6.25.0'
+	id 'com.diffplug.spotless' version '8.7.0'
 	id 'com.github.spotbugs' version '6.0.26'
 }
 
@@ -30,13 +30,13 @@ repositories {
 }
 
 dependencies {
-    implementation 'org.postgresql:postgresql:42.7.3'
-    implementation 'com.pgvector:pgvector:0.1.4'
+    implementation 'org.postgresql:postgresql:42.7.11'
+    implementation 'com.pgvector:pgvector:0.1.6'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
 	implementation 'nz.net.ultraq.thymeleaf:thymeleaf-layout-dialect'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
-	implementation 'jakarta.validation:jakarta.validation-api:3.0.2'
+	implementation 'jakarta.validation:jakarta.validation-api:3.1.1'
     implementation 'org.hibernate.validator:hibernate-validator:8.0.1.Final'
 	implementation 'org.springframework.boot:spring-boot-starter-cache'
 	implementation 'com.github.ben-manes.caffeine:caffeine'
@@ -68,7 +68,7 @@ dependencies {
     implementation 'net.dankito.readability4j:readability4j:1.0.8'
 
     // HTML 엔티티 디코딩
-    implementation 'org.apache.commons:commons-text:1.11.0'
+    implementation 'org.apache.commons:commons-text:1.15.0'
     
     // RSS/Atom Feed 파싱
     implementation 'com.rometools:rome:2.1.0'
@@ -76,7 +76,7 @@ dependencies {
     // YouTube Data API
     implementation 'com.google.api-client:google-api-client:2.2.0'
     implementation 'com.google.apis:google-api-services-youtube:v3-rev20240916-2.0.0'
-    implementation 'com.google.http-client:google-http-client-jackson2:1.44.1'
+    implementation 'com.google.http-client:google-http-client-jackson2:2.1.0'
 
     // Google Analytics Data API
     implementation 'com.google.analytics:google-analytics-data:0.54.0'
@@ -87,15 +87,15 @@ dependencies {
     implementation 'com.amazonaws:aws-java-sdk-core:1.12.261'
 
     // WebP 이미지 변환 (scrimage - 더 간단하고 강력한 이미지 처리 라이브러리)
-    implementation 'com.sksamuel.scrimage:scrimage-core:4.1.1'
-    implementation 'com.sksamuel.scrimage:scrimage-webp:4.1.1'
+    implementation 'com.sksamuel.scrimage:scrimage-core:4.6.5'
+    implementation 'com.sksamuel.scrimage:scrimage-webp:4.6.5'
 
     // 한국어 형태소 분석기 (Lucene Nori - MeCab-Ko 사전 기반)
-    implementation 'org.apache.lucene:lucene-analysis-nori:9.12.3'
+    implementation 'org.apache.lucene:lucene-analysis-nori:10.5.0'
 
     // 영어 형태소 분석기 (Apache Lucene)
-    implementation 'org.apache.lucene:lucene-core:9.12.3'
-    implementation 'org.apache.lucene:lucene-analysis-common:9.12.3'
+    implementation 'org.apache.lucene:lucene-core:10.5.0'
+    implementation 'org.apache.lucene:lucene-analysis-common:10.5.0'
 
     // OpenAI 토큰 카운터 (jtokkit)
     implementation 'com.knuddels:jtokkit:1.0.0'
