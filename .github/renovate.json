@@ -1,0 +1,58 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "timezone": "Asia/Seoul",
+  "schedule": ["every monday"],
+  "labels": ["dependencies"],
+  "commitMessagePrefix": "chore:",
+  "dependencyDashboard": true,
+  "dependencyDashboardTitle": "Renovate 의존성 업데이트 대시보드",
+  "dependencyDashboardApproval": true,
+  "packageRules": [
+    {
+      "description": "Spring Framework / Boot",
+      "matchPackagePrefixes": ["org.springframework"],
+      "groupName": "spring"
+    },
+    {
+      "description": "Apache Lucene (형태소 분석)",
+      "matchPackagePrefixes": ["org.apache.lucene"],
+      "groupName": "lucene"
+    },
+    {
+      "description": "AWS SDK",
+      "matchPackagePatterns": ["^com\\.amazonaws", "spring-cloud-starter-aws"],
+      "groupName": "aws-sdk"
+    },
+    {
+      "description": "Google APIs",
+      "matchPackagePrefixes": ["com.google"],
+      "groupName": "google-apis"
+    },
+    {
+      "description": "Selenium + WebDriverManager",
+      "matchPackagePatterns": ["^org\\.seleniumhq", "^io\\.github\\.bonigarcia"],
+      "groupName": "selenium"
+    },
+    {
+      "description": "JJWT",
+      "matchPackagePrefixes": ["io.jsonwebtoken"],
+      "groupName": "jjwt"
+    },
+    {
+      "description": "Scrimage 이미지 처리",
+      "matchPackagePrefixes": ["com.sksamuel.scrimage"],
+      "groupName": "scrimage"
+    },
+    {
+      "description": "SpotBugs + FindSecBugs SAST",
+      "matchPackagePatterns": ["^com\\.github\\.spotbugs", "findsecbugs"],
+      "groupName": "spotbugs"
+    },
+    {
+      "description": "Flyway 마이그레이션",
+      "matchPackagePrefixes": ["org.flywaydb"],
+      "groupName": "flyway"
+    }
+  ]
+}
