@@ -14,3 +14,14 @@ credentials/
 
 # Claude Code 검증 게이트 상태 파일
 .claude/.cache/
+.claude/hooks/__pycache__/
+
+# Playwright MCP
+.playwright-mcp/
+
+# 루트 레벨 임시 스크린샷
+notification-e2e*.png
+
+# 임시 분석 파일
+bm25_normalization_analysis.md
+bm25_score_analysis.sql

@@ -29,7 +29,7 @@ services:
       POSTGRES_DB: small_town
     volumes:
       - ../.devcontainer/postgres_backup_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+      # - ./init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
     # Codespace 종료 시 깨끗한 종료가 핵심이다.
     #  - SIGINT  = fast shutdown: 활성 연결을 즉시 끊고 체크포인트 후 종료(빠르고 깨끗)
     #  - SIGTERM = smart shutdown: 클라이언트가 스스로 끊길 때까지 대기 → grace
