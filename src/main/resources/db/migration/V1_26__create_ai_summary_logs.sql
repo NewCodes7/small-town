@@ -8,4 +8,4 @@ CREATE TABLE IF NOT EXISTS ai_summary_logs (
     created_at     TIMESTAMP NOT NULL
 );
 
-CREATE INDEX idx_ai_summary_logs_created_at ON ai_summary_logs (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_summary_logs_created_at ON ai_summary_logs (created_at DESC);
