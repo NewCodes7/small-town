@@ -188,7 +188,6 @@ ArticleAnalyzedContent (article.id = FK)
 |----------|------|------|
 | `CrawlingScheduler` (블로그) | `0 0 2 * * ?` (02:00) | 블로그 크롤링 |
 | `CrawlingScheduler` (YouTube) | `0 30 2 * * ?` (02:30) | YouTube 크롤링 |
-| `CrawlingScheduler` (GA) | `0 0 3 * * ?` (03:00) | Google Analytics 동기화 |
 | `ContentAndTermExtractionScheduler` | `0 30 * * * ?` (매시 :30) | 컨텐츠/용어 추출 |
 | `HackerNewsCrawlingScheduler` | `0 30 * * * ?` (매시 :30) | HN 크롤링 |
 | `SearchPrewarmScheduler` | fixedDelay 300s + `0 30 * * * *` | 검색 사전 워밍 |
@@ -206,7 +205,6 @@ ArticleAnalyzedContent (article.id = FK)
 | **OpenAI** | 아티클 요약/분석 (Responses API) | `openai.api-key` |
 | **DeepL** | 제목·HN 댓글 번역 | `deepl.api-key` |
 | **YouTube Data API** | 채널 비디오 크롤링 | `youtube.api.key` |
-| **Google Analytics** | 조회수 동기화 | `GA_CREDENTIALS_JSON` |
 | **AWS S3/CloudFront** | 파일 업로드, 이미지 서빙 | `AWS_ACCESS_KEY`, `S3_BUCKET_NAME` |
 | **Hacker News Firebase** | 인기 스토리/댓글 (무인증) | — |
 | **StackExchange** | 기술 용어 정보 (무인증) | — |
@@ -333,7 +331,6 @@ GEMINI_API_KEY
 CLOVA_API_KEY
 DEEPL_API_KEY
 YOUTUBE_API_KEY
-GA_PROPERTY_ID, GA_CREDENTIALS_JSON
 AWS_ACCESS_KEY, AWS_SECRET_KEY, S3_BUCKET_NAME, CLOUDFRONT_DOMAIN
 GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
 GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_REDIRECT_URI

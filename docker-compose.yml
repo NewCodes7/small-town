@@ -32,8 +32,6 @@ services:
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
       - GITHUB_REDIRECT_URI=${GITHUB_REDIRECT_URI}
-      - GA_PROPERTY_ID=${GA_PROPERTY_ID}
-      - GA_CREDENTIALS_PATH=/app/credentials/ga-credentials.json
       - CLOVA_API_KEY=${CLOVA_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GOOGLE_TRANSLATE_API_KEY=${GOOGLE_TRANSLATE_API_KEY}
@@ -49,7 +47,6 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
       - ./logs/blue:/app/logs
-      - ./credentials/ga-credentials.json:/app/credentials/ga-credentials.json:ro
     networks:
       - app-network
     init: true
@@ -72,7 +69,6 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
       - ./logs/green:/app/logs
-      - ./credentials/ga-credentials.json:/app/credentials/ga-credentials.json:ro
     networks:
       - app-network
     profiles:

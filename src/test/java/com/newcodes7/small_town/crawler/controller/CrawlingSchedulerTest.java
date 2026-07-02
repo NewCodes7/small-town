@@ -4,16 +4,6 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-import java.util.List;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.crawler.config.WebDriverConfig;
 import com.newcodes7.small_town.crawler.crawler.DefaultBlogCrawler;
@@ -23,7 +13,6 @@ import com.newcodes7.small_town.crawler.dto.VideoCrawlResult;
 import com.newcodes7.small_town.crawler.entity.CrawlingJobType;
 import com.newcodes7.small_town.crawler.entity.CrawlingRunStatus;
 import com.newcodes7.small_town.crawler.entity.CrawlingSchedulerRun;
-import com.newcodes7.small_town.crawler.integration.analytics.GoogleAnalyticsService;
 import com.newcodes7.small_town.crawler.integration.translation.TitleTranslationService;
 import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
 import com.newcodes7.small_town.crawler.service.CrawlingRunContext;
@@ -32,6 +21,14 @@ import com.newcodes7.small_town.crawler.service.CrawlingService;
 import com.newcodes7.small_town.crawler.service.IndexPrewarmService;
 import com.newcodes7.small_town.crawler.service.YouTubeCrawlingService;
 import com.newcodes7.small_town.global.entity.Corporation;
+import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
  * CrawlingScheduler 단위 테스트
@@ -44,7 +41,6 @@ class CrawlingSchedulerTest {
     @Mock private YouTubeCrawlingService youtubeCrawlingService;
     @Mock private TitleTranslationService titleTranslationService;
     @Mock private ArticlePersistenceService articlePersistenceService;
-    @Mock private GoogleAnalyticsService googleAnalyticsService;
     @Mock private ArticleRepository articleRepository;
     @Mock private WebDriverConfig webDriverConfig;
     @Mock private MediumBlogCrawler mediumBlogCrawler;
@@ -62,7 +58,6 @@ class CrawlingSchedulerTest {
                 youtubeCrawlingService,
                 titleTranslationService,
                 articlePersistenceService,
-                googleAnalyticsService,
                 articleRepository,
                 webDriverConfig,
                 mediumBlogCrawler,
@@ -195,35 +190,4 @@ class CrawlingSchedulerTest {
         }
     }
 
-    @Nested
-    @DisplayName("scheduledGoogleAnalyticsSync")
-    class GoogleAnalyticsSyncTests {
-
-        @Test
-        @DisplayName("GA 비활성화 시 동기화 건너뜀")
-        void scheduledGoogleAnalyticsSync_gaDisabled_skipsSync() {
-            // given
-            when(googleAnalyticsService.isEnabled()).thenReturn(false);
-
-            // when
-            scheduler.scheduledGoogleAnalyticsSync();
-
-            // then
-            verify(googleAnalyticsService, never()).syncDailyViewCounts();
-        }
-
-        @Test
-        @DisplayName("GA 활성화 시 syncDailyViewCounts 호출")
-        void scheduledGoogleAnalyticsSync_gaEnabled_syncsCounts() {
-            // given
-            when(googleAnalyticsService.isEnabled()).thenReturn(true);
-            when(googleAnalyticsService.syncDailyViewCounts()).thenReturn(3);
-
-            // when
-            assertThatCode(() -> scheduler.scheduledGoogleAnalyticsSync()).doesNotThrowAnyException();
-
-            // then
-            verify(googleAnalyticsService).syncDailyViewCounts();
-        }
-    }
 }

@@ -38,23 +38,6 @@
                         </form>
                     </div>
                     <div class="col-md-4 text-end">
-                        <div class="dropdown d-inline-block me-2">
-                            <button type="button" class="btn btn-info dropdown-toggle" data-bs-toggle="dropdown">
-                                <i class="fas fa-chart-line me-2"></i>GA 동기화
-                            </button>
-                            <ul class="dropdown-menu">
-                                <li>
-                                    <button type="button" class="dropdown-item" id="sync-ga-all-btn">
-                                        <i class="fas fa-history me-2"></i>전체 기간 동기화 (최초 1회)
-                                    </button>
-                                </li>
-                                <li>
-                                    <button type="button" class="dropdown-item" id="sync-ga-btn">
-                                        <i class="fas fa-calendar-day me-2"></i>기간 지정 동기화
-                                    </button>
-                                </li>
-                            </ul>
-                        </div>
                         <button type="button" class="btn btn-warning me-2" id="remove-medium-duplicates-btn">
                             <i class="fas fa-clone me-2"></i>Medium 중복 삭제
                         </button>
@@ -287,87 +270,6 @@
                         this.disabled = false;
                         this.innerHTML = originalContent;
                         alert(`중복 삭제 실패\n\n오류: ${error.message}`);
-                    });
-                });
-            }
-
-            // GA 전체 기간 동기화 버튼 이벤트 리스너
-            const syncGaAllBtn = document.getElementById('sync-ga-all-btn');
-            if (syncGaAllBtn) {
-                syncGaAllBtn.addEventListener('click', function() {
-                    if (!confirm('전체 기간(약 14개월) 조회수를 동기화하시겠습니까?\n\n이 작업은 최초 1회만 실행하면 됩니다.\n이후에는 매일 자동으로 동기화됩니다.')) {
-                        return;
-                    }
-
-                    const originalContent = this.innerHTML;
-                    this.disabled = true;
-                    this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>동기화 중...';
-
-                    fetch('/admin/analytics/sync-views-all', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        this.disabled = false;
-                        this.innerHTML = originalContent;
-
-                        if (data.success) {
-                            alert(`GA 전체 기간 조회수 동기화 완료!\n\n동기화된 기업: ${data.syncedCorporations}개`);
-                            window.location.reload();
-                        } else {
-                            alert(`동기화 실패\n\n${data.message}`);
-                        }
-                    })
-                    .catch(error => {
-                        this.disabled = false;
-                        this.innerHTML = originalContent;
-                        alert(`동기화 실패\n\n오류: ${error.message}`);
-                    });
-                });
-            }
-
-            // GA 기간 지정 동기화 버튼 이벤트 리스너
-            const syncGaBtn = document.getElementById('sync-ga-btn');
-            if (syncGaBtn) {
-                syncGaBtn.addEventListener('click', function() {
-                    const days = prompt('몇 일간의 조회수를 동기화할까요?', '30');
-                    if (days === null) return;
-
-                    const daysNum = parseInt(days);
-                    if (isNaN(daysNum) || daysNum <= 0) {
-                        alert('올바른 숫자를 입력해주세요.');
-                        return;
-                    }
-
-                    const originalContent = this.innerHTML;
-                    this.disabled = true;
-                    this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>동기화 중...';
-
-                    fetch(`/admin/analytics/sync-views?days=${daysNum}`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        this.disabled = false;
-                        this.innerHTML = originalContent;
-
-                        if (data.success) {
-                            alert(`GA 조회수 동기화 완료!\n\n동기화된 기업: ${data.syncedCorporations}개\n기간: ${data.days}일`);
-                            window.location.reload();
-                        } else {
-                            alert(`동기화 실패\n\n${data.message}`);
-                        }
-                    })
-                    .catch(error => {
-                        this.disabled = false;
-                        this.innerHTML = originalContent;
-                        alert(`동기화 실패\n\n오류: ${error.message}`);
                     });
                 });
             }

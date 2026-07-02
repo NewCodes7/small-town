@@ -78,9 +78,6 @@ dependencies {
     implementation 'com.google.apis:google-api-services-youtube:v3-rev20240916-2.0.0'
     implementation 'com.google.http-client:google-http-client-jackson2:2.1.0'
 
-    // Google Analytics Data API
-    implementation 'com.google.analytics:google-analytics-data:0.54.0'
-
     // AWS S3 and CloudFront
     implementation 'org.springframework.cloud:spring-cloud-starter-aws:2.2.6.RELEASE'
     implementation 'com.amazonaws:aws-java-sdk-s3:1.12.261'

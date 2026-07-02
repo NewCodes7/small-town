@@ -4,21 +4,20 @@ import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.crawler.config.WebDriverConfig;
 import com.newcodes7.small_town.crawler.crawler.DefaultBlogCrawler;
 import com.newcodes7.small_town.crawler.crawler.MediumBlogCrawler;
+import com.newcodes7.small_town.crawler.dto.CrawlResult;
 import com.newcodes7.small_town.crawler.entity.CrawlingJobType;
 import com.newcodes7.small_town.crawler.entity.CrawlingRunStatus;
 import com.newcodes7.small_town.crawler.entity.CrawlingSchedulerRun;
-import com.newcodes7.small_town.global.entity.Article;
-import com.newcodes7.small_town.global.entity.BlogType;
-import com.newcodes7.small_town.crawler.dto.CrawlResult;
-import com.newcodes7.small_town.crawler.integration.analytics.GoogleAnalyticsService;
+import com.newcodes7.small_town.crawler.integration.translation.TitleTranslationService;
 import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
-import com.newcodes7.small_town.crawler.service.IndexPrewarmService;
 import com.newcodes7.small_town.crawler.service.CrawlingRunContext;
 import com.newcodes7.small_town.crawler.service.CrawlingRunService;
 import com.newcodes7.small_town.crawler.service.CrawlingService;
+import com.newcodes7.small_town.crawler.service.IndexPrewarmService;
 import com.newcodes7.small_town.crawler.service.YouTubeCrawlingService;
-import com.newcodes7.small_town.crawler.integration.translation.TitleTranslationService;
-
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.BlogType;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.WebDriver;
@@ -28,8 +27,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -41,7 +38,6 @@ public class CrawlingScheduler {
     private final YouTubeCrawlingService youtubeCrawlingService;
     private final TitleTranslationService titleTranslationService;
     private final ArticlePersistenceService articlePersistenceService;
-    private final GoogleAnalyticsService googleAnalyticsService;
     private final ArticleRepository articleRepository;
     private final WebDriverConfig webDriverConfig;
     private final MediumBlogCrawler mediumBlogCrawler;
@@ -233,28 +229,6 @@ public class CrawlingScheduler {
 
         } catch (Exception e) {
             log.error("스케줄된 번역 및 AI 분석 작업 중 오류 발생", e);
-        }
-    }
-
-    /**
-     * Google Analytics 조회수 동기화 스케줄러
-     * 매일 새벽 3시에 실행 (어제 하루 조회수를 기존 조회수에 추가)
-     */
-    @Scheduled(cron = "${crawler.schedule.ga-sync.cron:0 0 3 * * ?}", zone = "Asia/Seoul")
-    public void scheduledGoogleAnalyticsSync() {
-        log.info("스케줄된 GA 조회수 동기화 작업 시작");
-
-        try {
-            if (!googleAnalyticsService.isEnabled()) {
-                log.info("Google Analytics가 비활성화되어 있어 동기화를 건너뜁니다.");
-                return;
-            }
-
-            int syncCount = googleAnalyticsService.syncDailyViewCounts();
-            log.info("스케줄된 GA 조회수 동기화 작업 완료 - 동기화된 기업: {}개", syncCount);
-
-        } catch (Exception e) {
-            log.error("스케줄된 GA 조회수 동기화 작업 중 오류 발생", e);
         }
     }
 
