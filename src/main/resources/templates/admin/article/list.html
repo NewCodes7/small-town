@@ -109,6 +109,12 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" th:classappend="${currentTab == 'aisummarylogs'} ? 'active'"
+                           th:href="@{/admin/articles(tab='aisummarylogs')}">
+                            <i class="fas fa-coins me-2"></i>AI 요약 토큰
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" th:classappend="${currentTab == 'crawlinglogs'} ? 'active'"
                            th:href="@{/admin/articles(tab='crawlinglogs')}">
                             <i class="fas fa-spider me-2"></i>크롤링 로그
@@ -206,6 +212,11 @@
                 <!-- Search Logs 탭 -->
                 <div th:if="${currentTab == 'searchlogs'}">
                     <div th:replace="~{admin/article/tabs/searchlogs::content}"></div>
+                </div>
+
+                <!-- AI 요약 토큰 탭 -->
+                <div th:if="${currentTab == 'aisummarylogs'}">
+                    <div th:replace="~{admin/article/tabs/aisummarylogs::content}"></div>
                 </div>
 
                 <!-- Crawling Logs 탭 -->

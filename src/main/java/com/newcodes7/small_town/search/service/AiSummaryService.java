@@ -1,5 +1,18 @@
 package com.newcodes7.small_town.search.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.newcodes7.small_town.search.dto.AiSummaryCacheDto;
+import com.newcodes7.small_town.search.dto.AiSummaryChunkDto;
+import com.newcodes7.small_town.search.dto.AiSummaryDoneDto;
+import com.newcodes7.small_town.search.dto.AiSummaryPromptDto;
+import com.newcodes7.small_town.search.dto.AiSummarySourceDto;
+import com.newcodes7.small_town.search.entity.AiSummaryLog;
+import com.newcodes7.small_town.search.repository.AiSummaryLogRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -15,27 +28,13 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.newcodes7.small_town.search.dto.AiSummaryCacheDto;
-import com.newcodes7.small_town.search.dto.AiSummaryChunkDto;
-import com.newcodes7.small_town.search.dto.AiSummaryDoneDto;
-import com.newcodes7.small_town.search.dto.AiSummaryPromptDto;
-import com.newcodes7.small_town.search.dto.AiSummarySourceDto;
-
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
-import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
@@ -47,6 +46,7 @@ public class AiSummaryService {
     private final CacheManager cacheManager;
     private final MeterRegistry meterRegistry;
     private final ObjectMapper objectMapper;
+    private final AiSummaryLogRepository aiSummaryLogRepository;
 
     @Value("${gemini.api-key:}")
     private String geminiApiKey;
@@ -70,7 +70,7 @@ public class AiSummaryService {
 
             [규칙]
             - 인사말, 도입 문장, 검색어 설명 없이 첫 번째 회사 소개부터 바로 시작하세요.
-            - 주어진 회사에 대해 하나도 빠짐없이 모두 각각 정리하세요. 
+            - 주어진 회사에 대해 하나도 빠짐없이 모두 각각 정리하세요.
             - 회사별 내용은 마크다운 불렛 포인트(- 으로 시작)로 최대 2개 항목을 작성하세요.
             - 각 불렛은 한 문장으로 70 토큰 이내로 짧게 끊어 쓰고 가독성이 좋게 쓰세요. 한 불렛에 여러 문장을 이어 쓰지 마세요.
             - 핵심 키워드(기술명, 수치, 성과 등)는 **볼드체**로 강조하세요.
@@ -128,6 +128,7 @@ public class AiSummaryService {
                 AiSummaryCacheDto cached = cache.get(cacheKey, AiSummaryCacheDto.class);
                 if (cached != null) {
                     replayFromCache(emitter, cached);
+                    saveAiSummaryLog(normalizedQuery, null, null, null, true);
                     cachedCounter.increment();
                     latencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
                     return;
@@ -154,12 +155,15 @@ public class AiSummaryService {
             StringBuilder pendingBuf = new StringBuilder();
             boolean queriesDetected = false;
             final int HOLD_BACK = "[QUERIES]".length() - 1;
+            int[] tokenUsage = {0, 0, 0}; // [input, output, total]
 
             try (Stream<String> lines = callGeminiStream(requestBody)) {
                 for (String line : (Iterable<String>) lines::iterator) {
                     if (!line.startsWith("data: ")) continue;
                     String json = line.substring(6).trim();
                     if (json.isEmpty() || json.equals("[DONE]")) continue;
+
+                    extractTokenUsage(json, tokenUsage);
 
                     String text = extractTextFromGeminiResponse(json);
                     if (text.isEmpty()) continue;
@@ -232,8 +236,13 @@ public class AiSummaryService {
                 }
             }
 
-            sendDoneEvent(emitter, new AiSummaryDoneDto(sources, queries));
+            Integer inTokens = tokenUsage[0] > 0 ? tokenUsage[0] : null;
+            Integer outTokens = tokenUsage[1] > 0 ? tokenUsage[1] : null;
+            Integer totalTokens = tokenUsage[2] > 0 ? tokenUsage[2] : null;
+            sendDoneEvent(emitter, new AiSummaryDoneDto(sources, queries, inTokens, outTokens, totalTokens));
             completeEmitter(emitter);
+
+            saveAiSummaryLog(normalizedQuery, inTokens, outTokens, totalTokens, false);
 
             if (cache != null && !cleanText.isEmpty()) {
                 cache.put(cacheKey, new AiSummaryCacheDto(cleanText, sources, queries));
@@ -294,7 +303,7 @@ public class AiSummaryService {
         for (int i = 0; i < text.length(); i += chunkSize) {
             sendTokenEvent(emitter, text.substring(i, Math.min(i + chunkSize, text.length())));
         }
-        sendDoneEvent(emitter, new AiSummaryDoneDto(cached.sources(), cached.queries()));
+        sendDoneEvent(emitter, new AiSummaryDoneDto(cached.sources(), cached.queries(), null, null, null));
         completeEmitter(emitter);
     }
 
@@ -352,6 +361,18 @@ public class AiSummaryService {
         return objectMapper.writeValueAsString(body);
     }
 
+    private void extractTokenUsage(String json, int[] tokenUsage) {
+        try {
+            JsonNode root = objectMapper.readTree(json);
+            JsonNode usage = root.path("usageMetadata");
+            if (!usage.isMissingNode()) {
+                tokenUsage[0] = usage.path("promptTokenCount").asInt(tokenUsage[0]);
+                tokenUsage[1] = usage.path("candidatesTokenCount").asInt(tokenUsage[1]);
+                tokenUsage[2] = usage.path("totalTokenCount").asInt(tokenUsage[2]);
+            }
+        } catch (Exception ignored) {}
+    }
+
     private String extractTextFromGeminiResponse(String json) {
         try {
             JsonNode root = objectMapper.readTree(json);
@@ -362,6 +383,22 @@ public class AiSummaryService {
             return parts.get(0).path("text").asText("");
         } catch (Exception e) {
             return "";
+        }
+    }
+
+    private void saveAiSummaryLog(
+            String keyword, Integer input, Integer output, Integer total, boolean cached) {
+        try {
+            aiSummaryLogRepository.save(
+                    AiSummaryLog.builder()
+                            .searchKeyword(keyword)
+                            .inputTokens(input)
+                            .outputTokens(output)
+                            .totalTokens(total)
+                            .cached(cached)
+                            .build());
+        } catch (Exception e) {
+            log.warn("AI 요약 로그 저장 실패: keyword={}", keyword, e);
         }
     }
 

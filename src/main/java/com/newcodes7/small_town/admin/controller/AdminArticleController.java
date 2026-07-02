@@ -1,14 +1,30 @@
 package com.newcodes7.small_town.admin.controller;
 
+import com.newcodes7.small_town.admin.service.AdminArticleListService;
+import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
+import com.newcodes7.small_town.crawler.repository.ArticleSummaryRepository;
+import com.newcodes7.small_town.crawler.repository.CategoryRepository;
+import com.newcodes7.small_town.embedding.entity.ArticleChunk;
+import com.newcodes7.small_town.embedding.entity.ChunkContent;
+import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
+import com.newcodes7.small_town.embedding.repository.ChunkContentRepository;
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.ArticleSummary;
+import com.newcodes7.small_town.global.entity.RelatedContentKeyword;
+import com.newcodes7.small_town.term.service.ArticleTermService;
+import com.newcodes7.small_town.term.service.RelatedContentKeywordService;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,25 +35,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.transaction.annotation.Transactional;
-
-import com.newcodes7.small_town.admin.service.AdminArticleListService;
-import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.embedding.entity.ArticleChunk;
-import com.newcodes7.small_town.embedding.entity.ChunkContent;
-import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
-import com.newcodes7.small_town.embedding.repository.ChunkContentRepository;
-import com.newcodes7.small_town.term.service.ArticleTermService;
-import com.newcodes7.small_town.term.service.RelatedContentKeywordService;
-import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
-import com.newcodes7.small_town.crawler.repository.ArticleSummaryRepository;
-import com.newcodes7.small_town.crawler.repository.CategoryRepository;
-import com.newcodes7.small_town.global.entity.Article;
-import com.newcodes7.small_town.global.entity.ArticleSummary;
-import com.newcodes7.small_town.global.entity.RelatedContentKeyword;
-
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Article 기본 관리 Controller
@@ -93,6 +90,7 @@ public class AdminArticleController {
         model.addAttribute("videoTermStatsTotal", data.getVideoTermStatsTotal());
         model.addAttribute("videoTermTotalPages", data.getVideoTermTotalPages());
         model.addAttribute("searchLogs", data.getSearchLogs());
+        model.addAttribute("aiSummaryLogs", data.getAiSummaryLogs());
         model.addAttribute("users", data.getUsers());
         model.addAttribute("likeLogs", data.getLikeLogs());
         model.addAttribute("crawlingRuns", data.getCrawlingRuns());

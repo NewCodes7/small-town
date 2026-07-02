@@ -2502,6 +2502,15 @@
     gap: 0.4rem;
 }
 
+.ai-summary-token-usage {
+    margin-top: 0.5rem;
+    font-size: 0.72rem;
+    color: var(--text-light, #888);
+    text-align: right;
+    font-family: monospace;
+    opacity: 0.7;
+}
+
 .ai-related-label {
     font-size: 0.9rem;
     font-weight: 600;

@@ -1,9 +1,30 @@
 package com.newcodes7.small_town.admin.service;
 
+import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.auth.repository.UserRepository;
+import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
+import com.newcodes7.small_town.corporation.service.CorporationService;
+import com.newcodes7.small_town.crawler.entity.CrawlingSchedulerRun;
+import com.newcodes7.small_town.crawler.repository.CrawlingSchedulerRunRepository;
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.Video;
+import com.newcodes7.small_town.search.dto.ArticleSearchResultDto;
+import com.newcodes7.small_town.search.entity.AiSummaryLog;
+import com.newcodes7.small_town.search.entity.SearchLog;
+import com.newcodes7.small_town.search.repository.AiSummaryLogRepository;
+import com.newcodes7.small_town.search.service.ArticleSearchService;
+import com.newcodes7.small_town.search.service.SearchLogService;
+import com.newcodes7.small_town.term.repository.ArticleTermRepository;
+import com.newcodes7.small_town.theme.dto.ThemeSimpleResponseDto;
+import com.newcodes7.small_town.theme.repository.ThemeRepository;
+import com.newcodes7.small_town.video.repository.VideoRepository;
+import com.newcodes7.small_town.video.repository.VideoTermRepository;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
+import lombok.Builder;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -11,28 +32,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.term.repository.ArticleTermRepository;
-import com.newcodes7.small_town.auth.repository.UserRepository;
-import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
-import com.newcodes7.small_town.corporation.service.CorporationService;
-import com.newcodes7.small_town.crawler.entity.CrawlingSchedulerRun;
-import com.newcodes7.small_town.crawler.repository.CrawlingSchedulerRunRepository;
-import com.newcodes7.small_town.global.entity.Article;
-import com.newcodes7.small_town.search.dto.ArticleSearchResultDto;
-import com.newcodes7.small_town.search.entity.SearchLog;
-import com.newcodes7.small_town.global.entity.Video;
-import com.newcodes7.small_town.search.service.ArticleSearchService;
-import com.newcodes7.small_town.search.service.SearchLogService;
-import com.newcodes7.small_town.theme.dto.ThemeSimpleResponseDto;
-import com.newcodes7.small_town.theme.repository.ThemeRepository;
-import com.newcodes7.small_town.video.repository.VideoRepository;
-import com.newcodes7.small_town.video.repository.VideoTermRepository;
-
-import lombok.Builder;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 /**
  * Admin Article List 페이지의 복잡한 조회 로직 담당
@@ -55,6 +54,7 @@ public class AdminArticleListService {
     private final com.newcodes7.small_town.like.repository.LikeLogRepository likeLogRepository;
     private final CrawlingSchedulerRunRepository crawlingSchedulerRunRepository;
     private final ArticleSearchService articleSearchService;
+    private final AiSummaryLogRepository aiSummaryLogRepository;
 
     /**
      * Article List 페이지 데이터 DTO
@@ -79,6 +79,7 @@ public class AdminArticleListService {
         private Page<com.newcodes7.small_town.auth.entity.User> users;
         private Page<com.newcodes7.small_town.like.entity.LikeLog> likeLogs;
         private Page<CrawlingSchedulerRun> crawlingRuns;
+        private Page<AiSummaryLog> aiSummaryLogs;
     }
 
     /**
@@ -97,7 +98,8 @@ public class AdminArticleListService {
             } else {
                 return PageRequest.of(page, size, Sort.by("totalFrequency").descending());
             }
-        } else if (tab.equals("searchlogs") || tab.equals("users") || tab.equals("likelogs")) {
+        } else if (tab.equals("searchlogs") || tab.equals("users") || tab.equals("likelogs")
+                || tab.equals("aisummarylogs")) {
             return PageRequest.of(page, size, Sort.by("createdAt").descending());
         } else {
             return PageRequest.of(page, size, Sort.by("publishedAt").descending());
@@ -127,6 +129,7 @@ public class AdminArticleListService {
                 .users(getUsers(tab, search, page, size))
                 .likeLogs(getLikeLogs(tab, page, size))
                 .crawlingRuns(getCrawlingRuns(tab, page, size))
+                .aiSummaryLogs(getAiSummaryLogs(tab, page, size))
                 .build();
     }
 
@@ -301,6 +304,14 @@ public class AdminArticleListService {
 
         Pageable likeLogPageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         return likeLogRepository.findAllWithDetailsAndDeletedAtIsNull(likeLogPageable);
+    }
+
+    private Page<AiSummaryLog> getAiSummaryLogs(String tab, int page, int size) {
+        if (!tab.equals("aisummarylogs")) {
+            return Page.empty();
+        }
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        return aiSummaryLogRepository.findAllByOrderByCreatedAtDesc(pageable);
     }
 
     private Page<ThemeSimpleResponseDto> getThemes(String tab, String search, Pageable pageable) {

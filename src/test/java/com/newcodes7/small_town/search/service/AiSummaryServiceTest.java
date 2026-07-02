@@ -6,19 +6,24 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.newcodes7.small_town.search.dto.AiSummaryCacheDto;
+import com.newcodes7.small_town.search.dto.AiSummaryChunkDto;
+import com.newcodes7.small_town.search.dto.AiSummarySourceDto;
+import com.newcodes7.small_town.search.repository.AiSummaryLogRepository;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.net.http.HttpTimeoutException;
 import java.util.List;
 import java.util.stream.Stream;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,14 +35,6 @@ import org.springframework.cache.CacheManager;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.newcodes7.small_town.search.service.ArticleSearchService;
-import com.newcodes7.small_town.search.dto.AiSummaryCacheDto;
-import com.newcodes7.small_town.search.dto.AiSummaryChunkDto;
-import com.newcodes7.small_town.search.dto.AiSummarySourceDto;
-
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-
 @ExtendWith(MockitoExtension.class)
 class AiSummaryServiceTest {
 
@@ -46,6 +43,7 @@ class AiSummaryServiceTest {
     @Mock private CacheManager cacheManager;
     @Mock private Cache cache;
     @Mock private SseEmitter emitter;
+    @Mock private AiSummaryLogRepository aiSummaryLogRepository;
 
     private AiSummaryService aiSummaryService;
 
@@ -56,7 +54,8 @@ class AiSummaryServiceTest {
                 articleSearchService,
                 cacheManager,
                 new SimpleMeterRegistry(),
-                new ObjectMapper()
+                new ObjectMapper(),
+                aiSummaryLogRepository
         );
         ReflectionTestUtils.setField(realService, "geminiApiKey", "test-gemini-key");
         ReflectionTestUtils.setField(realService, "geminiModel", "gemini-3.5-flash");

@@ -4,5 +4,8 @@ import java.util.List;
 
 public record AiSummaryDoneDto(
     List<AiSummarySourceDto> sources,
-    List<String> queries
+    List<String> queries,
+    Integer inputTokens,
+    Integer outputTokens,
+    Integer totalTokens
 ) {}

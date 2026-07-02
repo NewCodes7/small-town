@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+    <div th:fragment="content" class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th style="width: 5%;">ID</th>
+                            <th style="width: 30%;">검색어</th>
+                            <th style="width: 12%;">Input 토큰</th>
+                            <th style="width: 12%;">Output 토큰</th>
+                            <th style="width: 12%;">Total 토큰</th>
+                            <th style="width: 10%;">캐시</th>
+                            <th style="width: 19%;">요청 시간</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="log : ${aiSummaryLogs.content}">
+                            <td th:text="${log.id}"></td>
+                            <td><strong th:text="${log.searchKeyword}"></strong></td>
+                            <td>
+                                <span th:if="${log.inputTokens != null}"
+                                      class="badge bg-primary font-monospace"
+                                      th:text="${#numbers.formatInteger(log.inputTokens, 1, 'COMMA')}"></span>
+                                <span th:if="${log.inputTokens == null}" class="text-muted">-</span>
+                            </td>
+                            <td>
+                                <span th:if="${log.outputTokens != null}"
+                                      class="badge bg-success font-monospace"
+                                      th:text="${#numbers.formatInteger(log.outputTokens, 1, 'COMMA')}"></span>
+                                <span th:if="${log.outputTokens == null}" class="text-muted">-</span>
+                            </td>
+                            <td>
+                                <span th:if="${log.totalTokens != null}"
+                                      class="badge bg-secondary font-monospace"
+                                      th:text="${#numbers.formatInteger(log.totalTokens, 1, 'COMMA')}"></span>
+                                <span th:if="${log.totalTokens == null}" class="text-muted">-</span>
+                            </td>
+                            <td>
+                                <span th:if="${log.cached}" class="badge bg-warning text-dark">캐시</span>
+                                <span th:if="${!log.cached}" class="badge bg-light text-dark">실제 호출</span>
+                            </td>
+                            <td th:text="${#temporals.format(log.createdAt, 'yyyy-MM-dd HH:mm:ss')}"></td>
+                        </tr>
+                        <tr th:if="${aiSummaryLogs.content.isEmpty()}">
+                            <td colspan="7" class="text-center text-muted py-4">AI 요약 로그가 없습니다.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 페이징 -->
+            <nav th:if="${aiSummaryLogs != null && aiSummaryLogs.totalPages > 1}">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item" th:classappend="${aiSummaryLogs.first} ? 'disabled'">
+                        <a class="page-link" th:href="@{/admin/articles(tab='aisummarylogs', page=${aiSummaryLogs.number - 1}, size=${aiSummaryLogs.size})}">이전</a>
+                    </li>
+                    <li class="page-item" th:each="pageNum : ${#numbers.sequence(0, aiSummaryLogs.totalPages - 1)}"
+                        th:classappend="${pageNum == aiSummaryLogs.number} ? 'active'">
+                        <a class="page-link" th:href="@{/admin/articles(tab='aisummarylogs', page=${pageNum}, size=${aiSummaryLogs.size})}" th:text="${pageNum + 1}">1</a>
+                    </li>
+                    <li class="page-item" th:classappend="${aiSummaryLogs.last} ? 'disabled'">
+                        <a class="page-link" th:href="@{/admin/articles(tab='aisummarylogs', page=${aiSummaryLogs.number + 1}, size=${aiSummaryLogs.size})}">다음</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+</body>
+</html>

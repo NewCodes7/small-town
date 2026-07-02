@@ -6,6 +6,7 @@ class AiSummaryManager {
         this.bubblesEl = document.getElementById('aiSummaryBubbles');
         this.errorEl = document.getElementById('aiSummaryError');
         this.relatedQueriesEl = document.getElementById('aiSummaryRelatedQueries');
+        this.tokenUsageEl = document.getElementById('aiSummaryTokenUsage');
         this.promptBtn = document.getElementById('promptPreviewBtn');
         this.fullText = '';
         this.currentKeyword = null;
@@ -101,6 +102,7 @@ class AiSummaryManager {
                     if (this.promptBtn) this.promptBtn.style.display = 'inline-block';
                 }
                 this._renderRelatedQueries(queries);
+                this._renderTokenUsage(data.inputTokens, data.outputTokens, data.totalTokens);
             } catch (_) {}
             this._close();
         });
@@ -141,6 +143,7 @@ class AiSummaryManager {
         if (this.bubblesEl) this.bubblesEl.innerHTML = '';
         if (this.errorEl) { this.errorEl.textContent = ''; this.errorEl.style.display = 'none'; }
         if (this.relatedQueriesEl) { this.relatedQueriesEl.innerHTML = ''; this.relatedQueriesEl.style.display = 'none'; }
+        if (this.tokenUsageEl) { this.tokenUsageEl.textContent = ''; this.tokenUsageEl.style.display = 'none'; }
         if (this.loadingEl) this.loadingEl.style.display = 'none';
         if (this.promptBtn) this.promptBtn.style.display = 'none';
     }
@@ -266,6 +269,17 @@ class AiSummaryManager {
             this.relatedQueriesEl.appendChild(btn);
         });
         this.relatedQueriesEl.style.display = 'flex';
+    }
+
+    _renderTokenUsage(input, output, total) {
+        if (!this.tokenUsageEl) return;
+        if (input == null) {
+            this.tokenUsageEl.textContent = '캐시';
+        } else {
+            this.tokenUsageEl.textContent =
+                `in ${input.toLocaleString()} / out ${output.toLocaleString()} / total ${total.toLocaleString()} tokens`;
+        }
+        this.tokenUsageEl.style.display = 'block';
     }
 
     _showError(message) {
