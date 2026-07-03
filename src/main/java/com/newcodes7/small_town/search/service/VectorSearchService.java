@@ -1,5 +1,7 @@
 package com.newcodes7.small_town.search.service;
 
+import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
+import com.newcodes7.small_town.search.dto.AiSummaryChunkDto;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -10,18 +12,12 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
-
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
-
-import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
-import com.newcodes7.small_town.search.dto.AiSummaryChunkDto;
-import com.newcodes7.small_town.search.service.SearchQueryEmbeddingService;
-
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * 벡터 검색 서비스
@@ -42,6 +38,7 @@ public class VectorSearchService {
     private final ExecutorService searchExecutor;
 
     private static final String CHUNK_CACHE_NAME = "chunkSearchResults";
+    private static final String VECTOR_SEARCH_CACHE_NAME = "vectorSearchResults";
     private static final int SUMMARY_CHUNK_LIMIT = 10;
     private static final int SUMMARY_MAX_CHUNKS_PER_ARTICLE = 2;
     private static final int SUMMARY_FETCH_MULTIPLIER = 4;
@@ -129,6 +126,33 @@ public class VectorSearchService {
             return new VectorSearchResult(Map.of(), null);
         }
 
+        boolean unfiltered = (domesticTypes == null || domesticTypes.isEmpty())
+                && (categories == null || categories.isEmpty());
+        if (unfiltered) {
+            Cache cache = cacheManager.getCache(VECTOR_SEARCH_CACHE_NAME);
+            if (cache != null) {
+                String cacheKey = keyword.toLowerCase().trim();
+                try {
+                    // sync 로딩: 같은 키워드의 동시 요청(메인 검색 + AI 요약)은 한쪽만 실제 실행
+                    return cache.get(cacheKey, () -> {
+                        VectorSearchResult result = executeSearchByKeywordWithEmbedding(keyword, null, null);
+                        if (result.getQueryEmbedding() == null) {
+                            // 임베딩 실패 결과는 캐시하지 않음
+                            throw new IllegalStateException("벡터 검색 임베딩 생성 실패");
+                        }
+                        return result;
+                    });
+                } catch (Cache.ValueRetrievalException e) {
+                    log.warn("벡터 검색 결과 캐시 로딩 실패: {}", e.getMessage());
+                    return new VectorSearchResult(Map.of(), null);
+                }
+            }
+        }
+
+        return executeSearchByKeywordWithEmbedding(keyword, domesticTypes, categories);
+    }
+
+    private VectorSearchResult executeSearchByKeywordWithEmbedding(String keyword, List<Integer> domesticTypes, List<String> categories) {
         try {
             SearchQueryEmbeddingService.CachedEmbeddingResult cachedEmbedding =
                     searchQueryEmbeddingService.getEmbeddingWithCacheInfo(keyword, null);
@@ -473,11 +497,21 @@ public class VectorSearchService {
      * 하이브리드 검색으로 선정된 articleIds를 받아 청크 텍스트만 조회
      */
     public List<AiSummaryChunkDto> getChunksForArticlesByIds(String keyword, List<Long> articleIds) {
+        return getChunksForArticlesByIds(keyword, articleIds, null);
+    }
+
+    /**
+     * AI 요약용: 하이브리드 검색에서 이미 확보한 쿼리 임베딩을 재사용하는 오버로드
+     * queryEmbedding이 null이면 기존처럼 임베딩을 조회/생성 (fallback)
+     */
+    public List<AiSummaryChunkDto> getChunksForArticlesByIds(String keyword, List<Long> articleIds, float[] queryEmbedding) {
         if (keyword == null || keyword.trim().isEmpty() || articleIds == null || articleIds.isEmpty()) {
             return List.of();
         }
         try {
-            float[] queryEmbedding = searchQueryEmbeddingService.getOrCreateEmbedding(keyword);
+            if (queryEmbedding == null) {
+                queryEmbedding = searchQueryEmbeddingService.getOrCreateEmbedding(keyword);
+            }
             if (queryEmbedding == null) {
                 log.warn("AI 요약 chunk 조회 임베딩 생성 실패: {}", keyword);
                 return List.of();

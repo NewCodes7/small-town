@@ -4,16 +4,25 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.embedding.service.ArticleEmbeddingService;
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.global.entity.Term;
+import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
+import com.newcodes7.small_town.like.service.UserLikeService;
+import com.newcodes7.small_town.search.dto.ArticleSearchResultDto;
+import com.newcodes7.small_town.search.scorer.HybridSearchScorer;
+import com.newcodes7.small_town.term.repository.ArticleTermRepository;
+import com.newcodes7.small_town.term.repository.TermRepository;
+import com.newcodes7.small_town.term.service.TermSynonymService;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,20 +32,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
-
-import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.term.repository.ArticleTermRepository;
-import com.newcodes7.small_town.term.repository.TermRepository;
-import com.newcodes7.small_town.embedding.service.ArticleEmbeddingService;
-import com.newcodes7.small_town.term.service.TermSynonymService;
-import com.newcodes7.small_town.like.service.UserLikeService;
-import com.newcodes7.small_town.global.entity.Article;
-import com.newcodes7.small_town.global.entity.Category;
-import com.newcodes7.small_town.global.entity.Corporation;
-import com.newcodes7.small_town.global.entity.Term;
-import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
-import com.newcodes7.small_town.search.dto.ArticleSearchResultDto;
-import com.newcodes7.small_town.search.scorer.HybridSearchScorer;
 
 /**
  * ArticleSearchService 단위 테스트
@@ -58,6 +53,7 @@ class ArticleSearchServiceTest {
     @Mock private UserLikeService userLikeService;
     @Mock private MorphemeAnalyzer morphemeAnalyzer;
     @Mock private SearchWeightConfigService weightConfig;
+    @Mock private org.springframework.cache.CacheManager cacheManager;
 
     private ArticleSearchService articleSearchService;
 
@@ -78,7 +74,8 @@ class ArticleSearchServiceTest {
                 userLikeService,
                 morphemeAnalyzer,
                 syncExecutor,
-                weightConfig
+                weightConfig,
+                cacheManager
         );
     }
 

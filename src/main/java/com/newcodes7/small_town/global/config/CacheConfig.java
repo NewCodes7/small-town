@@ -1,17 +1,15 @@
 package com.newcodes7.small_town.global.config;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Weigher;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.caffeine.CaffeineCache;
 import org.springframework.cache.support.SimpleCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.Weigher;
 
 @Configuration
 @EnableCaching
@@ -27,6 +25,8 @@ public class CacheConfig {
             buildTtlCache("relatedArticles", 24, TimeUnit.HOURS),
             buildTtlCache("aiSummary", 1, TimeUnit.HOURS),
             buildTtlCache("chunkSearchResults", 5, TimeUnit.MINUTES),
+            buildTtlCache("vectorSearchResults", 5, TimeUnit.MINUTES, 500),
+            buildTtlCache("hybridTopArticles", 10, TimeUnit.MINUTES, 1000),
             buildTtlCache("homeLatestArticles", 10, TimeUnit.MINUTES),
             buildTtlCache("homeLatestVideos", 10, TimeUnit.MINUTES)
         ));
@@ -48,6 +48,14 @@ public class CacheConfig {
     private CaffeineCache buildTtlCache(String name, long duration, TimeUnit unit) {
         return new CaffeineCache(name, Caffeine.newBuilder()
             .expireAfterWrite(duration, unit)
+            .recordStats()
+            .build());
+    }
+
+    private CaffeineCache buildTtlCache(String name, long duration, TimeUnit unit, long maximumSize) {
+        return new CaffeineCache(name, Caffeine.newBuilder()
+            .expireAfterWrite(duration, unit)
+            .maximumSize(maximumSize)
             .recordStats()
             .build());
     }

@@ -136,8 +136,11 @@ public class AiSummaryService {
                 }
             }
 
-            List<Long> topArticleIds = articleSearchService.getTopArticleIdsByHybrid(normalizedQuery, TOP_ARTICLES);
-            List<AiSummaryChunkDto> chunks = vectorSearchService.getChunksForArticlesByIds(normalizedQuery, topArticleIds);
+            ArticleSearchService.HybridTopArticles topArticles =
+                    articleSearchService.getTopArticleIdsByHybrid(normalizedQuery, TOP_ARTICLES);
+            List<Long> topArticleIds = topArticles.articleIds();
+            List<AiSummaryChunkDto> chunks = vectorSearchService.getChunksForArticlesByIds(
+                    normalizedQuery, topArticleIds, topArticles.queryEmbedding());
             if (chunks.isEmpty()) {
                 sendHideEvent(emitter);
                 completeEmitter(emitter);
@@ -263,8 +266,11 @@ public class AiSummaryService {
 
     public AiSummaryPromptDto buildPromptPreview(String query) {
         String normalizedQuery = query.toLowerCase().trim();
-        List<Long> topArticleIds = articleSearchService.getTopArticleIdsByHybrid(normalizedQuery, TOP_ARTICLES);
-        List<AiSummaryChunkDto> chunks = vectorSearchService.getChunksForArticlesByIds(normalizedQuery, topArticleIds);
+        ArticleSearchService.HybridTopArticles topArticles =
+                articleSearchService.getTopArticleIdsByHybrid(normalizedQuery, TOP_ARTICLES);
+        List<Long> topArticleIds = topArticles.articleIds();
+        List<AiSummaryChunkDto> chunks = vectorSearchService.getChunksForArticlesByIds(
+                normalizedQuery, topArticleIds, topArticles.queryEmbedding());
 
         List<AiSummaryChunkDto> orderedChunks = chunks.stream()
                 .sorted(Comparator.comparingInt(c -> topArticleIds.indexOf(c.articleId())))

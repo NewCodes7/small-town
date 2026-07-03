@@ -1,26 +1,17 @@
 package com.newcodes7.small_town.search.service;
 
-import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.term.repository.ArticleTermRepository;
-import com.newcodes7.small_town.term.repository.TermRepository;
-import com.newcodes7.small_town.embedding.service.ArticleEmbeddingService;
-import com.newcodes7.small_town.term.service.TermSynonymService;
-import com.newcodes7.small_town.like.service.UserLikeService;
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
+import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.embedding.service.ArticleEmbeddingService;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Term;
 import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
+import com.newcodes7.small_town.like.service.UserLikeService;
 import com.newcodes7.small_town.search.dto.ArticleSearchResultDto;
 import com.newcodes7.small_town.search.scorer.HybridSearchScorer;
-
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
+import com.newcodes7.small_town.term.repository.ArticleTermRepository;
+import com.newcodes7.small_town.term.repository.TermRepository;
+import com.newcodes7.small_town.term.service.TermSynonymService;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,8 +27,16 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
-
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional(readOnly = true)
@@ -56,6 +55,9 @@ public class ArticleSearchService {
     private final MorphemeAnalyzer morphemeAnalyzer;
     private final ExecutorService searchExecutor;
     private final SearchWeightConfigService weightConfig;
+    private final CacheManager cacheManager;
+
+    private static final String HYBRID_TOP_ARTICLES_CACHE_NAME = "hybridTopArticles";
 
     public ArticleSearchService(ArticleRepository articleRepository,
                                 ArticleTermRepository articleTermRepository,
@@ -68,7 +70,8 @@ public class ArticleSearchService {
                                 UserLikeService userLikeService,
                                 MorphemeAnalyzer morphemeAnalyzer,
                                 @Qualifier("searchExecutor") ExecutorService searchExecutor,
-                                SearchWeightConfigService weightConfig) {
+                                SearchWeightConfigService weightConfig,
+                                CacheManager cacheManager) {
         this.articleRepository = articleRepository;
         this.articleTermRepository = articleTermRepository;
         this.termRepository = termRepository;
@@ -81,6 +84,7 @@ public class ArticleSearchService {
         this.morphemeAnalyzer = morphemeAnalyzer;
         this.searchExecutor = searchExecutor;
         this.weightConfig = weightConfig;
+        this.cacheManager = cacheManager;
     }
 
     /**
@@ -612,19 +616,45 @@ public class ArticleSearchService {
     }
 
     /**
+     * AI 요약용 하이브리드 상위 아티클 결과: NSF 순 아티클 ID + 재사용 가능한 쿼리 임베딩
+     * queryEmbedding은 벡터 검색 실패 시 null (호출부에서 fallback)
+     */
+    public record HybridTopArticles(List<Long> articleIds, float[] queryEmbedding) {
+        public static HybridTopArticles empty() {
+            return new HybridTopArticles(List.of(), null);
+        }
+    }
+
+    /**
      * AI 요약용: 하이브리드 검색(BM25 + Vector NSF 리랭킹) 기준 상위 limit개 아티클 ID 반환
      * Article 로딩, 좋아요, 시간 감쇠 등 불필요한 처리 없이 NSF 스코어 순으로만 반환
+     * 결과는 짧은 TTL 캐시로 공유되어 같은 키워드의 반복 요청에서 재계산을 생략
      */
     @Transactional(readOnly = true)
-    public List<Long> getTopArticleIdsByHybrid(String keyword, int limit) {
-        if (keyword == null || keyword.trim().isEmpty()) return List.of();
+    public HybridTopArticles getTopArticleIdsByHybrid(String keyword, int limit) {
+        if (keyword == null || keyword.trim().isEmpty()) return HybridTopArticles.empty();
 
+        String cacheKey = keyword.toLowerCase().trim() + ":" + limit;
+        Cache cache = cacheManager != null ? cacheManager.getCache(HYBRID_TOP_ARTICLES_CACHE_NAME) : null;
+        if (cache != null) {
+            HybridTopArticles cached = cache.get(cacheKey, HybridTopArticles.class);
+            if (cached != null) return cached;
+        }
+
+        HybridTopArticles result = computeTopArticleIdsByHybrid(keyword, limit);
+        if (cache != null && !result.articleIds().isEmpty()) {
+            cache.put(cacheKey, result);
+        }
+        return result;
+    }
+
+    private HybridTopArticles computeTopArticleIdsByHybrid(String keyword, int limit) {
         SemanticTermExpansionService.QueryComplexity complexity =
                 semanticExpansionService.classifyQueryComplexity(keyword);
         SearchWeightConfigService.WeightEntry weights = weightConfig.getWeights(complexity);
 
         String bm25SearchQuery = buildBM25SearchQuery(keyword, weights.titleMultiplier());
-        if (bm25SearchQuery == null || bm25SearchQuery.isEmpty()) return List.of();
+        if (bm25SearchQuery == null || bm25SearchQuery.isEmpty()) return HybridTopArticles.empty();
 
         CompletableFuture<VectorSearchService.VectorSearchResult> vectorFuture =
                 CompletableFuture.supplyAsync(
@@ -668,19 +698,20 @@ public class ArticleSearchService {
         HybridSearchScorer.NSFResult nsfResult = hybridSearchScorer.calculateNSFScores(
                 bm25Results, vectorResults, weights.bm25NsfWeight(), weights.vectorNsfWeight());
         Map<Long, Double> nsfScores = nsfResult.getNsfScores();
-        if (nsfScores.isEmpty()) return List.of();
+        if (nsfScores.isEmpty()) return new HybridTopArticles(List.of(), cachedEmbedding);
 
         Set<Long> validIds = new HashSet<>();
         for (Object[] row : articleRepository.findIdAndPublishedAtByIdIn(new ArrayList<>(nsfScores.keySet()))) {
             validIds.add(((Number) row[0]).longValue());
         }
 
-        return nsfScores.entrySet().stream()
+        List<Long> topIds = nsfScores.entrySet().stream()
                 .filter(e -> validIds.contains(e.getKey()))
                 .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
                 .limit(limit)
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toList());
+        return new HybridTopArticles(topIds, cachedEmbedding);
     }
 
     /**

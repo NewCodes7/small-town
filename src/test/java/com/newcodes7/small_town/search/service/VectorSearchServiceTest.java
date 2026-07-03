@@ -4,10 +4,10 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
-
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,8 +16,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.cache.CacheManager;
-
-import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
 
 /**
  * VectorSearchService 단위 테스트
@@ -240,6 +238,46 @@ class VectorSearchServiceTest {
                 vectorSearchService.searchByKeywordWithEmbedding("java");
 
         assertThat(result.isCacheHit()).isTrue();
+    }
+
+    @Test
+    @DisplayName("무필터 검색 결과 캐시: 같은 키워드 2회 호출 시 임베딩 조회/벡터 쿼리는 1회만 실행")
+    void searchByKeywordWithEmbedding_결과캐시_중복실행방지() {
+        when(cacheManager.getCache("vectorSearchResults"))
+                .thenReturn(new org.springframework.cache.concurrent.ConcurrentMapCache("vectorSearchResults"));
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull()))
+                .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.hit(DUMMY_EMBEDDING, 5));
+        when(chunkRepository.findArticlesByTwoStageSearch(
+                anyString(), anyString(), anyInt(), anyInt(), anyDouble(), anyInt()))
+                .thenReturn(List.<Object[]>of(new Object[]{1L, 0.80}));
+
+        VectorSearchService.VectorSearchResult first =
+                vectorSearchService.searchByKeywordWithEmbedding("java");
+        VectorSearchService.VectorSearchResult second =
+                vectorSearchService.searchByKeywordWithEmbedding("java");
+
+        assertThat(first.getScores()).containsKey(1L);
+        assertThat(second.getScores()).isEqualTo(first.getScores());
+        verify(searchQueryEmbeddingService, times(1)).getEmbeddingWithCacheInfo(anyString(), isNull());
+        verify(chunkRepository, times(1)).findArticlesByTwoStageSearch(
+                anyString(), anyString(), anyInt(), anyInt(), anyDouble(), anyInt());
+    }
+
+    // ==================== getChunksForArticlesByIds — 임베딩 재사용 ====================
+
+    @Test
+    @DisplayName("쿼리 임베딩이 전달되면 임베딩 재조회 없이 chunk 조회")
+    void getChunksForArticlesByIds_임베딩전달시_재조회없음() {
+        when(chunkRepository.findFirstAndBestChunksByArticleIds(anyString(), anyList()))
+                .thenReturn(List.<Object[]>of(new Object[]{
+                        1L, "제목", "https://example.com/1", "내용", null, null, "테스트기업", null}));
+
+        List<com.newcodes7.small_town.search.dto.AiSummaryChunkDto> chunks =
+                vectorSearchService.getChunksForArticlesByIds("java", List.of(1L), DUMMY_EMBEDDING);
+
+        assertThat(chunks).hasSize(1);
+        assertThat(chunks.get(0).articleId()).isEqualTo(1L);
+        verifyNoInteractions(searchQueryEmbeddingService);
     }
 
     // ==================== computeSimilarityForArticles ====================
