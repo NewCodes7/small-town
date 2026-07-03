@@ -136,8 +136,8 @@ class AiSummaryServiceTest {
 
         aiSummaryService.streamAiSummary(query, emitter);
 
-        // error 이벤트 1회 전송 후 complete
-        verify(emitter, times(1)).send(any(SseEmitter.SseEventBuilder.class));
+        // sources 이벤트(1회) + error 이벤트(1회) 전송 후 complete
+        verify(emitter, times(2)).send(any(SseEmitter.SseEventBuilder.class));
         verify(emitter).complete();
         // 캐시 저장 미호출
         verify(cache, never()).put(anyString(), any());

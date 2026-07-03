@@ -127,6 +127,7 @@ public class AiSummaryService {
             if (cache != null) {
                 AiSummaryCacheDto cached = cache.get(cacheKey, AiSummaryCacheDto.class);
                 if (cached != null) {
+                    sendSourcesEvent(emitter, cached.sources());
                     replayFromCache(emitter, cached);
                     saveAiSummaryLog(normalizedQuery, null, null, null, true);
                     cachedCounter.increment();
@@ -148,6 +149,7 @@ public class AiSummaryService {
                     .sorted(Comparator.comparingInt(c -> topArticleIds.indexOf(c.articleId())))
                     .collect(Collectors.toList());
             List<AiSummarySourceDto> sources = buildSources(orderedChunks);
+            sendSourcesEvent(emitter, sources);
             String userMessage = "검색어: " + query + "\n\n" + buildContext(orderedChunks);
             String requestBody = buildGeminiRequestBody(SYSTEM_PROMPT, userMessage);
 
@@ -400,6 +402,12 @@ public class AiSummaryService {
         } catch (Exception e) {
             log.warn("AI 요약 로그 저장 실패: keyword={}", keyword, e);
         }
+    }
+
+    private void sendSourcesEvent(SseEmitter emitter, List<AiSummarySourceDto> sources) {
+        try {
+            emitter.send(SseEmitter.event().name("sources").data(objectMapper.writeValueAsString(sources)));
+        } catch (Exception ignored) {}
     }
 
     private void sendTokenEvent(SseEmitter emitter, String text) {

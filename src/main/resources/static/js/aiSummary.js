@@ -9,6 +9,8 @@ class AiSummaryManager {
         this.tokenUsageEl = document.getElementById('aiSummaryTokenUsage');
         this.promptBtn = document.getElementById('promptPreviewBtn');
         this.fullText = '';
+        this.sources = null;
+        this._rafScheduled = false;
         this.currentKeyword = null;
         this.loadRecommendedQueries();
         this._initPromptBtn();
@@ -83,22 +85,33 @@ class AiSummaryManager {
 
         this.eventSource = new EventSource('/api/search/ai-summary?q=' + encodeURIComponent(keyword));
 
-        // token: 화면에 표시하지 않고 fullText에만 축적 (스켈레톤 유지)
+        // sources: 회사/출처 메타데이터를 먼저 받아 토큰이 도착하는 대로 버블을 실시간으로 그릴 수 있게 함
+        this.eventSource.addEventListener('sources', (e) => {
+            try {
+                this.sources = JSON.parse(e.data);
+            } catch (_) {
+                this.sources = [];
+            }
+        });
+
+        // token: 도착하는 즉시 화면에 반영 (rAF로 프레임당 한 번씩 묶어서 렌더링)
         this.eventSource.addEventListener('token', (e) => {
             this.fullText += JSON.parse(e.data);
+            this._scheduleStreamRender();
         });
 
         this.eventSource.addEventListener('done', (e) => {
             try {
                 const data = JSON.parse(e.data);
-                const sources = data.sources || [];
+                const sources = this.sources || data.sources || [];
                 const queries = data.queries || [];
 
                 this.loadingEl.style.display = 'none';
 
                 const bubbles = this._parseBubbles(this.fullText, sources);
                 if (bubbles.length > 0) {
-                    this._renderBubbles(bubbles);
+                    this._streamRenderBubbles(bubbles);
+                    this._initSourceLinkTooltips();
                     if (this.promptBtn) this.promptBtn.style.display = 'inline-block';
                 }
                 this._renderRelatedQueries(queries);
@@ -140,6 +153,8 @@ class AiSummaryManager {
     reset() {
         this._close();
         this.fullText = '';
+        this.sources = null;
+        this._rafScheduled = false;
         if (this.bubblesEl) this.bubblesEl.innerHTML = '';
         if (this.errorEl) { this.errorEl.textContent = ''; this.errorEl.style.display = 'none'; }
         if (this.relatedQueriesEl) { this.relatedQueriesEl.innerHTML = ''; this.relatedQueriesEl.style.display = 'none'; }
@@ -176,39 +191,62 @@ class AiSummaryManager {
         for (const [sourceIdx, t] of bubbleMap) {
             bubbles.push({ text: t, source: sources[sourceIdx] });
         }
+        // 아직 닫는 [출처N] 태그가 도착하지 않은, 현재 스트리밍 중인 마지막 블록도
+        // 다음 순번 출처로 가정하고 임시로 보여줌 (실시간 타이핑 효과)
+        const pendingText = parts[parts.length - 1].trim().replace(/^\[([^\]]+)\]/, '$1').trim();
+        const nextIdx = bubbles.length;
+        if (pendingText && nextIdx < sources.length && !bubbleMap.has(nextIdx)) {
+            bubbles.push({ text: pendingText, source: sources[nextIdx] });
+        }
         return bubbles.slice(0, 5);
     }
 
-    _renderBubbles(bubbles) {
+    // 다음 프레임에 한 번만 렌더링하도록 묶어서(coalesce) 토큰 도착마다 리플로우가 발생하지 않게 함
+    _scheduleStreamRender() {
+        if (this._rafScheduled || !this.sources) return;
+        this._rafScheduled = true;
+        requestAnimationFrame(() => {
+            this._rafScheduled = false;
+            const bubbles = this._parseBubbles(this.fullText, this.sources);
+            if (bubbles.length === 0) return;
+            if (this.loadingEl) this.loadingEl.style.display = 'none';
+            this._streamRenderBubbles(bubbles);
+        });
+    }
+
+    // 이미 그려진 버블은 텍스트만 갱신하고, 새로 등장한 버블만 DOM에 추가(진입 애니메이션은 최초 1회만 재생)
+    _streamRenderBubbles(bubbles) {
         if (!this.bubblesEl) return;
-        this.bubblesEl.innerHTML = '';
         bubbles.forEach((bubble, idx) => {
             const { text, source } = bubble;
-            const corpName = source.corporationName || source.title || '';
-            const logoHtml = source.logoUrl
-                ? `<img class="bubble-logo" src="${this._escapeHtml(source.logoUrl)}" alt="${this._escapeHtml(corpName)}">`
-                : `<div class="bubble-logo-fallback">${this._escapeHtml((corpName || '?')[0])}</div>`;
+            let el = this.bubblesEl.children[idx];
+            if (!el) {
+                const corpName = source.corporationName || source.title || '';
+                const logoHtml = source.logoUrl
+                    ? `<img class="bubble-logo" src="${this._escapeHtml(source.logoUrl)}" alt="${this._escapeHtml(corpName)}">`
+                    : `<div class="bubble-logo-fallback">${this._escapeHtml((corpName || '?')[0])}</div>`;
 
-            const el = document.createElement('div');
-            el.className = 'company-bubble';
-            el.style.animationDelay = `${idx * 80}ms`;
-            el.innerHTML = `
-                <div class="bubble-speaker">
-                    ${logoHtml}
-                    <span class="bubble-corp-name">${this._escapeHtml(corpName)}</span>
-                </div>
-                <div class="bubble-body">
-                    <div class="bubble-content">
-                        ${this._textToHtml(text)}
-                        <div class="bubble-source-row">
-                            <a href="/articles/${source.id}" target="_blank" rel="noopener" class="bubble-source-link" data-title="${this._escapeHtml(source.title || '')}" data-thumbnail="${this._escapeHtml(source.thumbnailImage || '')}">${this._escapeHtml(source.title || '원문 읽기')} →</a>
+                el = document.createElement('div');
+                el.className = 'company-bubble';
+                el.innerHTML = `
+                    <div class="bubble-speaker">
+                        ${logoHtml}
+                        <span class="bubble-corp-name">${this._escapeHtml(corpName)}</span>
+                    </div>
+                    <div class="bubble-body">
+                        <div class="bubble-content">
+                            <div class="bubble-content-text"></div>
+                            <div class="bubble-source-row">
+                                <a href="/articles/${source.id}" target="_blank" rel="noopener" class="bubble-source-link" data-title="${this._escapeHtml(source.title || '')}" data-thumbnail="${this._escapeHtml(source.thumbnailImage || '')}">${this._escapeHtml(source.title || '원문 읽기')} →</a>
+                            </div>
                         </div>
                     </div>
-                </div>
-            `;
-            this.bubblesEl.appendChild(el);
+                `;
+                this.bubblesEl.appendChild(el);
+            }
+            const textEl = el.querySelector('.bubble-content-text');
+            if (textEl) textEl.innerHTML = this._textToHtml(text);
         });
-        this._initSourceLinkTooltips();
     }
 
     _initSourceLinkTooltips() {
