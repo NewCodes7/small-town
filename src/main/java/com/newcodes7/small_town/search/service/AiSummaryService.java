@@ -51,7 +51,7 @@ public class AiSummaryService {
     @Value("${gemini.api-key:}")
     private String geminiApiKey;
 
-    @Value("${gemini.model:gemini-3.5-flash}")
+    @Value("${gemini.summary.model:gemini-3.1-flash-lite}")
     private String geminiModel;
 
     @Value("${search.recommended-queries:Spring Boot,Redis 캐시,JPA 성능,Docker 배포}")
