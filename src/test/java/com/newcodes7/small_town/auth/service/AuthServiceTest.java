@@ -1,5 +1,7 @@
 package com.newcodes7.small_town.auth.service;
 
+import static org.assertj.core.api.Assertions.*;
+
 import com.newcodes7.small_town.auth.dto.*;
 import com.newcodes7.small_town.auth.entity.Provider;
 import com.newcodes7.small_town.auth.entity.Role;
@@ -10,21 +12,14 @@ import com.newcodes7.small_town.auth.repository.ProviderRepository;
 import com.newcodes7.small_town.auth.repository.RoleRepository;
 import com.newcodes7.small_town.auth.repository.UserRepository;
 import com.newcodes7.small_town.auth.util.UserTestHelper;
+import com.newcodes7.small_town.config.IntegrationTestBase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.transaction.annotation.Transactional;
 
-import static org.assertj.core.api.Assertions.*;
-
-@SpringBootTest
-@TestPropertySource("classpath:application-test.properties")
-@Transactional
-public class AuthServiceTest {
+public class AuthServiceTest extends IntegrationTestBase {
 
     @Autowired
     private AuthService authService;
@@ -52,10 +47,10 @@ public class AuthServiceTest {
         // 기본 Role과 Provider 설정
         userRole = roleRepository.findByName("USER")
                 .orElseGet(() -> roleRepository.save(new Role("USER")));
-        
+
         localProvider = providerRepository.findByName("LOCAL")
                 .orElseGet(() -> providerRepository.save(new Provider("LOCAL")));
-        
+
         // 기존 사용자 데이터 정리
         userRepository.deleteAll();
     }

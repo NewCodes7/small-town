@@ -1,11 +1,11 @@
 package com.newcodes7.small_town.view.service;
 
+import static org.assertj.core.api.Assertions.*;
+
 import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
 import com.newcodes7.small_town.article.exception.InvalidParameterException;
 import com.newcodes7.small_town.article.exception.UserNotFoundException;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.corporation.repository.CorporationRepository;
-import com.newcodes7.small_town.view.repository.ViewLogRepository;
 import com.newcodes7.small_town.auth.entity.Provider;
 import com.newcodes7.small_town.auth.entity.Role;
 import com.newcodes7.small_town.auth.entity.User;
@@ -13,25 +13,19 @@ import com.newcodes7.small_town.auth.repository.ProviderRepository;
 import com.newcodes7.small_town.auth.repository.RoleRepository;
 import com.newcodes7.small_town.auth.repository.UserRepository;
 import com.newcodes7.small_town.auth.util.UserTestHelper;
+import com.newcodes7.small_town.config.IntegrationTestBase;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.view.repository.ViewLogRepository;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-
-import static org.assertj.core.api.Assertions.*;
-
-@SpringBootTest
-@TestPropertySource("classpath:application-test.properties")
-@Transactional
-public class ViewServiceTest {
+public class ViewServiceTest extends IntegrationTestBase {
 
     @Autowired
     private ViewService viewService;
@@ -67,7 +61,7 @@ public class ViewServiceTest {
         // Role과 Provider 설정
         userRole = roleRepository.findByName("USER")
                 .orElseGet(() -> roleRepository.save(new Role("USER")));
-        
+
         localProvider = providerRepository.findByName("LOCAL")
                 .orElseGet(() -> providerRepository.save(new Provider("LOCAL")));
 
@@ -108,8 +102,8 @@ public class ViewServiceTest {
 
         // when
         boolean result = viewService.incrementViewCount(
-                testArticle.getId(), 
-                testUser.getEmail(), 
+                testArticle.getId(),
+                testUser.getEmail(),
                 ipAddress
         );
 
@@ -126,8 +120,8 @@ public class ViewServiceTest {
 
         // when - 바로 다시 조회
         boolean result = viewService.incrementViewCount(
-                testArticle.getId(), 
-                testUser.getEmail(), 
+                testArticle.getId(),
+                testUser.getEmail(),
                 ipAddress
         );
 
@@ -140,20 +134,20 @@ public class ViewServiceTest {
     void incrementViewCount_InvalidArticleId() {
         // when & then
         assertThatThrownBy(() -> viewService.incrementViewCount(
-                null, 
-                testUser.getEmail(), 
+                null,
+                testUser.getEmail(),
                 "127.0.0.1"
         )).isInstanceOf(InvalidParameterException.class);
 
         assertThatThrownBy(() -> viewService.incrementViewCount(
-                0L, 
-                testUser.getEmail(), 
+                0L,
+                testUser.getEmail(),
                 "127.0.0.1"
         )).isInstanceOf(InvalidParameterException.class);
 
         assertThatThrownBy(() -> viewService.incrementViewCount(
-                -1L, 
-                testUser.getEmail(), 
+                -1L,
+                testUser.getEmail(),
                 "127.0.0.1"
         )).isInstanceOf(InvalidParameterException.class);
     }
@@ -163,20 +157,20 @@ public class ViewServiceTest {
     void incrementViewCount_InvalidUserEmail() {
         // when & then
         assertThatThrownBy(() -> viewService.incrementViewCount(
-                testArticle.getId(), 
-                null, 
+                testArticle.getId(),
+                null,
                 "127.0.0.1"
         )).isInstanceOf(InvalidParameterException.class);
 
         assertThatThrownBy(() -> viewService.incrementViewCount(
-                testArticle.getId(), 
-                "", 
+                testArticle.getId(),
+                "",
                 "127.0.0.1"
         )).isInstanceOf(InvalidParameterException.class);
 
         assertThatThrownBy(() -> viewService.incrementViewCount(
-                testArticle.getId(), 
-                "   ", 
+                testArticle.getId(),
+                "   ",
                 "127.0.0.1"
         )).isInstanceOf(InvalidParameterException.class);
     }
@@ -186,8 +180,8 @@ public class ViewServiceTest {
     void incrementViewCount_UserNotFound() {
         // when & then
         assertThatThrownBy(() -> viewService.incrementViewCount(
-                testArticle.getId(), 
-                "nonexistent@example.com", 
+                testArticle.getId(),
+                "nonexistent@example.com",
                 "127.0.0.1"
         )).isInstanceOf(UserNotFoundException.class);
     }
@@ -197,8 +191,8 @@ public class ViewServiceTest {
     void incrementViewCount_ArticleNotFound() {
         // when & then
         assertThatThrownBy(() -> viewService.incrementViewCount(
-                999999L, 
-                testUser.getEmail(), 
+                999999L,
+                testUser.getEmail(),
                 "127.0.0.1"
         )).isInstanceOf(ArticleNotFoundException.class);
     }
@@ -211,7 +205,7 @@ public class ViewServiceTest {
 
         // when
         boolean result = viewService.incrementViewCountByIp(
-                testArticle.getId(), 
+                testArticle.getId(),
                 ipAddress
         );
 
@@ -228,7 +222,7 @@ public class ViewServiceTest {
 
         // when - 바로 다시 조회
         boolean result = viewService.incrementViewCountByIp(
-                testArticle.getId(), 
+                testArticle.getId(),
                 ipAddress
         );
 
@@ -241,17 +235,17 @@ public class ViewServiceTest {
     void incrementViewCountByIp_InvalidIp() {
         // when & then
         assertThatThrownBy(() -> viewService.incrementViewCountByIp(
-                testArticle.getId(), 
+                testArticle.getId(),
                 null
         )).isInstanceOf(InvalidParameterException.class);
 
         assertThatThrownBy(() -> viewService.incrementViewCountByIp(
-                testArticle.getId(), 
+                testArticle.getId(),
                 ""
         )).isInstanceOf(InvalidParameterException.class);
 
         assertThatThrownBy(() -> viewService.incrementViewCountByIp(
-                testArticle.getId(), 
+                testArticle.getId(),
                 "   "
         )).isInstanceOf(InvalidParameterException.class);
     }

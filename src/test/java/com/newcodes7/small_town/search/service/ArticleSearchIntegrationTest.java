@@ -1,41 +1,31 @@
 package com.newcodes7.small_town.search.service;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
+import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.config.IntegrationTestBase;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.search.dto.ArticleSearchResultDto;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.domain.Page;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.transaction.annotation.Transactional;
-
-import com.newcodes7.small_town.search.dto.ArticleSearchResultDto;
-import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.corporation.repository.CorporationRepository;
-import com.newcodes7.small_town.search.service.VectorSearchService;
-import com.newcodes7.small_town.global.entity.Article;
-import com.newcodes7.small_town.global.entity.Corporation;
-
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
 
 /**
  * ArticleService 검색 기능 통합 테스트
  * 실제 PostgreSQL 데이터베이스를 사용한 검색 동작 검증
  */
-@SpringBootTest
-@TestPropertySource("classpath:application-test.properties")
-@Transactional
-public class ArticleSearchIntegrationTest {
+public class ArticleSearchIntegrationTest extends IntegrationTestBase {
 
     @Autowired
     private ArticleSearchService articleSearchService;
@@ -45,9 +35,6 @@ public class ArticleSearchIntegrationTest {
 
     @Autowired
     private CorporationRepository corporationRepository;
-
-    @MockBean
-    private VectorSearchService vectorSearchService;
 
     private Corporation testCorporation;
     private List<Article> testArticles;
@@ -63,7 +50,7 @@ public class ArticleSearchIntegrationTest {
 
         // 테스트용 Article 생성
         testArticles = new ArrayList<>();
-        
+
         Article article1 = Article.builder()
                 .title("Spring Boot 완벽 가이드")
                 .link("https://test.com/spring-boot-guide")
@@ -125,16 +112,17 @@ public class ArticleSearchIntegrationTest {
     void searchArticles_SpringKeyword() {
         // given
         String keyword = "Spring";
-        
+
         // Mock Vector search result
         Map<Long, Double> vectorScores = new HashMap<>();
         vectorScores.put(testArticles.get(0).getId(), 0.95); // Spring Boot article
-        VectorSearchService.VectorSearchResult vectorResult = 
+        VectorSearchService.VectorSearchResult vectorResult =
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class)))
-                .thenReturn(vectorResult);
-        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
-                .thenReturn(new HashMap<>());
+        // vectorSearchService는 spy이므로 when() 대신 doReturn() (when은 실제 메서드를 실행함)
+        doReturn(vectorResult)
+                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class));
+        doReturn(new HashMap<>())
+                .when(vectorSearchService).computeSimilarityForArticlesWithEmbedding(any(), anyList());
 
         // when
         Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
@@ -169,17 +157,18 @@ public class ArticleSearchIntegrationTest {
     void searchArticles_MultipleKeywords() {
         // given
         String keyword = "Java Spring";
-        
+
         // Mock Vector search
         Map<Long, Double> vectorScores = new HashMap<>();
         vectorScores.put(testArticles.get(0).getId(), 0.90); // Spring Boot
         vectorScores.put(testArticles.get(1).getId(), 0.85); // Java
-        VectorSearchService.VectorSearchResult vectorResult = 
+        VectorSearchService.VectorSearchResult vectorResult =
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class)))
-                .thenReturn(vectorResult);
-        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
-                .thenReturn(new HashMap<>());
+        // vectorSearchService는 spy이므로 when() 대신 doReturn() (when은 실제 메서드를 실행함)
+        doReturn(vectorResult)
+                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class));
+        doReturn(new HashMap<>())
+                .when(vectorSearchService).computeSimilarityForArticlesWithEmbedding(any(), anyList());
 
         // when
         Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
@@ -197,16 +186,17 @@ public class ArticleSearchIntegrationTest {
         // given
         String keyword = "Java";
         List<String> regions = List.of("domestic");
-        
+
         // Mock Vector search
         Map<Long, Double> vectorScores = new HashMap<>();
         vectorScores.put(testArticles.get(1).getId(), 0.90);
-        VectorSearchService.VectorSearchResult vectorResult = 
+        VectorSearchService.VectorSearchResult vectorResult =
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class)))
-                .thenReturn(vectorResult);
-        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
-                .thenReturn(new HashMap<>());
+        // vectorSearchService는 spy이므로 when() 대신 doReturn() (when은 실제 메서드를 실행함)
+        doReturn(vectorResult)
+                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class));
+        doReturn(new HashMap<>())
+                .when(vectorSearchService).computeSimilarityForArticlesWithEmbedding(any(), anyList());
 
         // when
         Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
@@ -223,18 +213,19 @@ public class ArticleSearchIntegrationTest {
     void searchArticles_Pagination() {
         // given
         String keyword = "가이드"; // Should match multiple articles
-        
+
         // Mock Vector search
         Map<Long, Double> vectorScores = new HashMap<>();
         for (Article article : testArticles) {
             vectorScores.put(article.getId(), 0.80 + (Math.random() * 0.2));
         }
-        VectorSearchService.VectorSearchResult vectorResult = 
+        VectorSearchService.VectorSearchResult vectorResult =
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class)))
-                .thenReturn(vectorResult);
-        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
-                .thenReturn(new HashMap<>());
+        // vectorSearchService는 spy이므로 when() 대신 doReturn() (when은 실제 메서드를 실행함)
+        doReturn(vectorResult)
+                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class));
+        doReturn(new HashMap<>())
+                .when(vectorSearchService).computeSimilarityForArticlesWithEmbedding(any(), anyList());
 
         // when - First page
         Page<ArticleSearchResultDto> page1 = articleSearchService.searchArticlesHybrid(
@@ -245,7 +236,7 @@ public class ArticleSearchIntegrationTest {
         assertThat(page1.getNumber()).isEqualTo(0);
         assertThat(page1.getSize()).isEqualTo(2);
         assertThat(page1.getContent()).hasSizeLessThanOrEqualTo(2);
-        
+
         if (page1.getTotalElements() > 2) {
             // when - Second page
             Page<ArticleSearchResultDto> page2 = articleSearchService.searchArticlesHybrid(
@@ -265,8 +256,8 @@ public class ArticleSearchIntegrationTest {
         String keyword = "Kubernetes";
 
         // Mock Vector search failure
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class)))
-                .thenThrow(new RuntimeException("Vector API failed"));
+        doThrow(new RuntimeException("Vector API failed"))
+                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class));
 
         // when - BM25만으로 검색 (H2 테스트에서는 BM25도 미지원이므로 빈 결과 가능)
         Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
@@ -282,13 +273,14 @@ public class ArticleSearchIntegrationTest {
     void searchArticles_NoResults() {
         // given
         String keyword = "NonExistentKeywordXYZ123";
-        
+
         // Mock Vector search
         Map<Long, Double> vectorScores = new HashMap<>();
-        VectorSearchService.VectorSearchResult vectorResult = 
+        VectorSearchService.VectorSearchResult vectorResult =
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class)))
-                .thenReturn(vectorResult);
+        // vectorSearchService는 spy이므로 when() 대신 doReturn() (when은 실제 메서드를 실행함)
+        doReturn(vectorResult)
+                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class));
 
         // when
         Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
@@ -304,17 +296,18 @@ public class ArticleSearchIntegrationTest {
     void searchArticles_PopularSort() {
         // given
         String keyword = "컨테이너";
-        
+
         // Mock Vector search
         Map<Long, Double> vectorScores = new HashMap<>();
         vectorScores.put(testArticles.get(3).getId(), 0.85); // Docker
         vectorScores.put(testArticles.get(4).getId(), 0.80); // Kubernetes
-        VectorSearchService.VectorSearchResult vectorResult = 
+        VectorSearchService.VectorSearchResult vectorResult =
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class)))
-                .thenReturn(vectorResult);
-        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
-                .thenReturn(new HashMap<>());
+        // vectorSearchService는 spy이므로 when() 대신 doReturn() (when은 실제 메서드를 실행함)
+        doReturn(vectorResult)
+                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class));
+        doReturn(new HashMap<>())
+                .when(vectorSearchService).computeSimilarityForArticlesWithEmbedding(any(), anyList());
 
         // when
         Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
@@ -331,16 +324,17 @@ public class ArticleSearchIntegrationTest {
     void searchArticles_LatestSort() {
         // given
         String keyword = "프로그래밍";
-        
+
         // Mock Vector search
         Map<Long, Double> vectorScores = new HashMap<>();
         vectorScores.put(testArticles.get(1).getId(), 0.85);
-        VectorSearchService.VectorSearchResult vectorResult = 
+        VectorSearchService.VectorSearchResult vectorResult =
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class)))
-                .thenReturn(vectorResult);
-        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
-                .thenReturn(new HashMap<>());
+        // vectorSearchService는 spy이므로 when() 대신 doReturn() (when은 실제 메서드를 실행함)
+        doReturn(vectorResult)
+                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class));
+        doReturn(new HashMap<>())
+                .when(vectorSearchService).computeSimilarityForArticlesWithEmbedding(any(), anyList());
 
         // when
         Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
@@ -357,16 +351,17 @@ public class ArticleSearchIntegrationTest {
     void searchArticles_RRFScoring() {
         // given
         String keyword = "Java";
-        
+
         // Mock Vector search with different scores
         Map<Long, Double> vectorScores = new HashMap<>();
         vectorScores.put(testArticles.get(1).getId(), 0.95); // Java article - high vector score
-        VectorSearchService.VectorSearchResult vectorResult = 
+        VectorSearchService.VectorSearchResult vectorResult =
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class)))
-                .thenReturn(vectorResult);
-        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
-                .thenReturn(new HashMap<>());
+        // vectorSearchService는 spy이므로 when() 대신 doReturn() (when은 실제 메서드를 실행함)
+        doReturn(vectorResult)
+                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class));
+        doReturn(new HashMap<>())
+                .when(vectorSearchService).computeSimilarityForArticlesWithEmbedding(any(), anyList());
 
         // when
         Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
@@ -386,18 +381,19 @@ public class ArticleSearchIntegrationTest {
     void searchArticles_PerformanceBenchmark() {
         // given
         String keyword = "Spring Boot Java";
-        
+
         // Mock Vector search
         Map<Long, Double> vectorScores = new HashMap<>();
         for (Article article : testArticles) {
             vectorScores.put(article.getId(), 0.75 + (Math.random() * 0.2));
         }
-        VectorSearchService.VectorSearchResult vectorResult = 
+        VectorSearchService.VectorSearchResult vectorResult =
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class)))
-                .thenReturn(vectorResult);
-        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(), anyList()))
-                .thenReturn(new HashMap<>());
+        // vectorSearchService는 spy이므로 when() 대신 doReturn() (when은 실제 메서드를 실행함)
+        doReturn(vectorResult)
+                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class));
+        doReturn(new HashMap<>())
+                .when(vectorSearchService).computeSimilarityForArticlesWithEmbedding(any(), anyList());
 
         // when
         long startTime = System.currentTimeMillis();

@@ -1,28 +1,51 @@
 package com.newcodes7.small_town.crawler.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.auth.dto.JwtResponseDto;
+import com.newcodes7.small_town.auth.dto.LoginRequestDto;
+import com.newcodes7.small_town.auth.entity.Role;
+import com.newcodes7.small_town.auth.entity.User;
+import com.newcodes7.small_town.auth.repository.RoleRepository;
+import com.newcodes7.small_town.auth.repository.UserRepository;
+import com.newcodes7.small_town.auth.service.AuthService;
+import com.newcodes7.small_town.config.IntegrationTestBase;
+import com.newcodes7.small_town.corporation.dto.CorporationCreateDto;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
+import com.newcodes7.small_town.corporation.service.CorporationService;
+import com.newcodes7.small_town.crawler.dto.OpenAiResponse;
+import com.newcodes7.small_town.crawler.dto.YouTubeVideo;
+import com.newcodes7.small_town.crawler.repository.CrawlerVideoRepository;
+import com.newcodes7.small_town.crawler.repository.ParsingSelectorRepository;
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.global.entity.Video;
+import com.newcodes7.small_town.utils.ArticleCreator;
+import jakarta.servlet.http.Cookie;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.WebDriver;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -32,55 +55,9 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.corporation.repository.CorporationRepository;
-import com.newcodes7.small_town.auth.dto.JwtResponseDto;
-import com.newcodes7.small_town.auth.dto.LoginRequestDto;
-import com.newcodes7.small_town.auth.entity.Role;
-import com.newcodes7.small_town.auth.entity.User;
-import com.newcodes7.small_town.auth.repository.RoleRepository;
-import com.newcodes7.small_town.auth.repository.UserRepository;
-import com.newcodes7.small_town.auth.service.AuthService;
-import com.newcodes7.small_town.config.TestWebDriverConfig;
-import com.newcodes7.small_town.corporation.dto.CorporationCreateDto;
-import com.newcodes7.small_town.corporation.service.CorporationService;
-import com.newcodes7.small_town.crawler.dto.OpenAiResponse;
-import com.newcodes7.small_town.crawler.dto.YouTubeVideo;
-import com.newcodes7.small_town.crawler.entity.ParsingSelector;
-import com.newcodes7.small_town.crawler.repository.ParsingSelectorRepository;
-import com.newcodes7.small_town.crawler.integration.youtube.YouTubeService;
-import com.newcodes7.small_town.global.entity.Article;
-import com.newcodes7.small_town.global.entity.Corporation;
-import com.newcodes7.small_town.global.entity.Video;
-import com.newcodes7.small_town.utils.ArticleCreator;
-import com.newcodes7.small_town.crawler.repository.CrawlerVideoRepository;
-
-import jakarta.servlet.http.Cookie;
-
-@TestPropertySource("classpath:application-test.properties")
-@SpringBootTest
-@AutoConfigureMockMvc
-@Transactional
-@Import(TestWebDriverConfig.class)
-public class CrawlingControllerTest {
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @MockitoBean(name = "openaiRestTemplate")
-    private RestTemplate openaiRestTemplate;
-
-    @MockitoBean
-    private YouTubeService youtubeService;
+public class CrawlingControllerTest extends IntegrationTestBase {
 
     @Autowired
     private ArticleRepository articleRepository;
@@ -107,7 +84,7 @@ public class CrawlingControllerTest {
     private UserRepository userRepository;
 
     private String accessToken;
-    
+
     private String refreshToken;
 
     @BeforeEach
@@ -138,9 +115,26 @@ public class CrawlingControllerTest {
                 .email(adminUser.getEmail())
                 .password("admin123!")
                 .build());
-        
+
         accessToken = jwtResponseDto.getAccessToken();
         refreshToken = jwtResponseDto.getRefreshToken();
+
+        // WebDriver mock 설정: 실 Chrome 대신 toss_blog.html을 페이지 소스로 반환
+        try {
+            WebDriver mockWebDriver = Mockito.mock(WebDriver.class,
+                    withSettings().extraInterfaces(JavascriptExecutor.class));
+            when(((JavascriptExecutor) mockWebDriver).executeScript(anyString())).thenReturn(100L);
+
+            ClassPathResource htmlResource = new ClassPathResource("toss_blog.html");
+            String htmlContent;
+            try (InputStream inputStream = htmlResource.getInputStream()) {
+                htmlContent = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+            }
+            when(mockWebDriver.getPageSource()).thenReturn(htmlContent);
+            when(webDriverConfig.createWebDriver()).thenReturn(mockWebDriver);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
         // RestTemplate mock 설정 (OpenAI API)
         try {
@@ -208,12 +202,12 @@ public class CrawlingControllerTest {
 
     @Test
     public void 토스_블로그_크롤링_단일() throws Exception {
-        //given 
+        //given
         Corporation corporation = createTossCorporation("토스", "https://toss.tech", 1);
-        
+
         //when&then
         mockMvc.perform(get("/api/crawling/blogs/{corporationId}", corporation.getId())
-                .cookie(new Cookie("accessToken", accessToken))        
+                .cookie(new Cookie("accessToken", accessToken))
                 .accept(MediaType.APPLICATION_JSON))
                 .andDo(print())
                 .andExpect(status().isOk())
@@ -248,8 +242,8 @@ public class CrawlingControllerTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.success", is(true)))
                 .andExpect(jsonPath("$.corporationName", is(corporation.getName())))
-                .andExpect(jsonPath("$.newVideos", is(47))) 
-                .andExpect(jsonPath("$.totalVideos", is(47)))  
+                .andExpect(jsonPath("$.newVideos", is(47)))
+                .andExpect(jsonPath("$.totalVideos", is(47)))
                 .andReturn();
 
 
@@ -273,13 +267,13 @@ public class CrawlingControllerTest {
 
         //when
         mockMvc.perform(get("/api/crawling/blogs/{corporationId}", corporation.getId())
-                .cookie(new Cookie("accessToken", accessToken))        
+                .cookie(new Cookie("accessToken", accessToken))
                 .accept(MediaType.APPLICATION_JSON));
-        
+
         //then
         Pageable pageable = PageRequest.of(0, 10);
         Page<Article> savedArticles = articleRepository.findByCorporationId(corporation.getId(), pageable);
-        assertThat(savedArticles.getTotalElements()).isEqualTo(20L); 
+        assertThat(savedArticles.getTotalElements()).isEqualTo(20L);
         for (Article article : savedArticles) {
             assertThat(article.getTitle()).isNotEmpty();
             assertThat(article.getLink()).isNotEmpty();

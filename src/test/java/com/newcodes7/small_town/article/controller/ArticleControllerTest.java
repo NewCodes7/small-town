@@ -3,50 +3,36 @@ package com.newcodes7.small_town.article.controller;
 import static org.assertj.core.api.Assertions.*;
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.data.domain.Page;
-import org.springframework.http.MediaType;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.dto.GroupedArticlesDto;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.term.repository.ArticleTermRepository;
+import com.newcodes7.small_town.config.IntegrationTestBase;
 import com.newcodes7.small_town.corporation.repository.CorporationRepository;
-import com.newcodes7.small_town.term.repository.TermRepository;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.ArticleTerm;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.entity.Term;
 import com.newcodes7.small_town.global.entity.TermSource;
+import com.newcodes7.small_town.term.repository.ArticleTermRepository;
+import com.newcodes7.small_town.term.repository.TermRepository;
 import com.newcodes7.small_town.utils.ArticleCreator;
-
 import jakarta.persistence.EntityManager;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
-@TestPropertySource("classpath:application-test.properties")
-@SpringBootTest
-@AutoConfigureMockMvc
-@Transactional
-public class ArticleControllerTest {
+public class ArticleControllerTest extends IntegrationTestBase {
 
     @Autowired
     private MockMvc mockMvc;
@@ -327,7 +313,7 @@ public class ArticleControllerTest {
         Page<GroupedArticlesDto> articlesPage = (Page<GroupedArticlesDto>) result.getModelAndView().getModel().get("articles");
         List<GroupedArticlesDto> contents = articlesPage.getContent();
         GroupedArticlesDto groupedDto = contents.get(0);
-        
+
         assertThat(contents).hasSize(CORPORATION_TOTAL_COUNT / 2 > DEFAULT_PAGE_SIZE ? DEFAULT_PAGE_SIZE : CORPORATION_TOTAL_COUNT / 2);
         for (int i = 0; i < contents.size(); i++) {
             groupedDto = contents.get(i);

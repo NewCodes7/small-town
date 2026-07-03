@@ -1,24 +1,19 @@
 package com.newcodes7.small_town.auth.jwt;
 
+import static org.assertj.core.api.Assertions.*;
+
 import com.newcodes7.small_town.auth.entity.Provider;
 import com.newcodes7.small_town.auth.entity.Role;
 import com.newcodes7.small_town.auth.entity.User;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
+import com.newcodes7.small_town.config.IntegrationTestBase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.test.context.TestPropertySource;
 
-import static org.assertj.core.api.Assertions.*;
-
-@SpringBootTest
-@TestPropertySource("classpath:application-test.properties")
-public class JwtTokenProviderTest {
+public class JwtTokenProviderTest extends IntegrationTestBase {
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
@@ -29,7 +24,7 @@ public class JwtTokenProviderTest {
     void setUp() {
         Role userRole = new Role("USER");
         Provider localProvider = new Provider("LOCAL");
-        
+
         testUser = User.builder()
                 .email("test@example.com")
                 .password("encodedPassword")
@@ -213,7 +208,7 @@ public class JwtTokenProviderTest {
         assertThat(accessToken).isNotEqualTo(refreshToken);
         assertThat(jwtTokenProvider.isAccessToken(accessToken)).isTrue();
         assertThat(jwtTokenProvider.isRefreshToken(refreshToken)).isTrue();
-        
+
         // 둘 다 같은 이메일을 포함
         assertThat(jwtTokenProvider.getEmailFromToken(accessToken))
                 .isEqualTo(jwtTokenProvider.getEmailFromToken(refreshToken));

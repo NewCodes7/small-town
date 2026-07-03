@@ -1,31 +1,23 @@
 package com.newcodes7.small_town.theme.service;
 
+import static org.assertj.core.api.Assertions.*;
+
 import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.config.IntegrationTestBase;
 import com.newcodes7.small_town.corporation.repository.CorporationRepository;
-import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.theme.dto.ThemeCreateRequestDto;
 import com.newcodes7.small_town.theme.dto.ThemeResponseDto;
 import com.newcodes7.small_town.theme.dto.ThemeUpdateRequestDto;
 import com.newcodes7.small_town.theme.entity.Theme;
 import com.newcodes7.small_town.theme.repository.ThemeRepository;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.*;
-
-@SpringBootTest
-@TestPropertySource("classpath:application-test.properties")
-@Transactional
-public class ThemeServiceTest {
+public class ThemeServiceTest extends IntegrationTestBase {
 
     @Autowired
     private ThemeService themeService;

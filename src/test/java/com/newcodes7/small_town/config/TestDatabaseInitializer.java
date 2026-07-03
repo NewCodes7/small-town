@@ -5,20 +5,25 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.core.env.Environment;
+import org.springframework.core.env.ConfigurableEnvironment;
+import org.springframework.core.env.MapPropertySource;
 
 public class TestDatabaseInitializer implements ApplicationContextInitializer<ConfigurableApplicationContext> {
     private static final Pattern JDBC_URL_PATTERN =
             Pattern.compile("^jdbc:postgresql://([^/:?#]+)(?::(\\d+))?/([^?]+).*$");
 
+    private static final String WORKER_PROPERTY_SOURCE = "testWorkerDatasource";
+
     @Override
     public void initialize(ConfigurableApplicationContext applicationContext) {
-        Environment env = applicationContext.getEnvironment();
+        ConfigurableEnvironment env = applicationContext.getEnvironment();
+        applyWorkerDatabaseName(env);
 
         String jdbcUrl = env.getProperty("spring.datasource.url");
         if (jdbcUrl == null || !jdbcUrl.startsWith("jdbc:postgresql://")) {
@@ -60,6 +65,36 @@ public class TestDatabaseInitializer implements ApplicationContextInitializer<Co
                     "Install extensions 'vector' and 'pg_search' in the PostgreSQL instance.",
                     ex);
         }
+    }
+
+    /**
+     * Gradle 병렬 포크 실행 시 포크마다 다른 DB(small_town_test_w{slot})를 쓰도록 URL을 재작성한다.
+     * create-drop 스키마가 포크 간 충돌하지 않게 하기 위함. IDE 단독 실행(worker 프로퍼티 없음)이나
+     * 단일 포크(slots<=1)에서는 기존 DB 이름을 그대로 쓴다.
+     */
+    private void applyWorkerDatabaseName(ConfigurableEnvironment env) {
+        if (env.getPropertySources().contains(WORKER_PROPERTY_SOURCE)) {
+            return; // spring.factories + initializer.classes 이중 등록으로 인한 재실행 방지
+        }
+        String worker = System.getProperty("org.gradle.test.worker");
+        int slots = Integer.getInteger("test.db.slots", 1);
+        if (worker == null || slots <= 1) {
+            return;
+        }
+        String url = env.getProperty("spring.datasource.url");
+        if (url == null || !url.startsWith("jdbc:postgresql://")) {
+            return;
+        }
+        long slot;
+        try {
+            slot = Long.parseLong(worker.trim()) % slots;
+        } catch (NumberFormatException ex) {
+            return;
+        }
+        String newUrl = url.replaceFirst("(/[^/?]+)(\\?[^#]*)?$", "$1_w" + slot + "$2");
+        env.getPropertySources().addFirst(
+                new MapPropertySource(WORKER_PROPERTY_SOURCE,
+                        Map.of("spring.datasource.url", newUrl)));
     }
 
     private boolean databaseExists(Connection connection, String database) throws Exception {

@@ -5,44 +5,34 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.config.IntegrationTestBase;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.ArticleTerm;
+import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.global.entity.Term;
+import com.newcodes7.small_town.global.entity.TermSource;
+import com.newcodes7.small_town.term.repository.ArticleTermRepository;
+import com.newcodes7.small_town.term.repository.TermRepository;
+import com.newcodes7.small_town.utils.ArticleCreator;
+import jakarta.persistence.EntityManager;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.transaction.annotation.Transactional;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.term.repository.ArticleTermRepository;
-import com.newcodes7.small_town.corporation.repository.CorporationRepository;
-import com.newcodes7.small_town.term.repository.TermRepository;
-import com.newcodes7.small_town.global.entity.Article;
-import com.newcodes7.small_town.global.entity.ArticleTerm;
-import com.newcodes7.small_town.global.entity.Corporation;
-import com.newcodes7.small_town.global.entity.Term;
-import com.newcodes7.small_town.global.entity.TermSource;
-import com.newcodes7.small_town.utils.ArticleCreator;
-
-import jakarta.persistence.EntityManager;
-
-@TestPropertySource("classpath:application-test.properties")
-@SpringBootTest
-@AutoConfigureMockMvc
-@Transactional
-public class ArticleSearchControllerTest {
+public class ArticleSearchControllerTest extends IntegrationTestBase {
 
     @Autowired
     private MockMvc mockMvc;

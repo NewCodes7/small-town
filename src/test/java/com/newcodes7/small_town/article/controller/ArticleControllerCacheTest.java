@@ -12,43 +12,30 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
+import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.config.IntegrationTestBase;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
+import com.newcodes7.small_town.crawler.crawler.DefaultBlogCrawler;
+import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.utils.ArticleCreator;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Transactional;
-
-import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.corporation.repository.CorporationRepository;
-import com.newcodes7.small_town.crawler.persistence.ArticlePersistenceService;
-import com.newcodes7.small_town.crawler.crawler.DefaultBlogCrawler;
-import com.newcodes7.small_town.global.entity.Article;
-import com.newcodes7.small_town.global.entity.Corporation;
-import com.newcodes7.small_town.utils.ArticleCreator;
 
 
-@TestPropertySource("classpath:application-test.properties")
-@SpringBootTest
-@AutoConfigureMockMvc
-@Transactional
-public class ArticleControllerCacheTest {
+public class ArticleControllerCacheTest extends IntegrationTestBase {
 
-    @Autowired
-    private MockMvc mockMvc;
-
-    @MockitoSpyBean
-    private ArticleRepository articleRepository;
+    // articleRepository spy는 IntegrationTestBase에서 상속 (개별 선언 시 컨텍스트 분열)
 
     @Autowired
     private ArticlePersistenceService articlePersistenceService;
@@ -158,7 +145,7 @@ public class ArticleControllerCacheTest {
             .andExpect(model().attributeExists("articles"))
             .andReturn();
 
-        // then 
+        // then
         verify(articleRepository, times(1))
             .findArticlesWithFiltersWithoutTerms(any(), any(), any(), any(), any());
     }

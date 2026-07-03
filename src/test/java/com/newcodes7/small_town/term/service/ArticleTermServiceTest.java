@@ -2,23 +2,7 @@ package com.newcodes7.small_town.term.service;
 
 import static org.assertj.core.api.Assertions.*;
 
-import java.time.LocalDateTime;
-import java.util.List;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.term.repository.ArticleTermRepository;
-import com.newcodes7.small_town.corporation.repository.CorporationRepository;
-import com.newcodes7.small_town.term.repository.TermRepository;
-import com.newcodes7.small_town.term.service.ArticleTermService.ArticleTermExtractionResult;
 import com.newcodes7.small_town.auth.entity.Provider;
 import com.newcodes7.small_town.auth.entity.Role;
 import com.newcodes7.small_town.auth.entity.User;
@@ -26,19 +10,28 @@ import com.newcodes7.small_town.auth.repository.ProviderRepository;
 import com.newcodes7.small_town.auth.repository.RoleRepository;
 import com.newcodes7.small_town.auth.repository.UserRepository;
 import com.newcodes7.small_town.auth.util.UserTestHelper;
+import com.newcodes7.small_town.config.IntegrationTestBase;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.global.entity.Article;
-import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.entity.ArticleTerm;
+import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.entity.Term;
+import com.newcodes7.small_town.term.repository.ArticleTermRepository;
+import com.newcodes7.small_town.term.repository.TermRepository;
+import com.newcodes7.small_town.term.service.ArticleTermService.ArticleTermExtractionResult;
+import java.time.LocalDateTime;
+import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
  * ArticleTermService 통합 테스트
  * Term 추출, 저장, 통계 갱신 기능 검증
  */
-@SpringBootTest
-@TestPropertySource("classpath:application-test.properties")
-@Transactional
-public class ArticleTermServiceTest {
+public class ArticleTermServiceTest extends IntegrationTestBase {
 
     @Autowired
     private ArticleTermService articleTermService;
@@ -76,7 +69,7 @@ public class ArticleTermServiceTest {
     void setUp() {
         userRole = roleRepository.findByName("USER")
                 .orElseGet(() -> roleRepository.save(new Role("USER")));
-        
+
         localProvider = providerRepository.findByName("LOCAL")
                 .orElseGet(() -> providerRepository.save(new Provider("LOCAL")));
 
@@ -115,15 +108,15 @@ public class ArticleTermServiceTest {
 
         // then
         assertThat(termCount).isGreaterThan(0);
-        
+
         List<ArticleTerm> articleTerms = articleTermRepository.findByArticleId(article.getId());
         assertThat(articleTerms).isNotEmpty();
-        
+
         // Spring, Boot, JPA 등의 term이 추출되었는지 확인
         List<String> termNames = articleTerms.stream()
                 .map(at -> at.getTerm().getTerm())
                 .toList();
-        
+
         assertThat(termNames).contains("spring", "boot", "jpa");
     }
 
@@ -145,7 +138,7 @@ public class ArticleTermServiceTest {
 
         // then
         List<ArticleTerm> articleTerms = articleTermRepository.findByArticleId(article.getId());
-        
+
         // 제목에서 나온 term들이 저장되어야 함
         if (!articleTerms.isEmpty()) {
             // Docker, Kubernetes 등이 추출되었다면 score 확인
@@ -153,7 +146,7 @@ public class ArticleTermServiceTest {
                     .filter(at -> at.getTerm().getTerm().equalsIgnoreCase("docker"))
                     .findFirst()
                     .orElse(null);
-            
+
             if (dockerTerm != null) {
                 // 제목에서 나온 term은 높은 가중치(3.0)가 적용되어야 함
                 assertThat(dockerTerm.getScore()).isGreaterThan(0);
@@ -179,12 +172,12 @@ public class ArticleTermServiceTest {
 
         // then
         List<ArticleTerm> articleTerms = articleTermRepository.findByArticleId(article.getId());
-        
+
         if (!articleTerms.isEmpty()) {
             List<String> termNames = articleTerms.stream()
                     .map(at -> at.getTerm().getTerm())
                     .toList();
-            
+
             // React가 여러 번 반복되어 추출되었을 것
             assertThat(termNames).contains("react");
         }
@@ -208,7 +201,7 @@ public class ArticleTermServiceTest {
 
         // then
         assertThat(termCount).isEqualTo(0);
-        
+
         List<ArticleTerm> articleTerms = articleTermRepository.findByArticleId(article.getId());
         assertThat(articleTerms).isEmpty();
     }
@@ -225,7 +218,7 @@ public class ArticleTermServiceTest {
                 .corporation(testCorporation)
                 .build();
         article = articleRepository.save(article);
-        
+
         // 첫 번째 추출
         int firstCount = articleTermService.extractAndSaveTermsForArticle(article);
         List<ArticleTerm> firstTerms = articleTermRepository.findByArticleId(article.getId());
@@ -309,12 +302,12 @@ public class ArticleTermServiceTest {
                 .build();
         article = articleRepository.save(article);
         articleTermService.extractAndSaveTermsForArticle(article);
-        
+
         List<ArticleTerm> articleTerms = articleTermRepository.findByArticleId(article.getId());
         if (articleTerms.isEmpty()) {
             return; // Term이 추출되지 않았으면 테스트 스킵
         }
-        
+
         Term termToDelete = articleTerms.get(0).getTerm();
         Long termId = termToDelete.getId();
 
@@ -323,7 +316,7 @@ public class ArticleTermServiceTest {
 
         // then
         assertThat(deletedCount).isGreaterThanOrEqualTo(0);
-        
+
         // Term이 삭제되었는지 확인
         assertThat(termRepository.findById(termId)).isEmpty();
     }

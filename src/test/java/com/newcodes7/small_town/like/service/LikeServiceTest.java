@@ -1,28 +1,22 @@
 package com.newcodes7.small_town.like.service;
 
+import static org.assertj.core.api.Assertions.*;
+
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.like.repository.LikeRepository;
+import com.newcodes7.small_town.config.IntegrationTestBase;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
-import com.newcodes7.small_town.corporation.repository.CorporationRepository;
+import com.newcodes7.small_town.like.repository.LikeRepository;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-
-import static org.assertj.core.api.Assertions.*;
-
-@SpringBootTest
-@TestPropertySource("classpath:application-test.properties")
-@Transactional
-public class LikeServiceTest {
+public class LikeServiceTest extends IntegrationTestBase {
 
     @Autowired
     private LikeService likeService;

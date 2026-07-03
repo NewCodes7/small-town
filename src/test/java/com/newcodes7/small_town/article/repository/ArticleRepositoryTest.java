@@ -1,30 +1,21 @@
 package com.newcodes7.small_town.article.repository;
 
-import com.newcodes7.small_town.auth.entity.Provider;
-import com.newcodes7.small_town.auth.entity.Role;
-import com.newcodes7.small_town.auth.util.UserTestHelper;
+import static org.assertj.core.api.Assertions.*;
+
+import com.newcodes7.small_town.config.IntegrationTestBase;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
-import com.newcodes7.small_town.corporation.repository.CorporationRepository;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-
-import static org.assertj.core.api.Assertions.*;
-
-@SpringBootTest
-@TestPropertySource("classpath:application-test.properties")
-@Transactional
-public class ArticleRepositoryTest {
+public class ArticleRepositoryTest extends IntegrationTestBase {
 
     @Autowired
     private ArticleRepository articleRepository;
@@ -73,11 +64,11 @@ public class ArticleRepositoryTest {
         Article article1 = createArticle("제목1", LocalDateTime.now());
         article1.setViewCount(100);
         article1.setLikeCount(10);
-        
+
         Article article2 = createArticle("제목2", LocalDateTime.now());
         article2.setViewCount(50);
         article2.setLikeCount(5);
-        
+
         articleRepository.save(article1);
         articleRepository.save(article2);
 
@@ -99,7 +90,7 @@ public class ArticleRepositoryTest {
         Article article1 = createArticle("Spring Boot 튜토리얼", LocalDateTime.now());
         Article article2 = createArticle("Java 프로그래밍", LocalDateTime.now());
         Article article3 = createArticle("Python 기초", LocalDateTime.now());
-        
+
         articleRepository.save(article1);
         articleRepository.save(article2);
         articleRepository.save(article3);
@@ -129,7 +120,7 @@ public class ArticleRepositoryTest {
         // then
         assertThat(result.getContent()).hasSize(1);
         Article foundArticle = result.getContent().get(0);
-        
+
         // Corporation이 fetch join되어 있어야 함 (lazy loading 방지)
         assertThat(foundArticle.getCorporation()).isNotNull();
         assertThat(foundArticle.getCorporation().getName()).isEqualTo("테스트회사");
@@ -142,7 +133,7 @@ public class ArticleRepositoryTest {
         Article activeArticle = createArticle("활성아티클", LocalDateTime.now());
         Article deletedArticle = createArticle("삭제된아티클", LocalDateTime.now());
         deletedArticle.setDeletedAt(LocalDateTime.now());
-        
+
         articleRepository.save(activeArticle);
         articleRepository.save(deletedArticle);
 

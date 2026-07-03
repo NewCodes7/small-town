@@ -2,28 +2,12 @@ package com.newcodes7.small_town.like.service;
 
 import static org.assertj.core.api.Assertions.*;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.data.domain.Page;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.dto.MigrationResultDto;
 import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
 import com.newcodes7.small_town.article.exception.InvalidParameterException;
 import com.newcodes7.small_town.article.exception.UserNotFoundException;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.corporation.repository.CorporationRepository;
-import com.newcodes7.small_town.like.repository.LikeLogRepository;
 import com.newcodes7.small_town.auth.entity.Provider;
 import com.newcodes7.small_town.auth.entity.Role;
 import com.newcodes7.small_town.auth.entity.User;
@@ -31,18 +15,27 @@ import com.newcodes7.small_town.auth.repository.ProviderRepository;
 import com.newcodes7.small_town.auth.repository.RoleRepository;
 import com.newcodes7.small_town.auth.repository.UserRepository;
 import com.newcodes7.small_town.auth.util.UserTestHelper;
+import com.newcodes7.small_town.config.IntegrationTestBase;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.like.repository.LikeLogRepository;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
  * UserLikeService 통합 테스트
  * - 인증된 사용자의 좋아요 기능 (LikeLog 기반)
  * - IP 기반 익명 좋아요 폴백
  */
-@SpringBootTest
-@TestPropertySource("classpath:application-test.properties")
-@Transactional
-public class UserLikeServiceTest {
+public class UserLikeServiceTest extends IntegrationTestBase {
 
     @Autowired
     private UserLikeService userLikeService;
@@ -78,7 +71,7 @@ public class UserLikeServiceTest {
         // Role과 Provider 설정
         userRole = roleRepository.findByName("USER")
                 .orElseGet(() -> roleRepository.save(new Role("USER")));
-        
+
         localProvider = providerRepository.findByName("LOCAL")
                 .orElseGet(() -> providerRepository.save(new Provider("LOCAL")));
 
@@ -145,7 +138,7 @@ public class UserLikeServiceTest {
         assertThat(userLikeService.toggleLike(testArticle.getId(), testUser.getEmail())).isTrue();
         assertThat(userLikeService.toggleLike(testArticle.getId(), testUser.getEmail())).isFalse();
         assertThat(userLikeService.toggleLike(testArticle.getId(), testUser.getEmail())).isTrue();
-        
+
         // 최종 상태 확인
         assertThat(userLikeService.hasLiked(testArticle.getId(), testUser.getEmail())).isTrue();
     }
@@ -156,10 +149,10 @@ public class UserLikeServiceTest {
         // when & then
         assertThatThrownBy(() -> userLikeService.toggleLike(null, testUser.getEmail()))
                 .isInstanceOf(InvalidParameterException.class);
-        
+
         assertThatThrownBy(() -> userLikeService.toggleLike(0L, testUser.getEmail()))
                 .isInstanceOf(InvalidParameterException.class);
-        
+
         assertThatThrownBy(() -> userLikeService.toggleLike(-1L, testUser.getEmail()))
                 .isInstanceOf(InvalidParameterException.class);
     }
@@ -170,10 +163,10 @@ public class UserLikeServiceTest {
         // when & then
         assertThatThrownBy(() -> userLikeService.toggleLike(testArticle.getId(), null))
                 .isInstanceOf(InvalidParameterException.class);
-        
+
         assertThatThrownBy(() -> userLikeService.toggleLike(testArticle.getId(), ""))
                 .isInstanceOf(InvalidParameterException.class);
-        
+
         assertThatThrownBy(() -> userLikeService.toggleLike(testArticle.getId(), "   "))
                 .isInstanceOf(InvalidParameterException.class);
     }
@@ -285,7 +278,7 @@ public class UserLikeServiceTest {
         // when & then
         assertThatThrownBy(() -> userLikeService.toggleLikeByIp(testArticle.getId(), null))
                 .isInstanceOf(InvalidParameterException.class);
-        
+
         assertThatThrownBy(() -> userLikeService.toggleLikeByIp(testArticle.getId(), ""))
                 .isInstanceOf(InvalidParameterException.class);
     }

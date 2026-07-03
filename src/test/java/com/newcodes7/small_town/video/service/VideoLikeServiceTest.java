@@ -1,8 +1,9 @@
 package com.newcodes7.small_town.video.service;
 
+import static org.assertj.core.api.Assertions.*;
+
 import com.newcodes7.small_town.article.exception.InvalidParameterException;
 import com.newcodes7.small_town.article.exception.UserNotFoundException;
-import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.auth.entity.Provider;
 import com.newcodes7.small_town.auth.entity.Role;
 import com.newcodes7.small_town.auth.entity.User;
@@ -10,28 +11,21 @@ import com.newcodes7.small_town.auth.repository.ProviderRepository;
 import com.newcodes7.small_town.auth.repository.RoleRepository;
 import com.newcodes7.small_town.auth.repository.UserRepository;
 import com.newcodes7.small_town.auth.util.UserTestHelper;
+import com.newcodes7.small_town.config.IntegrationTestBase;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.entity.Video;
 import com.newcodes7.small_town.video.exception.VideoNotFoundException;
 import com.newcodes7.small_town.video.repository.VideoLikeLogRepository;
 import com.newcodes7.small_town.video.repository.VideoRepository;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-
-import static org.assertj.core.api.Assertions.*;
-
-@SpringBootTest
-@TestPropertySource("classpath:application-test.properties")
-@Transactional
-public class VideoLikeServiceTest {
+public class VideoLikeServiceTest extends IntegrationTestBase {
 
     @Autowired
     private VideoLikeService videoLikeService;
@@ -67,7 +61,7 @@ public class VideoLikeServiceTest {
         // Role과 Provider 설정
         userRole = roleRepository.findByName("USER")
                 .orElseGet(() -> roleRepository.save(new Role("USER")));
-        
+
         localProvider = providerRepository.findByName("LOCAL")
                 .orElseGet(() -> providerRepository.save(new Provider("LOCAL")));
 

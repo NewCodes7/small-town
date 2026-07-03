@@ -2,6 +2,7 @@ package com.newcodes7.small_town.notification.service;
 
 import static org.assertj.core.api.Assertions.*;
 
+import com.newcodes7.small_town.config.IntegrationTestBase;
 import com.newcodes7.small_town.crawler.entity.CrawlingJobType;
 import com.newcodes7.small_town.crawler.entity.CrawlingRunStatus;
 import com.newcodes7.small_town.crawler.entity.CrawlingSchedulerRun;
@@ -12,20 +13,14 @@ import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * AdminNotificationService 통합 테스트
  */
-@SpringBootTest
-@TestPropertySource("classpath:application-test.properties")
-@Transactional
-public class AdminNotificationServiceTest {
+public class AdminNotificationServiceTest extends IntegrationTestBase {
 
     @Autowired
     private AdminNotificationService adminNotificationService;

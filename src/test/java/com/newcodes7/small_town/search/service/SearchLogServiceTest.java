@@ -3,20 +3,6 @@ package com.newcodes7.small_town.search.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-import java.time.LocalDateTime;
-import java.util.Map;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.newcodes7.small_town.auth.entity.Provider;
 import com.newcodes7.small_town.auth.entity.Role;
 import com.newcodes7.small_town.auth.entity.User;
@@ -24,11 +10,18 @@ import com.newcodes7.small_town.auth.repository.ProviderRepository;
 import com.newcodes7.small_town.auth.repository.RoleRepository;
 import com.newcodes7.small_town.auth.repository.UserRepository;
 import com.newcodes7.small_town.auth.util.UserTestHelper;
+import com.newcodes7.small_town.config.IntegrationTestBase;
 import com.newcodes7.small_town.search.entity.SearchLog;
 import com.newcodes7.small_town.search.repository.SearchLogRepository;
-
-import jakarta.servlet.http.HttpServletRequest;
-
+import java.time.LocalDateTime;
+import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
@@ -36,10 +29,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
  * - 검색 로그 저장 및 조회
  * - 인기 검색어 통계
  */
-@SpringBootTest
-@TestPropertySource("classpath:application-test.properties")
-@Transactional
-public class SearchLogServiceTest {
+public class SearchLogServiceTest extends IntegrationTestBase {
 
     @Autowired
     private SearchLogService searchLogService;
@@ -68,7 +58,7 @@ public class SearchLogServiceTest {
         // Role과 Provider 설정
         userRole = roleRepository.findByName("USER")
                 .orElseGet(() -> roleRepository.save(new Role("USER")));
-        
+
         localProvider = providerRepository.findByName("LOCAL")
                 .orElseGet(() -> providerRepository.save(new Provider("LOCAL")));
 

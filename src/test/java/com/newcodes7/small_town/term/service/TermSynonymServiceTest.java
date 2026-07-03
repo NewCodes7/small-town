@@ -2,29 +2,22 @@ package com.newcodes7.small_town.term.service;
 
 import static org.assertj.core.api.Assertions.*;
 
+import com.newcodes7.small_town.config.IntegrationTestBase;
+import com.newcodes7.small_town.global.entity.Term;
+import com.newcodes7.small_town.global.entity.TermSynonym;
+import com.newcodes7.small_town.term.repository.TermRepository;
+import com.newcodes7.small_town.term.repository.TermSynonymRepository;
 import java.util.List;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.transaction.annotation.Transactional;
-
-import com.newcodes7.small_town.term.repository.TermRepository;
-import com.newcodes7.small_town.term.repository.TermSynonymRepository;
-import com.newcodes7.small_town.global.entity.Term;
-import com.newcodes7.small_town.global.entity.TermSynonym;
 
 /**
  * TermSynonymService 통합 테스트
  * Term 동의어 관계 관리 기능 검증
  */
-@SpringBootTest
-@TestPropertySource("classpath:application-test.properties")
-@Transactional
-public class TermSynonymServiceTest {
+public class TermSynonymServiceTest extends IntegrationTestBase {
 
     @Autowired
     private TermSynonymService termSynonymService;
@@ -69,7 +62,7 @@ public class TermSynonymServiceTest {
         // then
         assertThat(synonym).isNotNull();
         assertThat(synonym.getTerm().getId()).isLessThan(synonym.getSynonymTerm().getId());
-        
+
         // hasTranslation이 true로 설정되었는지 확인
         Term updatedTerm1 = termRepository.findById(term1.getId()).orElseThrow();
         Term updatedTerm2 = termRepository.findById(term2.getId()).orElseThrow();
@@ -137,7 +130,7 @@ public class TermSynonymServiceTest {
 
         // then
         assertThat(synonym).isNotNull();
-        
+
         // 새로운 term들이 생성되었는지 확인
         assertThat(termRepository.findByTermAndTermType("새단어1", "NNG")).isPresent();
         assertThat(termRepository.findByTermAndTermType("새단어2", "NNG")).isPresent();
@@ -277,7 +270,7 @@ public class TermSynonymServiceTest {
 
         // then
         assertThat(updated.getSynonymTerm().getId()).isEqualTo(term3.getId());
-        
+
         // 기존 관계는 삭제되어야 함
         assertThat(termSynonymRepository.findById(original.getId())).isEmpty();
     }

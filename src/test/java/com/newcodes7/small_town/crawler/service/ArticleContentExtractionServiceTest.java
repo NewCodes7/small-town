@@ -4,40 +4,28 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.config.IntegrationTestBase;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.BlogType;
+import com.newcodes7.small_town.global.entity.Corporation;
 import java.util.Map;
-import java.util.Optional;
-
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.openqa.selenium.WebDriver;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.transaction.annotation.Transactional;
-
-import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.crawler.service.ContentExtractor;
-
-import com.newcodes7.small_town.corporation.repository.CorporationRepository;
-import com.newcodes7.small_town.crawler.config.WebDriverConfig;
-import com.newcodes7.small_town.global.entity.Article;
-import com.newcodes7.small_town.global.entity.BlogType;
-import com.newcodes7.small_town.global.entity.Corporation;
 
 /**
  * ArticleContentExtractionService 테스트
- * 
+ *
  * Content 추출 서비스의 핵심 로직 검증:
  * - 단일 Article 본문 추출
  * - WebDriver 재사용 추출
  * - 배치 추출
  * - 예외 처리
  */
-@SpringBootTest
-@TestPropertySource(locations = "classpath:application-test.properties")
-@Transactional
-class ArticleContentExtractionServiceTest {
+class ArticleContentExtractionServiceTest extends IntegrationTestBase {
 
     @Autowired
     private ArticleContentExtractionService contentExtractionService;
@@ -48,14 +36,7 @@ class ArticleContentExtractionServiceTest {
     @Autowired
     private CorporationRepository corporationRepository;
 
-    @MockBean
-    private ContentExtractor contentExtractor;
-
-    @MockBean
-    private WebDriverConfig webDriverConfig;
-
-    @MockBean
-    private WebDriver mockDriver;
+    private final WebDriver mockDriver = mock(WebDriver.class);
 
     @Test
     @DisplayName("단일 Article 본문 추출 - 성공")
@@ -65,8 +46,9 @@ class ArticleContentExtractionServiceTest {
         Article article = createTestArticle(corp, "Test Article", "https://test.com/article");
 
         when(webDriverConfig.createWebDriver()).thenReturn(mockDriver);
-        when(contentExtractor.extractCleanContent(eq(article.getLink()), any(WebDriver.class)))
-            .thenReturn("This is the extracted content from the article.");
+        // contentExtractor는 spy이므로 when() 대신 doReturn() (when은 실제 메서드를 실행함)
+        doReturn("This is the extracted content from the article.")
+            .when(contentExtractor).extractCleanContent(eq(article.getLink()), any(WebDriver.class));
 
         // When
         Map<String, Object> result = contentExtractionService.extractContentForSingleArticle(article.getId());
@@ -123,8 +105,8 @@ class ArticleContentExtractionServiceTest {
         Article article = createTestArticle(corp, "Test Article", "https://test.com/article");
 
         when(webDriverConfig.createWebDriver()).thenReturn(mockDriver);
-        when(contentExtractor.extractCleanContent(eq(article.getLink()), any(WebDriver.class)))
-            .thenReturn("");
+        doReturn("")
+            .when(contentExtractor).extractCleanContent(eq(article.getLink()), any(WebDriver.class));
 
         // When
         Map<String, Object> result = contentExtractionService.extractContentForSingleArticle(article.getId());
@@ -143,8 +125,8 @@ class ArticleContentExtractionServiceTest {
         Corporation corp = createTestCorporation("Test Corp", "https://test.com");
         Article article = createTestArticle(corp, "Test Article", "https://test.com/article");
 
-        when(contentExtractor.extractCleanContent(eq(article.getLink()), eq(mockDriver)))
-            .thenReturn("Extracted content with reused driver.");
+        doReturn("Extracted content with reused driver.")
+            .when(contentExtractor).extractCleanContent(eq(article.getLink()), eq(mockDriver));
 
         // When
         String content = contentExtractionService.extractContent(article, mockDriver);
@@ -165,8 +147,8 @@ class ArticleContentExtractionServiceTest {
         Article article = createTestArticle(corp, "Test Article", "https://test.com/article");
 
         when(webDriverConfig.createWebDriver()).thenReturn(mockDriver);
-        when(contentExtractor.extractCleanContent(eq(article.getLink()), any(WebDriver.class)))
-            .thenReturn("Content with new driver");
+        doReturn("Content with new driver")
+            .when(contentExtractor).extractCleanContent(eq(article.getLink()), any(WebDriver.class));
 
         // When
         String content = contentExtractionService.extractContent(article, null);
@@ -202,8 +184,8 @@ class ArticleContentExtractionServiceTest {
         Article article = createTestArticle(corp, "Test Article", "https://test.com/article");
 
         when(webDriverConfig.createWebDriver()).thenReturn(mockDriver);
-        when(contentExtractor.extractCleanContent(eq(article.getLink()), any(WebDriver.class)))
-            .thenThrow(new RuntimeException("Extraction failed"));
+        doThrow(new RuntimeException("Extraction failed"))
+            .when(contentExtractor).extractCleanContent(eq(article.getLink()), any(WebDriver.class));
 
         // When
         String content = contentExtractionService.extractContent(article);
@@ -222,8 +204,8 @@ class ArticleContentExtractionServiceTest {
         Article article = createTestArticle(corp, "Test Article", "https://test.com/article");
 
         when(webDriverConfig.createWebDriver()).thenReturn(mockDriver);
-        when(contentExtractor.extractCleanContent(eq(article.getLink()), eq(mockDriver)))
-            .thenReturn("Auto driver content");
+        doReturn("Auto driver content")
+            .when(contentExtractor).extractCleanContent(eq(article.getLink()), eq(mockDriver));
 
         // When
         String content = contentExtractionService.extractContent(article);

@@ -2,25 +2,18 @@ package com.newcodes7.small_town.term.service;
 
 import static org.assertj.core.api.Assertions.*;
 
+import com.newcodes7.small_town.config.IntegrationTestBase;
+import com.newcodes7.small_town.global.entity.RelatedContentKeyword;
+import com.newcodes7.small_town.term.repository.RelatedContentKeywordRepository;
 import java.util.List;
-
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.transaction.annotation.Transactional;
-
-import com.newcodes7.small_town.term.repository.RelatedContentKeywordRepository;
-import com.newcodes7.small_town.global.entity.RelatedContentKeyword;
 
 /**
  * RelatedContentKeywordService 통합 테스트
  */
-@SpringBootTest
-@TestPropertySource("classpath:application-test.properties")
-@Transactional
-public class RelatedContentKeywordServiceTest {
+public class RelatedContentKeywordServiceTest extends IntegrationTestBase {
 
     @Autowired
     private RelatedContentKeywordService service;

@@ -14,7 +14,7 @@ ext['selenium.version'] = '4.44.0'
 
 java {
 	toolchain {
-		languageVersion = JavaLanguageVersion.of(17)
+		languageVersion = JavaLanguageVersion.of(26)
 	}
 }
 
@@ -114,11 +114,29 @@ dependencies {
 	spotbugsPlugins 'com.h3xstream.findsecbugs:findsecbugs-plugin:1.13.0'
 }
 
+// 병렬 테스트 포크 수: 기본 CPU/2, -PtestForks=N 으로 오버라이드
+def hostCpus = Runtime.runtime.availableProcessors()
+def testForks = (findProperty('testForks') ?: Math.max(1, hostCpus.intdiv(2))) as int
+// 포크별 CPU 배정: 전체 코어에서 1개(OS·Postgres·Gradle 데몬 몫)를 뺀 나머지를 포크 수로 분배.
+// JVM이 이 값 기준으로 GC/JIT/커먼풀 스레드를 만들어 전체 CPU 점유가 코어 수를 넘지 않게 한다.
+// -PtestCpusPerFork=N 으로 오버라이드
+def testCpusPerFork = (findProperty('testCpusPerFork')
+		?: Math.max(1, (hostCpus - 1).intdiv(testForks))) as int
+
 tasks.named('test') {
 	useJUnitPlatform()
 	maxHeapSize = '1g'
+	maxParallelForks = testForks
+	// C2 JIT 생략(레벨1까지만 컴파일) — 통합테스트는 컨텍스트 부팅+DB I/O 위주라
+	// 실행 손해보다 부팅 시 JIT CPU 절감이 훨씬 큼
+	jvmArgs "-XX:ActiveProcessorCount=${testCpusPerFork}", '-XX:TieredStopAtLevel=1'
 	systemProperty 'spring.profiles.active', 'test'
-	finalizedBy jacocoTestReport
+	// 포크별 독립 DB 슬롯 수 — TestDatabaseInitializer가 worker id % slots로 DB 이름 분리
+	systemProperty 'test.db.slots', testForks
+	// 커버리지 리포트는 CI 또는 -Pcoverage 지정 시에만 생성 (로컬 반복 실행 시간 절약)
+	if (System.getenv('CI') != null || project.hasProperty('coverage')) {
+		finalizedBy jacocoTestReport
+	}
 }
 
 jacocoTestReport {

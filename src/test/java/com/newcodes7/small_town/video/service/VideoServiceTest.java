@@ -1,28 +1,22 @@
 package com.newcodes7.small_town.video.service;
 
+import static org.assertj.core.api.Assertions.*;
+
+import com.newcodes7.small_town.config.IntegrationTestBase;
 import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.entity.Video;
 import com.newcodes7.small_town.video.dto.VideoResponseDto;
 import com.newcodes7.small_town.video.repository.VideoRepository;
+import java.time.LocalDateTime;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Page;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.*;
-
-@SpringBootTest
-@TestPropertySource("classpath:application-test.properties")
-@Transactional
-public class VideoServiceTest {
+public class VideoServiceTest extends IntegrationTestBase {
 
     @Autowired
     private VideoService videoService;
@@ -73,7 +67,7 @@ public class VideoServiceTest {
         Video video1 = createVideo("Spring Boot 튜토리얼", LocalDateTime.now());
         Video video2 = createVideo("Java 프로그래밍", LocalDateTime.now());
         Video video3 = createVideo("Python 기초", LocalDateTime.now());
-        
+
         videoRepository.save(video1);
         videoRepository.save(video2);
         videoRepository.save(video3);
