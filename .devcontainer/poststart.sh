@@ -116,4 +116,16 @@ fi
 
 sudo bash -c "grep -v '[[:space:]]postgres\$' /etc/hosts > /tmp/hosts.new && cat /tmp/hosts.new > /etc/hosts && echo '$POSTGRES_IP postgres' >> /etc/hosts"
 
+# -----------------------------------------------------------------------------
+# JDK 26 (빌드 toolchain) — 컨테이너 리빌드 후에도 설치를 보장
+# 없어도 settings.gradle의 foojay resolver가 자동 다운로드하지만,
+# 매 빌드 재다운로드를 피하기 위해 SDKMAN에 설치해 둔다.
+# Gradle 데몬 자체는 시스템 JDK 17로 돌고, toolchain으로 26을 쓴다.
+# -----------------------------------------------------------------------------
+if [ -d /usr/local/sdkman ] && [ ! -d /usr/local/sdkman/candidates/java/26.0.1-tem ]; then
+    echo "[poststart] Installing JDK 26 (Temurin) via SDKMAN..."
+    bash -c 'source /usr/local/sdkman/bin/sdkman-init.sh && yes n | sdk install java 26.0.1-tem' || \
+        echo "[poststart] JDK 26 설치 실패 — 빌드는 foojay resolver 자동 다운로드로 동작함"
+fi
+
 echo "[poststart] Done! PostgreSQL ready at postgres($POSTGRES_IP):5432"
