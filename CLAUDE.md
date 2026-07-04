@@ -8,6 +8,8 @@ Spring Boot 4.1 / Java 26 기반 기업 기술 블로그·유튜브 큐레이션
 > - JSON은 **Jackson 3 (`tools.jackson`)** 사용 — `com.fasterxml.jackson.databind` import 금지 (어노테이션 `com.fasterxml.jackson.annotation`은 그대로). Jackson 3는 java.time 내장, 예외는 unchecked.
 > - Hibernate 7: **native 쿼리의 timestamp 컬럼은 `LocalDateTime`으로 반환** — `java.sql.Timestamp` 캐스팅 금지.
 > - Boot 4 모듈 분리: `RestTemplateBuilder` → `org.springframework.boot.restclient` (starter-restclient), `@AutoConfigureMockMvc` → `org.springframework.boot.webmvc.test.autoconfigure` (starter-webmvc-test), `ErrorController` → `...boot.webmvc.error`, `TomcatServletWebServerFactory` → `...boot.tomcat.servlet`.
+> - Boot 4에서 Flyway 자동설정은 `org.springframework.boot:spring-boot-flyway` 모듈 필요 — `flyway-core`만 있으면 마이그레이션이 조용히 실행 안 됨.
+> - Hibernate 7 네이밍 전략: 숫자 뒤 대문자 경계에도 언더스코어 추가 (`bm25NsfWeight` → `bm25_nsf_weight`, 구버전은 `bm25nsf_weight`) — V1_28에서 컬럼명 정렬함.
 > - Security 7: `DaoAuthenticationProvider`는 생성자로 `UserDetailsService` 주입.
 > - Framework 7: `UriComponentsBuilder.fromHttpUrl` 삭제 → `fromUriString`, `HttpComponentsClientHttpRequestFactory.setConnectTimeout` 삭제 → HttpClient `ConnectionConfig`로 설정.
 > - JDK 26은 SDKMAN(`26.0.1-tem`)으로 설치, 없으면 foojay resolver가 자동 다운로드. Gradle 데몬은 시스템 JDK 17로 동작.

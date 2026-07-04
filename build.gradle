@@ -103,6 +103,8 @@ dependencies {
     implementation 'org.apache.httpcomponents.client5:httpclient5'
 
 	// DB 마이그레이션
+	// Boot 4 모듈 분리: Flyway 자동설정이 spring-boot-flyway 모듈로 이동 (없으면 마이그레이션 미실행)
+	implementation 'org.springframework.boot:spring-boot-flyway'
 	implementation 'org.flywaydb:flyway-core'
 	runtimeOnly 'org.flywaydb:flyway-database-postgresql'
 
