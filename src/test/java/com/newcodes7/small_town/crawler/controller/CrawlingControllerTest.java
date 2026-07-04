@@ -13,9 +13,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.auth.dto.JwtResponseDto;
 import com.newcodes7.small_town.auth.dto.LoginRequestDto;
@@ -56,6 +53,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 public class CrawlingControllerTest extends IntegrationTestBase {
 
@@ -179,8 +179,7 @@ public class CrawlingControllerTest extends IntegrationTestBase {
                 youtubeJsonContent = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
             }
 
-            ObjectMapper objectMapper = new ObjectMapper();
-            objectMapper.findAndRegisterModules(); // Java 8 datetime 지원
+            ObjectMapper objectMapper = new ObjectMapper(); // Jackson 3는 java.time 지원 내장
             JsonNode rootNode = objectMapper.readTree(youtubeJsonContent);
             JsonNode videosNode = rootNode.path("videos");
 

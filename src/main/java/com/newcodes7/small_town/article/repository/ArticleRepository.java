@@ -1,8 +1,8 @@
 package com.newcodes7.small_town.article.repository;
 
+import com.newcodes7.small_town.global.entity.Article;
 import java.time.LocalDateTime;
 import java.util.List;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,11 +12,9 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.newcodes7.small_town.global.entity.Article;
-
 @Repository
 public interface ArticleRepository extends JpaRepository<Article, Long> {
-    
+
     @Query("SELECT a FROM Article a " +
            "JOIN FETCH a.corporation c " +
            "WHERE a.deletedAt IS NULL " +
@@ -34,7 +32,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "LIMIT :limit",
            nativeQuery = true)
     List<Article> findLatestArticlePerCorporation(@Param("limit") int limit);
-    
+
     @Query("SELECT a FROM Article a " +
            "JOIN FETCH a.corporation c " +
            "WHERE a.deletedAt IS NULL " +
@@ -50,7 +48,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            "AND a.publishedAt >= :since " +
            "ORDER BY (COALESCE(a.viewCount, 0) * 0.6 + COALESCE(a.likeCount, 0) * 0.3) DESC, a.publishedAt DESC")
     List<Article> findWeeklyPopularArticles(@Param("since") LocalDateTime since, Pageable pageable);
-    
+
     @Query("SELECT a FROM Article a " +
            "JOIN FETCH a.corporation c " +
            "WHERE a.deletedAt IS NULL " +
@@ -136,17 +134,17 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     List<Article> findArticlesWithFiltersWithTerms(@Param("keyword") String keyword,
                                                    @Param("termBasedArticleIds") List<Long> termBasedArticleIds,
                                                    @Param("domesticTypes") List<Integer> domesticTypes,
-                                                   @Param("category") List<String> category);                       
-    
+                                                   @Param("category") List<String> category);
+
     @Modifying
     @Query("UPDATE Article a SET a.likeCount = :likeCount WHERE a.id = :articleId")
     void updateLikeCount(@Param("articleId") Long articleId, @Param("likeCount") int likeCount);
-    
+
     // 조회수 증가 (원자적 연산으로 동시성 안전)
     @Modifying(clearAutomatically = true)
     @Query("UPDATE Article a SET a.viewCount = a.viewCount + 1 WHERE a.id = :articleId")
     int incrementViewCount(@Param("articleId") Long articleId);
-    
+
     @Query("SELECT a FROM Article a " +
            "JOIN FETCH a.corporation c " +
            "LEFT JOIN FETCH a.category " +
@@ -156,7 +154,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     Page<Article> findByCorporationId(@Param("corporationId") Long corporationId, Pageable pageable);
 
     long countByCorporationIdAndDeletedAtIsNull(Long corporationId);
-    
+
     long countByDeletedAtIsNull();
 
        // 조건에 맞는 기업 수 조회 (삭제된 글 제외)
@@ -865,7 +863,7 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
      */
     @Query(value = "SELECT MAX(a.published_at) FROM article a WHERE a.deleted_at IS NULL",
            nativeQuery = true)
-    java.sql.Timestamp findLatestPublishedAt();
+    java.time.LocalDateTime findLatestPublishedAt();
 
     /**
      * Sitemap lastmod용: 기업별 최신 아티클 발행일 조회 (corporation_id, max_published_at)

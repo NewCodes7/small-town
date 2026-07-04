@@ -4,15 +4,13 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-
-import org.springframework.boot.web.client.RestTemplateBuilder;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.restclient.RestTemplateBuilder;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
-
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Hacker News Firebase API 클라이언트

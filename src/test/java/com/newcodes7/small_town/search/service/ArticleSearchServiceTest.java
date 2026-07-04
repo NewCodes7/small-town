@@ -140,8 +140,8 @@ class ArticleSearchServiceTest {
 
         // BM25 결과
         List<Object[]> bm25RawResults = List.of(
-                new Object[]{1L, 10.0, java.sql.Timestamp.valueOf(LocalDateTime.of(2024, 1, 1, 0, 0))},
-                new Object[]{2L, 5.0, java.sql.Timestamp.valueOf(LocalDateTime.of(2024, 6, 1, 0, 0))}
+                new Object[]{1L, 10.0, LocalDateTime.of(2024, 1, 1, 0, 0)},
+                new Object[]{2L, 5.0, LocalDateTime.of(2024, 6, 1, 0, 0)}
         );
         when(articleRepository.searchByBM25(bm25Query, 100)).thenReturn(bm25RawResults);
 
@@ -291,8 +291,8 @@ class ArticleSearchServiceTest {
     void searchArticlesExactMatch_vectorFails_fallbackToDateSort() {
         // given
         List<Object[]> ilikeResults = List.of(
-                new Object[]{1L, java.sql.Timestamp.valueOf(LocalDateTime.of(2024, 1, 1, 0, 0))},
-                new Object[]{2L, java.sql.Timestamp.valueOf(LocalDateTime.of(2024, 6, 1, 0, 0))}
+                new Object[]{1L, LocalDateTime.of(2024, 1, 1, 0, 0)},
+                new Object[]{2L, LocalDateTime.of(2024, 6, 1, 0, 0)}
         );
         when(articleRepository.findArticleIdsWithPublishedAtByFilters(
                 anyString(), anyList(), anyInt(), anyList(), anyInt()))
@@ -322,8 +322,8 @@ class ArticleSearchServiceTest {
     void searchArticlesExactMatch_oldestSort_orderedByDateAsc() {
         // given
         List<Object[]> ilikeResults = List.of(
-                new Object[]{1L, java.sql.Timestamp.valueOf(LocalDateTime.of(2023, 1, 1, 0, 0))},
-                new Object[]{2L, java.sql.Timestamp.valueOf(LocalDateTime.of(2024, 6, 1, 0, 0))}
+                new Object[]{1L, LocalDateTime.of(2023, 1, 1, 0, 0)},
+                new Object[]{2L, LocalDateTime.of(2024, 6, 1, 0, 0)}
         );
         when(articleRepository.findArticleIdsWithPublishedAtByFilters(
                 anyString(), anyList(), anyInt(), anyList(), anyInt()))
@@ -631,8 +631,8 @@ class ArticleSearchServiceTest {
 
         // BM25 결과
         List<Object[]> bm25RawResults = List.of(
-                new Object[]{1L, 10.0, java.sql.Timestamp.valueOf(LocalDateTime.of(2023, 1, 1, 0, 0))},
-                new Object[]{2L, 5.0, java.sql.Timestamp.valueOf(LocalDateTime.of(2024, 6, 1, 0, 0))}
+                new Object[]{1L, 10.0, LocalDateTime.of(2023, 1, 1, 0, 0)},
+                new Object[]{2L, 5.0, LocalDateTime.of(2024, 6, 1, 0, 0)}
         );
         when(articleRepository.searchByBM25(bm25Query, 100)).thenReturn(bm25RawResults);
 

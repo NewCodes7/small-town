@@ -15,7 +15,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.newcodes7.small_town.search.dto.AiSummaryCacheDto;
 import com.newcodes7.small_town.search.dto.AiSummaryChunkDto;
 import com.newcodes7.small_town.search.dto.AiSummarySourceDto;
@@ -34,6 +33,7 @@ import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import tools.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 class AiSummaryServiceTest {

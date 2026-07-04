@@ -244,8 +244,8 @@ public class ArticleSearchService {
         for (Object[] row : bm25RawResults) {
             Long articleId = ((Number) row[0]).longValue();
             Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
-            java.sql.Timestamp timestamp = row.length > 2 ? (java.sql.Timestamp) row[2] : null;
-            LocalDateTime publishedAt = timestamp != null ? timestamp.toLocalDateTime() : null;
+            // Hibernate 7부터 native 쿼리도 timestamp 컬럼을 LocalDateTime으로 반환
+            LocalDateTime publishedAt = row.length > 2 ? (LocalDateTime) row[2] : null;
 
             bm25Results.put(articleId, score);
             if (publishedAt != null) {
@@ -367,7 +367,6 @@ public class ArticleSearchService {
         for (Object[] row : idAndDateRows) {
             Long id = ((Number) row[0]).longValue();
             validArticleIds.add(id);
-            // JPQL 쿼리는 LocalDateTime 그대로 반환 (native SQL의 Timestamp와 다름)
             LocalDateTime publishedAt = row.length > 1 && row[1] != null ? (LocalDateTime) row[1] : null;
             if (publishedAt != null && !publishedAtMap.containsKey(id)) {
                 publishedAtMap.put(id, publishedAt);
@@ -478,9 +477,9 @@ public class ArticleSearchService {
         Map<Long, LocalDateTime> publishedAtMap = new HashMap<>();
         for (Object[] row : ilikeRawResults) {
             Long articleId = ((Number) row[0]).longValue();
-            java.sql.Timestamp timestamp = row.length > 1 ? (java.sql.Timestamp) row[1] : null;
-            if (timestamp != null) {
-                publishedAtMap.put(articleId, timestamp.toLocalDateTime());
+            LocalDateTime publishedAt = row.length > 1 ? (LocalDateTime) row[1] : null;
+            if (publishedAt != null) {
+                publishedAtMap.put(articleId, publishedAt);
             }
         }
 

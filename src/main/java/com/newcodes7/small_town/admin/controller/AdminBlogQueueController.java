@@ -1,7 +1,6 @@
 package com.newcodes7.small_town.admin.controller;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.newcodes7.small_town.corporation.dto.BlogAnalysisResultDto;
 import com.newcodes7.small_town.corporation.dto.BlogQueueResponseDto;
 import com.newcodes7.small_town.corporation.dto.CorporationCreateDto;
 import com.newcodes7.small_town.corporation.dto.CorporationResponseDto;
@@ -10,12 +9,15 @@ import com.newcodes7.small_town.corporation.repository.IndustryRepository;
 import com.newcodes7.small_town.corporation.service.FileUploadService;
 import com.newcodes7.small_town.crawler.entity.CorporationBlogQueue;
 import com.newcodes7.small_town.crawler.service.BlogAnalysisService;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import com.newcodes7.small_town.corporation.dto.BlogAnalysisResultDto;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,11 +28,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import tools.jackson.databind.ObjectMapper;
 
 @Controller
 @RequestMapping("/admin/blog-queue")

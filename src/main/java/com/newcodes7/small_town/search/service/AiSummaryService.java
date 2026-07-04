@@ -1,7 +1,5 @@
 package com.newcodes7.small_town.search.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.newcodes7.small_town.search.dto.AiSummaryCacheDto;
 import com.newcodes7.small_town.search.dto.AiSummaryChunkDto;
 import com.newcodes7.small_town.search.dto.AiSummaryDoneDto;
@@ -35,6 +33,8 @@ import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 @RequiredArgsConstructor

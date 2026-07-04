@@ -6,4 +6,9 @@ pluginManagement {
     }
 }
 
+// 로컬에 JDK 26이 없으면 toolchain 이 자동 다운로드하도록 (devcontainer 리빌드 대비)
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
 rootProject.name = 'small-town'

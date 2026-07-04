@@ -26,7 +26,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
-    
+
     private final CustomUserDetailsService customUserDetailsService;
     private final CustomOAuth2UserService customOAuth2UserService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -34,25 +34,24 @@ public class SecurityConfig {
     private final OAuth2AuthenticationFailureHandler oAuth2AuthenticationFailureHandler;
     private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
     private final CorsConfigurationSource corsConfigurationSource;
-    
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
-    
+
     @Bean
     public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        authProvider.setUserDetailsService(customUserDetailsService);
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(customUserDetailsService);
         authProvider.setPasswordEncoder(passwordEncoder());
         return authProvider;
     }
-    
+
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
     }
-    
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -81,28 +80,28 @@ public class SecurityConfig {
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/search/**").permitAll()
                 // 카테고리 목록 조회는 모든 사용자 허용
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/categories").permitAll()
-                
+
                 // 좋아요 관련 API - 모든 사용자 허용 (익명 사용자는 IP 기반)
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/articles/*/like").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/articles/*/like-status").permitAll()
                 // 조회수 증가 및 상태 조회는 모든 사용자 허용
                 .requestMatchers("/api/articles/*/view").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/articles/*/view-status").permitAll()
-                
+
                 // 피드백 제출은 모든 사용자 허용
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/feedback").permitAll()
-                
+
                 // 기업 정보 조회는 모든 사용자 허용
                 .requestMatchers("/corporations/**").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/corporations/**").permitAll()
-                
+
                 // ADMIN 전용 경로들
                 .requestMatchers("/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/crawling/**").hasRole("ADMIN")
                 .requestMatchers("/crawling/**").hasRole("ADMIN")
                 .requestMatchers("/actuator/**").permitAll() // NginX 단에서 미리 막아뒀고, admin 서버에서는 접근 가능해야 하기에 permitAll
-                
+
                 // 기업 등록/수정/삭제는 ADMIN만 가능
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/corporations/**").hasRole("ADMIN")
                 .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/corporations/**").hasRole("ADMIN")
@@ -124,7 +123,7 @@ public class SecurityConfig {
             )
             .authenticationProvider(authenticationProvider())
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-        
+
         return http.build();
     }
 }

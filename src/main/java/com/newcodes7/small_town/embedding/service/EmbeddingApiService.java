@@ -1,9 +1,10 @@
 package com.newcodes7.small_town.embedding.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.newcodes7.small_town.embedding.dto.ModelEmbeddingResult;
 import com.newcodes7.small_town.embedding.util.TokenCounter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,10 +14,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Naver Clova Embedding v2 서비스
@@ -37,10 +36,10 @@ public class EmbeddingApiService implements EmbeddingService {
     private static final String SEGMENTATION_API_URL = "https://clovastudio.stream.ntruss.com/v1/api-tools/segmentation";
     private static final String REQUEST_ID = "cc14b4c4fa4c4506ad8bb98372cb991a";
     private static final String REQUEST_ID_CHUNK = "654fe46f2fa54a45bab0c43fb0fb6b7b";
-    
+
     private static final String MODEL_NAME = "clova-embedding-v2";
     private static final int DIMENSION = 1024;
-    private static final double COST_PER_MILLION_TOKENS = 0.013; 
+    private static final double COST_PER_MILLION_TOKENS = 0.013;
 
     private final RestTemplate restTemplate;
     private final TokenCounter tokenCounter;

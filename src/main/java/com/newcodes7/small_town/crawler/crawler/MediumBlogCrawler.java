@@ -1,5 +1,17 @@
 package com.newcodes7.small_town.crawler.crawler;
 
+import com.newcodes7.small_town.crawler.exception.CrawlerException;
+import com.newcodes7.small_town.crawler.exception.CrawlerTimeoutException;
+import com.newcodes7.small_town.crawler.integration.storage.S3ImageService;
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.BlogType;
+import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.global.util.TimeUtil;
+import com.rometools.rome.feed.synd.SyndContent;
+import com.rometools.rome.feed.synd.SyndEntry;
+import com.rometools.rome.feed.synd.SyndFeed;
+import com.rometools.rome.io.SyndFeedInput;
+import com.rometools.rome.io.XmlReader;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URL;
@@ -13,7 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
-
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -21,35 +34,19 @@ import org.jsoup.select.Elements;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.springframework.stereotype.Component;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.newcodes7.small_town.crawler.exception.CrawlerException;
-import com.newcodes7.small_town.crawler.exception.CrawlerTimeoutException;
-import com.newcodes7.small_town.crawler.integration.storage.S3ImageService;
-import com.newcodes7.small_town.global.entity.Article;
-import com.newcodes7.small_town.global.entity.BlogType;
-import com.newcodes7.small_town.global.entity.Corporation;
-import com.newcodes7.small_town.global.util.TimeUtil;
-import com.rometools.rome.feed.synd.SyndContent;
-import com.rometools.rome.feed.synd.SyndEntry;
-import com.rometools.rome.feed.synd.SyndFeed;
-import com.rometools.rome.io.SyndFeedInput;
-import com.rometools.rome.io.XmlReader;
-
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class MediumBlogCrawler implements BlogCrawler {
-    
+
     private final Random random = new Random();
     private final S3ImageService s3ImageService;
-    
+
     private final ObjectMapper objectMapper = new ObjectMapper();
-    
+
     /**
      * URL 기반 판단 (하위 호환성 유지)
      * @deprecated canHandle(Corporation corporation)을 사용하세요
@@ -74,11 +71,11 @@ public class MediumBlogCrawler implements BlogCrawler {
     public boolean canHandle(Corporation corporation) {
         return corporation != null && corporation.getBlogType() == BlogType.MEDIUM;
     }
-    
+
     @Override
     public List<Article> crawl(WebDriver driver, Corporation corporation) throws CrawlerException {
         List<Article> articles = new ArrayList<>();
-        
+
         try {
             // Medium bot 감지 우회를 위한 추가 설정
             setupAntiDetection(driver);
@@ -93,10 +90,10 @@ public class MediumBlogCrawler implements BlogCrawler {
             log.error("Medium 크롤러 예상치 못한 오류 - 기업: {}, 오류: {}", corporation.getName(), e.getMessage(), e);
             throw new CrawlerException("CRAWLER_UNEXPECTED_ERROR", "Unexpected error in MediumBlogCrawler for corporation: " + corporation.getName(), e) {};
         }
-        
+
         return articles;
     }
-    
+
     private List<Article> crawlHtmlWithInfiniteScroll(WebDriver driver, Corporation corporation, String link) throws CrawlerException, IOException {
         List<Article> articles = new ArrayList<>();
 
@@ -374,52 +371,52 @@ public class MediumBlogCrawler implements BlogCrawler {
      */
     private void setupAntiDetection(WebDriver driver) {
         JavascriptExecutor js = (JavascriptExecutor) driver;
-        
+
         // navigator.webdriver 속성 제거
         js.executeScript("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})");
-        
+
         // Chrome 자동화 관련 속성들 제거
         js.executeScript("Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]})");
         js.executeScript("Object.defineProperty(navigator, 'languages', {get: () => ['ko-KR', 'ko', 'en-US', 'en']})");
-        
+
         // User-Agent를 더 자연스럽게 설정
         js.executeScript("Object.defineProperty(navigator, 'userAgent', {get: () => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'})");
     }
-    
+
     /**
      * 인간처럼 페이지에서 행동하는 시뮬레이션
      */
     private void simulateHumanBehavior(WebDriver driver) throws InterruptedException {
         JavascriptExecutor js = (JavascriptExecutor) driver;
-        
+
         // 페이지 로딩 대기 (2-4초)
         Thread.sleep(2000 + random.nextInt(2000));
-        
+
         // 스크롤 시뮬레이션
         for (int i = 0; i < 3; i++) {
             int scrollAmount = 200 + random.nextInt(300);
             js.executeScript("window.scrollBy(0, " + scrollAmount + ")");
             Thread.sleep(500 + random.nextInt(1000));
         }
-        
+
         // 페이지 상단으로 스크롤 백
         js.executeScript("window.scrollTo(0, 0)");
         Thread.sleep(1000 + random.nextInt(1000));
-        
+
         // 마우스 이동 시뮬레이션 (JavaScript로)
         js.executeScript(
             "document.dispatchEvent(new MouseEvent('mousemove', {" +
             "clientX: " + (100 + random.nextInt(800)) + ", " +
-            "clientY: " + (100 + random.nextInt(600)) + 
+            "clientY: " + (100 + random.nextInt(600)) +
             "}));"
         );
     }
-    
+
     @Override
     public String getProviderName() {
         return "Medium";
     }
-    
+
     @Override
     public void processImageUpload(Article article, Corporation corporation) {
         String originalImageUrl = article.getThumbnailImage();
@@ -759,9 +756,7 @@ public class MediumBlogCrawler implements BlogCrawler {
 
             // Publication 참조 찾기
             String publicationRef = null;
-            java.util.Iterator<String> publicationKeys = rootQuery.fieldNames();
-            while (publicationKeys.hasNext()) {
-                String key = publicationKeys.next();
+            for (String key : rootQuery.propertyNames()) {
                 if (key.contains("publicationByRef") || key.contains("collectionByDomainOrSlug")) {
                     JsonNode refNode = rootQuery.get(key).get("__ref");
                     if (refNode != null) {
@@ -787,9 +782,7 @@ public class MediumBlogCrawler implements BlogCrawler {
 
             // publicationPostsConnection 찾기
             JsonNode postsConnection = null;
-            java.util.Iterator<String> publicationFieldNames = publication.fieldNames();
-            while (publicationFieldNames.hasNext()) {
-                String key = publicationFieldNames.next();
+            for (String key : publication.propertyNames()) {
                 if (key.contains("publicationPostsConnection")) {
                     postsConnection = publication.get(key);
                     break;

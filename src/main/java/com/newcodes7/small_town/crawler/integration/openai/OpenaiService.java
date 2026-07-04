@@ -1,22 +1,5 @@
 package com.newcodes7.small_town.crawler.integration.openai;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
-
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.newcodes7.small_town.crawler.dto.ArticleAnalysisResponse;
 import com.newcodes7.small_town.crawler.dto.ArticleSummaryResponse;
 import com.newcodes7.small_town.crawler.dto.OpenAiRequest;
@@ -24,10 +7,22 @@ import com.newcodes7.small_town.crawler.dto.OpenAiResponse;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.ArticleSummary;
 import com.newcodes7.small_town.global.entity.Video;
-
-import org.springframework.beans.factory.annotation.Qualifier;
-
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 @Slf4j
@@ -120,11 +115,11 @@ public class OpenaiService {
         HttpHeaders headers = new HttpHeaders();
         headers.set("Authorization", "Bearer " + openaiApiKey);
         headers.set("Content-Type", "application/json");
-        
+
         ObjectMapper mapper = new ObjectMapper();
 
         Object textObject = mapper.readValue(
-            getClass().getResourceAsStream("/articleAnalysisExtraction.txt"), 
+            getClass().getResourceAsStream("/articleAnalysisExtraction.txt"),
             Object.class
         );
 
@@ -167,7 +162,7 @@ public class OpenaiService {
             for (JsonNode node : summaryNode.get("contents")) {
                 contents.add(node.asText());
             }
-            
+
             summaries.add(ArticleSummary.builder().article(article).contentType("h3").content(h3).build());
             for (int i = 0; i < contents.size(); i++) {
                 summaries.add(ArticleSummary.builder().article(article).contentType("li").content(contents.get(i)).build());

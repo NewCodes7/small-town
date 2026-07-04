@@ -2,15 +2,14 @@ package com.newcodes7.small_town.term.service;
 
 import com.newcodes7.small_town.term.dto.StackExchangeResponseDto;
 import com.newcodes7.small_town.term.dto.StackExchangeTagDto;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Stack Exchange API 연동 서비스
@@ -60,7 +59,7 @@ public class StackExchangeApiService {
             while (remainingCount > 0) {
                 int currentPageSize = Math.min(remainingCount + (isFirstPage ? skipInFirstPage : 0), 100);
 
-                String url = UriComponentsBuilder.fromHttpUrl(API_BASE_URL + "/tags")
+                String url = UriComponentsBuilder.fromUriString(API_BASE_URL + "/tags")
                         .queryParam("page", page)
                         .queryParam("pagesize", currentPageSize)
                         .queryParam("order", "desc")

@@ -1,25 +1,21 @@
 package com.newcodes7.small_town.global.controller;
 
+import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
+import com.newcodes7.small_town.global.entity.Corporation;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.corporation.repository.CorporationRepository;
-import com.newcodes7.small_town.global.entity.Corporation;
-
-import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequiredArgsConstructor
@@ -40,14 +36,14 @@ public class SitemapController {
         xml.append("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
 
         // 최신 아티클 발행일 조회 (정적 페이지 lastmod용)
-        Timestamp latestTs = articleRepository.findLatestPublishedAt();
-        String latestDate = latestTs != null ? latestTs.toLocalDateTime().format(DATE_FORMATTER) : null;
+        LocalDateTime latest = articleRepository.findLatestPublishedAt();
+        String latestDate = latest != null ? latest.format(DATE_FORMATTER) : null;
 
         // 기업별 최신 아티클 발행일 맵 생성
         Map<Long, String> corpLatestDate = new HashMap<>();
         for (Object[] row : articleRepository.findLatestPublishedAtByCorporation()) {
             Long corpId = ((Number) row[0]).longValue();
-            String date = row[1] != null ? ((Timestamp) row[1]).toLocalDateTime().format(DATE_FORMATTER) : null;
+            String date = row[1] != null ? ((LocalDateTime) row[1]).format(DATE_FORMATTER) : null;
             corpLatestDate.put(corpId, date);
         }
 
@@ -71,7 +67,7 @@ public class SitemapController {
             String title = (String) row[1];
             String translatedTitle = (String) row[2];
             LocalDateTime publishedAt = row[3] != null
-                ? ((Timestamp) row[3]).toLocalDateTime()
+                ? (LocalDateTime) row[3]
                 : null;
 
             String slug = generateSlug(title, translatedTitle);
