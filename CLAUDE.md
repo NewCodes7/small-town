@@ -2,7 +2,15 @@
 
 ## What This Project Is
 
-Spring Boot 3.5 / Java 17 기반 기업 기술 블로그·유튜브 큐레이션 서비스.
+Spring Boot 4.1 / Java 26 기반 기업 기술 블로그·유튜브 큐레이션 서비스.
+
+> **Boot 4 / JDK 26 마이그레이션 주의** (2026-07 업그레이드):
+> - JSON은 **Jackson 3 (`tools.jackson`)** 사용 — `com.fasterxml.jackson.databind` import 금지 (어노테이션 `com.fasterxml.jackson.annotation`은 그대로). Jackson 3는 java.time 내장, 예외는 unchecked.
+> - Hibernate 7: **native 쿼리의 timestamp 컬럼은 `LocalDateTime`으로 반환** — `java.sql.Timestamp` 캐스팅 금지.
+> - Boot 4 모듈 분리: `RestTemplateBuilder` → `org.springframework.boot.restclient` (starter-restclient), `@AutoConfigureMockMvc` → `org.springframework.boot.webmvc.test.autoconfigure` (starter-webmvc-test), `ErrorController` → `...boot.webmvc.error`, `TomcatServletWebServerFactory` → `...boot.tomcat.servlet`.
+> - Security 7: `DaoAuthenticationProvider`는 생성자로 `UserDetailsService` 주입.
+> - Framework 7: `UriComponentsBuilder.fromHttpUrl` 삭제 → `fromUriString`, `HttpComponentsClientHttpRequestFactory.setConnectTimeout` 삭제 → HttpClient `ConnectionConfig`로 설정.
+> - JDK 26은 SDKMAN(`26.0.1-tem`)으로 설치, 없으면 foojay resolver가 자동 다운로드. Gradle 데몬은 시스템 JDK 17로 동작.
 
 **데이터 흐름**: 크롤링 → 형태소 분석(Lucene Nori) → BM25 인덱싱 + 벡터 임베딩(Clova) → 하이브리드 검색(BM25 + Vector, NSF 리랭킹) → AI 요약(Gemini, SSE 스트리밍)
 
@@ -295,7 +303,7 @@ public class ExampleServiceTest { ... }
 
 ## Key Dependencies
 
-- Spring Boot 3.5.0, Java 17
+- Spring Boot 4.1.0, Java 26 (Jackson 3 `tools.jackson`, Hibernate 7, Security 7)
 - PostgreSQL 42.7.3, pgvector 0.1.4, ParadeDB(pg_search)
 - Lucene Nori 9.12.3 (한국어 형태소), Lucene Core 9.12.3
 - Selenium 4.41.0 + WebDriverManager 6.3.3
