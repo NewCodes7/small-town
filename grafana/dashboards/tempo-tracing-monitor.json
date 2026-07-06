@@ -1,0 +1,307 @@
+{
+  "__requires": [
+    { "type": "datasource", "id": "tempo",      "name": "Tempo",      "version": "1.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" },
+    { "type": "panel",      "id": "traces",     "name": "Traces",     "version": "" },
+    { "type": "panel",      "id": "timeseries", "name": "Time series","version": "" }
+  ],
+
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+
+  "description": "OpenTelemetry/Tempo 분산 트레이싱 — small-town 검색/AI요약 경로 (@Observed 계측 구간)",
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "All Log Monitor",
+      "tooltip": "전체 로그 대시보드",
+      "type": "link",
+      "url": "/d/small-town-all-logs"
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 30,
+  "style": "dark",
+  "tags": ["tempo", "tracing", "small-town"],
+
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": true, "text": "small-town", "value": "small-town" },
+        "hide": 0,
+        "label": "Service",
+        "name": "service",
+        "options": [{ "selected": true, "text": "small-town", "value": "small-town" }],
+        "query": "small-town",
+        "skipUrlSync": false,
+        "type": "textbox"
+      },
+      {
+        "current": { "selected": true, "text": "500ms", "value": "500ms" },
+        "hide": 0,
+        "label": "느린 트레이스 기준",
+        "name": "slow_threshold",
+        "options": [
+          { "selected": false, "text": "200ms", "value": "200ms" },
+          { "selected": true,  "text": "500ms", "value": "500ms" },
+          { "selected": false, "text": "1s",    "value": "1s" },
+          { "selected": false, "text": "3s",    "value": "3s" }
+        ],
+        "query": "200ms,500ms,1s,3s",
+        "skipUrlSync": false,
+        "type": "custom"
+      }
+    ]
+  },
+
+  "time": { "from": "now-3h", "to": "now" },
+  "timepicker": {},
+  "timezone": "Asia/Seoul",
+  "title": "Small Town — Tracing (Tempo)",
+  "uid": "small-town-tempo-tracing",
+  "version": 1,
+
+  "panels": [
+
+    {
+      "id": 1,
+      "type": "traces",
+      "title": "최근 트레이스 (전체)",
+      "description": "선택된 기간 내 서비스($service)의 전체 트레이스. 클릭하면 워터폴(span 구간별 소요시간) 상세 확인 가능.",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "options": {},
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceql",
+          "query": "{resource.service.name=\"$service\"}",
+          "limit": 50,
+          "tableType": "traces",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 2,
+      "type": "traces",
+      "title": "느린 트레이스 ($slow_threshold 초과)",
+      "description": "duration이 임계값을 넘는 트레이스만 필터링. 상단 변수로 임계값 조정.",
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 10 },
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "options": {},
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceql",
+          "query": "{resource.service.name=\"$service\" && duration>$slow_threshold}",
+          "limit": 50,
+          "tableType": "traces",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 3,
+      "type": "traces",
+      "title": "에러 트레이스",
+      "description": "status=error span이 포함된 트레이스. 예외 발생 구간 즉시 확인용.",
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 10 },
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "options": {},
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceql",
+          "query": "{resource.service.name=\"$service\" && status=error}",
+          "limit": 50,
+          "tableType": "traces",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 4,
+      "type": "traces",
+      "title": "AI 요약 (ai-summary-stream)",
+      "description": "AiSummaryService.streamAiSummary — Gemini SSE 스트리밍 구간 (@Observed name=ai-summary)",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "options": {},
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceql",
+          "query": "{name=\"ai-summary-stream\"}",
+          "limit": 30,
+          "tableType": "traces",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 5,
+      "type": "traces",
+      "title": "벡터 검색 (search.vector)",
+      "description": "VectorSearchService — Clova 임베딩 기반 halfvec 검색 구간 (필터/비필터 모두 포함)",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 20 },
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "options": {},
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceql",
+          "query": "{name=~\"vector-search.*\"}",
+          "limit": 30,
+          "tableType": "traces",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 6,
+      "type": "traces",
+      "title": "BM25 검색 (search.bm25)",
+      "description": "ArticleSearchService — article_analyzed_content 기반 BM25 검색 구간 (private 메서드, 수동 Observation)",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 29 },
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "options": {},
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceql",
+          "query": "{name=\"bm25-search\"}",
+          "limit": 30,
+          "tableType": "traces",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 7,
+      "type": "traces",
+      "title": "NSF 융합 (search.nsf)",
+      "description": "HybridSearchScorer.calculateNSFScores — BM25/Vector 정규화 가중합 구간",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 29 },
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "options": {},
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceql",
+          "query": "{name=~\"nsf-fusion.*\"}",
+          "limit": 30,
+          "tableType": "traces",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "AI 요약 지연시간 추이 (p50/p95/p99)",
+      "description": "AiSummaryService의 ai_summary_latency_seconds Timer(percentile histogram) 기반. 트레이스 워터폴만으로는 추세를 보기 어려우므로 Prometheus 메트릭으로 시계열 집계.",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 38 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": { "mode": "multi" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "지연시간",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": { "group": "A", "mode": "none" }
+          },
+          "unit": "s",
+          "min": 0,
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "p99" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "p95" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "p50" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#73BF69" } }]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(ai_summary_latency_seconds_bucket[$__rate_interval])))",
+          "hide": false,
+          "instant": false,
+          "range": true,
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(ai_summary_latency_seconds_bucket[$__rate_interval])))",
+          "hide": false,
+          "instant": false,
+          "range": true,
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(ai_summary_latency_seconds_bucket[$__rate_interval])))",
+          "hide": false,
+          "instant": false,
+          "range": true,
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ]
+    }
+
+  ]
+}
