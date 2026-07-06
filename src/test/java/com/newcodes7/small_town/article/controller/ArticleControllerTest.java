@@ -28,6 +28,8 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.data.domain.Page;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -52,6 +54,9 @@ public class ArticleControllerTest extends IntegrationTestBase {
     @Autowired
     private EntityManager entityManager;
 
+    @Autowired
+    private CacheManager cacheManager;
+
     private static final int CORPORATION_TOTAL_COUNT = 40;
     private static final int ARTICLE_TOTAL_COUNT = 160;
     private static final int GROUP_ARTILCE_COUNT = 3;
@@ -68,6 +73,14 @@ public class ArticleControllerTest extends IntegrationTestBase {
         corporationRepository.deleteAll();
         articleRepository.deleteAll();
         ArticleCreator.resetArticleIdCounter();
+        // 다른 테스트 클래스(예: ArticleControllerCacheTest)가 남긴 corporationArticles 캐시가
+        // 같은 파라미터 키로 남아있으면 이 테스트가 방금 만든 데이터 대신 그 결과를 반환받는다.
+        cacheManager.getCacheNames().forEach(cacheName -> {
+            Cache cache = cacheManager.getCache(cacheName);
+            if (cache != null) {
+                cache.clear();
+            }
+        });
 
         corporations = new ArrayList<>();
         corporationArticles = new LinkedHashMap<>();
