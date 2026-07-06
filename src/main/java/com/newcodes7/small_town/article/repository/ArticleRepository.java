@@ -52,6 +52,13 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     @Query("SELECT a FROM Article a " +
            "JOIN FETCH a.corporation c " +
            "WHERE a.deletedAt IS NULL " +
+           "AND a.publishedAt >= :since " +
+           "ORDER BY (COALESCE(a.viewCount, 0) * 0.6 + COALESCE(a.likeCount, 0) * 0.3) DESC, a.publishedAt DESC")
+    List<Article> findMonthlyPopularArticles(@Param("since") LocalDateTime since, Pageable pageable);
+
+    @Query("SELECT a FROM Article a " +
+           "JOIN FETCH a.corporation c " +
+           "WHERE a.deletedAt IS NULL " +
            "AND (LOWER(a.title) LIKE :keyword OR LOWER(a.translatedTitle) LIKE :keyword) " +
            "ORDER BY a.publishedAt DESC, a.createdAt DESC")
     Page<Article> findArticlesByTitleContaining(@Param("keyword") String keyword, Pageable pageable);

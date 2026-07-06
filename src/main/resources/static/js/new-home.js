@@ -117,6 +117,186 @@ function slideHn(direction) {
     if (nextBtn) nextBtn.disabled = (hnCurrentPage >= maxPage);
 }
 
+// 인기글 기간(주간/월간) 토글
+let currentPopularPeriod = 'weekly';
+let initialPopularTrackHtml = null;
+const popularArticlesCache = {};
+
+function buildPopularCardElement(article, rank) {
+    const card = document.createElement('div');
+    card.className = 'popular-card';
+    card.setAttribute('data-detail-url', article.detailUrl || '');
+    card.setAttribute('data-article-id', article.id);
+    card.setAttribute('data-source', 'POPULAR_HOME');
+
+    const rankSpan = document.createElement('span');
+    rankSpan.className = 'popular-rank' + (rank < 3 ? ' top-rank' : '');
+    rankSpan.textContent = String(rank + 1);
+    card.appendChild(rankSpan);
+
+    if (article.thumbnailImage) {
+        const thumbDiv = document.createElement('div');
+        thumbDiv.className = 'popular-card-thumbnail';
+        const img = document.createElement('img');
+        img.src = article.thumbnailImage;
+        img.alt = '';
+        img.loading = 'lazy';
+        img.className = 'popular-card-thumbnail-image';
+        img.setAttribute('onerror', 'handleThumbnailError(this)');
+        thumbDiv.appendChild(img);
+        card.appendChild(thumbDiv);
+    } else {
+        const thumbDiv = document.createElement('div');
+        thumbDiv.className = 'popular-card-thumbnail default-thumbnail';
+        thumbDiv.innerHTML = '<div class="default-thumbnail-content"><i class="fas fa-code"></i><div class="thumbnail-pattern"></div></div>';
+        card.appendChild(thumbDiv);
+    }
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'popular-card-content';
+
+    const companyDiv = document.createElement('div');
+    companyDiv.className = 'popular-card-company';
+    const companyLink = document.createElement('a');
+    companyLink.className = 'popular-card-company-link';
+    companyLink.href = `/corporations/${article.corporation.id}`;
+    if (article.corporation.effectiveLogoUrl) {
+        const logoImg = document.createElement('img');
+        logoImg.src = article.corporation.effectiveLogoUrl;
+        logoImg.alt = article.corporation.name;
+        logoImg.loading = 'lazy';
+        logoImg.className = 'popular-card-company-logo';
+        companyLink.appendChild(logoImg);
+    }
+    const companyName = document.createElement('span');
+    companyName.className = 'popular-card-company-name';
+    companyName.textContent = article.corporation.name;
+    companyLink.appendChild(companyName);
+    companyDiv.appendChild(companyLink);
+    contentDiv.appendChild(companyDiv);
+
+    const titleH3 = document.createElement('h3');
+    titleH3.className = 'popular-card-title';
+    const titleLink = document.createElement('a');
+    titleLink.className = 'popular-card-title-link';
+    titleLink.href = article.link;
+    titleLink.target = '_blank';
+    titleLink.rel = 'noopener noreferrer';
+    titleLink.textContent = article.translatedTitle || article.title;
+    titleLink.addEventListener('click', (e) => e.stopPropagation());
+    titleH3.appendChild(titleLink);
+    contentDiv.appendChild(titleH3);
+
+    const metaDiv = document.createElement('div');
+    metaDiv.className = 'popular-card-meta';
+
+    const dateSpan = document.createElement('span');
+    dateSpan.className = 'popular-card-date';
+    dateSpan.innerHTML = '<i class="far fa-clock"></i>';
+    const relativeTimeSpan = document.createElement('span');
+    relativeTimeSpan.className = 'relative-time';
+    relativeTimeSpan.setAttribute('data-date', article.publishedAt);
+    relativeTimeSpan.textContent = article.publishedAt;
+    dateSpan.appendChild(relativeTimeSpan);
+    metaDiv.appendChild(dateSpan);
+
+    const likeButton = document.createElement('button');
+    likeButton.className = 'like-button';
+    likeButton.setAttribute('data-article-id', article.id);
+    likeButton.setAttribute('data-liked', article.isLiked === true);
+    likeButton.innerHTML = '<i class="far fa-heart like-icon"></i><span class="like-count"></span>';
+    likeButton.querySelector('.like-count').textContent = article.likeCount;
+    likeButton.addEventListener('click', function(e) {
+        e.stopPropagation();
+        toggleArticleLike(likeButton, e);
+    });
+    metaDiv.appendChild(likeButton);
+
+    contentDiv.appendChild(metaDiv);
+    card.appendChild(contentDiv);
+
+    return card;
+}
+
+function applyRelativeTimes(scope) {
+    scope.querySelectorAll('.relative-time').forEach(element => {
+        const dateString = element.getAttribute('data-date');
+        if (dateString) {
+            element.textContent = getRelativeTime(dateString);
+            element.title = formatDate(dateString);
+        }
+    });
+}
+
+function renderPopularTrack(articles) {
+    const track = document.querySelector('.popular-track');
+    if (!track) return;
+
+    track.innerHTML = '';
+
+    if (!articles || articles.length === 0) {
+        const emptyMessage = document.createElement('p');
+        emptyMessage.className = 'popular-empty-message';
+        emptyMessage.textContent = '인기글이 없습니다.';
+        track.appendChild(emptyMessage);
+    } else {
+        articles.forEach((article, index) => {
+            track.appendChild(buildPopularCardElement(article, index));
+        });
+    }
+
+    popularCurrentPage = 0;
+    track.style.transform = 'translateX(0)';
+    slidePopular(0);
+    applyRelativeTimes(track);
+    loadLikeStatus();
+}
+
+async function loadPopularArticles(period) {
+    if (popularArticlesCache[period]) {
+        renderPopularTrack(popularArticlesCache[period]);
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/articles/popular?period=${period}&limit=8`);
+        if (!response.ok) return;
+        const articles = await response.json();
+        popularArticlesCache[period] = articles;
+        renderPopularTrack(articles);
+    } catch (error) {
+        console.error('인기글 조회 실패:', error);
+    }
+}
+
+function switchPopularPeriod(period) {
+    if (currentPopularPeriod === period) return;
+    currentPopularPeriod = period;
+
+    const weeklyBtn = document.getElementById('popularWeeklyBtn');
+    const monthlyBtn = document.getElementById('popularMonthlyBtn');
+    const titleText = document.getElementById('popularSectionTitleText');
+    if (weeklyBtn) weeklyBtn.classList.toggle('active', period === 'weekly');
+    if (monthlyBtn) monthlyBtn.classList.toggle('active', period === 'monthly');
+    if (titleText) titleText.textContent = period === 'monthly' ? '이번 달 인기글' : '이번 주 인기글';
+
+    // 최초 서버 렌더링된 주간 카드가 아직 있다면 재요청 없이 복원
+    if (period === 'weekly' && !popularArticlesCache.weekly && initialPopularTrackHtml !== null) {
+        const track = document.querySelector('.popular-track');
+        if (track) {
+            track.innerHTML = initialPopularTrackHtml;
+            popularCurrentPage = 0;
+            track.style.transform = 'translateX(0)';
+            slidePopular(0);
+            applyRelativeTimes(track);
+            loadLikeStatus();
+        }
+        return;
+    }
+
+    loadPopularArticles(period);
+}
+
 // Reset carousel on window resize
 window.addEventListener('resize', function() {
     popularCurrentPage = 0;
@@ -551,6 +731,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const popularTrack = document.querySelector('.popular-track');
     if (popularTrack) {
+        initialPopularTrackHtml = popularTrack.innerHTML;
         popularTrack.addEventListener('click', function(e) {
             if (e.target.closest('.popular-card-company-link')) return;
             const card = e.target.closest('.popular-card');
@@ -562,6 +743,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     slidePopular(0);
 
+    // 인기글 주간/월간 토글
+    const popularWeeklyBtn = document.getElementById('popularWeeklyBtn');
+    const popularMonthlyBtn = document.getElementById('popularMonthlyBtn');
+    if (popularWeeklyBtn) popularWeeklyBtn.addEventListener('click', function() { switchPopularPeriod('weekly'); });
+    if (popularMonthlyBtn) popularMonthlyBtn.addEventListener('click', function() { switchPopularPeriod('monthly'); });
+
     // HN 인기글 캐러셀 초기화
     const hnPrevBtn = document.querySelector('.hn-prev');
     const hnNextBtn = document.querySelector('.hn-next');
@@ -570,15 +757,7 @@ document.addEventListener('DOMContentLoaded', function() {
     slideHn(0);
 
     // 상대 시간 표시
-    document.querySelectorAll('.relative-time').forEach(element => {
-        const dateString = element.getAttribute('data-date');
-        if (dateString) {
-            // 상대 시간 표시
-            element.textContent = getRelativeTime(dateString);
-            // 툴팁에 포맷된 날짜 표시
-            element.title = formatDate(dateString);
-        }
-    });
+    applyRelativeTimes(document);
 
     // 좋아요 상태 로드 + OAuth 로그인 후 localStorage 마이그레이션
     loadLikeStatus();

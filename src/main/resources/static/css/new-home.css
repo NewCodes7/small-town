@@ -1105,6 +1105,17 @@
             background: #ef4444 !important;
         }
 
+        .popular-period-toggle {
+            flex-shrink: 0;
+        }
+
+        .popular-empty-message {
+            width: 100%;
+            padding: 40px 0;
+            text-align: center;
+            color: var(--text-light, #6b7280);
+        }
+
         .popular-carousel-wrapper {
             display: flex;
             align-items: stretch;

@@ -1,33 +1,20 @@
 package com.newcodes7.small_town.article.service;
 
-import com.newcodes7.small_town.like.service.UserLikeService;
-
-import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.corporation.repository.CorporationRepository;
-import com.newcodes7.small_town.search.service.ArticleSearchService;
-import com.newcodes7.small_town.global.entity.Article;
-import com.newcodes7.small_town.global.entity.Corporation;
-
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.dto.ArticleResponseDto;
-import com.newcodes7.small_town.corporation.dto.CorporationDetailDto;
-import com.newcodes7.small_town.corporation.dto.CorporationDto;
 import com.newcodes7.small_town.article.dto.GroupedArticlesDto;
+import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
 import com.newcodes7.small_town.article.exception.CorporationNotFoundException;
 import com.newcodes7.small_town.article.exception.InvalidParameterException;
-import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
-
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.cache.annotation.Caching;
-import org.springframework.data.domain.Page;
+import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.corporation.dto.CorporationDetailDto;
+import com.newcodes7.small_town.corporation.dto.CorporationDto;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
 import com.newcodes7.small_town.global.annotation.CachePreload;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.like.service.UserLikeService;
+import com.newcodes7.small_town.search.service.ArticleSearchService;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -35,8 +22,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional(readOnly = true)
@@ -192,7 +187,7 @@ public class ArticleService {
             totalCorporations
         );
     }
-    
+
     // 인기글 배너용으로 쓰이고 있음
     public Page<ArticleListResponseDto> getArticleList(int page, int size, String sort) {
         if (page < 0) {
@@ -201,16 +196,16 @@ public class ArticleService {
         if (size <= 0 || size > 100) {
             throw new InvalidParameterException("size", size, "사이즈는 1-100 사이여야 합니다");
         }
-        
+
         Pageable pageable = PageRequest.of(page, size);
         Page<Article> articles;
-        
+
         if ("popular".equals(sort)) {
             articles = articleRepository.findPopularArticlesWithDetails(pageable);
         } else {
             articles = articleRepository.findAllActiveArticlesWithDetails(pageable);
         }
-        
+
         return articles.map(ArticleListResponseDto::new);
     }
 
@@ -230,19 +225,34 @@ public class ArticleService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 이번 달 인기글 조회 (최근 30일 발행 기준, 인기도 순)
+     */
+    @Cacheable(value = "monthlyPopularArticles", key = "#limit")
+    public List<ArticleListResponseDto> getMonthlyPopularArticles(int limit) {
+        if (limit <= 0 || limit > 100) {
+            throw new InvalidParameterException("limit", limit, "limit은 1-100 사이여야 합니다");
+        }
+        LocalDateTime since = LocalDateTime.now().minusDays(30);
+        List<Article> articles = articleRepository.findMonthlyPopularArticles(since, PageRequest.of(0, limit));
+        return articles.stream()
+                .map(ArticleListResponseDto::new)
+                .collect(Collectors.toList());
+    }
+
     public CorporationDetailDto getCorporationDetail(Long corporationId) {
         if (corporationId == null || corporationId <= 0) {
             throw new InvalidParameterException("corporationId", corporationId);
         }
-        
+
         Corporation corporation = corporationRepository.findActiveById(corporationId)
             .orElseThrow(() -> new CorporationNotFoundException(corporationId));
-        
+
         long articleCount = articleRepository.countByCorporationIdAndDeletedAtIsNull(corporationId);
-        
+
         return new CorporationDetailDto(corporation, articleCount);
     }
-    
+
     public Page<ArticleListResponseDto> getArticlesByCorporation(Long corporationId, int page, int size) {
         // page/size가 음수로 들어오면 PageRequest.of가 IllegalArgumentException을 던지므로 방어
         int safePage = Math.max(page, 0);
@@ -253,7 +263,7 @@ public class ArticleService {
         // 좋아요 상태는 별도 API로 조회하므로 null로 설정
         return articles.map(article -> new ArticleListResponseDto(article));
     }
-    
+
     public long getTotalArticleCount() {
         return articleRepository.countByDeletedAtIsNull();
     }

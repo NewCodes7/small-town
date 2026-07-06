@@ -1,7 +1,5 @@
 package com.newcodes7.small_town.article.service;
 
-import com.newcodes7.small_town.like.service.UserLikeService;
-
 import static org.assertj.core.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -10,15 +8,25 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
+import com.newcodes7.small_town.article.dto.ArticleResponseDto;
+import com.newcodes7.small_town.article.dto.GroupedArticlesDto;
+import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
+import com.newcodes7.small_town.article.exception.CorporationNotFoundException;
+import com.newcodes7.small_town.article.exception.InvalidParameterException;
+import com.newcodes7.small_town.article.repository.ArticleRepository;
+import com.newcodes7.small_town.corporation.dto.CorporationDetailDto;
+import com.newcodes7.small_town.corporation.dto.CorporationDto;
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.like.service.UserLikeService;
+import com.newcodes7.small_town.utils.ArticleCreator;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,19 +38,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-
-import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
-import com.newcodes7.small_town.article.dto.ArticleResponseDto;
-import com.newcodes7.small_town.corporation.dto.CorporationDetailDto;
-import com.newcodes7.small_town.corporation.dto.CorporationDto;
-import com.newcodes7.small_town.article.dto.GroupedArticlesDto;
-import com.newcodes7.small_town.article.exception.ArticleNotFoundException;
-import com.newcodes7.small_town.article.exception.CorporationNotFoundException;
-import com.newcodes7.small_town.article.exception.InvalidParameterException;
-import com.newcodes7.small_town.article.repository.ArticleRepository;
-import com.newcodes7.small_town.global.entity.Article;
-import com.newcodes7.small_town.global.entity.Corporation;
-import com.newcodes7.small_town.utils.ArticleCreator;
 
 @ExtendWith(MockitoExtension.class)
 public class ArticleServiceTest {
@@ -73,7 +68,7 @@ public class ArticleServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         Page<Article> articles = new PageImpl<>(articlesList, pageable, articlesList.size());
         when(articleRepository.findArticlesWithFiltersWithoutTerms(null, null, null, null, pageable)).thenReturn(articles);
-        
+
         //when
         Page<ArticleResponseDto> result = articleService.getArticlesWithFilters(null, null, 0, 10, null, view, null);
 
@@ -296,6 +291,40 @@ public class ArticleServiceTest {
         assertThrows(InvalidParameterException.class, () -> articleService.getWeeklyPopularArticles(0));
         assertThrows(InvalidParameterException.class, () -> articleService.getWeeklyPopularArticles(-1));
         assertThrows(InvalidParameterException.class, () -> articleService.getWeeklyPopularArticles(101));
+    }
+
+    @Test
+    public void 이번달_인기글_조회() {
+        //given
+        List<Article> articlesList = ArticleCreator.createArticlesWithId(List.of(1L, 2L, 3L));
+        when(articleRepository.findMonthlyPopularArticles(any(LocalDateTime.class), any(Pageable.class)))
+                .thenReturn(articlesList);
+
+        //when
+        List<ArticleListResponseDto> result = articleService.getMonthlyPopularArticles(8);
+
+        //then
+        assertEquals(3, result.size());
+        assertEquals(articlesList.get(0).getId(), result.get(0).getId());
+        assertEquals(articlesList.get(1).getId(), result.get(1).getId());
+        assertEquals(articlesList.get(2).getId(), result.get(2).getId());
+
+        ArgumentCaptor<LocalDateTime> sinceCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(articleRepository).findMonthlyPopularArticles(sinceCaptor.capture(), pageableCaptor.capture());
+
+        LocalDateTime capturedSince = sinceCaptor.getValue();
+        LocalDateTime expectedSince = LocalDateTime.now().minusDays(30);
+        assertEquals(expectedSince.getDayOfYear(), capturedSince.getDayOfYear());
+        assertEquals(8, pageableCaptor.getValue().getPageSize());
+    }
+
+    @Test
+    public void 이번달_인기글_조회_잘못된_limit() {
+        //given & when & then
+        assertThrows(InvalidParameterException.class, () -> articleService.getMonthlyPopularArticles(0));
+        assertThrows(InvalidParameterException.class, () -> articleService.getMonthlyPopularArticles(-1));
+        assertThrows(InvalidParameterException.class, () -> articleService.getMonthlyPopularArticles(101));
     }
 
     // ===================== 추가 테스트 =====================

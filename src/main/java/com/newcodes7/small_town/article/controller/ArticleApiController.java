@@ -3,6 +3,7 @@ package com.newcodes7.small_town.article.controller;
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.dto.ArticleResponseDto;
 import com.newcodes7.small_town.article.dto.MigrationResultDto;
+import com.newcodes7.small_town.article.exception.InvalidParameterException;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.service.ArticleService;
 import com.newcodes7.small_town.global.entity.Article;
@@ -114,6 +115,27 @@ public class ArticleApiController {
             userLikeService.migrateLikesFromLocalStorage(userDetails.getUsername(), articleIds);
 
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * API: 인기글 조회 (주간/월간)
+     */
+    @GetMapping("/api/articles/popular")
+    @ResponseBody
+    public ResponseEntity<List<ArticleListResponseDto>> getPopularArticles(
+            @RequestParam(name = "period", defaultValue = "weekly") String period,
+            @RequestParam(name = "limit", defaultValue = "8") int limit) {
+
+        List<ArticleListResponseDto> articles;
+        if ("monthly".equals(period)) {
+            articles = articleService.getMonthlyPopularArticles(limit);
+        } else if ("weekly".equals(period)) {
+            articles = articleService.getWeeklyPopularArticles(limit);
+        } else {
+            throw new InvalidParameterException("period", period, "period는 weekly 또는 monthly여야 합니다");
+        }
+
+        return ResponseEntity.ok(articles);
     }
 
     /**
