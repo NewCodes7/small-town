@@ -29,9 +29,14 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
            ") " +
            "SELECT * FROM latest_per_corp " +
            "ORDER BY published_at DESC NULLS LAST, created_at DESC NULLS LAST " +
-           "LIMIT :limit",
+           "LIMIT :limit OFFSET :offset",
            nativeQuery = true)
-    List<Article> findLatestArticlePerCorporation(@Param("limit") int limit);
+    List<Article> findLatestArticlePerCorporation(@Param("limit") int limit, @Param("offset") int offset);
+
+    // 글이 있는 기업 수 (홈 화면 "최신 기술 블로그" 페이지네이션의 다음 버튼 판단 기준)
+    @Query(value = "SELECT COUNT(DISTINCT a.corporation_id) FROM article a WHERE a.deleted_at IS NULL",
+           nativeQuery = true)
+    long countDistinctCorporationsWithArticles();
 
     @Query("SELECT a FROM Article a " +
            "JOIN FETCH a.corporation c " +

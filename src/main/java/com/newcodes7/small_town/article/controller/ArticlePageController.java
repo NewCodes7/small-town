@@ -317,7 +317,8 @@ public class ArticlePageController {
     @GetMapping({"", "/"})
     public String newHome(Model model, @AuthenticationPrincipal UserDetails userDetails, HttpServletRequest request) {
         // 기업별 최신 글 1개씩, 최대 8개 (DB 레벨 DISTINCT ON으로 버퍼 크기 무관하게 항상 8개 보장)
-        List<ArticleListResponseDto> latestArticles = articleService.getHomeLatestArticles(8);
+        List<ArticleListResponseDto> latestArticles = articleService.getHomeLatestArticles(8, 0);
+        long articleCorporationCount = articleService.getArticleCorporationCount();
 
         // 회사 목록 가져오기 (로고용)
         Page<CorporationResponseDto> corporations = corporationService.getCorporationsWithFilters(
@@ -340,6 +341,7 @@ public class ArticlePageController {
         List<ArticleListResponseDto> popularArticles = articleService.getWeeklyPopularArticles(8);
 
         model.addAttribute("articles", latestArticles);
+        model.addAttribute("hasMoreLatestArticles", articleCorporationCount > 8);
         model.addAttribute("corporations", corporationsWithLogos);
         model.addAttribute("totalElements", totalElements);
         model.addAttribute("themes", themes);

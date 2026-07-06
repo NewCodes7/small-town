@@ -222,6 +222,136 @@ async function loadPopularArticles(period) {
     }
 }
 
+// 최신 기술 블로그 페이지네이션 (이전/다음 화살표)
+let blogArticlesOffset = 0;
+const BLOG_PAGE_SIZE = 8;
+
+function buildBlogCardElement(article) {
+    const card = document.createElement('div');
+    card.className = 'blog-card';
+    card.setAttribute('data-detail-url', article.detailUrl || '');
+    card.setAttribute('data-link', article.link || '');
+    card.setAttribute('data-article-id', article.id);
+    card.setAttribute('data-source', 'LATEST_HOME');
+    card.style.cursor = 'pointer';
+    card.addEventListener('click', function() {
+        const url = card.getAttribute('data-detail-url');
+        if (url) window.location.href = url;
+    });
+
+    if (article.thumbnailImage) {
+        const thumbDiv = document.createElement('div');
+        thumbDiv.className = 'blog-card-thumbnail';
+        thumbDiv.style.backgroundImage = `url(${article.thumbnailImage})`;
+        thumbDiv.style.backgroundSize = 'cover';
+        thumbDiv.style.backgroundPosition = 'center';
+        card.appendChild(thumbDiv);
+    } else {
+        const thumbDiv = document.createElement('div');
+        thumbDiv.className = 'blog-card-thumbnail default-thumbnail';
+        thumbDiv.innerHTML = '<div class="default-thumbnail-content"><i class="fas fa-code"></i><div class="thumbnail-pattern"></div></div>';
+        card.appendChild(thumbDiv);
+    }
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'blog-card-content';
+
+    const companyDiv = document.createElement('div');
+    companyDiv.className = 'blog-card-company';
+    const companyLink = document.createElement('a');
+    companyLink.className = 'blog-card-company-link';
+    companyLink.href = `/corporations/${article.corporation.id}`;
+    companyLink.addEventListener('click', (e) => e.stopPropagation());
+    if (article.corporation.effectiveLogoUrl) {
+        const logoImg = document.createElement('img');
+        logoImg.src = article.corporation.effectiveLogoUrl;
+        logoImg.alt = article.corporation.name;
+        logoImg.className = 'blog-card-company-logo';
+        companyLink.appendChild(logoImg);
+    }
+    const companyName = document.createElement('span');
+    companyName.className = 'blog-card-company-name';
+    companyName.textContent = article.corporation.name;
+    companyLink.appendChild(companyName);
+    companyDiv.appendChild(companyLink);
+    contentDiv.appendChild(companyDiv);
+
+    const titleH3 = document.createElement('h3');
+    titleH3.className = 'blog-card-title';
+    const titleLink = document.createElement('a');
+    titleLink.className = 'blog-card-title-link';
+    titleLink.href = article.link;
+    titleLink.target = '_blank';
+    titleLink.rel = 'noopener noreferrer';
+    titleLink.textContent = article.translatedTitle || article.title;
+    titleLink.addEventListener('click', (e) => e.stopPropagation());
+    titleH3.appendChild(titleLink);
+    contentDiv.appendChild(titleH3);
+
+    const metaDiv = document.createElement('div');
+    metaDiv.className = 'blog-card-meta';
+
+    const dateSpan = document.createElement('span');
+    dateSpan.className = 'blog-card-date';
+    dateSpan.innerHTML = '<i class="far fa-clock"></i>';
+    const relativeTimeSpan = document.createElement('span');
+    relativeTimeSpan.className = 'relative-time';
+    relativeTimeSpan.setAttribute('data-date', article.publishedAt);
+    relativeTimeSpan.textContent = article.publishedAt;
+    dateSpan.appendChild(relativeTimeSpan);
+    metaDiv.appendChild(dateSpan);
+
+    const likeButton = document.createElement('button');
+    likeButton.className = 'like-button';
+    likeButton.setAttribute('data-article-id', article.id);
+    likeButton.setAttribute('data-liked', article.isLiked === true);
+    likeButton.innerHTML = '<i class="far fa-heart like-icon"></i><span class="like-count"></span>';
+    likeButton.querySelector('.like-count').textContent = article.likeCount;
+    likeButton.addEventListener('click', function(e) {
+        e.stopPropagation();
+        toggleArticleLike(likeButton, e);
+    });
+    metaDiv.appendChild(likeButton);
+
+    contentDiv.appendChild(metaDiv);
+    card.appendChild(contentDiv);
+
+    return card;
+}
+
+function renderBlogGrid(articles) {
+    const grid = document.getElementById('blogGrid');
+    if (!grid) return;
+
+    grid.innerHTML = '';
+    (articles || []).forEach(article => {
+        grid.appendChild(buildBlogCardElement(article));
+    });
+
+    applyRelativeTimes(grid);
+    loadLikeStatus();
+}
+
+function updateBlogNavButtons(hasPrevious, hasNext) {
+    const prevBtn = document.querySelector('.blog-prev');
+    const nextBtn = document.querySelector('.blog-next');
+    if (prevBtn) prevBtn.disabled = !hasPrevious;
+    if (nextBtn) nextBtn.disabled = !hasNext;
+}
+
+async function loadBlogArticles(offset) {
+    try {
+        const response = await fetch(`/api/articles/home-latest?offset=${offset}&limit=${BLOG_PAGE_SIZE}`);
+        if (!response.ok) return;
+        const data = await response.json();
+        renderBlogGrid(data.articles);
+        updateBlogNavButtons(data.hasPrevious, data.hasNext);
+        blogArticlesOffset = offset;
+    } catch (error) {
+        console.error('최신 블로그 글 조회 실패:', error);
+    }
+}
+
 function switchPopularPeriod(period) {
     if (currentPopularPeriod === period) return;
     currentPopularPeriod = period;
@@ -511,6 +641,16 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     slidePopular(0);
+
+    // 최신 기술 블로그 페이지네이션 (이전/다음 화살표)
+    const blogPrevBtn = document.querySelector('.blog-prev');
+    const blogNextBtn = document.querySelector('.blog-next');
+    if (blogPrevBtn) blogPrevBtn.addEventListener('click', function() {
+        loadBlogArticles(Math.max(0, blogArticlesOffset - BLOG_PAGE_SIZE));
+    });
+    if (blogNextBtn) blogNextBtn.addEventListener('click', function() {
+        loadBlogArticles(blogArticlesOffset + BLOG_PAGE_SIZE);
+    });
 
     // 인기글 주간/월간 토글
     const popularWeeklyBtn = document.getElementById('popularWeeklyBtn');

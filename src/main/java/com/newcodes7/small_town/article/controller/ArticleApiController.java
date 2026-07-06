@@ -139,6 +139,26 @@ public class ArticleApiController {
     }
 
     /**
+     * API: 홈 화면 "최신 기술 블로그" 페이지네이션 조회 (기업별 최신 글 1개씩)
+     */
+    @GetMapping("/api/articles/home-latest")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getHomeLatestArticles(
+            @RequestParam(name = "offset", defaultValue = "0") int offset,
+            @RequestParam(name = "limit", defaultValue = "8") int limit) {
+
+        List<ArticleListResponseDto> articles = articleService.getHomeLatestArticles(limit, offset);
+        long totalCount = articleService.getArticleCorporationCount();
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("articles", articles);
+        response.put("hasNext", offset + limit < totalCount);
+        response.put("hasPrevious", offset > 0);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * API: 아티클 검색 (어드민용)
      */
     @GetMapping("/api/articles/search")

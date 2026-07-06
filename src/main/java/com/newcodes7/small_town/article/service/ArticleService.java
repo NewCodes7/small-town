@@ -268,11 +268,16 @@ public class ArticleService {
         return articleRepository.countByDeletedAtIsNull();
     }
 
-    @Cacheable(value = "homeLatestArticles", key = "#limit")
-    public List<ArticleListResponseDto> getHomeLatestArticles(int limit) {
-        return articleRepository.findLatestArticlePerCorporation(limit).stream()
+    @Cacheable(value = "homeLatestArticles", key = "#offset + '-' + #limit")
+    public List<ArticleListResponseDto> getHomeLatestArticles(int limit, int offset) {
+        return articleRepository.findLatestArticlePerCorporation(limit, offset).stream()
             .map(ArticleListResponseDto::new)
             .toList();
+    }
+
+    // 글이 있는 기업 수 (홈 화면 "최신 기술 블로그" 페이지네이션의 다음 버튼 판단 기준)
+    public long getArticleCorporationCount() {
+        return articleRepository.countDistinctCorporationsWithArticles();
     }
 
     @Transactional
