@@ -145,11 +145,12 @@ List<Article> crawl(WebDriver driver, Corporation corporation)
 | `MediumBlogCrawler` | Medium 전용 파싱 |
 | `YouTubeCrawler` / `VideoCrawler` | YouTube Data API |
 
-- `blogType` enum으로 크롤러 선택
-- 동시 크롤링: 최대 5개 스레드 (dev), Corporation별 `@Transactional(REQUIRES_NEW)` 격리
+- `blogType` enum으로 크롤러 선택 (`CrawlingService.selectCrawler()` — `canHandle(Corporation)`이 true인 non-Default 크롤러 우선, 없으면 Default로 fallback)
+- 기업(Corporation)은 **순차 for-loop로 처리** — 동시 크롤링 스레드 풀/Corporation별 `REQUIRES_NEW` 격리는 없음. `REQUIRES_NEW`는 Article 단위 개별 content 업데이트에만 적용됨. (`crawler.concurrent.max-threads`, `crawler.retry.max-attempts` 프로퍼티는 미바인딩 죽은 설정)
 - robots.txt 준수 (`crawlWithRobotsCheck()`)
 - 이력: `CrawlingSchedulerRun`, `CrawlingArticleProcessingLog`
 - **`driver.quit()`은 반드시 finally에서 호출** — `pkill`/`kill -9` 금지 (OOM Exit 137 원인)
+- `ContentAndTermExtractionScheduler`는 `@Scheduled`가 주석처리되어 비활성 (죽은 코드) — `CrawlingScheduler.scheduledContentCrawling()`(매시 30분)이 본문 백필 역할을 대체 수행
 
 ### 7. Term 추출
 

@@ -11,7 +11,8 @@
       "Bash(git -C /workspaces/small-town show:*)",
       "Bash(git fetch:*)",
       "Bash(curl:*)",
-      "Bash(echo \"\" >> src/main/resources/static/css/base.css)"
+      "Bash(echo \"\" >> src/main/resources/static/css/base.css)",
+      "Bash(./gradlew compileJava --console=plain)"
     ],
     "additionalDirectories": [
       "/workspaces/small-town/src/main/resources/static/css"
