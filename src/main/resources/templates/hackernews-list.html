@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ko"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>Hacker News 인기글 - NewCodes</title>
+    <th:block layout:fragment="meta" th:remove="tag">
+        <meta name="description" content="Hacker News 인기글 순위 모음">
+        <meta name="keywords" content="Hacker News, 해커뉴스, 기술 뉴스">
+    </th:block>
+    <link rel="stylesheet" type="text/css" th:href="@{/css/hackernews-list.css}">
+</head>
+<body>
+    <div layout:fragment="content">
+        <!-- Page Header -->
+        <div class="mb-4">
+            <h2 class="mb-2" style="color: var(--text-dark); font-weight: 700;">
+                <i class="fab fa-hacker-news me-2" style="color: var(--primary-green);"></i>Hacker News 인기글
+            </h2>
+            <p class="text-muted">해외 개발자들이 지금 주목하는 이야기를 순위대로 모아봤어요</p>
+        </div>
+
+        <div class="hn-list-container">
+            <div th:each="hnItem, iterStat : ${hackerNewsItems}"
+                 class="hn-card"
+                 th:attr="data-detail-url=${hnItem.detailUrl}"
+                 onclick="window.location.href=this.getAttribute('data-detail-url')"
+                 style="cursor: pointer;">
+                <span class="hn-rank" th:classappend="${iterStat.index < 3 ? ' top-rank' : ''}"
+                      th:text="${iterStat.index + 1}">1</span>
+                <!-- 썸네일 자리에 영어 원문 제목 표시 -->
+                <div class="hn-card-thumbnail">
+                    <div class="hn-card-thumbnail-text">
+                        <span th:text="${hnItem.title}">Original Title</span>
+                    </div>
+                    <a th:if="${hnItem.url != null}" th:href="${hnItem.url}" target="_blank" class="hn-card-external"
+                       onclick="event.stopPropagation()">
+                        <i class="fas fa-external-link-alt"></i>
+                    </a>
+                </div>
+                <div class="hn-card-content">
+                    <h3 class="hn-card-title">
+                        <a class="hn-card-title-link"
+                           th:href="${hnItem.url != null ? hnItem.url : hnItem.detailUrl}"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           th:text="${hnItem.translatedTitle != null ? hnItem.translatedTitle : hnItem.title}"
+                           onclick="event.stopPropagation()">Translated Title</a>
+                    </h3>
+                    <div class="hn-card-meta">
+                        <span class="hn-card-score">
+                            <i class="fas fa-arrow-up"></i>
+                            <span th:text="${hnItem.score}">0</span>
+                        </span>
+                        <span class="hn-card-comments">
+                            <i class="fas fa-comment"></i>
+                            <span th:text="${hnItem.commentCount}">0</span>
+                        </span>
+                        <span class="hn-card-date">
+                            <i class="far fa-clock"></i>
+                            <span class="relative-time"
+                                  th:attr="data-date=${hnItem.hnCreatedAt}"
+                                  th:text="${hnItem.hnCreatedAt}">날짜</span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div th:if="${hackerNewsItems == null or hackerNewsItems.isEmpty()}" class="text-center py-5">
+            <i class="fab fa-hacker-news fa-4x mb-4" style="color: var(--primary-green); opacity: 0.5;"></i>
+            <h4 class="mb-3" style="color: var(--text-dark); font-weight: 700;">아직 수집된 인기글이 없습니다</h4>
+            <p class="text-muted">잠시 후 다시 확인해주세요</p>
+        </div>
+    </div>
+
+    <th:block layout:fragment="scripts">
+        <script>
+            // Relative time formatting for HN items (hackernews-detail.html과 동일한 로직)
+            document.querySelectorAll('.relative-time').forEach(function(el) {
+                var dateStr = el.getAttribute('data-date');
+                if (dateStr) {
+                    var date = new Date(dateStr.replace(/ /g, 'T'));
+                    var now = new Date();
+                    var diffMs = now - date;
+                    var diffMins = Math.floor(diffMs / 60000);
+                    var diffHours = Math.floor(diffMs / 3600000);
+                    var diffDays = Math.floor(diffMs / 86400000);
+
+                    if (diffMins < 60) {
+                        el.textContent = diffMins + '분 전';
+                    } else if (diffHours < 24) {
+                        el.textContent = diffHours + '시간 전';
+                    } else if (diffDays < 7) {
+                        el.textContent = diffDays + '일 전';
+                    } else {
+                        el.textContent = dateStr.substring(0, 10);
+                    }
+                }
+            });
+        </script>
+    </th:block>
+</body>
+</html>

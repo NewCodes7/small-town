@@ -1,7 +1,11 @@
 package com.newcodes7.small_town.hackernews.controller;
 
+import com.newcodes7.small_town.hackernews.dto.HackerNewsCommentResponseDto;
+import com.newcodes7.small_town.hackernews.dto.HackerNewsItemResponseDto;
+import com.newcodes7.small_town.hackernews.service.HackerNewsService;
 import java.util.List;
-
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,19 +14,21 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
-import com.newcodes7.small_town.hackernews.dto.HackerNewsCommentResponseDto;
-import com.newcodes7.small_town.hackernews.dto.HackerNewsItemResponseDto;
-import com.newcodes7.small_town.hackernews.service.HackerNewsService;
-
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-
 @Slf4j
 @Controller
 @RequiredArgsConstructor
 public class HackerNewsController {
 
     private final HackerNewsService hackerNewsService;
+
+    /**
+     * Hacker News 인기글 목록 페이지
+     */
+    @GetMapping("/hackernews")
+    public String list(Model model) {
+        model.addAttribute("hackerNewsItems", hackerNewsService.getTopItems(30));
+        return "hackernews-list";
+    }
 
     /**
      * Hacker News 상세 페이지

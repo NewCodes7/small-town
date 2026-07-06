@@ -5,7 +5,6 @@ function searchKeyword(keyword) {
 
 // localStorage 유틸리티 (비인증 사용자 좋아요)
 const LIKED_ARTICLES_KEY = 'likedArticles';
-const LIKED_VIDEOS_KEY = 'likedVideos';
 
 function getLikedArticleIds() {
     try { return JSON.parse(localStorage.getItem(LIKED_ARTICLES_KEY)) || []; } catch { return []; }
@@ -17,18 +16,6 @@ function addToLikedArticles(articleId) {
 function removeFromLikedArticles(articleId) {
     const ids = getLikedArticleIds().filter(id => id !== articleId);
     localStorage.setItem(LIKED_ARTICLES_KEY, JSON.stringify(ids));
-}
-
-function getLikedVideoIds() {
-    try { return JSON.parse(localStorage.getItem(LIKED_VIDEOS_KEY)) || []; } catch { return []; }
-}
-function addToLikedVideos(videoId) {
-    const ids = getLikedVideoIds();
-    if (!ids.includes(videoId)) { ids.push(videoId); localStorage.setItem(LIKED_VIDEOS_KEY, JSON.stringify(ids)); }
-}
-function removeFromLikedVideos(videoId) {
-    const ids = getLikedVideoIds().filter(id => id !== videoId);
-    localStorage.setItem(LIKED_VIDEOS_KEY, JSON.stringify(ids));
 }
 
 // 인증 상태 캐시
@@ -48,7 +35,6 @@ async function checkAuthenticated() {
 
 // 이번 주 인기글 캐러셀
 let popularCurrentPage = 0;
-let hnCurrentPage = 0;
 
 function getPopularItemsPerPage() {
     const width = window.innerWidth;
@@ -82,39 +68,6 @@ function slidePopular(direction) {
     const nextBtn = document.querySelector('.popular-next');
     if (prevBtn) prevBtn.disabled = (popularCurrentPage === 0);
     if (nextBtn) nextBtn.disabled = (popularCurrentPage >= maxPage);
-}
-
-function getHnItemsPerPage() {
-    const width = window.innerWidth;
-    if (width <= 768) return 1;
-    if (width <= 1024) return 3;
-    return 4;
-}
-
-function slideHn(direction) {
-    if (window.innerWidth <= 768) return;
-    const track = document.querySelector('.hn-track');
-    if (!track) return;
-
-    const totalItems = track.children.length;
-    if (totalItems === 0) return;
-
-    const itemsPerPage = getHnItemsPerPage();
-    const maxPage = Math.max(0, Math.ceil(totalItems / itemsPerPage) - 1);
-
-    hnCurrentPage += direction;
-    if (hnCurrentPage < 0) hnCurrentPage = 0;
-    if (hnCurrentPage > maxPage) hnCurrentPage = maxPage;
-
-    const style = window.getComputedStyle(track);
-    const gap = parseFloat(style.gap) || 0;
-    const cardWithGap = track.children[0].offsetWidth + gap;
-    track.style.transform = `translateX(-${hnCurrentPage * itemsPerPage * cardWithGap}px)`;
-
-    const prevBtn = document.querySelector('.hn-prev');
-    const nextBtn = document.querySelector('.hn-next');
-    if (prevBtn) prevBtn.disabled = (hnCurrentPage === 0);
-    if (nextBtn) nextBtn.disabled = (hnCurrentPage >= maxPage);
 }
 
 // 인기글 기간(주간/월간) 토글
@@ -305,13 +258,6 @@ window.addEventListener('resize', function() {
         track.style.transform = 'translateX(0)';
     }
     slidePopular(0); // Update button states
-
-    hnCurrentPage = 0;
-    const hnTrack = document.querySelector('.hn-track');
-    if (hnTrack) {
-        hnTrack.style.transform = 'translateX(0)';
-    }
-    slideHn(0); // Update button states
 });
 
 // 아티클 상세 페이지로 이동 (조회수 증가는 상세 페이지에서 처리)
@@ -346,60 +292,6 @@ function openArticleLink(element) {
     }
 }
 
-// Open video modal
-function openVideoModal(element) {
-    const videoId = element.getAttribute('data-video-id');
-    const videoTitle = element.getAttribute('data-video-title');
-    const articleId = element.getAttribute('data-article-id');
-    const modal = document.getElementById('videoModal');
-    const iframe = document.getElementById('modalVideoPlayer');
-
-    // Increment view count
-    if (articleId) {
-        fetch(`/video/api/videos/${articleId}/view`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            credentials: 'same-origin',
-            redirect: 'manual'
-        }).catch(error => {
-            console.log('조회수 증가 요청 실패:', error);
-        });
-    }
-
-    // Set iframe src with autoplay
-    iframe.src = `https://www.youtube.com/embed/${videoId}?controls=1&modestbranding=1&rel=0&autoplay=1`;
-    iframe.title = videoTitle;
-
-    // Show modal
-    modal.classList.add('active');
-    document.body.style.overflow = 'hidden'; // Prevent background scrolling
-}
-
-// Close video modal
-function closeVideoModal(event) {
-    const modal = document.getElementById('videoModal');
-    const iframe = document.getElementById('modalVideoPlayer');
-
-    // Only close if clicking on modal background or close button
-    if (event.target === modal || event.target.classList.contains('video-modal-close')) {
-        modal.classList.remove('active');
-        iframe.src = ''; // Stop video playback
-        document.body.style.overflow = ''; // Restore scrolling
-    }
-}
-
-// Close modal with Escape key
-document.addEventListener('keydown', function(event) {
-    if (event.key === 'Escape') {
-        const modal = document.getElementById('videoModal');
-        if (modal.classList.contains('active')) {
-            closeVideoModal({ target: modal });
-        }
-    }
-});
-
 // localStorage 좋아요 마이그레이션 (블로그)
 async function migrateLikesFromLocalStorage() {
     try {
@@ -418,28 +310,6 @@ async function migrateLikesFromLocalStorage() {
         return null;
     } catch (error) {
         console.error('Failed to migrate article likes:', error);
-        return null;
-    }
-}
-
-// localStorage 좋아요 마이그레이션 (비디오)
-async function migrateVideoLikesFromLocalStorage() {
-    try {
-        const likedIds = getLikedVideoIds();
-        if (!likedIds || likedIds.length === 0) return null;
-        const response = await fetch('/video/api/videos/migrate-likes', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(likedIds)
-        });
-        if (response.ok) {
-            localStorage.removeItem(LIKED_VIDEOS_KEY);
-            return await response.json();
-        }
-        return null;
-    } catch (error) {
-        console.error('Failed to migrate video likes:', error);
         return null;
     }
 }
@@ -471,60 +341,6 @@ async function toggleArticleLike(button, event) {
 
     try {
         const response = await fetch(`/api/articles/${articleId}/like`, {
-            method: 'POST',
-            credentials: 'include'
-        });
-
-        if (response.ok) {
-            const data = await response.json();
-
-            // Update UI
-            countSpan.textContent = data.likeCount;
-
-            if (data.isLiked) {
-                button.classList.add('liked');
-                icon.classList.remove('far');
-                icon.classList.add('fas');
-            } else {
-                button.classList.remove('liked');
-                icon.classList.remove('fas');
-                icon.classList.add('far');
-            }
-        } else if (response.status === 401) {
-            alert('좋아요를 하려면 로그인이 필요합니다.');
-        }
-    } catch (error) {
-        console.error('좋아요 처리 실패:', error);
-    }
-}
-
-// 비디오 좋아요 토글
-async function toggleVideoLike(button, event) {
-    event.preventDefault();
-    event.stopPropagation();
-
-    const videoId = button.getAttribute('data-video-id');
-    const icon = button.querySelector('.like-icon');
-    const countSpan = button.querySelector('.like-count');
-
-    const authenticated = await checkAuthenticated();
-    if (!authenticated) {
-        const isCurrentlyLiked = button.classList.contains('liked');
-        if (isCurrentlyLiked) {
-            button.classList.remove('liked');
-            icon.classList.replace('fas', 'far');
-            removeFromLikedVideos(parseInt(videoId));
-        } else {
-            button.classList.add('liked');
-            icon.classList.replace('far', 'fas');
-            addToLikedVideos(parseInt(videoId));
-            showLikeLoginModal();
-        }
-        return;
-    }
-
-    try {
-        const response = await fetch(`/video/api/videos/${videoId}/like`, {
             method: 'POST',
             credentials: 'include'
         });
@@ -589,53 +405,6 @@ async function loadLikeStatus() {
                     articleButtons.forEach(button => {
                         const articleId = parseInt(button.getAttribute('data-article-id'));
                         const isLiked = likeStatus[articleId] || false;
-                        const icon = button.querySelector('.like-icon');
-
-                        if (isLiked) {
-                            button.classList.add('liked');
-                            if (icon) { icon.classList.remove('far'); icon.classList.add('fas'); }
-                        }
-                    });
-                }
-            } catch (error) {
-                console.error('좋아요 상태 로드 실패:', error);
-            }
-        }
-    }
-
-    // Load video like status
-    const videoButtons = document.querySelectorAll('.like-button[data-video-id]');
-
-    if (videoButtons.length > 0) {
-        if (!authenticated) {
-            const likedIds = getLikedVideoIds();
-            videoButtons.forEach(button => {
-                const videoId = parseInt(button.getAttribute('data-video-id'));
-                if (likedIds.includes(videoId)) {
-                    button.classList.add('liked');
-                    const icon = button.querySelector('.like-icon');
-                    if (icon) { icon.classList.remove('far'); icon.classList.add('fas'); }
-                }
-            });
-        } else {
-            const videoIds = Array.from(videoButtons).map(button =>
-                parseInt(button.getAttribute('data-video-id'))
-            );
-            try {
-                const response = await fetch('/video/api/videos/like-status/batch', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify({ videoIds })
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    const likeStatus = data.likeStatus;
-
-                    videoButtons.forEach(button => {
-                        const videoId = parseInt(button.getAttribute('data-video-id'));
-                        const isLiked = likeStatus[videoId] || false;
                         const icon = button.querySelector('.like-icon');
 
                         if (isLiked) {
@@ -749,13 +518,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (popularWeeklyBtn) popularWeeklyBtn.addEventListener('click', function() { switchPopularPeriod('weekly'); });
     if (popularMonthlyBtn) popularMonthlyBtn.addEventListener('click', function() { switchPopularPeriod('monthly'); });
 
-    // HN 인기글 캐러셀 초기화
-    const hnPrevBtn = document.querySelector('.hn-prev');
-    const hnNextBtn = document.querySelector('.hn-next');
-    if (hnPrevBtn) hnPrevBtn.addEventListener('click', function() { slideHn(-1); });
-    if (hnNextBtn) hnNextBtn.addEventListener('click', function() { slideHn(1); });
-    slideHn(0);
-
     // 상대 시간 표시
     applyRelativeTimes(document);
 
@@ -765,7 +527,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const authenticated = await checkAuthenticated();
         if (authenticated) {
             if (getLikedArticleIds().length > 0) await migrateLikesFromLocalStorage();
-            if (getLikedVideoIds().length > 0) await migrateVideoLikesFromLocalStorage();
         }
     })();
 

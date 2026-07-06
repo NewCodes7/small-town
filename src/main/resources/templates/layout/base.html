@@ -80,6 +80,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" th:href="@{/hackernews}" data-nav="hackernews" title="해커뉴스">
+                            <i class="fab fa-hacker-news me-1"></i>hackernews
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" th:href="@{/corporations}" data-nav="corporations" title="구독 기업">
                             <i class="fas fa-building me-1"></i>구독 기업
                         </a>
@@ -194,6 +199,12 @@
                     <a class="mobile-nav-link" th:href="@{/video}" data-nav="youtube">
                         <i class="fab fa-youtube"></i>
                         <span>유튜브</span>
+                    </a>
+                </li>
+                <li class="mobile-nav-item">
+                    <a class="mobile-nav-link" th:href="@{/hackernews}" data-nav="hackernews">
+                        <i class="fab fa-hacker-news"></i>
+                        <span>해커뉴스</span>
                     </a>
                 </li>
                 <li class="mobile-nav-item">
@@ -877,6 +888,13 @@
                 const youtubeLink = document.querySelector('[data-nav="youtube"]');
                 if (youtubeLink) {
                     youtubeLink.classList.add('active');
+                }
+            }
+            // Hacker News 페이지 확인 (/hackernews로 시작하는 경로)
+            else if (currentPath.startsWith('/hackernews')) {
+                const hackernewsLink = document.querySelector('[data-nav="hackernews"]');
+                if (hackernewsLink) {
+                    hackernewsLink.classList.add('active');
                 }
             }
         }

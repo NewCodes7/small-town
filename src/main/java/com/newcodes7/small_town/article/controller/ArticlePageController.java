@@ -59,9 +59,7 @@ public class ArticlePageController {
     private final RelatedArticleService relatedArticleService;
     private final com.newcodes7.small_town.auth.repository.UserRepository userRepository;
     private final ArticleRepository articleRepository;
-    private final com.newcodes7.small_town.video.service.VideoService videoService;
     private final com.newcodes7.small_town.theme.service.ThemeService themeService;
-    private final com.newcodes7.small_town.hackernews.service.HackerNewsService hackerNewsService;
     private final com.newcodes7.small_town.search.service.SuggestedSearchTermService suggestedSearchTermService;
 
     @GetMapping("/articles")
@@ -321,9 +319,6 @@ public class ArticlePageController {
         // 기업별 최신 글 1개씩, 최대 8개 (DB 레벨 DISTINCT ON으로 버퍼 크기 무관하게 항상 8개 보장)
         List<ArticleListResponseDto> latestArticles = articleService.getHomeLatestArticles(8);
 
-        // 기업별 최신 영상 1개씩, 최대 8개
-        List<com.newcodes7.small_town.video.dto.VideoListResponseDto> latestVideos = videoService.getHomeLatestVideos(8);
-
         // 회사 목록 가져오기 (로고용)
         Page<CorporationResponseDto> corporations = corporationService.getCorporationsWithFilters(
             null, null, null, PageRequest.of(0, 50)
@@ -344,17 +339,11 @@ public class ArticlePageController {
         // 이번 주 인기글 조회 (최근 7일, 조회수 순, 최대 8개)
         List<ArticleListResponseDto> popularArticles = articleService.getWeeklyPopularArticles(8);
 
-        // Hacker News 인기 아이템 조회 (최대 10개)
-        List<com.newcodes7.small_town.hackernews.dto.HackerNewsItemResponseDto> hackerNewsItems =
-            hackerNewsService.getTopItems(10);
-
         model.addAttribute("articles", latestArticles);
-        model.addAttribute("videos", latestVideos);
         model.addAttribute("corporations", corporationsWithLogos);
         model.addAttribute("totalElements", totalElements);
         model.addAttribute("themes", themes);
         model.addAttribute("popularArticles", popularArticles);
-        model.addAttribute("hackerNewsItems", hackerNewsItems);
         model.addAttribute("suggestedKeywords", suggestedSearchTermService.getActiveKeywords());
 
         model.addAttribute("canonicalUrl", baseUrl + "/");
