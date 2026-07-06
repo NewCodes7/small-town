@@ -20,6 +20,7 @@ import com.newcodes7.small_town.search.dto.AiSummaryChunkDto;
 import com.newcodes7.small_town.search.dto.AiSummarySourceDto;
 import com.newcodes7.small_town.search.repository.AiSummaryLogRepository;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import java.net.http.HttpTimeoutException;
 import java.util.List;
 import java.util.stream.Stream;
@@ -55,7 +56,8 @@ class AiSummaryServiceTest {
                 cacheManager,
                 new SimpleMeterRegistry(),
                 new ObjectMapper(),
-                aiSummaryLogRepository
+                aiSummaryLogRepository,
+                ObservationRegistry.create()
         );
         ReflectionTestUtils.setField(realService, "geminiApiKey", "test-gemini-key");
         ReflectionTestUtils.setField(realService, "geminiModel", "gemini-3.5-flash");

@@ -1,23 +1,21 @@
 package com.newcodes7.small_town.search.service;
 
-import java.time.LocalDateTime;
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.newcodes7.small_town.embedding.dto.ModelEmbeddingResult;
 import com.newcodes7.small_town.embedding.service.EmbeddingApiService;
 import com.newcodes7.small_town.search.entity.SearchLog;
 import com.newcodes7.small_town.search.entity.SearchQueryEmbedding;
-import com.newcodes7.small_town.search.repository.SearchQueryEmbeddingRepository;
 import com.newcodes7.small_town.search.repository.SearchLogRepository;
-
+import com.newcodes7.small_town.search.repository.SearchQueryEmbeddingRepository;
+import io.micrometer.observation.annotation.Observed;
+import java.time.LocalDateTime;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -49,6 +47,7 @@ public class SearchQueryEmbeddingService {
         return getEmbeddingWithCacheInfo(keyword, searchLog).embedding;
     }
 
+    @Observed(name = "search.query-embedding", contextualName = "query-embedding")
     @Transactional
     public CachedEmbeddingResult getEmbeddingWithCacheInfo(String keyword, SearchLog searchLog) {
         String normalized = normalizeKeyword(keyword);

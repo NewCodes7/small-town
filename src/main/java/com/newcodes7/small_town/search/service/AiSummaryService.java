@@ -10,6 +10,9 @@ import com.newcodes7.small_town.search.repository.AiSummaryLogRepository;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
+import io.micrometer.observation.annotation.Observed;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.net.URI;
@@ -47,6 +50,7 @@ public class AiSummaryService {
     private final MeterRegistry meterRegistry;
     private final ObjectMapper objectMapper;
     private final AiSummaryLogRepository aiSummaryLogRepository;
+    private final ObservationRegistry observationRegistry;
 
     @Value("${gemini.api-key:}")
     private String geminiApiKey;
@@ -131,6 +135,7 @@ public class AiSummaryService {
                 .register(meterRegistry);
     }
 
+    @Observed(name = "ai-summary", contextualName = "ai-summary-stream")
     public void streamAiSummary(String query, SseEmitter emitter) {
         if (query == null || query.trim().isEmpty()) {
             sendErrorEvent(emitter, "요약을 불러올 수 없습니다");
@@ -182,6 +187,14 @@ public class AiSummaryService {
             final int HOLD_BACK = "[QUERIES]".length() - 1;
             int[] tokenUsage = {0, 0, 0}; // [input, output, total]
 
+            // Gemini 호출~스트림 소비 전체를 하나의 구간으로 기록.
+            // first-token 이벤트로 첫 토큰까지의 지연을 워터폴에서 구분할 수 있다.
+            Observation geminiObservation = Observation
+                    .createNotStarted("ai-summary.gemini", observationRegistry)
+                    .contextualName("gemini-stream")
+                    .start();
+            boolean firstTokenSeen = false;
+
             try (Stream<String> lines = callGeminiStream(requestBody)) {
                 for (String line : (Iterable<String>) lines::iterator) {
                     if (!line.startsWith("data: ")) continue;
@@ -193,6 +206,10 @@ public class AiSummaryService {
                     String text = extractTextFromGeminiResponse(json);
                     if (text.isEmpty()) continue;
 
+                    if (!firstTokenSeen) {
+                        firstTokenSeen = true;
+                        geminiObservation.event(Observation.Event.of("first-token"));
+                    }
                     fullText.append(text);
 
                     if (!queriesDetected) {
@@ -218,6 +235,7 @@ public class AiSummaryService {
                     sendTokenEvent(emitter, pendingBuf.toString());
                 }
             } catch (HttpTimeoutException e) {
+                geminiObservation.error(e);
                 log.warn("Gemini API 타임아웃 - 쿼리: {}", query);
                 sendErrorEvent(emitter, "요약을 불러올 수 없습니다");
                 completeEmitter(emitter);
@@ -225,6 +243,7 @@ public class AiSummaryService {
                 latencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
                 return;
             } catch (InterruptedException e) {
+                geminiObservation.error(e);
                 Thread.currentThread().interrupt();
                 log.error("Gemini API 호출 중 인터럽트: {}", e.getMessage());
                 sendErrorEvent(emitter, "요약을 불러올 수 없습니다");
@@ -233,12 +252,15 @@ public class AiSummaryService {
                 latencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
                 return;
             } catch (IOException e) {
+                geminiObservation.error(e);
                 log.error("Gemini API 호출 실패: {}", e.getMessage(), e);
                 sendErrorEvent(emitter, "요약을 불러올 수 없습니다");
                 completeEmitter(emitter);
                 failureCounter.increment();
                 latencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
                 return;
+            } finally {
+                geminiObservation.stop();
             }
 
             String fullTextStr = fullText.toString();

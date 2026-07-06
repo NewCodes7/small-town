@@ -93,8 +93,28 @@ services:
     extra_hosts:
       - "db-node-exporter:${DB_NODE_IP}"
 
+  tempo:
+    image: grafana/tempo:2.10.7
+    container_name: tempo
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes:
+      - ./tempo.yml:/etc/tempo.yml:ro
+      - tempo-data:/var/tempo
+    restart: always
+    networks:
+      - app-network
+    expose:
+      - "4318"  # OTLP HTTP (앱 → Tempo)
+      - "3200"  # 쿼리 API (Grafana → Tempo)
+
   grafana:
-    image: grafana/grafana:8.3.3
+    # 11.6 LTS: Tempo TraceQL 검색 UI 지원 (8.3.3에서 업그레이드 — 배포 전 grafana-data 볼륨 백업 필수)
+    image: grafana/grafana:11.6.9
     container_name: grafana
     logging:
       driver: json-file
@@ -241,3 +261,4 @@ networks:
 volumes:
   nginx-cache:
   grafana-data:
+  tempo-data:

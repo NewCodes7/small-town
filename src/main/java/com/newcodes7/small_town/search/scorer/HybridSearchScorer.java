@@ -1,5 +1,6 @@
 package com.newcodes7.small_town.search.scorer;
 
+import io.micrometer.observation.annotation.Observed;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -7,7 +8,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 import lombok.Getter;
 import org.springframework.stereotype.Component;
 
@@ -58,6 +58,7 @@ public class HybridSearchScorer {
      * @param vectorScores 벡터 검색 유사도 점수 맵
      * @return NSFResult (최종 스코어 + 각 검색 방법의 정규화 점수)
      */
+    @Observed(name = "search.nsf", contextualName = "nsf-fusion")
     public NSFResult calculateNSFScores(
             Map<Long, Double> bm25Scores,
             Map<Long, Double> vectorScores) {
@@ -73,6 +74,7 @@ public class HybridSearchScorer {
      * @param vectorWeight 벡터 가중치 (쿼리 복잡도에 따라 다름)
      * @return NSFResult (최종 스코어 + 각 검색 방법의 정규화 점수)
      */
+    @Observed(name = "search.nsf", contextualName = "nsf-fusion-weighted")
     public NSFResult calculateNSFScores(
             Map<Long, Double> bm25Scores,
             Map<Long, Double> vectorScores,

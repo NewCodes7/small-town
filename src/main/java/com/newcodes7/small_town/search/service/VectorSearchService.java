@@ -2,6 +2,7 @@ package com.newcodes7.small_town.search.service;
 
 import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
 import com.newcodes7.small_town.search.dto.AiSummaryChunkDto;
+import io.micrometer.observation.annotation.Observed;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -109,6 +110,7 @@ public class VectorSearchService {
      * @param keyword 검색 키워드
      * @return 검색 결과 (스코어 맵 + 쿼리 임베딩)
      */
+    @Observed(name = "search.vector", contextualName = "vector-search")
     public VectorSearchResult searchByKeywordWithEmbedding(String keyword) {
         return searchByKeywordWithEmbedding(keyword, null, null);
     }
@@ -121,6 +123,7 @@ public class VectorSearchService {
      * @param categories 허용할 카테고리 이름 목록 (null이면 필터 없음)
      * @return 검색 결과 (스코어 맵 + 쿼리 임베딩)
      */
+    @Observed(name = "search.vector", contextualName = "vector-search-filtered")
     public VectorSearchResult searchByKeywordWithEmbedding(String keyword, List<Integer> domesticTypes, List<String> categories) {
         if (keyword == null || keyword.trim().isEmpty()) {
             return new VectorSearchResult(Map.of(), null);

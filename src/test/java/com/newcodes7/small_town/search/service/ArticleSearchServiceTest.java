@@ -16,6 +16,7 @@ import com.newcodes7.small_town.search.scorer.HybridSearchScorer;
 import com.newcodes7.small_town.term.repository.ArticleTermRepository;
 import com.newcodes7.small_town.term.repository.TermRepository;
 import com.newcodes7.small_town.term.service.TermSynonymService;
+import io.micrometer.observation.ObservationRegistry;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -75,7 +76,8 @@ class ArticleSearchServiceTest {
                 morphemeAnalyzer,
                 syncExecutor,
                 weightConfig,
-                cacheManager
+                cacheManager,
+                ObservationRegistry.create()
         );
     }
 

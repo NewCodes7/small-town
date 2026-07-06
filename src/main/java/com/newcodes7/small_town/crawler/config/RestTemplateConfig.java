@@ -1,7 +1,7 @@
 package com.newcodes7.small_town.crawler.config;
 
+import io.micrometer.observation.ObservationRegistry;
 import java.time.Duration;
-
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
@@ -19,7 +19,7 @@ import org.springframework.web.client.RestTemplate;
 public class RestTemplateConfig {
 
     @Bean
-    public RestTemplate restTemplate() {
+    public RestTemplate restTemplate(ObservationRegistry observationRegistry) {
         HttpClientConnectionManager cm = PoolingHttpClientConnectionManagerBuilder.create()
                 .setMaxConnTotal(20)
                 .setMaxConnPerRoute(10)
@@ -39,12 +39,15 @@ public class RestTemplateConfig {
                 new HttpComponentsClientHttpRequestFactory(httpClient);
         factory.setReadTimeout(Duration.ofSeconds(15));
 
-        return new RestTemplate(factory);
+        RestTemplate restTemplate = new RestTemplate(factory);
+        // 외부 API(Clova/DeepL 등) 호출을 trace span으로 기록
+        restTemplate.setObservationRegistry(observationRegistry);
+        return restTemplate;
     }
 
     @Bean
     @Qualifier("openaiRestTemplate")
-    public RestTemplate openaiRestTemplate() {
+    public RestTemplate openaiRestTemplate(ObservationRegistry observationRegistry) {
         HttpClientConnectionManager cm = PoolingHttpClientConnectionManagerBuilder.create()
                 .setMaxConnTotal(5)
                 .setMaxConnPerRoute(5)
@@ -63,6 +66,8 @@ public class RestTemplateConfig {
                 new HttpComponentsClientHttpRequestFactory(httpClient);
         factory.setReadTimeout(Duration.ofSeconds(120));  // o4-mini 추론 모델은 응답에 시간이 오래 걸림
 
-        return new RestTemplate(factory);
+        RestTemplate restTemplate = new RestTemplate(factory);
+        restTemplate.setObservationRegistry(observationRegistry);
+        return restTemplate;
     }
 }

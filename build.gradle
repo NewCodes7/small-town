@@ -11,6 +11,8 @@ group = 'com.newcodes7'
 version = '1.0.0-SNAPSHOT'
 
 ext['selenium.version'] = '4.44.0'
+// opentelemetry-jdbc 2.29.0-alpha가 요구하는 API 1.63과 Boot BOM(1.62) 정합
+ext['opentelemetry.version'] = '1.63.0'
 
 java {
 	toolchain {
@@ -46,6 +48,12 @@ dependencies {
 	// 모니터링
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'io.micrometer:micrometer-registry-prometheus'
+	// 분산 트레이싱: OTel SDK + OTLP export 자동설정 (Tempo로 전송)
+	implementation 'org.springframework.boot:spring-boot-starter-opentelemetry'
+	// @Observed(ObservedAspect) 프록시용 — Boot 4에서 starter-aop 제거, aspectjweaver 직접 선언
+	implementation 'org.aspectj:aspectjweaver'
+	// JDBC 쿼리별 span — datasource-micrometer가 Boot 4 미지원(v2.0.0 미출시)이라 OTel 계측 사용
+	implementation 'io.opentelemetry.instrumentation:opentelemetry-jdbc:2.29.0-alpha'
 	
 	// Spring Security & JWT
 	implementation 'org.springframework.boot:spring-boot-starter-security'

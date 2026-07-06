@@ -12,6 +12,8 @@ import com.newcodes7.small_town.search.scorer.HybridSearchScorer;
 import com.newcodes7.small_town.term.repository.ArticleTermRepository;
 import com.newcodes7.small_town.term.repository.TermRepository;
 import com.newcodes7.small_town.term.service.TermSynonymService;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -56,6 +58,7 @@ public class ArticleSearchService {
     private final ExecutorService searchExecutor;
     private final SearchWeightConfigService weightConfig;
     private final CacheManager cacheManager;
+    private final ObservationRegistry observationRegistry;
 
     private static final String HYBRID_TOP_ARTICLES_CACHE_NAME = "hybridTopArticles";
 
@@ -71,7 +74,8 @@ public class ArticleSearchService {
                                 MorphemeAnalyzer morphemeAnalyzer,
                                 @Qualifier("searchExecutor") ExecutorService searchExecutor,
                                 SearchWeightConfigService weightConfig,
-                                CacheManager cacheManager) {
+                                CacheManager cacheManager,
+                                ObservationRegistry observationRegistry) {
         this.articleRepository = articleRepository;
         this.articleTermRepository = articleTermRepository;
         this.termRepository = termRepository;
@@ -85,6 +89,7 @@ public class ArticleSearchService {
         this.searchExecutor = searchExecutor;
         this.weightConfig = weightConfig;
         this.cacheManager = cacheManager;
+        this.observationRegistry = observationRegistry;
     }
 
     /**
@@ -904,6 +909,13 @@ public class ArticleSearchService {
      * @return 검색 결과 (id, score, published_at)
      */
     private List<Object[]> executeBM25Search(String searchQuery, List<String> regions, List<String> category) {
+        // private 메서드라 @Observed 프록시가 닿지 않아 수동 Observation으로 구간 기록
+        return Observation.createNotStarted("search.bm25", observationRegistry)
+                .contextualName("bm25-search")
+                .observe(() -> doExecuteBM25Search(searchQuery, regions, category));
+    }
+
+    private List<Object[]> doExecuteBM25Search(String searchQuery, List<String> regions, List<String> category) {
         try {
             List<Integer> domesticTypes = convertRegionsToTypes(regions);
             List<String> safeCategory = (category != null && !category.isEmpty()) ? category : null;
@@ -935,6 +947,12 @@ public class ArticleSearchService {
      * regions/category 필터도 동일하게 적용
      */
     private List<Object[]> computeBM25ScoreForArticles(String searchQuery, List<String> regions, List<String> category, List<Long> articleIds) {
+        return Observation.createNotStarted("search.bm25", observationRegistry)
+                .contextualName("bm25-supplement")
+                .observe(() -> doComputeBM25ScoreForArticles(searchQuery, regions, category, articleIds));
+    }
+
+    private List<Object[]> doComputeBM25ScoreForArticles(String searchQuery, List<String> regions, List<String> category, List<Long> articleIds) {
         try {
             List<Integer> domesticTypes = convertRegionsToTypes(regions);
             List<String> safeCategory = (category != null && !category.isEmpty()) ? category : null;

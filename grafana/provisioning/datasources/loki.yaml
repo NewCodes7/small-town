@@ -11,3 +11,9 @@ datasources:
     editable: true
     jsonData:
       maxLines: 1000
+      # 로그의 [traceId,spanId] 패턴(logback FILE_LOG_PATTERN)을 잡아 Tempo 트레이스로 링크
+      derivedFields:
+        - name: TraceID
+          matcherRegex: '\[(\w{32}),\w{16}\]'
+          url: '$${__value.raw}'
+          datasourceUid: tempo

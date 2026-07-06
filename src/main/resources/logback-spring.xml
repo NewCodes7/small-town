@@ -11,13 +11,13 @@
     <springProperty scope="context" name="LOG_PATH" source="logging.file.path" defaultValue="/app/logs"/>
     <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="small-town"/>
 
-    <!-- 콘솔 패턴 -->
+    <!-- 콘솔 패턴 (traceId,spanId: Tempo 트레이스 연결용 — Loki derived field 정규식과 짝) -->
     <property name="CONSOLE_LOG_PATTERN"
-              value="%d{yyyy-MM-dd HH:mm:ss.SSS, Asia/Seoul} %clr([%5level]) %clr([%thread]){cyan} %clr(%-40.40logger{39}){blue} : %msg%n"/>
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS, Asia/Seoul} %clr([%5level]) %clr([%thread]){cyan} %clr([%X{traceId:-},%X{spanId:-}]){magenta} %clr(%-40.40logger{39}){blue} : %msg%n"/>
 
     <!-- 파일 패턴 -->
     <property name="FILE_LOG_PATTERN"
-              value="%d{yyyy-MM-dd HH:mm:ss.SSS, Asia/Seoul} [%5level] [%thread] %-40.40logger{39} : %msg%n"/>
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS, Asia/Seoul} [%5level] [%thread] [%X{traceId:-},%X{spanId:-}] %-40.40logger{39} : %msg%n"/>
 
     <!-- 콘솔 Appender -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
