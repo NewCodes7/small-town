@@ -1147,15 +1147,37 @@
         }
 
         .popular-title-toggle {
+            position: relative;
             display: inline-flex;
             align-items: center;
             gap: 4px;
         }
 
+        .popular-toggle-indicator {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            height: 1.7em;
+            width: 0;
+            transform: translate(0, -50%);
+            border-radius: 999px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.8), rgba(3, 199, 90, 0.18));
+            backdrop-filter: blur(8px) saturate(180%);
+            -webkit-backdrop-filter: blur(8px) saturate(180%);
+            border: 1.5px solid rgba(3, 199, 90, 0.4);
+            box-shadow: 0 4px 16px rgba(3, 199, 90, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.8);
+            transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        width 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+            pointer-events: none;
+            z-index: 0;
+        }
+
         .popular-period-word {
+            position: relative;
+            z-index: 1;
             background: none;
             border: none;
-            padding: 0;
+            padding: 3px 10px;
             margin: 0;
             font: inherit;
             font-weight: 700;

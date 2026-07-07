@@ -352,6 +352,20 @@ async function loadBlogArticles(offset) {
     }
 }
 
+function positionPopularToggleIndicator(instant) {
+    const indicator = document.querySelector('.popular-toggle-indicator');
+    const activeBtn = document.querySelector('.popular-period-word.active');
+    if (!indicator || !activeBtn) return;
+
+    if (instant) indicator.style.transition = 'none';
+    indicator.style.width = `${activeBtn.offsetWidth}px`;
+    indicator.style.transform = `translate(${activeBtn.offsetLeft}px, -50%)`;
+    if (instant) {
+        indicator.getBoundingClientRect(); // reflow to flush the transition:none
+        indicator.style.transition = '';
+    }
+}
+
 async function switchPopularPeriod(period) {
     if (currentPopularPeriod === period) return;
     currentPopularPeriod = period;
@@ -360,6 +374,7 @@ async function switchPopularPeriod(period) {
     const monthlyBtn = document.getElementById('popularMonthlyBtn');
     if (weeklyBtn) weeklyBtn.classList.toggle('active', period === 'weekly');
     if (monthlyBtn) monthlyBtn.classList.toggle('active', period === 'monthly');
+    positionPopularToggleIndicator(false);
 
     const track = document.querySelector('.popular-track');
     if (!track) {
@@ -393,6 +408,7 @@ window.addEventListener('resize', function() {
         track.style.transform = 'translateX(0)';
     }
     slidePopular(0); // Update button states
+    positionPopularToggleIndicator(true);
 });
 
 // 아티클 상세 페이지로 이동 (조회수 증가는 상세 페이지에서 처리)
@@ -662,6 +678,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const popularMonthlyBtn = document.getElementById('popularMonthlyBtn');
     if (popularWeeklyBtn) popularWeeklyBtn.addEventListener('click', function() { switchPopularPeriod('weekly'); });
     if (popularMonthlyBtn) popularMonthlyBtn.addEventListener('click', function() { switchPopularPeriod('monthly'); });
+    positionPopularToggleIndicator(true);
 
     // 상대 시간 표시
     applyRelativeTimes(document);
