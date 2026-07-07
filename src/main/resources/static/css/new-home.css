@@ -1146,8 +1146,35 @@
             background: #ef4444 !important;
         }
 
-        .popular-period-toggle {
-            flex-shrink: 0;
+        .popular-title-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .popular-period-word {
+            background: none;
+            border: none;
+            padding: 0;
+            margin: 0;
+            font: inherit;
+            font-weight: 700;
+            color: var(--text-light, #9ca3af);
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+
+        .popular-period-word:hover {
+            color: var(--primary-green);
+        }
+
+        .popular-period-word.active {
+            color: var(--text-dark);
+        }
+
+        .popular-period-sep {
+            color: var(--border-light, #d1d5db);
+            font-weight: 400;
         }
 
         .popular-empty-message {
@@ -1205,7 +1232,11 @@
         .popular-track {
             display: flex;
             gap: 20px;
-            transition: transform 0.4s ease;
+            transition: transform 0.4s ease, opacity 0.2s ease;
+        }
+
+        .popular-track.popular-track-switching {
+            opacity: 0;
         }
 
         .popular-card {

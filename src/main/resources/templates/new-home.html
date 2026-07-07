@@ -126,12 +126,13 @@
                         <span class="section-icon popular-icon">
                             <i class="fas fa-fire"></i>
                         </span>
-                        <span id="popularSectionTitleText">이번 주 인기글</span>
+                        <span class="popular-title-toggle">
+                            <button type="button" id="popularWeeklyBtn" class="popular-period-word active" data-period="weekly">이번 주</button>
+                            <span class="popular-period-sep">/</span>
+                            <button type="button" id="popularMonthlyBtn" class="popular-period-word" data-period="monthly">이번 달</button>
+                        </span>
+                        <span>인기글</span>
                     </h2>
-                    <div class="view-toggle-container popular-period-toggle">
-                        <button type="button" id="popularWeeklyBtn" class="view-toggle-btn active" data-period="weekly">주간</button>
-                        <button type="button" id="popularMonthlyBtn" class="view-toggle-btn" data-period="monthly">월간</button>
-                    </div>
                 </div>
 
                 <div class="popular-carousel-wrapper">

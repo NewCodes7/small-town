@@ -352,32 +352,37 @@ async function loadBlogArticles(offset) {
     }
 }
 
-function switchPopularPeriod(period) {
+async function switchPopularPeriod(period) {
     if (currentPopularPeriod === period) return;
     currentPopularPeriod = period;
 
     const weeklyBtn = document.getElementById('popularWeeklyBtn');
     const monthlyBtn = document.getElementById('popularMonthlyBtn');
-    const titleText = document.getElementById('popularSectionTitleText');
     if (weeklyBtn) weeklyBtn.classList.toggle('active', period === 'weekly');
     if (monthlyBtn) monthlyBtn.classList.toggle('active', period === 'monthly');
-    if (titleText) titleText.textContent = period === 'monthly' ? '이번 달 인기글' : '이번 주 인기글';
 
-    // 최초 서버 렌더링된 주간 카드가 아직 있다면 재요청 없이 복원
-    if (period === 'weekly' && !popularArticlesCache.weekly && initialPopularTrackHtml !== null) {
-        const track = document.querySelector('.popular-track');
-        if (track) {
-            track.innerHTML = initialPopularTrackHtml;
-            popularCurrentPage = 0;
-            track.style.transform = 'translateX(0)';
-            slidePopular(0);
-            applyRelativeTimes(track);
-            loadLikeStatus();
-        }
+    const track = document.querySelector('.popular-track');
+    if (!track) {
+        await loadPopularArticles(period);
         return;
     }
 
-    loadPopularArticles(period);
+    track.classList.add('popular-track-switching');
+    await new Promise(resolve => setTimeout(resolve, 200)); // CSS의 0.2s fade-out과 일치
+
+    // 최초 서버 렌더링된 주간 카드가 아직 있다면 재요청 없이 복원
+    if (period === 'weekly' && !popularArticlesCache.weekly && initialPopularTrackHtml !== null) {
+        track.innerHTML = initialPopularTrackHtml;
+        popularCurrentPage = 0;
+        track.style.transform = 'translateX(0)';
+        slidePopular(0);
+        applyRelativeTimes(track);
+        loadLikeStatus();
+    } else {
+        await loadPopularArticles(period);
+    }
+
+    track.classList.remove('popular-track-switching');
 }
 
 // Reset carousel on window resize
