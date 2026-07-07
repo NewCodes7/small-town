@@ -200,6 +200,68 @@ reset_swap() {
     free -h | grep -i swap
 }
 
+# grafana 컨테이너의 데이터 볼륨 백업 (실제 마운트에서 볼륨명 조회 — 프로젝트명 하드코딩 방지)
+backup_grafana_data() {
+    local volume_name
+    local backup_dir="grafana-backups"
+    local backup_file
+
+    volume_name=$(docker inspect grafana --format '{{ range .Mounts }}{{ if eq .Destination "/var/lib/grafana" }}{{ .Name }}{{ end }}{{ end }}' 2>/dev/null || true)
+
+    if [ -z "$volume_name" ]; then
+        error "grafana 컨테이너의 데이터 볼륨을 찾을 수 없습니다 (컨테이너가 실행 중인지 확인)"
+    fi
+
+    mkdir -p "$backup_dir"
+    backup_file="${backup_dir}/grafana-data-$(date '+%Y%m%d_%H%M%S').tar.gz"
+
+    log "grafana-data 볼륨 백업 중: $volume_name -> $backup_file"
+    docker run --rm -v "${volume_name}:/data:ro" -v "$(pwd)/${backup_dir}:/backup" alpine \
+        tar czf "/backup/$(basename "$backup_file")" -C /data .
+
+    log "백업 완료: $backup_file"
+}
+
+# grafana 재배포 함수 (이미지 업데이트 + 재생성, 배포 전 데이터 볼륨 자동 백업)
+redeploy_grafana() {
+    log "=== git 변경 내용 가져오기 ==="
+    git pull origin main
+
+    log "=== Grafana 재배포 시작 ==="
+
+    if is_container_running "grafana"; then
+        backup_grafana_data
+    else
+        warn "grafana 컨테이너가 실행 중이지 않아 백업을 건너뜁니다"
+    fi
+
+    log "새 이미지 pull"
+    docker compose pull grafana
+
+    log "grafana 컨테이너 재생성"
+    docker compose up -d grafana
+
+    log "헬스체크 대기"
+    local max_attempts=18
+    local attempt=1
+
+    while [ $attempt -le $max_attempts ]; do
+        if docker exec grafana wget -q -O- http://localhost:3000/api/health >/dev/null 2>&1; then
+            log "grafana 헬스체크 성공 (${attempt}/${max_attempts})"
+            log "=== Grafana 재배포 완료 ==="
+            docker exec grafana grafana-cli --version || true
+            return 0
+        fi
+        warn "grafana 헬스체크 대기 중 (${attempt}/${max_attempts})"
+        sleep 5
+        ((attempt++))
+    done
+
+    warn "grafana 헬스체크 실패 — 최근 로그(마지막 100줄):"
+    docker logs --tail 100 grafana || true
+    error "grafana 재배포 실패: 헬스체크 통과 못함"
+}
+
 # 메인 배포 함수
 deploy() {
     local target=${1-}
@@ -366,13 +428,14 @@ logs() {
 
 # 사용법 출력
 usage() {
-    echo "Usage: $0 {deploy [blue|green]|rollback|status|logs [blue|green]}"
+    echo "Usage: $0 {deploy [blue|green]|rollback|status|logs [blue|green]|redeploy-grafana}"
     echo ""
     echo "Commands:"
     echo "  deploy [blue|green] - 새 버전으로 무중단 배포 (대상 미지정 시 자동 선택)"
     echo "  rollback - 이전 버전으로 롤백"
     echo "  status   - 현재 배포 상태 확인"
     echo "  logs [blue|green] - 백엔드 컨테이너 로그 확인(-f)"
+    echo "  redeploy-grafana - grafana-data 볼륨 백업 후 grafana 이미지 재배포 (다운타임 있음)"
     exit 1
 }
 
@@ -389,6 +452,9 @@ case "$1" in
         ;;
     logs)
         logs "${2-}"
+        ;;
+    redeploy-grafana)
+        redeploy_grafana
         ;;
     *)
         usage
