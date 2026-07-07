@@ -695,14 +695,14 @@
 
                 <!-- Thumbnail (Right Side) -->
                 <div class="article-thumbnail-container">
-                    <img th:if="${article.thumbnailImage != null}"
+                    <img th:if="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}"
                          th:src="${article.thumbnailImage}"
                          th:alt="${article.translatedTitle != null ? article.translatedTitle : article.title}"
                          width="300"
                          height="155"
                          onerror="handleThumbnailError(this)"
                          class="article-thumbnail">
-                    <div th:unless="${article.thumbnailImage != null}"
+                    <div th:unless="${article.thumbnailImage != null && !article.thumbnailImage.isEmpty()}"
                          class="article-thumbnail default-thumbnail">
                         <div class="default-thumbnail-content">
                             <i class="fas fa-code"></i>
