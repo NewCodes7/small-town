@@ -1146,6 +1146,11 @@
             background: #ef4444 !important;
         }
 
+        .popular-section .section-title {
+            flex-wrap: wrap;
+            row-gap: 4px;
+        }
+
         .popular-title-toggle {
             position: relative;
             display: inline-flex;
@@ -1183,6 +1188,7 @@
             font-weight: 700;
             color: var(--text-light, #9ca3af);
             cursor: pointer;
+            white-space: nowrap;
             transition: color 0.2s ease;
         }
 
