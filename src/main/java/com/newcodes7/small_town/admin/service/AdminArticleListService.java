@@ -139,10 +139,22 @@ public class AdminArticleListService {
         }
 
         if (search != null && !search.trim().isEmpty()) {
-            Page<ArticleSearchResultDto> searchResult = articleSearchService.searchArticlesHybrid(
-                    search, null, null,
-                    pageable.getPageNumber(), pageable.getPageSize(),
-                    "relevance", null, null);
+            String trimmedSearch = search.trim();
+            Page<ArticleSearchResultDto> searchResult;
+
+            // 따옴표 검색 감지: "키워드" 형식 → 정확한 구문 매칭
+            if (trimmedSearch.startsWith("\"") && trimmedSearch.endsWith("\"") && trimmedSearch.length() > 2) {
+                String exactKeyword = trimmedSearch.substring(1, trimmedSearch.length() - 1).toLowerCase();
+                searchResult = articleSearchService.searchArticlesExactMatch(
+                        exactKeyword, null, null,
+                        pageable.getPageNumber(), pageable.getPageSize(),
+                        "relevance", null, null);
+            } else {
+                searchResult = articleSearchService.searchArticlesHybrid(
+                        trimmedSearch, null, null,
+                        pageable.getPageNumber(), pageable.getPageSize(),
+                        "relevance", null, null);
+            }
 
             List<Long> articleIds = searchResult.getContent().stream()
                     .map(ArticleSearchResultDto::getId)
