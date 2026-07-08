@@ -603,6 +603,104 @@ class ArticleSearchServiceTest {
         verify(termRepository).findByTerm("redis"); // 소문자 fallback
     }
 
+    // ===== getTopArticleIdsForRag 테스트 =====
+
+    @Test
+    @DisplayName("getTopArticleIdsForRag: corporationIds 필터 → corp 필터 BM25/Vector 변형 호출 + NSF 정렬")
+    void getTopArticleIdsForRag_withCorporationFilter() {
+        // given
+        String bm25Keywords = "kafka";
+        String vectorQuery = "Kafka를 도입한 사례";
+        List<Long> corporationIds = List.of(1L, 2L);
+
+        when(semanticExpansionService.classifyQueryComplexity(bm25Keywords))
+                .thenReturn(SemanticTermExpansionService.QueryComplexity.SIMPLE);
+        when(weightConfig.getWeights(SemanticTermExpansionService.QueryComplexity.SIMPLE))
+                .thenReturn(new SearchWeightConfigService.WeightEntry(3.0, 0.6, 0.4));
+
+        Map<String, Double> expandedTerms = Map.of(bm25Keywords, 1.0);
+        when(semanticExpansionService.expandSearchTerms(bm25Keywords)).thenReturn(expandedTerms);
+        String bm25Query = "title_terms:kafka^6.0 OR content_terms:kafka^2.0";
+        when(hybridSearchScorer.buildBM25Query(expandedTerms, 3.0)).thenReturn(bm25Query);
+
+        // corp 필터 BM25 결과
+        when(articleRepository.searchByBM25WithCorporations(bm25Query, corporationIds, 100))
+                .thenReturn(List.<Object[]>of(new Object[]{10L, 10.0, LocalDateTime.of(2024, 1, 1, 0, 0)}));
+
+        // corp 필터 + threshold 벡터 검색 결과
+        float[] dummyEmbedding = new float[]{0.1f, 0.2f};
+        when(vectorSearchService.searchForRag(vectorQuery, corporationIds, 0.6))
+                .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(20L, 0.8), dummyEmbedding));
+
+        // cross-scoring (빈 결과)
+        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(float[].class), anyList(), eq(0.6)))
+                .thenReturn(Map.of());
+        when(articleRepository.computeBM25ScoreForArticleIds(eq(bm25Query), anyList()))
+                .thenReturn(Collections.emptyList());
+
+        Map<Long, Double> nsfScores = Map.of(10L, 0.9, 20L, 0.5);
+        HybridSearchScorer.NSFResult nsfResult = new HybridSearchScorer.NSFResult(
+                nsfScores, Map.of(10L, 1.0), Map.of(20L, 1.0), Map.of(10L, 1.0, 20L, 1.0));
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(nsfResult);
+
+        when(articleRepository.findIdAndPublishedAtByIdIn(anyList())).thenReturn(List.of(
+                new Object[]{10L, LocalDateTime.of(2024, 1, 1, 0, 0)},
+                new Object[]{20L, LocalDateTime.of(2024, 2, 1, 0, 0)}
+        ));
+
+        // when
+        ArticleSearchService.HybridTopArticles result = articleSearchService.getTopArticleIdsForRag(
+                bm25Keywords, vectorQuery, corporationIds, 5, 0.6);
+
+        // then: NSF 스코어 내림차순, corp 필터 변형이 호출됨 (무필터 변형 미호출)
+        assertThat(result.articleIds()).containsExactly(10L, 20L);
+        assertThat(result.queryEmbedding()).isEqualTo(dummyEmbedding);
+        verify(articleRepository).searchByBM25WithCorporations(bm25Query, corporationIds, 100);
+        verify(articleRepository, never()).searchByBM25(anyString(), anyInt());
+        verify(vectorSearchService).searchForRag(vectorQuery, corporationIds, 0.6);
+    }
+
+    @Test
+    @DisplayName("getTopArticleIdsForRag: corporationIds 비어 있음 → 무필터 BM25 사용")
+    void getTopArticleIdsForRag_withoutCorporationFilter() {
+        // given
+        String bm25Keywords = "kafka";
+        String vectorQuery = "Kafka를 도입한 사례";
+
+        when(semanticExpansionService.classifyQueryComplexity(bm25Keywords))
+                .thenReturn(SemanticTermExpansionService.QueryComplexity.SIMPLE);
+        when(weightConfig.getWeights(SemanticTermExpansionService.QueryComplexity.SIMPLE))
+                .thenReturn(new SearchWeightConfigService.WeightEntry(3.0, 0.6, 0.4));
+
+        Map<String, Double> expandedTerms = Map.of(bm25Keywords, 1.0);
+        when(semanticExpansionService.expandSearchTerms(bm25Keywords)).thenReturn(expandedTerms);
+        String bm25Query = "title_terms:kafka^6.0 OR content_terms:kafka^2.0";
+        when(hybridSearchScorer.buildBM25Query(expandedTerms, 3.0)).thenReturn(bm25Query);
+
+        when(articleRepository.searchByBM25(bm25Query, 100))
+                .thenReturn(List.<Object[]>of(new Object[]{10L, 10.0, LocalDateTime.of(2024, 1, 1, 0, 0)}));
+        when(vectorSearchService.searchForRag(vectorQuery, List.of(), 0.6))
+                .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), null));
+
+        Map<Long, Double> nsfScores = Map.of(10L, 0.9);
+        HybridSearchScorer.NSFResult nsfResult = new HybridSearchScorer.NSFResult(
+                nsfScores, Map.of(10L, 1.0), Map.of(), Map.of(10L, 1.0));
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(nsfResult);
+        when(articleRepository.findIdAndPublishedAtByIdIn(anyList()))
+                .thenReturn(List.<Object[]>of(new Object[]{10L, LocalDateTime.of(2024, 1, 1, 0, 0)}));
+
+        // when
+        ArticleSearchService.HybridTopArticles result = articleSearchService.getTopArticleIdsForRag(
+                bm25Keywords, vectorQuery, List.of(), 5, 0.6);
+
+        // then
+        assertThat(result.articleIds()).containsExactly(10L);
+        verify(articleRepository).searchByBM25(bm25Query, 100);
+        verify(articleRepository, never()).searchByBM25WithCorporations(anyString(), anyList(), anyInt());
+    }
+
     // ===== 헬퍼 메서드 =====
 
     private Article createArticle(Long id, String title, Corporation corporation) {

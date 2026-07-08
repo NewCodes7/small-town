@@ -349,6 +349,55 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
     );
 
     /**
+     * RAG용 2단계 통합 검색 (기업 필터 적용): Binary HNSW 후보 필터링 → halfvec Reranking
+     *
+     * @param corporationIds 허용할 corporation_id 목록
+     */
+    @Query(value = """
+            WITH query_vec AS (
+                SELECT l2_normalize(CAST(:queryEmbedding AS halfvec)) AS vec
+            ),
+            candidates AS (
+                SELECT
+                    cac.article_id,
+                    ccv.embedding_normalized
+                FROM clova_article_chunk cac
+                JOIN article a ON cac.article_id = a.id
+                JOIN clova_chunk_vectors ccv ON ccv.id = cac.id
+                WHERE a.deleted_at IS NULL
+                  AND cac.embedding_binary IS NOT NULL
+                  AND a.corporation_id IN (:corporationIds)
+                ORDER BY cac.embedding_binary <~> CAST(:queryBinary AS bit(1024))
+                LIMIT :candidateLimit
+            )
+            SELECT article_id, AVG(similarity) AS avg_similarity
+            FROM (
+                SELECT
+                    c.article_id,
+                    -(c.embedding_normalized <#> q.vec) AS similarity,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY c.article_id
+                        ORDER BY c.embedding_normalized <#> q.vec
+                    ) AS rn
+                FROM candidates c, query_vec q
+            ) ranked
+            WHERE rn <= :topK
+              AND similarity >= :threshold
+            GROUP BY article_id
+            ORDER BY avg_similarity DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> findArticlesByTwoStageSearchWithCorporationFilter(
+            @Param("queryEmbedding") String queryEmbedding,
+            @Param("queryBinary") String queryBinary,
+            @Param("candidateLimit") int candidateLimit,
+            @Param("topK") int topK,
+            @Param("threshold") double threshold,
+            @Param("limit") int limit,
+            @Param("corporationIds") List<Long> corporationIds
+    );
+
+    /**
      * AI 요약용 상위 N개 chunk 조회 (article 정보 + 텍스트 포함)
      * 2단계 검색: Binary HNSW → halfvec Reranking
      * Article별 집계 없이 개별 chunk를 유사도 순으로 반환
@@ -466,6 +515,71 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
     List<Object[]> findFirstAndBestChunksByArticleIds(
             @Param("queryEmbedding") String queryEmbedding,
             @Param("articleIds") List<Long> articleIds
+    );
+
+    /**
+     * RAG용: 지정 아티클 목록에서 아티클별 첫 청크 + 유사도 상위 K개 청크 반환
+     * findFirstAndBestChunksByArticleIds의 확장 — 최고 유사도 1개 대신 상위 :chunksPerArticle개
+     * UNION으로 중복 chunk_id 제거 (첫 청크가 상위 K에 포함되면 1개만 반환)
+     */
+    @Query(value = """
+            WITH query_vec AS (
+                SELECT l2_normalize(CAST(:queryEmbedding AS halfvec)) AS vec
+            ),
+            all_chunks AS (
+                SELECT
+                    cac.article_id,
+                    cac.id            AS chunk_id,
+                    cc.content,
+                    cac.chunk_index,
+                    -(ccv.embedding_normalized <#> q.vec) AS similarity,
+                    a.title           AS article_title,
+                    a.link            AS article_url,
+                    corp.logo_s3_url,
+                    corp.logo_filename,
+                    corp.name         AS corp_name,
+                    a.thumbnail_image
+                FROM clova_article_chunk cac
+                JOIN article a          ON a.id    = cac.article_id
+                JOIN corporation corp   ON corp.id = a.corporation_id
+                JOIN clova_chunk_contents cc  ON cc.id  = cac.id
+                JOIN clova_chunk_vectors  ccv ON ccv.id = cac.id
+                CROSS JOIN query_vec q
+                WHERE cac.article_id IN (:articleIds)
+                  AND ccv.embedding_normalized IS NOT NULL
+            ),
+            first_chunk_ids AS (
+                SELECT DISTINCT ON (article_id) chunk_id
+                FROM all_chunks
+                ORDER BY article_id, chunk_index ASC
+            ),
+            top_chunk_ids AS (
+                SELECT chunk_id
+                FROM (
+                    SELECT chunk_id,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY article_id
+                               ORDER BY similarity DESC
+                           ) AS rn
+                    FROM all_chunks
+                ) ranked
+                WHERE rn <= :chunksPerArticle
+            ),
+            selected_ids AS (
+                SELECT chunk_id FROM first_chunk_ids
+                UNION
+                SELECT chunk_id FROM top_chunk_ids
+            )
+            SELECT ac.article_id, ac.article_title, ac.article_url, ac.content,
+                   ac.logo_s3_url, ac.logo_filename, ac.corp_name, ac.thumbnail_image
+            FROM all_chunks ac
+            WHERE ac.chunk_id IN (SELECT chunk_id FROM selected_ids)
+            ORDER BY ac.article_id, ac.chunk_index
+            """, nativeQuery = true)
+    List<Object[]> findFirstAndTopChunksByArticleIds(
+            @Param("queryEmbedding") String queryEmbedding,
+            @Param("articleIds") List<Long> articleIds,
+            @Param("chunksPerArticle") int chunksPerArticle
     );
 
     /**

@@ -70,6 +70,14 @@ public interface CorporationRepository extends JpaRepository<Corporation, Long>,
     List<Corporation> findCorporationsWithArticlesByNameOptimized(@Param("query") String query, Pageable pageable);
 
     /**
+     * RAG 질의 전처리용: 추출된 기업명 목록을 name/alternateName과 정확 일치로 매칭
+     * 부분/포함 매칭은 하지 않음 (오매칭 방지) — 호출부에서 lower/trim 후 전달
+     */
+    @Query("SELECT c FROM Corporation c WHERE c.deletedAt IS NULL " +
+           "AND (LOWER(c.name) IN (:names) OR LOWER(c.alternateName) IN (:names))")
+    List<Corporation> findActiveByLowerNames(@Param("names") List<String> names);
+
+    /**
      * 비디오가 있는 기업 중에서 이름 또는 대체 이름으로 검색 (자동완성용, 접두사 일치)
      * 검색 대상: name, alternateName, decomposedName, decomposedAlternateName, chosungName, chosungAlternateName
      */

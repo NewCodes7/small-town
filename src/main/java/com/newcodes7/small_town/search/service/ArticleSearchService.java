@@ -719,6 +719,101 @@ public class ArticleSearchService {
     }
 
     /**
+     * RAG용: 이중 쿼리(BM25 키워드 + 벡터 재작성 문장) 하이브리드 검색 상위 limit개 아티클 ID 반환
+     * computeTopArticleIdsByHybrid와 동일한 NSF 병합·cross-scoring 구조에
+     * corporationIds 프리필터와 요청별 벡터 임계값을 추가 적용. 캐시는 사용하지 않음 (파라미터 실험용)
+     *
+     * @param bm25Keywords    BM25 검색용 키워드 (전처리에서 추출)
+     * @param vectorQuery     벡터 검색용 재작성 문장 (전처리에서 생성)
+     * @param corporationIds  기업 프리필터 (null/빈이면 전체 검색)
+     * @param limit           상위 아티클 수
+     * @param vectorThreshold 벡터 유사도 임계값
+     */
+    @Transactional(readOnly = true)
+    public HybridTopArticles getTopArticleIdsForRag(
+            String bm25Keywords, String vectorQuery, List<Long> corporationIds,
+            int limit, double vectorThreshold) {
+        if (bm25Keywords == null || bm25Keywords.trim().isEmpty()) return HybridTopArticles.empty();
+
+        SemanticTermExpansionService.QueryComplexity complexity =
+                semanticExpansionService.classifyQueryComplexity(bm25Keywords);
+        SearchWeightConfigService.WeightEntry weights = weightConfig.getWeights(complexity);
+
+        String bm25SearchQuery = buildBM25SearchQuery(bm25Keywords, weights.titleMultiplier());
+        if (bm25SearchQuery == null || bm25SearchQuery.isEmpty()) return HybridTopArticles.empty();
+
+        boolean hasCorpFilter = corporationIds != null && !corporationIds.isEmpty();
+
+        CompletableFuture<VectorSearchService.VectorSearchResult> vectorFuture =
+                CompletableFuture.supplyAsync(
+                        () -> vectorSearchService.searchForRag(vectorQuery, corporationIds, vectorThreshold),
+                        searchExecutor);
+
+        Map<Long, Double> bm25Results = new HashMap<>();
+        List<Object[]> bm25Rows;
+        try {
+            bm25Rows = hasCorpFilter
+                    ? articleRepository.searchByBM25WithCorporations(bm25SearchQuery, corporationIds, 100)
+                    : articleRepository.searchByBM25(bm25SearchQuery, 100);
+        } catch (Exception e) {
+            log.error("RAG BM25 검색 실행 실패: {}", e.getMessage(), e);
+            bm25Rows = Collections.emptyList();
+        }
+        for (Object[] row : bm25Rows) {
+            Long id = ((Number) row[0]).longValue();
+            Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
+            if (score != null) bm25Results.put(id, score);
+        }
+
+        Map<Long, Double> vectorResults = new HashMap<>();
+        float[] queryEmbedding = null;
+        try {
+            VectorSearchService.VectorSearchResult vsr = vectorFuture.get(5, TimeUnit.SECONDS);
+            vectorResults = new HashMap<>(vsr.getScores());
+            queryEmbedding = vsr.getQueryEmbedding();
+        } catch (Exception e) {
+            log.warn("RAG Vector 검색 실패: {}", e.getMessage());
+        }
+
+        Set<Long> bm25OnlyIds = new HashSet<>(bm25Results.keySet());
+        bm25OnlyIds.removeAll(vectorResults.keySet());
+        Set<Long> vectorOnlyIds = new HashSet<>(vectorResults.keySet());
+        vectorOnlyIds.removeAll(bm25Results.keySet());
+
+        // cross-scoring: 대상 id들이 이미 corp 필터를 통과했으므로 필터 없는 보충 쿼리 재사용
+        final float[] cachedEmbedding = queryEmbedding;
+        if (!bm25OnlyIds.isEmpty() && cachedEmbedding != null) {
+            vectorResults.putAll(vectorSearchService.computeSimilarityForArticlesWithEmbedding(
+                    cachedEmbedding, new ArrayList<>(bm25OnlyIds), vectorThreshold));
+        }
+        if (!vectorOnlyIds.isEmpty()) {
+            for (Object[] row : computeBM25ScoreForArticles(bm25SearchQuery, null, null, new ArrayList<>(vectorOnlyIds))) {
+                Long id = ((Number) row[0]).longValue();
+                Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
+                if (score != null) bm25Results.put(id, score);
+            }
+        }
+
+        HybridSearchScorer.NSFResult nsfResult = hybridSearchScorer.calculateNSFScores(
+                bm25Results, vectorResults, weights.bm25NsfWeight(), weights.vectorNsfWeight());
+        Map<Long, Double> nsfScores = nsfResult.getNsfScores();
+        if (nsfScores.isEmpty()) return new HybridTopArticles(List.of(), cachedEmbedding);
+
+        Set<Long> validIds = new HashSet<>();
+        for (Object[] row : articleRepository.findIdAndPublishedAtByIdIn(new ArrayList<>(nsfScores.keySet()))) {
+            validIds.add(((Number) row[0]).longValue());
+        }
+
+        List<Long> topIds = nsfScores.entrySet().stream()
+                .filter(e -> validIds.contains(e.getKey()))
+                .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
+                .limit(limit)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+        return new HybridTopArticles(topIds, cachedEmbedding);
+    }
+
+    /**
      * 여러 term으로 검색 (유의어 포함)
      *
      * @param termStrings 검색할 term 문자열 목록
