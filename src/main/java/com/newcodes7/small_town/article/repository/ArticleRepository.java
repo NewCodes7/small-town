@@ -421,6 +421,25 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     );
 
     /**
+     * RAG용 BM25 검색 + 기업 필터 (searchByBM25와 동일한 쿼리 구조)
+     * article_analyzed_content에 corporation_id 컬럼이 있어 join 불필요
+     */
+    @Query(value = "SELECT asi.id, " +
+           "paradedb.score(asi.id) as bm25_score, " +
+           "asi.published_at " +
+           "FROM article_analyzed_content asi " +
+           "WHERE asi @@@ paradedb.parse(:searchQuery) " +
+           "AND asi.corporation_id IN (:corporationIds) " +
+           "ORDER BY bm25_score DESC " +
+           "LIMIT :limit",
+           nativeQuery = true)
+    List<Object[]> searchByBM25WithCorporations(
+            @Param("searchQuery") String searchQuery,
+            @Param("corporationIds") List<Long> corporationIds,
+            @Param("limit") int limit
+    );
+
+    /**
      * BM25 검색 + 두 필터 모두 사용 (domesticTypes AND category)
      */
     @Query(value = "SELECT asi.id, " +

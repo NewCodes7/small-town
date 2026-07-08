@@ -155,6 +155,56 @@ public class VectorSearchService {
         return executeSearchByKeywordWithEmbedding(keyword, domesticTypes, categories);
     }
 
+    /**
+     * RAG용 벡터 검색: 기업 프리필터 + 조절 가능한 유사도 임계값
+     * corporationIds가 null/빈이면 필터 없이 전체 검색
+     * 결과 캐시(VECTOR_SEARCH_CACHE_NAME)는 사용하지 않음 (threshold/필터가 요청마다 달라 캐시 부적합)
+     */
+    @Observed(name = "search.vector", contextualName = "vector-search-rag")
+    public VectorSearchResult searchForRag(String vectorQuery, List<Long> corporationIds, double threshold) {
+        if (vectorQuery == null || vectorQuery.trim().isEmpty()) {
+            return new VectorSearchResult(Map.of(), null);
+        }
+
+        try {
+            SearchQueryEmbeddingService.CachedEmbeddingResult cachedEmbedding =
+                    searchQueryEmbeddingService.getEmbeddingWithCacheInfo(vectorQuery, null);
+            float[] queryEmbedding = cachedEmbedding.getEmbedding();
+            if (queryEmbedding == null) {
+                log.warn("RAG 벡터 검색 임베딩 생성 실패: {}", vectorQuery);
+                return new VectorSearchResult(Map.of(), null);
+            }
+
+            String vectorString = formatVectorForPostgres(queryEmbedding);
+            String binaryString = toBinaryString(queryEmbedding);
+
+            List<Object[]> results;
+            if (corporationIds != null && !corporationIds.isEmpty()) {
+                results = chunkRepository.findArticlesByTwoStageSearchWithCorporationFilter(
+                        vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, DEFAULT_TOP_K,
+                        threshold, DEFAULT_MAX_RESULTS, corporationIds);
+            } else {
+                results = chunkRepository.findArticlesByTwoStageSearch(
+                        vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, DEFAULT_TOP_K,
+                        threshold, DEFAULT_MAX_RESULTS);
+            }
+
+            Map<Long, Double> scoreMap = new HashMap<>();
+            for (Object[] row : results) {
+                Long articleId = ((Number) row[0]).longValue();
+                Double similarity = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
+                if (similarity != null) {
+                    scoreMap.put(articleId, similarity);
+                }
+            }
+            return new VectorSearchResult(scoreMap, queryEmbedding);
+
+        } catch (Exception e) {
+            log.error("RAG 벡터 검색 실패: {}", e.getMessage(), e);
+            return new VectorSearchResult(Map.of(), null);
+        }
+    }
+
     private VectorSearchResult executeSearchByKeywordWithEmbedding(String keyword, List<Integer> domesticTypes, List<String> categories) {
         try {
             SearchQueryEmbeddingService.CachedEmbeddingResult cachedEmbedding =
@@ -544,6 +594,49 @@ public class VectorSearchService {
     }
 
     /**
+     * RAG용: 지정 아티클 목록에서 아티클별 첫 청크 + 유사도 상위 chunksPerArticle개 청크 반환
+     * getChunksForArticlesByIds의 확장 — 아티클당 청크 수를 조절 가능
+     * queryEmbedding이 null이면 임베딩을 조회/생성 (fallback)
+     */
+    public List<AiSummaryChunkDto> getChunksForRag(
+            String vectorQuery, List<Long> articleIds, float[] queryEmbedding, int chunksPerArticle) {
+        if (vectorQuery == null || vectorQuery.trim().isEmpty() || articleIds == null || articleIds.isEmpty()) {
+            return List.of();
+        }
+        try {
+            if (queryEmbedding == null) {
+                queryEmbedding = searchQueryEmbeddingService.getOrCreateEmbedding(vectorQuery);
+            }
+            if (queryEmbedding == null) {
+                log.warn("RAG chunk 조회 임베딩 생성 실패: {}", vectorQuery);
+                return List.of();
+            }
+            String vectorString = formatVectorForPostgres(queryEmbedding);
+            List<Object[]> results = chunkRepository.findFirstAndTopChunksByArticleIds(
+                    vectorString, articleIds, chunksPerArticle);
+
+            return results.stream().map(row -> {
+                String logoS3Url   = (String) row[4];
+                String logoFilename = (String) row[5];
+                String logoUrl = (logoS3Url != null && !logoS3Url.isBlank()) ? logoS3Url
+                        : (logoFilename != null && !logoFilename.isBlank()) ? "/images/logos/" + logoFilename
+                        : null;
+                return new AiSummaryChunkDto(
+                        ((Number) row[0]).longValue(),
+                        (String) row[1],
+                        (String) row[2],
+                        (String) row[3],
+                        logoUrl,
+                        (String) row[6],
+                        (String) row[7]);
+            }).collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("RAG chunk 조회 실패: {}", e.getMessage(), e);
+            return List.of();
+        }
+    }
+
+    /**
      * 특정 Article ID들에 대한 vector similarity 계산
      * BM25로만 검색된 article들의 vector score를 채우기 위해 사용
      *
@@ -595,6 +688,14 @@ public class VectorSearchService {
      * @return Article ID -> 유사도 스코어 맵
      */
     public Map<Long, Double> computeSimilarityForArticlesWithEmbedding(float[] queryEmbedding, List<Long> articleIds) {
+        return computeSimilarityForArticlesWithEmbedding(queryEmbedding, articleIds, DEFAULT_SIMILARITY_THRESHOLD);
+    }
+
+    /**
+     * threshold를 지정하는 오버로드 (RAG는 요청별 임계값 사용)
+     */
+    public Map<Long, Double> computeSimilarityForArticlesWithEmbedding(
+            float[] queryEmbedding, List<Long> articleIds, double threshold) {
         if (queryEmbedding == null || articleIds == null || articleIds.isEmpty()) {
             return Map.of();
         }
@@ -609,7 +710,7 @@ public class VectorSearchService {
             for (Object[] row : results) {
                 Long articleId = ((Number) row[0]).longValue();
                 Double similarity = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
-                if (similarity != null && similarity >= DEFAULT_SIMILARITY_THRESHOLD) {
+                if (similarity != null && similarity >= threshold) {
                     scoreMap.put(articleId, similarity);
                 }
             }
