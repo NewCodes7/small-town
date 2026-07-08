@@ -332,11 +332,13 @@ function renderBlogGrid(articles) {
     loadLikeStatus();
 }
 
-function updateBlogNavButtons(hasPrevious, hasNext) {
+function updateBlogNavButtons(hasPrevious, hasNext, offset) {
     const prevBtn = document.querySelector('.blog-prev');
     const nextBtn = document.querySelector('.blog-next');
+    const pageNumber = document.getElementById('blogPageNumber');
     if (prevBtn) prevBtn.disabled = !hasPrevious;
     if (nextBtn) nextBtn.disabled = !hasNext;
+    if (pageNumber) pageNumber.textContent = Math.floor(offset / BLOG_PAGE_SIZE) + 1;
 }
 
 async function loadBlogArticles(offset) {
@@ -345,7 +347,7 @@ async function loadBlogArticles(offset) {
         if (!response.ok) return;
         const data = await response.json();
         renderBlogGrid(data.articles);
-        updateBlogNavButtons(data.hasPrevious, data.hasNext);
+        updateBlogNavButtons(data.hasPrevious, data.hasNext, offset);
         blogArticlesOffset = offset;
     } catch (error) {
         console.error('최신 블로그 글 조회 실패:', error);

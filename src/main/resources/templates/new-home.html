@@ -222,11 +222,7 @@
                     </a>
                 </div>
 
-                <div class="blog-carousel-wrapper">
-                    <button class="blog-nav-btn blog-prev" aria-label="이전" disabled>
-                        <i class="fas fa-chevron-left"></i>
-                    </button>
-                    <div class="blog-grid" id="blogGrid">
+                <div class="blog-grid" id="blogGrid">
                     <!-- Blog Cards - Dynamic -->
                     <div th:each="article : ${articles}"
                          class="blog-card"
@@ -282,7 +278,13 @@
                             </div>
                         </div>
                     </div>
-                    </div>
+                </div>
+
+                <div class="blog-pagination">
+                    <button class="blog-nav-btn blog-prev" aria-label="이전" disabled>
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <span class="blog-page-number" id="blogPageNumber">1</span>
                     <button class="blog-nav-btn blog-next" aria-label="다음" th:disabled="${!hasMoreLatestArticles}">
                         <i class="fas fa-chevron-right"></i>
                     </button>
