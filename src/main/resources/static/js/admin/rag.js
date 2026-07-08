@@ -128,18 +128,30 @@ class AdminRagTester {
     renderSources() {
         if (!this.sources || !this.sources.length) return;
         this.sourcesCard.style.display = 'block';
-        this.sourcesList.innerHTML = this.sources.map((s, i) => `
+
+        const sanitizeUrl = (url) => {
+            const u = String(url || '').trim();
+            if (!u) return '';
+            if (u.startsWith('/') || /^https?:\/\//i.test(u)) return this._escapeHtml(u);
+            return '';
+        };
+
+        this.sourcesList.innerHTML = this.sources.map((s, i) => {
+            const safeHref = sanitizeUrl(s.url) || '#';
+            const safeLogoUrl = sanitizeUrl(s.logoUrl);
+            return `
             <div class="col-md-4">
-                <a class="card rag-source-card text-decoration-none" href="${this._escapeHtml(s.url || '#')}" target="_blank" rel="noopener">
+                <a class="card rag-source-card text-decoration-none" href="${safeHref}" target="_blank" rel="noopener">
                     <div class="card-body">
                         <div class="rag-source-corp mb-1">
-                            ${s.logoUrl ? `<img class="rag-source-logo" src="${this._escapeHtml(s.logoUrl)}" alt="">` : ''}
+                            ${safeLogoUrl ? `<img class="rag-source-logo" src="${safeLogoUrl}" alt="">` : ''}
                             [출처${i + 1}] ${this._escapeHtml(s.corporationName || '')}
                         </div>
                         <div class="rag-source-title">${this._escapeHtml(s.title || '')}</div>
                     </div>
                 </a>
-            </div>`).join('');
+            </div>`;
+        }).join('');
     }
 
     _scheduleRender() {
