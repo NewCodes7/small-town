@@ -144,7 +144,8 @@ public class RagQueryPreprocessService {
                 .uri(URI.create(url))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .timeout(Duration.ofSeconds(20))
+                // TODO: 임시 조치 (2026-07-09) — Gemini 타임아웃 원인 파악 전까지 5분으로 상향. 원인 규명 후 재조정 필요
+                .timeout(Duration.ofMinutes(5))
                 .build();
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() != 200) {
