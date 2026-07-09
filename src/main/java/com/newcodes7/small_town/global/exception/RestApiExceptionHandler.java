@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
@@ -75,6 +76,16 @@ public class RestApiExceptionHandler {
             path
         );
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
+    }
+
+    /**
+     * 클라이언트가 응답 도중 연결을 끊은 경우 (SSE 스트리밍 중 이탈 등).
+     * 응답을 쓸 수 없는 상태이므로 아무것도 반환하지 않고 조용히 종료한다.
+     */
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public void handleAsyncRequestNotUsable(AsyncRequestNotUsableException e, WebRequest request) {
+        String path = ((ServletWebRequest) request).getRequest().getRequestURI();
+        log.debug("클라이언트 연결 종료로 응답 중단: {} at {}", e.getMessage(), path);
     }
 
     @ExceptionHandler(Exception.class)
