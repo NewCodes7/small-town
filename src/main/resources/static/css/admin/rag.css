@@ -20,6 +20,19 @@
     word-break: break-all;
 }
 
+.rag-prompt-pre {
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-size: 0.8rem;
+    max-height: 400px;
+    overflow-y: auto;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 0;
+}
+
 .rag-source-card {
     height: 100%;
 }

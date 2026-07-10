@@ -34,7 +34,7 @@ import tools.jackson.databind.ObjectMapper;
  * 전처리(이중 쿼리 분해) → 기업 프리필터 하이브리드 retrieval → Gemini SSE 생성.
  * 캐시 없이 매 요청 실행하고 RagQueryLog에 기록한다.
  *
- * SSE 이벤트: preprocess → sources → token* → done / notfound / error
+ * SSE 이벤트: preprocess → sources → prompt → token* → done / notfound / error
  */
 @Service
 @RequiredArgsConstructor
@@ -133,6 +133,7 @@ public class RagAnswerService {
             sendSourcesEvent(emitter, sources);
 
             String userMessage = "질문: " + trimmedQuestion + "\n\n" + buildContext(orderedChunks);
+            sendPromptEvent(emitter, RAG_SYSTEM_PROMPT, userMessage);
             String requestBody = buildGeminiRequestBody(RAG_SYSTEM_PROMPT, userMessage);
 
             int[] tokenUsage = {0, 0, 0}; // [input, output, total]
@@ -308,6 +309,13 @@ public class RagAnswerService {
     private void sendPreprocessEvent(SseEmitter emitter, RagPreprocessResult pre) {
         try {
             emitter.send(SseEmitter.event().name("preprocess").data(objectMapper.writeValueAsString(pre)));
+        } catch (Exception ignored) {}
+    }
+
+    private void sendPromptEvent(SseEmitter emitter, String systemPrompt, String userMessage) {
+        try {
+            emitter.send(SseEmitter.event().name("prompt").data(objectMapper.writeValueAsString(
+                    Map.of("systemPrompt", systemPrompt, "userMessage", userMessage))));
         } catch (Exception ignored) {}
     }
 

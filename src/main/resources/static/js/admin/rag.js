@@ -8,6 +8,9 @@ class AdminRagTester {
         this.questionInput = document.getElementById('ragQuestion');
         this.askBtn = document.getElementById('ragAskBtn');
         this.debugCard = document.getElementById('ragDebugCard');
+        this.promptCard = document.getElementById('ragPromptCard');
+        this.promptSystem = document.getElementById('ragPromptSystem');
+        this.promptUser = document.getElementById('ragPromptUser');
         this.answerCard = document.getElementById('ragAnswerCard');
         this.answerLoading = document.getElementById('ragAnswerLoading');
         this.answerText = document.getElementById('ragAnswerText');
@@ -43,6 +46,16 @@ class AdminRagTester {
         this.eventSource.addEventListener('preprocess', (e) => {
             try {
                 this.renderDebug(JSON.parse(e.data));
+            } catch (_) {}
+        });
+
+        // prompt: Gemini에 전송되는 입력 프롬프트 원문(시스템/유저 메시지)을 그대로 표시
+        this.eventSource.addEventListener('prompt', (e) => {
+            try {
+                const prompt = JSON.parse(e.data);
+                this.promptSystem.textContent = prompt.systemPrompt || '';
+                this.promptUser.textContent = prompt.userMessage || '';
+                this.promptCard.style.display = 'block';
             } catch (_) {}
         });
 
@@ -188,6 +201,9 @@ class AdminRagTester {
         this.answerNotFound.style.display = 'none';
         this.answerError.style.display = 'none';
         this.debugCard.style.display = 'none';
+        this.promptCard.style.display = 'none';
+        this.promptSystem.textContent = '';
+        this.promptUser.textContent = '';
         this.sourcesCard.style.display = 'none';
         this.sourcesList.innerHTML = '';
         ['ragDebugCorporations', 'ragDebugMatched', 'ragDebugKeywords', 'ragDebugVectorQuery', 'ragDebugTokens']

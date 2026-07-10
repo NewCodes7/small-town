@@ -101,6 +101,25 @@
                     </div>
                 </div>
 
+                <!-- Gemini 입력 프롬프트 -->
+                <div class="card mb-4" id="ragPromptCard" style="display:none;">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="fas fa-file-import me-2"></i>Gemini 입력 프롬프트 (원문)</span>
+                        <button class="btn btn-sm btn-outline-secondary" type="button"
+                                data-bs-toggle="collapse" data-bs-target="#ragPromptBody">
+                            펼치기/접기
+                        </button>
+                    </div>
+                    <div class="collapse show" id="ragPromptBody">
+                        <div class="card-body">
+                            <h6 class="fw-semibold">시스템 프롬프트</h6>
+                            <pre class="rag-prompt-pre" id="ragPromptSystem"></pre>
+                            <h6 class="fw-semibold mt-3">유저 메시지 (질문 + 컨텍스트)</h6>
+                            <pre class="rag-prompt-pre" id="ragPromptUser"></pre>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 답변 영역 -->
                 <div class="card mb-4" id="ragAnswerCard" style="display:none;">
                     <div class="card-header">
