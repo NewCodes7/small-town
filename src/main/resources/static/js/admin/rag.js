@@ -23,6 +23,14 @@ class AdminRagTester {
         this.questionInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') this.ask();
         });
+
+        // 추천 검색어 클릭 시 입력창에 채우고 포커스 (자동 실행은 하지 않음)
+        document.querySelectorAll('.rag-suggestion').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                this.questionInput.value = btn.textContent.trim();
+                this.questionInput.focus();
+            });
+        });
     }
 
     ask() {

@@ -20,6 +20,26 @@
     word-break: break-all;
 }
 
+.rag-suggestion-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.rag-suggestion-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6c757d;
+    min-width: 72px;
+}
+
+.rag-suggestion {
+    font-size: 0.8rem;
+    border-radius: 16px;
+}
+
 .rag-prompt-pre {
     white-space: pre-wrap;
     word-break: break-all;

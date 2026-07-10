@@ -57,6 +57,29 @@
                                 <i class="fas fa-paper-plane me-1"></i>질문
                             </button>
                         </div>
+                        <!-- 추천 검색어: 클릭 시 입력창에 채워짐 -->
+                        <div class="mb-3" id="ragSuggestions">
+                            <div class="rag-suggestion-group">
+                                <span class="rag-suggestion-label">기업 지목</span>
+                                <button type="button" class="btn btn-sm btn-outline-secondary rag-suggestion">네이버에서 Kafka 도입한 사례 알려줘</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary rag-suggestion">토스는 MSA 전환을 어떻게 진행했어?</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary rag-suggestion">카카오에서 대규모 트래픽 처리한 경험 알려줘</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary rag-suggestion">우아한형제들 MSA에서 이벤트 기반 아키텍처 적용 사례</button>
+                            </div>
+                            <div class="rag-suggestion-group">
+                                <span class="rag-suggestion-label">기업 미지목</span>
+                                <button type="button" class="btn btn-sm btn-outline-secondary rag-suggestion">Redis 캐싱 전략으로 응답 속도 개선한 사례</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary rag-suggestion">Kubernetes로 배포 자동화한 사례 있어?</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary rag-suggestion">LLM을 실제 서비스에 적용한 사례 알려줘</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary rag-suggestion">DB 쿼리 성능 개선해서 성과 낸 사례</button>
+                            </div>
+                            <div class="rag-suggestion-group">
+                                <span class="rag-suggestion-label">엣지 케이스</span>
+                                <button type="button" class="btn btn-sm btn-outline-warning rag-suggestion" title="기업 매칭 실패 → NO_CORP 경로">동네슈퍼전자에서 Kafka 쓴 사례 알려줘</button>
+                                <button type="button" class="btn btn-sm btn-outline-warning rag-suggestion" title="관련 컨텍스트 없음 → NO_RESULT 경로">오늘 점심 메뉴 추천해줘</button>
+                                <button type="button" class="btn btn-sm btn-outline-warning rag-suggestion" title="개념 질문 — 사례 없으면 포장 금지 규칙 검증">Kafka가 뭐야?</button>
+                            </div>
+                        </div>
                         <div class="row g-3">
                             <div class="col-md-4">
                                 <label class="form-label fw-semibold" for="ragTopArticles">Top 아티클 수 (1~10)</label>
