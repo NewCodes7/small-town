@@ -1,37 +1,32 @@
 package com.newcodes7.small_town.search.service;
 
+import com.newcodes7.small_town.search.config.RagModelProperties.ModelOption;
 import com.newcodes7.small_town.search.dto.AiSummaryChunkDto;
-import com.newcodes7.small_town.search.dto.AiSummaryDoneDto;
 import com.newcodes7.small_town.search.dto.AiSummarySourceDto;
+import com.newcodes7.small_town.search.dto.RagDoneDto;
 import com.newcodes7.small_town.search.entity.RagQueryLog;
+import com.newcodes7.small_town.search.llm.LlmOptions;
+import com.newcodes7.small_town.search.llm.LlmTokenUsage;
+import com.newcodes7.small_town.search.llm.RagLlmClientResolver;
+import com.newcodes7.small_town.search.llm.RagLlmException;
 import com.newcodes7.small_town.search.repository.RagQueryLogRepository;
 import com.newcodes7.small_town.search.service.RagQueryPreprocessService.RagPreprocessResult;
-import jakarta.annotation.PostConstruct;
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
  * RAG 질의응답 서비스 (관리자 테스트 페이지용)
  *
  * AiSummaryService의 SSE 스트리밍 구조를 따르되 질의응답형으로 확장:
- * 전처리(이중 쿼리 분해) → 기업 프리필터 하이브리드 retrieval → Gemini SSE 생성.
+ * 전처리(이중 쿼리 분해) → 기업 프리필터 하이브리드 retrieval → 선택 모델(Gemini/Bedrock/OpenAI) SSE 생성.
  * 캐시 없이 매 요청 실행하고 RagQueryLog에 기록한다.
  *
  * SSE 이벤트: preprocess → sources → prompt → token* → done / notfound / error
@@ -46,17 +41,11 @@ public class RagAnswerService {
     private final VectorSearchService vectorSearchService;
     private final RagQueryLogRepository ragQueryLogRepository;
     private final ObjectMapper objectMapper;
-
-    @Value("${gemini.api-key:}")
-    private String geminiApiKey;
-
-    @Value("${gemini.summary.model:gemini-3.5-flash}")
-    private String geminiModel;
+    private final RagLlmClientResolver llmClientResolver;
 
     private static final int CHUNK_MAX_CHARS = 1000;
     private static final int QUESTION_MAX_CHARS = 500;
-    private static final String GEMINI_BASE_URL =
-            "https://generativelanguage.googleapis.com/v1beta/models/";
+    private static final LlmOptions ANSWER_OPTIONS = new LlmOptions(0.2, 2000);
 
     private static final String NO_CORP_MESSAGE = "해당 기업의 글이 없습니다";
     private static final String NO_RESULT_MESSAGE = "관련 글을 찾지 못했습니다";
@@ -80,17 +69,9 @@ public class RagAnswerService {
             - 인사말, 질문 반복, 결론 없는 채움 문장은 쓰지 마세요.
             """;
 
-    private HttpClient httpClient;
-
-    @PostConstruct
-    public void init() {
-        httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(3))
-                .build();
-    }
-
     public void streamAnswer(
-            String question, int topArticles, int chunksPerArticle, double threshold, SseEmitter emitter) {
+            String question, int topArticles, int chunksPerArticle, double threshold,
+            ModelOption model, SseEmitter emitter) {
         if (question == null || question.trim().isEmpty()) {
             sendErrorEvent(emitter, "질문을 입력해주세요");
             completeEmitter(emitter);
@@ -100,13 +81,13 @@ public class RagAnswerService {
 
         RagPreprocessResult pre = null;
         try {
-            pre = preprocessService.preprocess(trimmedQuestion);
+            pre = preprocessService.preprocess(trimmedQuestion, model);
             sendPreprocessEvent(emitter, pre);
 
             if (pre.isCorporationTargetedButNotMatched()) {
                 sendNotFoundEvent(emitter, NO_CORP_MESSAGE);
                 completeEmitter(emitter);
-                saveLog(trimmedQuestion, pre, 0, RagQueryLog.Outcome.NO_CORP, null, null, null);
+                saveLog(trimmedQuestion, pre, 0, RagQueryLog.Outcome.NO_CORP, null, null, null, model);
                 return;
             }
 
@@ -122,7 +103,7 @@ public class RagAnswerService {
             if (chunks.isEmpty()) {
                 sendNotFoundEvent(emitter, NO_RESULT_MESSAGE);
                 completeEmitter(emitter);
-                saveLog(trimmedQuestion, pre, 0, RagQueryLog.Outcome.NO_RESULT, null, null, null);
+                saveLog(trimmedQuestion, pre, 0, RagQueryLog.Outcome.NO_RESULT, null, null, null, model);
                 return;
             }
 
@@ -134,63 +115,37 @@ public class RagAnswerService {
 
             String userMessage = "질문: " + trimmedQuestion + "\n\n" + buildContext(orderedChunks);
             sendPromptEvent(emitter, RAG_SYSTEM_PROMPT, userMessage);
-            String requestBody = buildGeminiRequestBody(RAG_SYSTEM_PROMPT, userMessage);
 
-            int[] tokenUsage = {0, 0, 0}; // [input, output, total]
-            try (Stream<String> lines = callGeminiStream(requestBody)) {
-                for (String line : (Iterable<String>) lines::iterator) {
-                    if (!line.startsWith("data: ")) continue;
-                    String json = line.substring(6).trim();
-                    if (json.isEmpty() || json.equals("[DONE]")) continue;
+            LlmTokenUsage usage = llmClientResolver.resolve(model.getProvider())
+                    .generateStream(model.getId(), RAG_SYSTEM_PROMPT, userMessage,
+                            ANSWER_OPTIONS, text -> sendTokenEvent(emitter, text));
 
-                    extractTokenUsage(json, tokenUsage);
-
-                    String text = extractTextFromGeminiResponse(json);
-                    if (text.isEmpty()) continue;
-                    sendTokenEvent(emitter, text);
-                }
-            }
-
-            Integer inTokens = sumTokens(pre.inputTokens(), tokenUsage[0] > 0 ? tokenUsage[0] : null);
-            Integer outTokens = sumTokens(pre.outputTokens(), tokenUsage[1] > 0 ? tokenUsage[1] : null);
-            Integer totalTokens = sumTokens(pre.totalTokens(), tokenUsage[2] > 0 ? tokenUsage[2] : null);
-            sendDoneEvent(emitter, new AiSummaryDoneDto(sources, List.of(), inTokens, outTokens, totalTokens));
+            Integer inTokens = sumTokens(pre.inputTokens(), usage.inputTokens());
+            Integer outTokens = sumTokens(pre.outputTokens(), usage.outputTokens());
+            Integer totalTokens = sumTokens(pre.totalTokens(), usage.totalTokens());
+            sendDoneEvent(emitter, new RagDoneDto(sources, inTokens, outTokens, totalTokens, model.getLabel()));
             completeEmitter(emitter);
 
             saveLog(trimmedQuestion, pre, topArticleIds.size(),
-                    RagQueryLog.Outcome.ANSWERED, inTokens, outTokens, totalTokens);
+                    RagQueryLog.Outcome.ANSWERED, inTokens, outTokens, totalTokens, model);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.error("RAG 처리 중 인터럽트: {}", e.getMessage());
             sendErrorEvent(emitter, "답변을 불러올 수 없습니다");
             completeEmitter(emitter);
-            saveLog(trimmedQuestion, pre, null, RagQueryLog.Outcome.ERROR, null, null, null);
+            saveLog(trimmedQuestion, pre, null, RagQueryLog.Outcome.ERROR, null, null, null, model);
+        } catch (RagLlmException e) {
+            log.error("RAG LLM 호출 실패: {}", e.getMessage(), e);
+            sendErrorEvent(emitter, e.getMessage());
+            completeEmitter(emitter);
+            saveLog(trimmedQuestion, pre, null, RagQueryLog.Outcome.ERROR, null, null, null, model);
         } catch (Exception e) {
             log.error("RAG 처리 중 예외 발생: {}", e.getMessage(), e);
             sendErrorEvent(emitter, "답변을 불러올 수 없습니다");
             completeEmitter(emitter);
-            saveLog(trimmedQuestion, pre, null, RagQueryLog.Outcome.ERROR, null, null, null);
+            saveLog(trimmedQuestion, pre, null, RagQueryLog.Outcome.ERROR, null, null, null, model);
         }
-    }
-
-    protected Stream<String> callGeminiStream(String requestBody) throws IOException, InterruptedException {
-        String url = GEMINI_BASE_URL + geminiModel
-                + ":streamGenerateContent?key=" + geminiApiKey + "&alt=sse";
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                // TODO: 임시 조치 (2026-07-09) — Gemini 타임아웃 원인 파악 전까지 5분으로 상향. 원인 규명 후 재조정 필요
-                .timeout(Duration.ofMinutes(5))
-                .build();
-        HttpResponse<Stream<String>> response = httpClient.send(request, HttpResponse.BodyHandlers.ofLines());
-        if (response.statusCode() != 200) {
-            String body = response.body().collect(Collectors.joining("\n"));
-            log.error("Gemini API 오류 - HTTP {}, body: {}", response.statusCode(), body);
-            throw new IOException("Gemini API HTTP " + response.statusCode() + ": " + body);
-        }
-        return response.body();
     }
 
     private List<AiSummarySourceDto> buildSources(List<AiSummaryChunkDto> chunks) {
@@ -231,47 +186,6 @@ public class RagAnswerService {
         return sb.toString();
     }
 
-    private String buildGeminiRequestBody(String systemPrompt, String userMessage) {
-        Map<String, Object> body = Map.of(
-                "system_instruction", Map.of("parts", List.of(Map.of("text", systemPrompt))),
-                "contents", List.of(Map.of(
-                        "role", "user",
-                        "parts", List.of(Map.of("text", userMessage))
-                )),
-                "generationConfig", Map.of(
-                        "temperature", 0.2,
-                        "maxOutputTokens", 2000,
-                        "thinkingConfig", Map.of("thinkingLevel", "minimal")
-                )
-        );
-        return objectMapper.writeValueAsString(body);
-    }
-
-    private void extractTokenUsage(String json, int[] tokenUsage) {
-        try {
-            JsonNode root = objectMapper.readTree(json);
-            JsonNode usage = root.path("usageMetadata");
-            if (!usage.isMissingNode()) {
-                tokenUsage[0] = usage.path("promptTokenCount").asInt(tokenUsage[0]);
-                tokenUsage[1] = usage.path("candidatesTokenCount").asInt(tokenUsage[1]);
-                tokenUsage[2] = usage.path("totalTokenCount").asInt(tokenUsage[2]);
-            }
-        } catch (Exception ignored) {}
-    }
-
-    private String extractTextFromGeminiResponse(String json) {
-        try {
-            JsonNode root = objectMapper.readTree(json);
-            JsonNode candidates = root.path("candidates");
-            if (candidates.isEmpty()) return "";
-            JsonNode parts = candidates.get(0).path("content").path("parts");
-            if (parts.isEmpty()) return "";
-            return parts.get(0).path("text").asText("");
-        } catch (Exception e) {
-            return "";
-        }
-    }
-
     private Integer sumTokens(Integer a, Integer b) {
         if (a == null) return b;
         if (b == null) return a;
@@ -280,7 +194,8 @@ public class RagAnswerService {
 
     private void saveLog(
             String question, RagPreprocessResult pre, Integer articleCount,
-            RagQueryLog.Outcome outcome, Integer input, Integer output, Integer total) {
+            RagQueryLog.Outcome outcome, Integer input, Integer output, Integer total,
+            ModelOption model) {
         try {
             String clampedQuestion = question.length() > QUESTION_MAX_CHARS
                     ? question.substring(0, QUESTION_MAX_CHARS) : question;
@@ -300,6 +215,7 @@ public class RagAnswerService {
                             .inputTokens(input)
                             .outputTokens(output)
                             .totalTokens(total)
+                            .model(model != null ? model.getId() : null)
                             .build());
         } catch (Exception e) {
             log.warn("RAG 질의 로그 저장 실패: question={}", question, e);
@@ -331,7 +247,7 @@ public class RagAnswerService {
         } catch (Exception ignored) {}
     }
 
-    private void sendDoneEvent(SseEmitter emitter, AiSummaryDoneDto done) {
+    private void sendDoneEvent(SseEmitter emitter, RagDoneDto done) {
         try {
             emitter.send(SseEmitter.event().name("done").data(objectMapper.writeValueAsString(done)));
         } catch (Exception ignored) {}

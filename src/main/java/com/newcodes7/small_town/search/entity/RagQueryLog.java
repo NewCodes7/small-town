@@ -51,6 +51,9 @@ public class RagQueryLog {
 
     @Column private Integer totalTokens;
 
+    @Column(length = 100)
+    private String model;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -65,7 +68,8 @@ public class RagQueryLog {
             Outcome outcome,
             Integer inputTokens,
             Integer outputTokens,
-            Integer totalTokens) {
+            Integer totalTokens,
+            String model) {
         this.question = question;
         this.extractedCorporations = extractedCorporations;
         this.extractedKeywords = extractedKeywords;
@@ -76,6 +80,7 @@ public class RagQueryLog {
         this.inputTokens = inputTokens;
         this.outputTokens = outputTokens;
         this.totalTokens = totalTokens;
+        this.model = model;
         this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
     }
 }

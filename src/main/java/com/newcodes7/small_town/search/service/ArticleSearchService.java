@@ -1,5 +1,7 @@
 package com.newcodes7.small_town.search.service;
 
+import com.github.benmanes.caffeine.cache.AsyncCache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.newcodes7.small_town.article.dto.ArticleListResponseDto;
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.embedding.service.ArticleEmbeddingService;
@@ -62,6 +64,13 @@ public class ArticleSearchService {
 
     private static final String HYBRID_TOP_ARTICLES_CACHE_NAME = "hybridTopArticles";
 
+    /**
+     * 무필터 하이브리드 코어 single-flight 캐시.
+     * 검색 API와 AI 요약이 같은 키워드로 동시 진입하면 한쪽만 계산하고 나머지는 future에 합류한다.
+     * 실패(빈 결과 포함)한 future는 Caffeine이 자동 제거하므로 다음 요청이 재계산한다.
+     */
+    private final AsyncCache<String, HybridCoreResult> hybridCoreCache;
+
     public ArticleSearchService(ArticleRepository articleRepository,
                                 ArticleTermRepository articleTermRepository,
                                 TermRepository termRepository,
@@ -90,6 +99,12 @@ public class ArticleSearchService {
         this.weightConfig = weightConfig;
         this.cacheManager = cacheManager;
         this.observationRegistry = observationRegistry;
+        // 계산은 첫 진입자의 호출 스레드에서 직접 수행하고(트랜잭션 컨텍스트 유지),
+        // 캐시는 in-flight future 공유(합류)에만 쓰인다 — getHybridCoreShared 참고
+        this.hybridCoreCache = Caffeine.newBuilder()
+                .expireAfterWrite(5, TimeUnit.MINUTES)
+                .maximumSize(500)
+                .buildAsync();
     }
 
     /**
@@ -200,6 +215,184 @@ public class ArticleSearchService {
             return Page.empty();
         }
 
+        // 하이브리드 코어(BM25 + Vector + cross-scoring + NSF) 계산.
+        // 무필터 검색은 AI 요약(getTopArticleIdsByHybrid)과 같은 계산이므로 single-flight 캐시로 공유한다.
+        boolean unfiltered = (regions == null || regions.isEmpty())
+                && (category == null || category.isEmpty());
+        HybridCoreResult core = unfiltered
+                ? getHybridCoreShared(keyword, expandedTerms)
+                : computeHybridCore(keyword, expandedTerms, regions, category);
+
+        Map<Long, Double> nsfScores = core.nsfScores();
+        if (nsfScores.isEmpty()) {
+            return Page.empty();
+        }
+
+        final Map<Long, Double> finalBm25Results = core.bm25Scores();
+        final Map<Long, Double> finalVectorResults = core.vectorScores();
+        final Map<Long, Integer> bm25Ranks = core.bm25Ranks();
+        final Map<Long, Integer> vectorRanks = core.vectorRanks();
+        final Map<Long, Double> normalizedBm25Map = core.normalizedBm25();
+        final Map<Long, Double> normalizedVectorMap = core.normalizedVector();
+        final Map<Long, Double> weightSumMap = core.weightSums();
+        Set<Long> vectorOnlyIds = core.vectorOnlyIds();
+        Map<Long, LocalDateTime> publishedAtMap = core.publishedAtMap();
+        Set<Long> validArticleIds = core.validArticleIds();
+
+        // 9-10. 정렬 → 페이징 (sort 파라미터에 따라 NSF 정렬 또는 날짜 정렬)
+        int offset = page * size;
+        List<Long> sortedValidIds;
+
+        if ("latest".equals(sort) || "oldest".equals(sort)) {
+            // 날짜 정렬: NSF 정렬 없이 바로 날짜 기준으로 정렬
+            sortedValidIds = nsfScores.keySet().stream()
+                    .filter(validArticleIds::contains)
+                    .sorted((id1, id2) -> {
+                        LocalDateTime date1 = publishedAtMap.getOrDefault(id1, LocalDateTime.MIN);
+                        LocalDateTime date2 = publishedAtMap.getOrDefault(id2, LocalDateTime.MIN);
+                        return "latest".equals(sort) ? date2.compareTo(date1) : date1.compareTo(date2);
+                    })
+                    .collect(Collectors.toList());
+        } else {
+            // 적합도순 (NSF 스코어순)
+            sortedValidIds = nsfScores.entrySet().stream()
+                    .filter(e -> validArticleIds.contains(e.getKey()))
+                    .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toList());
+        }
+
+        int totalResults = sortedValidIds.size();
+        if (offset >= totalResults) {
+            return Page.empty(PageRequest.of(page, size));
+        }
+
+        List<Long> pageArticleIds = sortedValidIds.stream()
+                .skip(offset)
+                .limit(size)
+                .collect(Collectors.toList());
+
+        // 11. 현재 페이지 article만 로딩 (Corporation fetch join으로 N+1 방지)
+        Map<Long, Article> pageArticleMap = articleRepository.findByIdInWithCorporation(pageArticleIds)
+                .stream()
+                .collect(Collectors.toMap(Article::getId, a -> a));
+
+        // 12. 좋아요 상태 batch 조회 (N+1 방지)
+        Map<Long, Boolean> likeStatusMap = getLikeStatusMap(pageArticleIds, username, ipAddress);
+
+        // 13. DTO 생성 (페이지 순서 유지, 순위 정보 + 정규화 점수 포함)
+        List<ArticleSearchResultDto> results = pageArticleIds.stream()
+                .map(pageArticleMap::get)
+                .filter(a -> a != null)
+                .map(article -> {
+                    Long articleId = article.getId();
+                    Double bm25Score = finalBm25Results.get(articleId);
+                    Double vectorScore = finalVectorResults.get(articleId);
+                    Double nsfScore = nsfScores.get(articleId);
+                    Boolean isLiked = likeStatusMap.getOrDefault(articleId, false);
+                    boolean foundByVector = vectorOnlyIds.contains(articleId);
+                    Integer bm25Rank = bm25Ranks.get(articleId);
+                    Integer vectorRank = vectorRanks.get(articleId);
+                    Double normBm25 = normalizedBm25Map.get(articleId);
+                    Double normVector = normalizedVectorMap.get(articleId);
+                    Double weightSum = weightSumMap.get(articleId);
+                    return new ArticleSearchResultDto(article, foundByVector, bm25Score, vectorScore, nsfScore, null,
+                            bm25Rank, vectorRank, normBm25, normVector, weightSum, isLiked);
+                })
+                .collect(Collectors.toList());
+
+        return new PageImpl<>(results, PageRequest.of(page, size), totalResults);
+    }
+
+    /**
+     * 하이브리드 코어 파이프라인의 전체 산출물.
+     * 검색 API(페이징/DTO 조립)와 AI 요약(top-N 추출)이 공유한다.
+     */
+    public record HybridCoreResult(
+            Map<Long, Double> bm25Scores,
+            Map<Long, Double> vectorScores,
+            Map<Long, Double> nsfScores,
+            Map<Long, Integer> bm25Ranks,
+            Map<Long, Integer> vectorRanks,
+            Map<Long, Double> normalizedBm25,
+            Map<Long, Double> normalizedVector,
+            Map<Long, Double> weightSums,
+            Set<Long> vectorOnlyIds,
+            Map<Long, LocalDateTime> publishedAtMap,
+            Set<Long> validArticleIds,
+            float[] queryEmbedding) {
+        static HybridCoreResult empty() {
+            return new HybridCoreResult(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(),
+                    Map.of(), Map.of(), Map.of(), Set.of(), Map.of(), Set.of(), null);
+        }
+    }
+
+    /**
+     * 무필터 하이브리드 코어 single-flight 공유 진입점.
+     * 같은 키워드의 동시 요청(검색 API + AI 요약)은 첫 요청만 계산하고 나머지는 future에 합류한다.
+     * 빈 결과(검색 실패 포함)는 예외로 완료시켜 캐시에 남기지 않는다 — 다음 요청이 재계산.
+     *
+     * @param expandedTerms 호출자가 이미 확장한 검색어 (null이면 첫 진입자가 keyword로부터 확장;
+     *                      keyword로부터 결정적이므로 캐시 정합성에 영향 없음)
+     */
+    private HybridCoreResult getHybridCoreShared(String keyword, Map<String, Double> expandedTerms) {
+        // 캐시 키만 정규화하고 계산에는 원본 키워드를 사용한다
+        // (BM25/Vector 검색과 SearchQueryEmbedding 캐시가 원본 표기를 기준으로 동작)
+        String cacheKey = keyword.toLowerCase().trim();
+        CompletableFuture<HybridCoreResult> myFuture = new CompletableFuture<>();
+        CompletableFuture<HybridCoreResult> existing =
+                hybridCoreCache.asMap().putIfAbsent(cacheKey, myFuture);
+        if (existing != null) {
+            log.debug("[검색] 하이브리드 코어 합류 - keyword='{}' (in-flight 또는 캐시 히트)", cacheKey);
+            try {
+                return existing.join();
+            } catch (Exception e) {
+                String cause = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
+                log.warn("하이브리드 코어 결과 대기 실패 - keyword='{}': {}", cacheKey, cause);
+                return HybridCoreResult.empty();
+            }
+        }
+
+        // 첫 진입자는 호출자 스레드에서 직접 계산한다 — 별도 스레드로 옮기면 호출자
+        // 트랜잭션의 미커밋 데이터가 보이지 않는다 (@Transactional 통합 테스트 포함)
+        try {
+            HybridCoreResult result = computeHybridCore(keyword, expandedTerms, null, null);
+            if (result.nsfScores().isEmpty()) {
+                // 빈 결과는 캐시에 남기지 않는다 — 예외 완료된 future는 Caffeine이 자동 제거
+                myFuture.completeExceptionally(
+                        new IllegalStateException("하이브리드 코어 결과 없음: " + cacheKey));
+            } else {
+                myFuture.complete(result);
+            }
+            return result;
+        } catch (RuntimeException e) {
+            myFuture.completeExceptionally(e);
+            throw e;
+        }
+    }
+
+    /**
+     * 하이브리드 코어 캐시 전체 무효화.
+     * 검색 가중치 변경 등 캐시된 NSF 점수가 무효해지는 시점, 그리고 롤백 트랜잭션의
+     * article ID가 캐시에 남는 통합 테스트(IntegrationTestBase)에서 호출한다.
+     */
+    public void invalidateHybridCoreCache() {
+        hybridCoreCache.synchronous().invalidateAll();
+    }
+
+    /**
+     * 하이브리드 코어 파이프라인: 쿼리 복잡도 분류 → BM25 쿼리 생성 → BM25/Vector 병렬 검색
+     * → cross-scoring 보충 → NSF/순위 계산 → deleted_at 유효성 검증.
+     *
+     * single-flight 첫 진입자의 호출 스레드에서 실행된다 (호출자 트랜잭션 컨텍스트 유지).
+     * Vector 검색만 searchExecutor에서 병렬 수행.
+     */
+    private HybridCoreResult computeHybridCore(
+            String keyword,
+            Map<String, Double> expandedTerms,
+            List<String> regions,
+            List<String> category) {
+
         long totalStartTime = System.currentTimeMillis();
 
         // 1. 쿼리 복잡도 감지 → 적응형 BM25 title 배수 및 NSF 가중치 결정
@@ -218,7 +411,7 @@ public class ArticleSearchService {
                 : buildBM25SearchQuery(keyword, titleMultiplier);
         if (bm25SearchQuery == null || bm25SearchQuery.isEmpty()) {
             log.warn("BM25 검색 쿼리 생성 실패: '{}'", keyword);
-            return Page.empty();
+            return HybridCoreResult.empty();
         }
 
         // 3. BM25와 Vector 검색을 병렬 실행
@@ -240,7 +433,7 @@ public class ArticleSearchService {
                     }
                 }, searchExecutor);
 
-        // BM25 검색은 메인 스레드에서 실행 (트랜잭션 컨텍스트 유지)
+        // BM25 검색은 현재 스레드에서 실행 (Vector가 별도 스레드에서 도는 동안 병렬 수행)
         long bm25StartTime = System.currentTimeMillis();
         Map<Long, Double> bm25Results = new HashMap<>();
         Map<Long, LocalDateTime> publishedAtMap = new HashMap<>();
@@ -252,7 +445,9 @@ public class ArticleSearchService {
             // Hibernate 7부터 native 쿼리도 timestamp 컬럼을 LocalDateTime으로 반환
             LocalDateTime publishedAt = row.length > 2 ? (LocalDateTime) row[2] : null;
 
-            bm25Results.put(articleId, score);
+            if (score != null) {
+                bm25Results.put(articleId, score);
+            }
             if (publishedAt != null) {
                 publishedAtMap.put(articleId, publishedAt);
             }
@@ -327,27 +522,20 @@ public class ArticleSearchService {
             log.warn("교차검색 BM25 보충 결과 대기 실패: {}", e.getMessage());
         }
 
-        // 교차 점수 계산 완료 — 이후 lambda에서 참조할 수 있도록 final 변수 생성
-        final Map<Long, Double> finalVectorResults = vectorResults;
-        final Map<Long, Double> finalBm25Results = bm25Results;
-
         // 5-6. Normalized Score Fusion (NSF) 계산 + 순위 계산 (한 번에 수행)
         // NSF: 각 검색 방법의 점수를 min-max 정규화 후 가중 합산
         // RRF 대비 장점: 원본 점수의 크기 정보를 보존하여, 높은 유사도 결과를 더 정확히 반영
         long rerankStartTime = System.currentTimeMillis();
-        final Map<Long, Integer> bm25Ranks = calculateRanks(finalBm25Results);
-        final Map<Long, Integer> vectorRanks = calculateRanks(finalVectorResults);
+        Map<Long, Integer> bm25Ranks = calculateRanks(bm25Results);
+        Map<Long, Integer> vectorRanks = calculateRanks(vectorResults);
         HybridSearchScorer.NSFResult nsfResult = hybridSearchScorer.calculateNSFScores(
-                finalBm25Results, finalVectorResults, bm25NsfWeight, vectorNsfWeight);
+                bm25Results, vectorResults, bm25NsfWeight, vectorNsfWeight);
         Map<Long, Double> nsfScores = nsfResult.getNsfScores();
-        final Map<Long, Double> normalizedBm25Map = nsfResult.getNormalizedBm25();
-        final Map<Long, Double> normalizedVectorMap = nsfResult.getNormalizedVector();
-        final Map<Long, Double> weightSumMap = nsfResult.getWeightSums();
         long rerankEndTime = System.currentTimeMillis();
 
         if (nsfScores.isEmpty()) {
             log.warn("모든 검색 방법에서 결과가 없습니다: '{}'", keyword);
-            return Page.empty();
+            return HybridCoreResult.empty();
         }
 
         long totalEndTime = System.currentTimeMillis();
@@ -363,7 +551,7 @@ public class ArticleSearchService {
             totalEndTime - totalStartTime);
 
         // 8. 전체 NSF 결과에 대해 (id, publishedAt) 경량 조회
-        // - deleted_at 검증 (Materialized View 동기화 지연으로 인한 stale 항목 제거)
+        // - deleted_at 검증 (동기화 지연으로 인한 stale 항목 제거)
         // - vector-only 항목의 publishedAt 보충 (BM25 쿼리에서 수집되지 않은 날짜)
         List<Object[]> idAndDateRows = articleRepository.findIdAndPublishedAtByIdIn(
                 new ArrayList<>(nsfScores.keySet()));
@@ -380,69 +568,10 @@ public class ArticleSearchService {
 
         log.debug("NSF 결과 {}개 중 유효한 article: {}개", nsfScores.size(), validArticleIds.size());
 
-        // 9-10. 정렬 → 페이징 (sort 파라미터에 따라 NSF 정렬 또는 날짜 정렬)
-        int offset = page * size;
-        List<Long> sortedValidIds;
-
-        if ("latest".equals(sort) || "oldest".equals(sort)) {
-            // 날짜 정렬: NSF 정렬 없이 바로 날짜 기준으로 정렬
-            sortedValidIds = nsfScores.keySet().stream()
-                    .filter(validArticleIds::contains)
-                    .sorted((id1, id2) -> {
-                        LocalDateTime date1 = publishedAtMap.getOrDefault(id1, LocalDateTime.MIN);
-                        LocalDateTime date2 = publishedAtMap.getOrDefault(id2, LocalDateTime.MIN);
-                        return "latest".equals(sort) ? date2.compareTo(date1) : date1.compareTo(date2);
-                    })
-                    .collect(Collectors.toList());
-        } else {
-            // 적합도순 (NSF 스코어순)
-            sortedValidIds = nsfScores.entrySet().stream()
-                    .filter(e -> validArticleIds.contains(e.getKey()))
-                    .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
-                    .map(Map.Entry::getKey)
-                    .collect(Collectors.toList());
-        }
-
-        int totalResults = sortedValidIds.size();
-        if (offset >= totalResults) {
-            return Page.empty(PageRequest.of(page, size));
-        }
-
-        List<Long> pageArticleIds = sortedValidIds.stream()
-                .skip(offset)
-                .limit(size)
-                .collect(Collectors.toList());
-
-        // 11. 현재 페이지 article만 로딩 (Corporation fetch join으로 N+1 방지)
-        Map<Long, Article> pageArticleMap = articleRepository.findByIdInWithCorporation(pageArticleIds)
-                .stream()
-                .collect(Collectors.toMap(Article::getId, a -> a));
-
-        // 12. 좋아요 상태 batch 조회 (N+1 방지)
-        Map<Long, Boolean> likeStatusMap = getLikeStatusMap(pageArticleIds, username, ipAddress);
-
-        // 13. DTO 생성 (페이지 순서 유지, 순위 정보 + 정규화 점수 포함)
-        List<ArticleSearchResultDto> results = pageArticleIds.stream()
-                .map(pageArticleMap::get)
-                .filter(a -> a != null)
-                .map(article -> {
-                    Long articleId = article.getId();
-                    Double bm25Score = finalBm25Results.get(articleId);
-                    Double vectorScore = finalVectorResults.get(articleId);
-                    Double nsfScore = nsfScores.get(articleId);
-                    Boolean isLiked = likeStatusMap.getOrDefault(articleId, false);
-                    boolean foundByVector = vectorOnlyIds.contains(articleId);
-                    Integer bm25Rank = bm25Ranks.get(articleId);
-                    Integer vectorRank = vectorRanks.get(articleId);
-                    Double normBm25 = normalizedBm25Map.get(articleId);
-                    Double normVector = normalizedVectorMap.get(articleId);
-                    Double weightSum = weightSumMap.get(articleId);
-                    return new ArticleSearchResultDto(article, foundByVector, bm25Score, vectorScore, nsfScore, null,
-                            bm25Rank, vectorRank, normBm25, normVector, weightSum, isLiked);
-                })
-                .collect(Collectors.toList());
-
-        return new PageImpl<>(results, PageRequest.of(page, size), totalResults);
+        return new HybridCoreResult(bm25Results, vectorResults, nsfScores,
+                bm25Ranks, vectorRanks,
+                nsfResult.getNormalizedBm25(), nsfResult.getNormalizedVector(), nsfResult.getWeightSums(),
+                vectorOnlyIds, publishedAtMap, validArticleIds, cachedEmbedding);
     }
 
     /**
@@ -633,8 +762,8 @@ public class ArticleSearchService {
      * AI 요약용: 하이브리드 검색(BM25 + Vector NSF 리랭킹) 기준 상위 limit개 아티클 ID 반환
      * Article 로딩, 좋아요, 시간 감쇠 등 불필요한 처리 없이 NSF 스코어 순으로만 반환
      * 결과는 짧은 TTL 캐시로 공유되어 같은 키워드의 반복 요청에서 재계산을 생략
+     * (실제 계산은 검색 API와 공유하는 하이브리드 코어 single-flight 캐시를 경유)
      */
-    @Transactional(readOnly = true)
     public HybridTopArticles getTopArticleIdsByHybrid(String keyword, int limit) {
         if (keyword == null || keyword.trim().isEmpty()) return HybridTopArticles.empty();
 
@@ -653,69 +782,16 @@ public class ArticleSearchService {
     }
 
     private HybridTopArticles computeTopArticleIdsByHybrid(String keyword, int limit) {
-        SemanticTermExpansionService.QueryComplexity complexity =
-                semanticExpansionService.classifyQueryComplexity(keyword);
-        SearchWeightConfigService.WeightEntry weights = weightConfig.getWeights(complexity);
+        HybridCoreResult core = getHybridCoreShared(keyword, null);
+        if (core.nsfScores().isEmpty()) return HybridTopArticles.empty();
 
-        String bm25SearchQuery = buildBM25SearchQuery(keyword, weights.titleMultiplier());
-        if (bm25SearchQuery == null || bm25SearchQuery.isEmpty()) return HybridTopArticles.empty();
-
-        CompletableFuture<VectorSearchService.VectorSearchResult> vectorFuture =
-                CompletableFuture.supplyAsync(
-                        () -> vectorSearchService.searchByKeywordWithEmbedding(keyword), searchExecutor);
-
-        Map<Long, Double> bm25Results = new HashMap<>();
-        for (Object[] row : executeBM25Search(bm25SearchQuery, null, null)) {
-            Long id = ((Number) row[0]).longValue();
-            Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
-            if (score != null) bm25Results.put(id, score);
-        }
-
-        Map<Long, Double> vectorResults = new HashMap<>();
-        float[] queryEmbedding = null;
-        try {
-            VectorSearchService.VectorSearchResult vsr = vectorFuture.get(5, TimeUnit.SECONDS);
-            vectorResults = new HashMap<>(vsr.getScores());
-            queryEmbedding = vsr.getQueryEmbedding();
-        } catch (Exception e) {
-            log.warn("AI 요약 Vector 검색 실패: {}", e.getMessage());
-        }
-
-        Set<Long> bm25OnlyIds = new HashSet<>(bm25Results.keySet());
-        bm25OnlyIds.removeAll(vectorResults.keySet());
-        Set<Long> vectorOnlyIds = new HashSet<>(vectorResults.keySet());
-        vectorOnlyIds.removeAll(bm25Results.keySet());
-
-        final float[] cachedEmbedding = queryEmbedding;
-        if (!bm25OnlyIds.isEmpty() && cachedEmbedding != null) {
-            vectorResults.putAll(vectorSearchService.computeSimilarityForArticlesWithEmbedding(
-                    cachedEmbedding, new ArrayList<>(bm25OnlyIds)));
-        }
-        if (!vectorOnlyIds.isEmpty()) {
-            for (Object[] row : computeBM25ScoreForArticles(bm25SearchQuery, null, null, new ArrayList<>(vectorOnlyIds))) {
-                Long id = ((Number) row[0]).longValue();
-                Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
-                if (score != null) bm25Results.put(id, score);
-            }
-        }
-
-        HybridSearchScorer.NSFResult nsfResult = hybridSearchScorer.calculateNSFScores(
-                bm25Results, vectorResults, weights.bm25NsfWeight(), weights.vectorNsfWeight());
-        Map<Long, Double> nsfScores = nsfResult.getNsfScores();
-        if (nsfScores.isEmpty()) return new HybridTopArticles(List.of(), cachedEmbedding);
-
-        Set<Long> validIds = new HashSet<>();
-        for (Object[] row : articleRepository.findIdAndPublishedAtByIdIn(new ArrayList<>(nsfScores.keySet()))) {
-            validIds.add(((Number) row[0]).longValue());
-        }
-
-        List<Long> topIds = nsfScores.entrySet().stream()
-                .filter(e -> validIds.contains(e.getKey()))
+        List<Long> topIds = core.nsfScores().entrySet().stream()
+                .filter(e -> core.validArticleIds().contains(e.getKey()))
                 .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
                 .limit(limit)
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toList());
-        return new HybridTopArticles(topIds, cachedEmbedding);
+        return new HybridTopArticles(topIds, core.queryEmbedding());
     }
 
     /**

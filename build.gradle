@@ -93,6 +93,12 @@ dependencies {
     implementation 'com.amazonaws:aws-java-sdk-s3:1.12.261'
     implementation 'com.amazonaws:aws-java-sdk-core:1.12.261'
 
+    // AWS Bedrock (RAG 관리자 테스트용 LLM — SDK v2, 위 S3의 v1과 공존)
+    implementation platform('software.amazon.awssdk:bom:2.33.5')
+    implementation 'software.amazon.awssdk:bedrockruntime'
+    implementation 'software.amazon.awssdk:apache-client'
+    implementation 'software.amazon.awssdk:netty-nio-client'
+
     // WebP 이미지 변환 (scrimage - 더 간단하고 강력한 이미지 처리 라이브러리)
     implementation 'com.sksamuel.scrimage:scrimage-core:4.6.5'
     implementation 'com.sksamuel.scrimage:scrimage-webp:4.6.5'

@@ -42,12 +42,17 @@ class AdminRagTester {
         this.answerLoading.style.display = 'block';
         this.askBtn.disabled = true;
 
+        const modelSelect = document.getElementById('ragModel');
         const params = new URLSearchParams({
             q: question,
             topArticles: document.getElementById('ragTopArticles').value || '5',
             chunksPerArticle: document.getElementById('ragChunksPerArticle').value || '3',
-            threshold: document.getElementById('ragThreshold').value || '0.6'
+            threshold: document.getElementById('ragThreshold').value || '0.6',
+            model: modelSelect.value
         });
+        // 선택 라벨을 먼저 표시하고, done 이벤트에서 서버가 실제 사용한 모델로 갱신
+        document.getElementById('ragDebugModel').textContent =
+            modelSelect.selectedOptions[0] ? modelSelect.selectedOptions[0].textContent : modelSelect.value;
         this.eventSource = new EventSource('/api/admin/rag/answer?' + params.toString());
 
         // preprocess: 전처리 결과(추출 기업/매칭 ID/키워드/벡터 쿼리)를 디버그 패널에 표시
@@ -57,7 +62,7 @@ class AdminRagTester {
             } catch (_) {}
         });
 
-        // prompt: Gemini에 전송되는 입력 프롬프트 원문(시스템/유저 메시지)을 그대로 표시
+        // prompt: LLM에 전송되는 입력 프롬프트 원문(시스템/유저 메시지)을 그대로 표시
         this.eventSource.addEventListener('prompt', (e) => {
             try {
                 const prompt = JSON.parse(e.data);
@@ -141,6 +146,9 @@ class AdminRagTester {
     }
 
     renderTokens(done) {
+        if (done.model) {
+            document.getElementById('ragDebugModel').textContent = done.model;
+        }
         if (!done.totalTokens) return;
         document.getElementById('ragDebugTokens').textContent =
             `전처리+생성 합계: 입력 ${done.inputTokens ?? '-'} / 출력 ${done.outputTokens ?? '-'} / 합계 ${done.totalTokens}`;
@@ -214,7 +222,7 @@ class AdminRagTester {
         this.promptUser.textContent = '';
         this.sourcesCard.style.display = 'none';
         this.sourcesList.innerHTML = '';
-        ['ragDebugCorporations', 'ragDebugMatched', 'ragDebugKeywords', 'ragDebugVectorQuery', 'ragDebugTokens']
+        ['ragDebugModel', 'ragDebugCorporations', 'ragDebugMatched', 'ragDebugKeywords', 'ragDebugVectorQuery', 'ragDebugTokens']
             .forEach(id => document.getElementById(id).textContent = '-');
     }
 

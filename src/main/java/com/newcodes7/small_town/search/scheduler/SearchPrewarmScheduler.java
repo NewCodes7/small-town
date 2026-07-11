@@ -1,24 +1,22 @@
 package com.newcodes7.small_town.search.scheduler;
 
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
-
 import com.newcodes7.small_town.global.logging.PrewarmLogFilter;
 import com.newcodes7.small_town.search.service.ArticleSearchService;
 import com.newcodes7.small_town.search.service.AutocompleteService;
 import com.newcodes7.small_town.search.service.SearchQueryEmbeddingService;
 import com.newcodes7.small_town.search.service.SemanticTermExpansionService;
-
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
 
 /**
  * 검색 cold start 방지 스케줄러
@@ -27,6 +25,9 @@ import org.slf4j.MDC;
  * 해결: 5분마다 전체 검색 경로를 prewarm
  */
 @Component
+// 테스트에서는 비활성화 필요: 컨텍스트 기동마다 ApplicationReady prewarm이 실행되어
+// 같은 DB를 쓰는 다른 테스트 컨텍스트의 create-drop DDL과 락 교착을 일으킴
+@ConditionalOnProperty(name = "search.prewarm.enabled", havingValue = "true", matchIfMissing = true)
 @RequiredArgsConstructor
 @Slf4j
 public class SearchPrewarmScheduler {

@@ -87,7 +87,10 @@ public class TestDatabaseInitializer implements ApplicationContextInitializer<Co
         }
         long slot;
         try {
-            slot = Long.parseLong(worker.trim()) % slots;
+            // worker id를 그대로 사용한다. modulo(id % slots)는 Gradle 데몬이 오래 살아
+            // worker id가 1,2가 아닌 3,5처럼 커지면 두 포크가 같은 DB에 배정될 수 있고,
+            // 한 포크의 create-drop DDL과 다른 포크의 트랜잭션이 락 교착을 일으킨다.
+            slot = Long.parseLong(worker.trim());
         } catch (NumberFormatException ex) {
             return;
         }

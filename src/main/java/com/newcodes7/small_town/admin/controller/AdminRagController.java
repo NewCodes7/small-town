@@ -1,15 +1,19 @@
 package com.newcodes7.small_town.admin.controller;
 
+import com.newcodes7.small_town.search.config.RagModelProperties;
 import com.newcodes7.small_town.search.service.RagAnswerService;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
@@ -22,7 +26,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public class AdminRagController {
 
     // TODO: 임시 조치 (2026-07-09) — Gemini 타임아웃 5분 상향에 맞춘 값. 원인 규명 후 재조정 필요
-    // 전처리·답변 생성 Gemini 호출 타임아웃(각 5분)이 순차로 소진되는 최악 케이스보다 길어야 한다
+    // 전처리·답변 생성 LLM 호출 타임아웃(각 5분)이 순차로 소진되는 최악 케이스보다 길어야 한다
     private static final long SSE_TIMEOUT_MS = 660_000L;
     private static final int MAX_TOP_ARTICLES = 10;
     private static final int MAX_CHUNKS_PER_ARTICLE = 5;
@@ -30,11 +34,13 @@ public class AdminRagController {
     private static final double MAX_THRESHOLD = 0.8;
 
     private final RagAnswerService ragAnswerService;
+    private final RagModelProperties ragModelProperties;
     @Qualifier("searchExecutor")
     private final ExecutorService searchExecutor;
 
     @GetMapping("/admin/rag")
-    public String page() {
+    public String page(Model model) {
+        model.addAttribute("ragModels", ragModelProperties.getModels());
         return "admin/rag";
     }
 
@@ -44,16 +50,28 @@ public class AdminRagController {
             @RequestParam String q,
             @RequestParam(defaultValue = "5") int topArticles,
             @RequestParam(defaultValue = "3") int chunksPerArticle,
-            @RequestParam(defaultValue = "0.6") double threshold) {
+            @RequestParam(defaultValue = "0.6") double threshold,
+            @RequestParam(required = false) String model) {
 
         int safeTopArticles = Math.clamp(topArticles, 1, MAX_TOP_ARTICLES);
         int safeChunksPerArticle = Math.clamp(chunksPerArticle, 1, MAX_CHUNKS_PER_ARTICLE);
         double safeThreshold = Math.clamp(threshold, MIN_THRESHOLD, MAX_THRESHOLD);
+        RagModelProperties.ModelOption selectedModel = resolveModel(model);
 
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
         CompletableFuture.runAsync(
-                () -> ragAnswerService.streamAnswer(q, safeTopArticles, safeChunksPerArticle, safeThreshold, emitter),
+                () -> ragAnswerService.streamAnswer(
+                        q, safeTopArticles, safeChunksPerArticle, safeThreshold, selectedModel, emitter),
                 searchExecutor);
         return emitter;
+    }
+
+    private RagModelProperties.ModelOption resolveModel(String modelId) {
+        if (modelId == null || modelId.isBlank()) {
+            return ragModelProperties.getDefaultModel();
+        }
+        return ragModelProperties.findById(modelId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "알 수 없는 모델: " + modelId));
     }
 }

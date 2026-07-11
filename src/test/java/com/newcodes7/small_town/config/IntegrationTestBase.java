@@ -4,7 +4,9 @@ import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.crawler.config.WebDriverConfig;
 import com.newcodes7.small_town.crawler.integration.youtube.YouTubeService;
 import com.newcodes7.small_town.crawler.service.ContentExtractor;
+import com.newcodes7.small_town.search.service.ArticleSearchService;
 import com.newcodes7.small_town.search.service.VectorSearchService;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -53,4 +55,14 @@ public abstract class IntegrationTestBase {
     // 캐시 동작 검증(verify) 용도 — 기본은 실빈 위임
     @MockitoSpyBean
     protected ArticleRepository articleRepository;
+
+    @Autowired
+    private ArticleSearchService articleSearchServiceForCacheReset;
+
+    // 하이브리드 코어 캐시는 싱글턴 서비스에 남아 롤백된 article ID를 다음 테스트가
+    // 히트할 수 있으므로 테스트마다 비운다
+    @BeforeEach
+    void resetHybridCoreCache() {
+        articleSearchServiceForCacheReset.invalidateHybridCoreCache();
+    }
 }

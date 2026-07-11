@@ -44,7 +44,7 @@
                     <i class="fas fa-info-circle me-2"></i>
                     기업 기술 블로그 기반 <strong>활용 사례 질의응답</strong> 실험 페이지입니다.
                     질문을 전처리(기업/키워드/벡터 쿼리 분해)한 뒤 하이브리드 검색으로 컨텍스트를 모아
-                    Gemini가 답변을 스트리밍합니다. 노브를 조절해 retrieval 품질을 실험하세요.
+                    선택한 LLM이 답변을 스트리밍합니다. 모델과 노브를 조절해 retrieval·생성 품질을 실험하세요.
                 </div>
 
                 <!-- 질문 입력 + 노브 -->
@@ -81,19 +81,26 @@
                             </div>
                         </div>
                         <div class="row g-3">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold" for="ragModel">모델</label>
+                                <select class="form-select" id="ragModel">
+                                    <option th:each="m : ${ragModels}" th:value="${m.id}" th:text="${m.label}"></option>
+                                </select>
+                                <div class="form-text">전처리·답변 생성에 사용할 LLM</div>
+                            </div>
+                            <div class="col-md-3">
                                 <label class="form-label fw-semibold" for="ragTopArticles">Top 아티클 수 (1~10)</label>
                                 <input type="number" class="form-control" id="ragTopArticles"
                                        value="5" step="1" min="1" max="10">
                                 <div class="form-text">컨텍스트에 포함할 상위 아티클 수</div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label class="form-label fw-semibold" for="ragChunksPerArticle">아티클당 청크 수 (1~5)</label>
                                 <input type="number" class="form-control" id="ragChunksPerArticle"
                                        value="3" step="1" min="1" max="5">
                                 <div class="form-text">아티클별 첫 청크 + 유사도 상위 K개</div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label class="form-label fw-semibold" for="ragThreshold">벡터 유사도 임계치 (0.4~0.8)</label>
                                 <input type="number" class="form-control" id="ragThreshold"
                                        value="0.6" step="0.02" min="0.4" max="0.8">
@@ -110,6 +117,8 @@
                     </div>
                     <div class="card-body">
                         <dl class="row mb-0 rag-debug-list">
+                            <dt class="col-sm-3">모델</dt>
+                            <dd class="col-sm-9" id="ragDebugModel">-</dd>
                             <dt class="col-sm-3">추출 기업</dt>
                             <dd class="col-sm-9" id="ragDebugCorporations">-</dd>
                             <dt class="col-sm-3">매칭된 기업</dt>
@@ -124,10 +133,10 @@
                     </div>
                 </div>
 
-                <!-- Gemini 입력 프롬프트 -->
+                <!-- LLM 입력 프롬프트 -->
                 <div class="card mb-4" id="ragPromptCard" style="display:none;">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <span><i class="fas fa-file-import me-2"></i>Gemini 입력 프롬프트 (원문)</span>
+                        <span><i class="fas fa-file-import me-2"></i>LLM 입력 프롬프트 (원문)</span>
                         <button class="btn btn-sm btn-outline-secondary" type="button"
                                 data-bs-toggle="collapse" data-bs-target="#ragPromptBody">
                             펼치기/접기

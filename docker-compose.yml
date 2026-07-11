@@ -15,6 +15,8 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
       - AWS_SECRET_KEY=${AWS_SECRET_KEY}
+      # 미지정 시 빈 문자열이 주입돼 Spring 기본값을 덮어쓰므로 compose에서도 기본값 지정
+      - BEDROCK_REGION=${BEDROCK_REGION:-ap-northeast-2}
       - S3_BUCKET_NAME=${S3_BUCKET_NAME}
       - CLOUDFRONT_DOMAIN=${CLOUDFRONT_DOMAIN}
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE}
