@@ -37,7 +37,7 @@ class BedrockRagLlmClientTest {
 
     @InjectMocks private BedrockRagLlmClient client;
 
-    private static final String MODEL_ID = "apac.anthropic.claude-sonnet-4-5-20250929-v1:0";
+    private static final String MODEL_ID = "global.anthropic.claude-sonnet-4-5-20250929-v1:0";
     private static final JsonOutputSpec OUTPUT_SPEC =
             new JsonOutputSpec(Map.of(), "반드시 JSON 객체 하나만 출력하세요");
     private static final LlmOptions OPTIONS = new LlmOptions(0.0, 500);
