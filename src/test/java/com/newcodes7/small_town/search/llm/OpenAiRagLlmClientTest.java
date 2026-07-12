@@ -93,6 +93,45 @@ class OpenAiRagLlmClientTest {
     }
 
     @Test
+    @DisplayName("generateJson: openai. 프리픽스 Bedrock ID도 GPT 계열로 인식 (effort none + json_object)")
+    void generateJson_bedrockPrefixedGptModel() throws Exception {
+        OpenAiRagLlmClient client = clientReturning(RESPONSES_JSON);
+
+        client.generateJson("openai.gpt-5.5", "시스템", "질문", OUTPUT_SPEC, OPTIONS);
+
+        JsonNode request = objectMapper.readTree(capturedRequestBody);
+        assertThat(request.path("reasoning").path("effort").asText()).isEqualTo("none");
+        assertThat(request.path("text").path("format").path("type").asText()).isEqualTo("json_object");
+    }
+
+    @Test
+    @DisplayName("generateJson: GPT 외 모델(Grok)은 reasoning·json_object를 보내지 않음")
+    void generateJson_nonGptOmitsReasoningAndJsonMode() throws Exception {
+        OpenAiRagLlmClient client = clientReturning(RESPONSES_JSON);
+
+        client.generateJson("xai.grok-4.3", "시스템", "질문", OUTPUT_SPEC, OPTIONS);
+
+        JsonNode request = objectMapper.readTree(capturedRequestBody);
+        assertThat(request.has("reasoning")).isFalse();
+        assertThat(request.has("text")).isFalse();
+        // JSON 강제는 프롬프트 지시로만 수행
+        assertThat(request.path("instructions").asText()).contains("반드시 JSON 객체 하나만 출력하세요");
+    }
+
+    @Test
+    @DisplayName("generateStream: GPT 외 모델(Gemma)은 reasoning을 보내지 않음")
+    void generateStream_nonGptOmitsReasoning() throws Exception {
+        OpenAiRagLlmClient client = clientStreaming(List.of("data: [DONE]"));
+
+        client.generateStream(
+                "google.gemma-4-31b", "시스템", "질문", new LlmOptions(0.2, 2000), text -> {});
+
+        JsonNode request = objectMapper.readTree(capturedRequestBody);
+        assertThat(request.has("reasoning")).isFalse();
+        assertThat(request.path("stream").asBoolean()).isTrue();
+    }
+
+    @Test
     @DisplayName("generateJson: message 텍스트가 없으면 RagLlmException")
     void generateJson_emptyOutput() {
         OpenAiRagLlmClient client = clientReturning(

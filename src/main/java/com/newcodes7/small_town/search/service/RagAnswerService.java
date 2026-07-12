@@ -45,7 +45,8 @@ public class RagAnswerService {
 
     private static final int CHUNK_MAX_CHARS = 1000;
     private static final int QUESTION_MAX_CHARS = 500;
-    private static final LlmOptions ANSWER_OPTIONS = new LlmOptions(0.2, 2000);
+    private static final double ANSWER_TEMPERATURE = 0.2;
+    private static final int ANSWER_MAX_TOKENS = 2000;
 
     private static final String NO_CORP_MESSAGE = "해당 기업의 글이 없습니다";
     private static final String NO_RESULT_MESSAGE = "관련 글을 찾지 못했습니다";
@@ -116,9 +117,11 @@ public class RagAnswerService {
             String userMessage = "질문: " + trimmedQuestion + "\n\n" + buildContext(orderedChunks);
             sendPromptEvent(emitter, RAG_SYSTEM_PROMPT, userMessage);
 
+            LlmOptions answerOptions = new LlmOptions(
+                    model.isTemperatureSupported() ? ANSWER_TEMPERATURE : null, ANSWER_MAX_TOKENS);
             LlmTokenUsage usage = llmClientResolver.resolve(model.getProvider())
                     .generateStream(model.getId(), RAG_SYSTEM_PROMPT, userMessage,
-                            ANSWER_OPTIONS, text -> sendTokenEvent(emitter, text));
+                            answerOptions, text -> sendTokenEvent(emitter, text));
 
             Integer inTokens = sumTokens(pre.inputTokens(), usage.inputTokens());
             Integer outTokens = sumTokens(pre.outputTokens(), usage.outputTokens());

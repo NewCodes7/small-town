@@ -21,11 +21,18 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * OpenAI 기반 RagLlmClient — Responses API 사용 (crawler의 OpenaiService와 같은 API·키 공유).
+ * OpenAI 호환 Responses API용 RagLlmClient — GPT뿐 아니라 Gemma(Google)·Grok(xAI)도 처리한다.
  *
- * JSON 생성은 json_object 모드 + jsonInstruction 프롬프트 지시를 병용한다 (네이티브 스키마 미지정).
- * GPT-5 계열 전제: temperature 미지원이라 options.temperature()는 사용하지 않고,
- * reasoning effort는 지연 최소화를 위해 최저 단계로 고정한다 (gpt-5.1부터 minimal → none 대체).
+ * 기본 설정은 AWS Bedrock의 OpenAI 호환 엔드포인트(bedrock-mantle openai/v1)를 경유한다.
+ * GPT-5.5/5.4·Gemma 4·Grok 4.3은 미국 리전 bedrock-mantle에만 있으므로
+ * bedrock.region(서울)과 무관하게 URL에 리전을 박는다.
+ * rag.openai.base-url을 https://api.openai.com/v1 으로 바꾸면 OpenAI 직접 호출로 되돌아간다.
+ *
+ * temperature는 GPT-5 계열이 미지원이라 options.temperature()를 사용하지 않는다.
+ * reasoning effort는 GPT 계열만 최저 단계로 고정해 전송한다 (gpt-5.1부터 minimal → none 대체) —
+ * Grok 4.3은 minimal을 거부(none/low/medium/high만 허용, 기본 low)하고 Gemma는 허용값이 미문서화라 생략.
+ * JSON 생성은 GPT 계열만 json_object 모드 + jsonInstruction 병용, 그 외 모델은 프롬프트 지시만 사용한다
+ * — 호출측은 stripFences 후 파싱해야 한다.
  */
 @Component
 @RequiredArgsConstructor
@@ -34,10 +41,12 @@ public class OpenAiRagLlmClient implements RagLlmClient {
 
     private final ObjectMapper objectMapper;
 
-    @Value("${openai.api-key:}")
-    private String openaiApiKey;
+    // Bedrock 경유 시 Bedrock long-term API key, 직접 호출 시 OpenAI API key
+    @Value("${rag.openai.api-key:${openai.api-key:}}")
+    private String apiKey;
 
-    private static final String OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
+    @Value("${rag.openai.base-url:https://api.openai.com/v1}")
+    private String baseUrl;
 
     private HttpClient httpClient;
 
@@ -60,7 +69,10 @@ public class OpenAiRagLlmClient implements RagLlmClient {
             throws IOException, InterruptedException {
         Map<String, Object> body = buildRequestBody(
                 modelId, systemPrompt + "\n\n" + outputSpec.jsonInstruction(), userMessage, options);
-        body.put("text", Map.of("format", Map.of("type", "json_object")));
+        // json_object 모드는 GPT 계열만 — Gemma/Grok은 jsonInstruction 프롬프트 지시에만 의존
+        if (isGptModel(modelId)) {
+            body.put("text", Map.of("format", Map.of("type", "json_object")));
+        }
 
         String responseJson = callOpenAi(objectMapper.writeValueAsString(body));
 
@@ -130,9 +142,9 @@ public class OpenAiRagLlmClient implements RagLlmClient {
 
     private HttpRequest request(String requestBody) {
         return HttpRequest.newBuilder()
-                .uri(URI.create(OPENAI_RESPONSES_URL))
+                .uri(URI.create(baseUrl + "/responses"))
                 .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + openaiApiKey)
+                .header("Authorization", "Bearer " + apiKey)
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 // Gemini 호출 타임아웃 임시 5분 상향(2026-07-09)과 맞춘 값
                 .timeout(Duration.ofMinutes(5))
@@ -146,12 +158,24 @@ public class OpenAiRagLlmClient implements RagLlmClient {
         body.put("instructions", instructions);
         body.put("input", input);
         body.put("max_output_tokens", options.maxTokens());
-        body.put("reasoning", Map.of("effort", reasoningEffort(modelId)));
+        // Grok 4.3은 minimal 거부, Gemma는 허용값 미문서화 → reasoning은 GPT 계열만 전송
+        if (isGptModel(modelId)) {
+            body.put("reasoning", Map.of("effort", reasoningEffort(modelId)));
+        }
         return body;
     }
 
+    private boolean isGptModel(String modelId) {
+        return bareModelId(modelId).startsWith("gpt-");
+    }
+
     private String reasoningEffort(String modelId) {
-        return modelId.startsWith("gpt-5.1") ? "none" : "minimal";
+        return bareModelId(modelId).matches("gpt-5\\.\\d.*") ? "none" : "minimal";
+    }
+
+    /** Bedrock 모델 ID의 openai. 벤더 프리픽스를 제거한다 (예: openai.gpt-5.5 → gpt-5.5) */
+    private String bareModelId(String modelId) {
+        return modelId.startsWith("openai.") ? modelId.substring("openai.".length()) : modelId;
     }
 
     /** output 배열에서 message 아이템의 output_text들을 이어붙인다 (reasoning 아이템은 제외) */
@@ -187,8 +211,8 @@ public class OpenAiRagLlmClient implements RagLlmClient {
     }
 
     private RagLlmException httpException(int statusCode) {
-        if (statusCode == 401) {
-            return new RagLlmException("OpenAI API 키가 유효하지 않습니다");
+        if (statusCode == 401 || statusCode == 403) {
+            return new RagLlmException("OpenAI API 키가 유효하지 않습니다 (rag.openai.api-key 확인)");
         }
         if (statusCode == 429) {
             return new RagLlmException("OpenAI 요청이 제한되었습니다. 잠시 후 다시 시도해주세요");

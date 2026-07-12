@@ -67,7 +67,8 @@ public class RagQueryPreprocessService {
             "required", List.of("corporations", "keywords", "vectorQuery")
     );
 
-    private static final LlmOptions PREPROCESS_OPTIONS = new LlmOptions(0.0, 500);
+    private static final double PREPROCESS_TEMPERATURE = 0.0;
+    private static final int PREPROCESS_MAX_TOKENS = 500;
 
     /**
      * 전처리 결과
@@ -96,9 +97,11 @@ public class RagQueryPreprocessService {
      */
     public RagPreprocessResult preprocess(String question, ModelOption model)
             throws IOException, InterruptedException {
+        LlmOptions preprocessOptions = new LlmOptions(
+                model.isTemperatureSupported() ? PREPROCESS_TEMPERATURE : null, PREPROCESS_MAX_TOKENS);
         LlmJsonResult result = llmClientResolver.resolve(model.getProvider())
                 .generateJson(model.getId(), PREPROCESS_SYSTEM_PROMPT, question,
-                        new JsonOutputSpec(RESPONSE_SCHEMA, JSON_INSTRUCTION), PREPROCESS_OPTIONS);
+                        new JsonOutputSpec(RESPONSE_SCHEMA, JSON_INSTRUCTION), preprocessOptions);
 
         JsonNode parsed = objectMapper.readTree(LlmJsonUtils.stripFences(result.json()));
         List<String> rawCorporations = new ArrayList<>();

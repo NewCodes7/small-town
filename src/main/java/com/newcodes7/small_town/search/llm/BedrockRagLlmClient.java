@@ -1,5 +1,8 @@
 package com.newcodes7.small_town.search.llm;
 
+import com.newcodes7.small_town.global.config.BedrockClientFactory;
+import com.newcodes7.small_town.search.config.RagModelProperties;
+import com.newcodes7.small_town.search.config.RagModelProperties.ModelOption;
 import com.newcodes7.small_town.search.config.RagModelProperties.Provider;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -7,8 +10,6 @@ import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient;
-import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
 import software.amazon.awssdk.services.bedrockruntime.model.AccessDeniedException;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.ConversationRole;
@@ -29,14 +30,16 @@ import software.amazon.awssdk.services.bedrockruntime.model.ValidationException;
  * Converse API는 네이티브 JSON 스키마 응답이 없어 generateJson은 프롬프트 지시(jsonInstruction)로
  * JSON을 강제한다 — 호출측은 stripFences 후 파싱해야 한다.
  * ConverseStream의 onText 콜백은 netty 이벤트루프 스레드에서 실행된다 (admin 테스트 페이지 용도라 허용).
+ * 모델별 rag.models[N].region이 지정되면 해당 리전 클라이언트로 호출한다
+ * (global 프로파일이 없는 모델 — Llama US geo 프로파일, Mistral·DeepSeek In-Region 전용).
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class BedrockRagLlmClient implements RagLlmClient {
 
-    private final BedrockRuntimeClient bedrockRuntimeClient;
-    private final BedrockRuntimeAsyncClient bedrockRuntimeAsyncClient;
+    private final BedrockClientFactory bedrockClientFactory;
+    private final RagModelProperties ragModelProperties;
 
     @Override
     public Provider provider() {
@@ -49,7 +52,7 @@ public class BedrockRagLlmClient implements RagLlmClient {
             JsonOutputSpec outputSpec, LlmOptions options) throws RagLlmException {
         String systemWithJsonRule = systemPrompt + "\n\n" + outputSpec.jsonInstruction();
         try {
-            ConverseResponse response = bedrockRuntimeClient.converse(
+            ConverseResponse response = bedrockClientFactory.sync(resolveRegion(modelId)).converse(
                     ConverseRequest.builder()
                             .modelId(modelId)
                             .system(SystemContentBlock.fromText(systemWithJsonRule))
@@ -86,7 +89,7 @@ public class BedrockRagLlmClient implements RagLlmClient {
                         .build())
                 .build();
         try {
-            bedrockRuntimeAsyncClient.converseStream(
+            bedrockClientFactory.async(resolveRegion(modelId)).converseStream(
                     ConverseStreamRequest.builder()
                             .modelId(modelId)
                             .system(SystemContentBlock.fromText(systemPrompt))
@@ -100,6 +103,13 @@ public class BedrockRagLlmClient implements RagLlmClient {
         return usageRef.get();
     }
 
+    private String resolveRegion(String modelId) {
+        return ragModelProperties.findById(modelId)
+                .map(ModelOption::getRegion)
+                .filter(region -> region != null && !region.isBlank())
+                .orElseGet(bedrockClientFactory::defaultRegion);
+    }
+
     private Message userMessage(String userMessage) {
         return Message.builder()
                 .role(ConversationRole.USER)
@@ -108,10 +118,13 @@ public class BedrockRagLlmClient implements RagLlmClient {
     }
 
     private InferenceConfiguration inferenceConfig(LlmOptions options) {
-        return InferenceConfiguration.builder()
-                .temperature((float) options.temperature())
-                .maxTokens(options.maxTokens())
-                .build();
+        InferenceConfiguration.Builder builder = InferenceConfiguration.builder()
+                .maxTokens(options.maxTokens());
+        // temperature 미지원 모델(Claude Opus 4.7+/5세대)은 null — 넘기면 ValidationException
+        if (options.temperature() != null) {
+            builder.temperature(options.temperature().floatValue());
+        }
+        return builder.build();
     }
 
     private LlmTokenUsage toTokenUsage(TokenUsage usage) {

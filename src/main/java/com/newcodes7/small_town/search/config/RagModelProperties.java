@@ -32,6 +32,16 @@ public class RagModelProperties {
         private String id;
         private String label;
         private Provider provider;
+        /**
+         * temperature 미지원 모델은 false로 설정 (Claude Opus 4.7+/5세대는 샘플링 파라미터 전달 시 400)
+         * false면 LlmOptions.temperature를 null로 넘겨 요청에서 생략한다.
+         */
+        private boolean temperatureSupported = true;
+        /**
+         * BEDROCK 전용 — 기본 리전(bedrock.region)에서 호출 불가한 모델의 소스 리전.
+         * global. 프로파일이 없는 모델(US geo 프로파일, In-Region 전용)에 지정하고, null이면 기본 리전 사용.
+         */
+        private String region;
     }
 
     public ModelOption getDefaultModel() {

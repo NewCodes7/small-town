@@ -58,7 +58,9 @@ public class GeminiRagLlmClient implements RagLlmClient {
             JsonOutputSpec outputSpec, LlmOptions options)
             throws IOException, InterruptedException {
         Map<String, Object> generationConfig = new LinkedHashMap<>();
-        generationConfig.put("temperature", options.temperature());
+        if (options.temperature() != null) {
+            generationConfig.put("temperature", options.temperature());
+        }
         generationConfig.put("maxOutputTokens", options.maxTokens());
         generationConfig.put("responseMimeType", "application/json");
         generationConfig.put("responseSchema", outputSpec.geminiResponseSchema());
@@ -81,7 +83,9 @@ public class GeminiRagLlmClient implements RagLlmClient {
             LlmOptions options, Consumer<String> onText)
             throws IOException, InterruptedException {
         Map<String, Object> generationConfig = new LinkedHashMap<>();
-        generationConfig.put("temperature", options.temperature());
+        if (options.temperature() != null) {
+            generationConfig.put("temperature", options.temperature());
+        }
         generationConfig.put("maxOutputTokens", options.maxTokens());
         generationConfig.put("thinkingConfig", Map.of("thinkingLevel", "minimal"));
 
