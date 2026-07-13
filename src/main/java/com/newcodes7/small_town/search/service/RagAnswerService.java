@@ -47,6 +47,8 @@ public class RagAnswerService {
     private static final int QUESTION_MAX_CHARS = 500;
     private static final double ANSWER_TEMPERATURE = 0.2;
     private static final int ANSWER_MAX_TOKENS = 2000;
+    private static final int HISTORY_TURN_LIMIT = 3;
+    private static final int HISTORY_ANSWER_MAX_CHARS = 500;
 
     private static final String NO_CORP_MESSAGE = "해당 기업의 글이 없습니다";
     private static final String NO_RESULT_MESSAGE = "관련 글을 찾지 못했습니다";
@@ -73,22 +75,41 @@ public class RagAnswerService {
     public void streamAnswer(
             String question, int topArticles, int chunksPerArticle, double threshold,
             ModelOption model, SseEmitter emitter) {
+        streamAnswer(question, topArticles, chunksPerArticle, threshold, model, null, null, null, emitter);
+    }
+
+    /**
+     * 사용자용 챗봇 엔드포인트용 오버로드 — conversationId가 있으면 직전 턴들을 로드해
+     * 전처리·답변 생성 프롬프트에 대화 맥락으로 주입하고, 로그에 대화/사용자 식별 정보를 남긴다.
+     */
+    public void streamAnswer(
+            String question, int topArticles, int chunksPerArticle, double threshold,
+            ModelOption model, String conversationId, String ipAddress, Long userId, SseEmitter emitter) {
         if (question == null || question.trim().isEmpty()) {
             sendErrorEvent(emitter, "질문을 입력해주세요");
             completeEmitter(emitter);
             return;
         }
         String trimmedQuestion = question.trim();
+        // /api/rag/answer는 로그인 없이 공개된 엔드포인트라 과도하게 긴 입력으로 LLM 비용을
+        // 유발하는 것을 막기 위해 여기서 거부한다 (saveLog의 clamp는 로그 저장용일 뿐 입력 검증이 아님).
+        if (trimmedQuestion.length() > QUESTION_MAX_CHARS) {
+            sendErrorEvent(emitter, "질문은 " + QUESTION_MAX_CHARS + "자 이내로 입력해주세요");
+            completeEmitter(emitter);
+            return;
+        }
+        String historyContext = buildHistoryContext(loadHistory(conversationId));
 
         RagPreprocessResult pre = null;
         try {
-            pre = preprocessService.preprocess(trimmedQuestion, model);
+            pre = preprocessService.preprocess(trimmedQuestion, historyContext, model);
             sendPreprocessEvent(emitter, pre);
 
             if (pre.isCorporationTargetedButNotMatched()) {
                 sendNotFoundEvent(emitter, NO_CORP_MESSAGE);
                 completeEmitter(emitter);
-                saveLog(trimmedQuestion, pre, 0, RagQueryLog.Outcome.NO_CORP, null, null, null, model);
+                saveLog(trimmedQuestion, pre, 0, RagQueryLog.Outcome.NO_CORP, null, null, null, model,
+                        conversationId, ipAddress, userId, null);
                 return;
             }
 
@@ -104,7 +125,8 @@ public class RagAnswerService {
             if (chunks.isEmpty()) {
                 sendNotFoundEvent(emitter, NO_RESULT_MESSAGE);
                 completeEmitter(emitter);
-                saveLog(trimmedQuestion, pre, 0, RagQueryLog.Outcome.NO_RESULT, null, null, null, model);
+                saveLog(trimmedQuestion, pre, 0, RagQueryLog.Outcome.NO_RESULT, null, null, null, model,
+                        conversationId, ipAddress, userId, null);
                 return;
             }
 
@@ -114,14 +136,19 @@ public class RagAnswerService {
             List<AiSummarySourceDto> sources = buildSources(orderedChunks);
             sendSourcesEvent(emitter, sources);
 
-            String userMessage = "질문: " + trimmedQuestion + "\n\n" + buildContext(orderedChunks);
+            String userMessage = (historyContext.isBlank() ? "" : historyContext + "\n")
+                    + "질문: " + trimmedQuestion + "\n\n" + buildContext(orderedChunks);
             sendPromptEvent(emitter, RAG_SYSTEM_PROMPT, userMessage);
 
             LlmOptions answerOptions = new LlmOptions(
                     model.isTemperatureSupported() ? ANSWER_TEMPERATURE : null, ANSWER_MAX_TOKENS);
+            StringBuilder answerBuilder = new StringBuilder();
             LlmTokenUsage usage = llmClientResolver.resolve(model.getProvider())
                     .generateStream(model.getId(), RAG_SYSTEM_PROMPT, userMessage,
-                            answerOptions, text -> sendTokenEvent(emitter, text));
+                            answerOptions, text -> {
+                                answerBuilder.append(text);
+                                sendTokenEvent(emitter, text);
+                            });
 
             Integer inTokens = sumTokens(pre.inputTokens(), usage.inputTokens());
             Integer outTokens = sumTokens(pre.outputTokens(), usage.outputTokens());
@@ -130,25 +157,56 @@ public class RagAnswerService {
             completeEmitter(emitter);
 
             saveLog(trimmedQuestion, pre, topArticleIds.size(),
-                    RagQueryLog.Outcome.ANSWERED, inTokens, outTokens, totalTokens, model);
+                    RagQueryLog.Outcome.ANSWERED, inTokens, outTokens, totalTokens, model,
+                    conversationId, ipAddress, userId, answerBuilder.toString());
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.error("RAG 처리 중 인터럽트: {}", e.getMessage());
             sendErrorEvent(emitter, "답변을 불러올 수 없습니다");
             completeEmitter(emitter);
-            saveLog(trimmedQuestion, pre, null, RagQueryLog.Outcome.ERROR, null, null, null, model);
+            saveLog(trimmedQuestion, pre, null, RagQueryLog.Outcome.ERROR, null, null, null, model,
+                    conversationId, ipAddress, userId, null);
         } catch (RagLlmException e) {
             log.error("RAG LLM 호출 실패: {}", e.getMessage(), e);
             sendErrorEvent(emitter, e.getMessage());
             completeEmitter(emitter);
-            saveLog(trimmedQuestion, pre, null, RagQueryLog.Outcome.ERROR, null, null, null, model);
+            saveLog(trimmedQuestion, pre, null, RagQueryLog.Outcome.ERROR, null, null, null, model,
+                    conversationId, ipAddress, userId, null);
         } catch (Exception e) {
             log.error("RAG 처리 중 예외 발생: {}", e.getMessage(), e);
             sendErrorEvent(emitter, "답변을 불러올 수 없습니다");
             completeEmitter(emitter);
-            saveLog(trimmedQuestion, pre, null, RagQueryLog.Outcome.ERROR, null, null, null, model);
+            saveLog(trimmedQuestion, pre, null, RagQueryLog.Outcome.ERROR, null, null, null, model,
+                    conversationId, ipAddress, userId, null);
         }
+    }
+
+    private List<RagQueryLog> loadHistory(String conversationId) {
+        if (conversationId == null || conversationId.isBlank()) {
+            return List.of();
+        }
+        return ragQueryLogRepository
+                .findTop3ByConversationIdAndOutcomeOrderByCreatedAtDesc(conversationId, RagQueryLog.Outcome.ANSWERED)
+                .reversed();
+    }
+
+    private String buildHistoryContext(List<RagQueryLog> history) {
+        if (history.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder("이전 대화:\n");
+        for (RagQueryLog turn : history) {
+            sb.append("Q: ").append(turn.getQuestion()).append("\n");
+            String answer = turn.getAnswer();
+            if (answer != null && !answer.isEmpty()) {
+                if (answer.length() > HISTORY_ANSWER_MAX_CHARS) {
+                    answer = answer.substring(0, HISTORY_ANSWER_MAX_CHARS) + "...";
+                }
+                sb.append("A: ").append(answer).append("\n");
+            }
+        }
+        return sb.toString();
     }
 
     private List<AiSummarySourceDto> buildSources(List<AiSummaryChunkDto> chunks) {
@@ -198,7 +256,7 @@ public class RagAnswerService {
     private void saveLog(
             String question, RagPreprocessResult pre, Integer articleCount,
             RagQueryLog.Outcome outcome, Integer input, Integer output, Integer total,
-            ModelOption model) {
+            ModelOption model, String conversationId, String ipAddress, Long userId, String answer) {
         try {
             String clampedQuestion = question.length() > QUESTION_MAX_CHARS
                     ? question.substring(0, QUESTION_MAX_CHARS) : question;
@@ -219,6 +277,10 @@ public class RagAnswerService {
                             .outputTokens(output)
                             .totalTokens(total)
                             .model(model != null ? model.getId() : null)
+                            .conversationId(conversationId)
+                            .ipAddress(ipAddress)
+                            .userId(userId)
+                            .answer(answer)
                             .build());
         } catch (Exception e) {
             log.warn("RAG 질의 로그 저장 실패: question={}", question, e);

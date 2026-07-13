@@ -82,7 +82,7 @@ class RagAnswerServiceTest {
     @Test
     @DisplayName("기업 지목+무매칭: preprocess/notfound 이벤트 후 종료, retrieval·LLM 미호출, NO_CORP 로그")
     void streamAnswer_corporationNotMatched() throws Exception {
-        when(preprocessService.preprocess(anyString(), any()))
+        when(preprocessService.preprocess(anyString(), anyString(), any()))
                 .thenReturn(preprocessResult(List.of("존재하지않는회사"), List.of(), List.of()));
 
         ragAnswerService.streamAnswer("존재하지않는회사의 Kafka 사례", 5, 3, 0.6, geminiModel(), emitter);
@@ -103,7 +103,7 @@ class RagAnswerServiceTest {
     @Test
     @DisplayName("retrieval 0건: notfound 이벤트 후 종료, LLM 미호출, NO_RESULT 로그")
     void streamAnswer_noRetrievalResults() throws Exception {
-        when(preprocessService.preprocess(anyString(), any()))
+        when(preprocessService.preprocess(anyString(), anyString(), any()))
                 .thenReturn(preprocessResult(List.of(), List.of(), List.of()));
         when(articleSearchService.getTopArticleIdsForRag(anyString(), anyString(), anyList(), anyInt(), anyDouble()))
                 .thenReturn(ArticleSearchService.HybridTopArticles.empty());
@@ -123,7 +123,7 @@ class RagAnswerServiceTest {
     @Test
     @DisplayName("정상 흐름: preprocess → sources → token → done 이벤트 전송, ANSWERED 로그(토큰 합산·모델 기록)")
     void streamAnswer_success() throws Exception {
-        when(preprocessService.preprocess(anyString(), any()))
+        when(preprocessService.preprocess(anyString(), anyString(), any()))
                 .thenReturn(preprocessResult(List.of("네이버"), List.of(1L), List.of("네이버")));
         when(articleSearchService.getTopArticleIdsForRag(
                 anyString(), anyString(), anyList(), anyInt(), anyDouble()))
@@ -164,7 +164,7 @@ class RagAnswerServiceTest {
     @Test
     @DisplayName("전처리 실패: error 이벤트 전송 후 종료, ERROR 로그")
     void streamAnswer_preprocessFails() throws Exception {
-        when(preprocessService.preprocess(anyString(), any()))
+        when(preprocessService.preprocess(anyString(), anyString(), any()))
                 .thenThrow(new java.io.IOException("Gemini API HTTP 500"));
 
         ragAnswerService.streamAnswer("네이버 Kafka 사례", 5, 3, 0.6, geminiModel(), emitter);
@@ -180,7 +180,7 @@ class RagAnswerServiceTest {
     @Test
     @DisplayName("LLM 호출 실패(RagLlmException): error 이벤트 전송 후 종료, ERROR 로그에 모델 기록")
     void streamAnswer_llmFails() throws Exception {
-        when(preprocessService.preprocess(anyString(), any()))
+        when(preprocessService.preprocess(anyString(), anyString(), any()))
                 .thenThrow(new RagLlmException("Bedrock 모델 접근 권한이 없습니다"));
 
         ragAnswerService.streamAnswer("네이버 Kafka 사례", 5, 3, 0.6, geminiModel(), emitter);
@@ -200,7 +200,7 @@ class RagAnswerServiceTest {
 
         verify(emitter, times(1)).send(any(SseEmitter.SseEventBuilder.class));
         verify(emitter).complete();
-        verify(preprocessService, never()).preprocess(anyString(), any());
+        verify(preprocessService, never()).preprocess(anyString(), anyString(), any());
         verify(ragQueryLogRepository, never()).save(any());
     }
 }

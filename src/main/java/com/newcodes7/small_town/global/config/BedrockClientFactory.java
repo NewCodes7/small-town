@@ -23,8 +23,13 @@ import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
 @Component
 public class BedrockClientFactory {
 
-    // Gemini 호출 타임아웃 임시 5분 상향(2026-07-09)과 맞춘 값
-    private static final Duration API_CALL_TIMEOUT = Duration.ofMinutes(5);
+    // Bedrock Converse/ConverseStream 자체는 지연 이슈가 보고된 적 없어 Gemini와 달리 짧게 유지.
+    // apiCallTimeout은 스트리밍 API에서도 요청 시작~완료(스트림 소진)까지 전체 구간에 적용되므로
+    // sync(전처리, PREPROCESS_MAX_TOKENS=500)와 async(답변 생성, ANSWER_MAX_TOKENS=2000)를 분리—
+    // 하나로 묶으면 답변 생성이 길어질 때 정상 진행 중인 스트림도 SdkClientException으로 끊긴다.
+    // RagChatController.SSE_TIMEOUT_MS·nginx proxy_read_timeout은 이 둘의 합보다 여유 있게 잡아야 한다.
+    private static final Duration SYNC_API_CALL_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration ASYNC_API_CALL_TIMEOUT = Duration.ofSeconds(90);
 
     @Value("${bedrock.access-key}")
     private String accessKey;
@@ -47,7 +52,7 @@ public class BedrockClientFactory {
                 .region(Region.of(r))
                 .credentialsProvider(credentials())
                 .overrideConfiguration(ClientOverrideConfiguration.builder()
-                        .apiCallTimeout(API_CALL_TIMEOUT)
+                        .apiCallTimeout(SYNC_API_CALL_TIMEOUT)
                         .build())
                 .build());
     }
@@ -57,7 +62,7 @@ public class BedrockClientFactory {
                 .region(Region.of(r))
                 .credentialsProvider(credentials())
                 .overrideConfiguration(ClientOverrideConfiguration.builder()
-                        .apiCallTimeout(API_CALL_TIMEOUT)
+                        .apiCallTimeout(ASYNC_API_CALL_TIMEOUT)
                         .build())
                 .build());
     }

@@ -61,7 +61,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
             .authorizeHttpRequests(authz -> authz
                 .requestMatchers("/api/auth/**", "/auth/**", "/api/user-info", "/api/auth/me").permitAll()
-                .requestMatchers("/", "/home", "/articles/**", "/about", "/corporations", "/corporations/**", "/video", "/hackernews/**").permitAll()
+                .requestMatchers("/", "/home", "/articles/**", "/about", "/corporations", "/corporations/**", "/video", "/hackernews/**", "/ask").permitAll()
                 .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
                 .requestMatchers("/error").permitAll()
                 .requestMatchers("/sitemap.xml", "/robots.txt").permitAll()
@@ -78,6 +78,8 @@ public class SecurityConfig {
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/search/recommended-queries").hasRole("ADMIN")
                 // 검색 API는 모든 사용자 허용 (ai-summary, recommended-queries 제외)
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/search/**").permitAll()
+                // RAG 챗봇 API - 로그인 여부 무관 허용 (rate limit은 nginx에서 IP 기준으로 처리)
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/rag/answer").permitAll()
                 // 카테고리 목록 조회는 모든 사용자 허용
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/categories").permitAll()
 

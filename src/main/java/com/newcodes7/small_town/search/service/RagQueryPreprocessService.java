@@ -97,10 +97,23 @@ public class RagQueryPreprocessService {
      */
     public RagPreprocessResult preprocess(String question, ModelOption model)
             throws IOException, InterruptedException {
+        return preprocess(question, "", model);
+    }
+
+    /**
+     * 멀티턴용 오버로드 — historyContext(직전 대화 요약)를 질문 앞에 붙여 LLM에 전달한다.
+     * 기업/키워드/벡터쿼리 추출 시 "그 회사", "다른 사례는?" 같은 후속 질문의 지시어를 해석하는 데 쓰인다.
+     */
+    public RagPreprocessResult preprocess(String question, String historyContext, ModelOption model)
+            throws IOException, InterruptedException {
+        String augmentedQuestion = (historyContext == null || historyContext.isBlank())
+                ? question
+                : historyContext + "\n현재 질문: " + question;
+
         LlmOptions preprocessOptions = new LlmOptions(
                 model.isTemperatureSupported() ? PREPROCESS_TEMPERATURE : null, PREPROCESS_MAX_TOKENS);
         LlmJsonResult result = llmClientResolver.resolve(model.getProvider())
-                .generateJson(model.getId(), PREPROCESS_SYSTEM_PROMPT, question,
+                .generateJson(model.getId(), PREPROCESS_SYSTEM_PROMPT, augmentedQuestion,
                         new JsonOutputSpec(RESPONSE_SCHEMA, JSON_INSTRUCTION), preprocessOptions);
 
         JsonNode parsed = objectMapper.readTree(LlmJsonUtils.stripFences(result.json()));

@@ -1,0 +1,93 @@
+package com.newcodes7.small_town.search.controller;
+
+import com.newcodes7.small_town.auth.repository.UserRepository;
+import com.newcodes7.small_town.global.util.Client;
+import com.newcodes7.small_town.search.config.RagModelProperties;
+import com.newcodes7.small_town.search.dto.RagChatRequestDto;
+import com.newcodes7.small_town.search.repository.RagQueryLogRepository;
+import com.newcodes7.small_town.search.service.RagAnswerService;
+import jakarta.servlet.http.HttpServletRequest;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+/**
+ * 실사용자용 RAG 질의응답(기업 기술 활용 사례 Q&A) 챗봇.
+ * admin/rag 테스트 페이지와 달리 모델·검색 파라미터를 고정하고, 로그인 여부 무관(IP 기반 식별)으로 동작한다.
+ * rate limit은 nginx에서 처리한다(분당/시간당 제한, /api/rag/answer 전용 location).
+ */
+@Controller
+@RequiredArgsConstructor
+public class RagChatController {
+
+    // Claude Sonnet 4.5 (Bedrock) 고정 — rag.models[4] (application.properties)
+    private static final String FIXED_MODEL_ID = "global.anthropic.claude-sonnet-4-5-20250929-v1:0";
+    private static final int TOP_ARTICLES = 5;
+    private static final int CHUNKS_PER_ARTICLE = 3;
+    private static final double THRESHOLD = 0.6;
+    // 전처리(sync, 30s) + 답변 생성(async, 90s) 순차 호출 worst case(BedrockClientFactory) + 여유
+    private static final long SSE_TIMEOUT_MS = 150_000L;
+    // nginx는 분당 rate limit만 처리(정수 r/m 제약으로 시간당 30회를 표현 못 함) — 시간당 한도는 여기서 카운트
+    private static final int HOURLY_LIMIT_PER_IP = 30;
+
+    private final RagAnswerService ragAnswerService;
+    private final RagModelProperties ragModelProperties;
+    private final UserRepository userRepository;
+    private final RagQueryLogRepository ragQueryLogRepository;
+    @Qualifier("searchExecutor")
+    private final ExecutorService searchExecutor;
+
+    @GetMapping("/ask")
+    public String page(Model model) {
+        return "ask";
+    }
+
+    @PostMapping(value = "/api/rag/answer", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @ResponseBody
+    public SseEmitter answer(
+            @RequestBody RagChatRequestDto body,
+            @AuthenticationPrincipal UserDetails userDetails,
+            HttpServletRequest request) {
+        RagModelProperties.ModelOption model = ragModelProperties.findById(FIXED_MODEL_ID)
+                .orElseThrow(() -> new IllegalStateException("rag.models에 " + FIXED_MODEL_ID + " 설정이 없습니다"));
+        String ipAddress = Client.getClientIpAddress(request);
+        Long userId = resolveUserId(userDetails);
+
+        LocalDateTime hourAgo = LocalDateTime.now(ZoneId.of("Asia/Seoul")).minusHours(1);
+        if (ragQueryLogRepository.countByIpAddressAndCreatedAtAfter(ipAddress, hourAgo) >= HOURLY_LIMIT_PER_IP) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "시간당 요청 한도를 초과했습니다");
+        }
+
+        SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
+        CompletableFuture.runAsync(
+                () -> ragAnswerService.streamAnswer(
+                        body.question(), TOP_ARTICLES, CHUNKS_PER_ARTICLE, THRESHOLD, model,
+                        body.conversationId(), ipAddress, userId, emitter),
+                searchExecutor);
+        return emitter;
+    }
+
+    private Long resolveUserId(UserDetails userDetails) {
+        if (userDetails == null) {
+            return null;
+        }
+        return userRepository.findByUsernameAndDeletedAtIsNull(userDetails.getUsername())
+                .map(user -> user.getId())
+                .orElse(null);
+    }
+}

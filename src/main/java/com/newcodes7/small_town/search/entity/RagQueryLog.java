@@ -11,7 +11,10 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(
         name = "rag_query_log",
-        indexes = {@Index(name = "idx_rag_query_log_created_at", columnList = "createdAt")})
+        indexes = {
+            @Index(name = "idx_rag_query_log_created_at", columnList = "createdAt"),
+            @Index(name = "idx_rag_query_log_conversation_id", columnList = "conversationId")
+        })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RagQueryLog {
@@ -54,6 +57,18 @@ public class RagQueryLog {
     @Column(length = 100)
     private String model;
 
+    @Column(length = 36)
+    private String conversationId;
+
+    @Column(length = 45)
+    private String ipAddress;
+
+    @Column
+    private Long userId;
+
+    @Column(columnDefinition = "TEXT")
+    private String answer;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -69,7 +84,11 @@ public class RagQueryLog {
             Integer inputTokens,
             Integer outputTokens,
             Integer totalTokens,
-            String model) {
+            String model,
+            String conversationId,
+            String ipAddress,
+            Long userId,
+            String answer) {
         this.question = question;
         this.extractedCorporations = extractedCorporations;
         this.extractedKeywords = extractedKeywords;
@@ -81,6 +100,10 @@ public class RagQueryLog {
         this.outputTokens = outputTokens;
         this.totalTokens = totalTokens;
         this.model = model;
+        this.conversationId = conversationId;
+        this.ipAddress = ipAddress;
+        this.userId = userId;
+        this.answer = answer;
         this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
     }
 }
