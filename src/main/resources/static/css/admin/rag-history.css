@@ -1,0 +1,51 @@
+.stat-card .stat-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+}
+
+.stat-card .stat-label {
+    font-size: 0.85rem;
+    color: #6c757d;
+}
+
+.outcome-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.outcome-ANSWERED {
+    background-color: #d1e7dd;
+    color: #0f5132;
+}
+
+.outcome-NO_CORP {
+    background-color: #fff3cd;
+    color: #664d03;
+}
+
+.outcome-NO_RESULT {
+    background-color: #e2e3e5;
+    color: #41464b;
+}
+
+.outcome-ERROR {
+    background-color: #f8d7da;
+    color: #842029;
+}
+
+.rh-text-block {
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: #f8f9fa;
+    border-radius: 0.375rem;
+    padding: 0.75rem 1rem;
+}
+
+.rh-meta dt {
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.rh-meta dd {
+    word-break: break-word;
+}

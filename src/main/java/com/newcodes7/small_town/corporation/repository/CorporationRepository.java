@@ -1,8 +1,8 @@
 package com.newcodes7.small_town.corporation.repository;
 
+import com.newcodes7.small_town.global.entity.Corporation;
 import java.util.List;
 import java.util.Optional;
-
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,8 +12,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import com.newcodes7.small_town.global.entity.Corporation;
-
 @Repository
 public interface CorporationRepository extends JpaRepository<Corporation, Long>, JpaSpecificationExecutor<Corporation> {
 
@@ -21,6 +19,9 @@ public interface CorporationRepository extends JpaRepository<Corporation, Long>,
     @EntityGraph(attributePaths = {"corporationIndustries", "corporationIndustries.industry"})
     @Query("SELECT c FROM Corporation c WHERE c.deletedAt IS NULL")
     List<Corporation> findAllActive();
+
+    // 필터 드롭다운 등 이름순 목록이 필요한 곳에서 사용 (연관관계 미조회)
+    List<Corporation> findAllByDeletedAtIsNullOrderByNameAsc();
 
     @EntityGraph(attributePaths = {"corporationIndustries", "corporationIndustries.industry"})
     @Query("SELECT c FROM Corporation c WHERE c.id = :id AND c.deletedAt IS NULL")
