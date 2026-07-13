@@ -18,8 +18,6 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -27,7 +25,7 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
- * 실사용자용 RAG 질의응답(기업 기술 활용 사례 Q&A) 챗봇.
+ * 검색 페이지 관리자 전용 "AI 기업 사례 모아보기" 카드가 사용하는 RAG 질의응답 스트리밍 API.
  * admin/rag 테스트 페이지와 달리 모델·검색 파라미터를 고정하고, 로그인 여부 무관(IP 기반 식별)으로 동작한다.
  * rate limit은 nginx에서 처리한다(분당/시간당 제한, /api/rag/answer 전용 location).
  */
@@ -51,11 +49,6 @@ public class RagChatController {
     private final RagQueryLogRepository ragQueryLogRepository;
     @Qualifier("searchExecutor")
     private final ExecutorService searchExecutor;
-
-    @GetMapping("/ask")
-    public String page(Model model) {
-        return "ask";
-    }
 
     @PostMapping(value = "/api/rag/answer", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @ResponseBody
