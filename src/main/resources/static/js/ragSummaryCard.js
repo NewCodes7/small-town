@@ -14,7 +14,6 @@ class RagSummaryManager {
         this.currentKeyword = null;
         this._abortController = null;
         this.moreBtn?.addEventListener('click', () => this._expandClamp());
-        this.answerEl?.addEventListener('click', (e) => this._handleCitationClick(e));
     }
 
     async start(keyword) {
@@ -170,12 +169,17 @@ class RagSummaryManager {
     }
 
     // marked.js로 정식 마크다운 렌더링 후 DOMPurify로 sanitize, 마지막으로 [출처N]을 인라인 각주 배지로 치환
+    // sources 이벤트가 token 이벤트보다 항상 먼저 도착하므로(RagAnswerService 참고) this.sources는 이미 채워져 있다
     _renderMarkdown(text) {
         if (!text) return '';
         const rawHtml = window.marked.parse(text, { breaks: true, gfm: true });
         const safeHtml = window.DOMPurify.sanitize(rawHtml);
-        return safeHtml.replace(/\[출처(\d+)\]/g, (match, n) =>
-            `<sup class="ai-citation"><a href="#ai-source-${n}" class="ai-citation-link" data-ref="${n}">${n}</a></sup>`);
+        return safeHtml.replace(/\[출처(\d+)\]/g, (match, n) => {
+            const source = Array.isArray(this.sources) ? this.sources[Number(n) - 1] : null;
+            if (!source?.url) return `<sup class="ai-citation"><span class="ai-citation-link">${n}</span></sup>`;
+            const url = this._escapeHtml(source.url);
+            return `<sup class="ai-citation"><a href="${url}" target="_blank" rel="noopener" class="ai-citation-link">${n}</a></sup>`;
+        });
     }
 
     // 답변 하단에 번호가 매겨진 출처 목록을 렌더링 (로고 없이 기업명 + 제목 텍스트만)
@@ -190,26 +194,14 @@ class RagSummaryManager {
             const n = i + 1;
             const corpName = this._escapeHtml(source.corporationName || '');
             const title = this._escapeHtml(source.title || '원문 보기');
+            const url = this._escapeHtml(source.url || `/articles/${source.id}`);
             return `
-                <a href="/articles/${source.id}" target="_blank" rel="noopener"
-                   id="ai-source-${n}" class="ai-reference-item">
+                <a href="${url}" target="_blank" rel="noopener" class="ai-reference-item">
                     <span class="ai-reference-num">${n}</span>
                     <span class="ai-reference-text">${corpName ? `<strong>${corpName}</strong> · ` : ''}${title}</span>
                 </a>`;
         }).join('');
         this.referencesEl.style.display = 'flex';
-    }
-
-    // 본문 중 각주 배지 클릭 시 하단 출처 목록으로 부드럽게 스크롤 + 잠시 하이라이트
-    _handleCitationClick(e) {
-        const link = e.target.closest('.ai-citation-link');
-        if (!link) return;
-        e.preventDefault();
-        const target = document.getElementById(`ai-source-${link.dataset.ref}`);
-        if (!target) return;
-        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        target.classList.add('ai-reference-highlight');
-        setTimeout(() => target.classList.remove('ai-reference-highlight'), 1200);
     }
 
     // done 이벤트로 받은 관련 검색어를 배지로 렌더링, 클릭 시 검색창 값 교체 + 전체 재검색 트리거

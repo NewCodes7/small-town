@@ -2537,7 +2537,7 @@
 }
 
 .ai-summary-answer strong {
-    color: var(--primary-green-dark);
+    color: var(--text-dark);
     font-weight: 700;
 }
 
@@ -2679,10 +2679,6 @@
 
 .ai-reference-item:hover .ai-reference-text {
     text-decoration: underline;
-}
-
-.ai-reference-item.ai-reference-highlight {
-    background: var(--secondary-green);
 }
 
 .ai-reference-num {
