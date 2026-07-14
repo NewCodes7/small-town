@@ -16,6 +16,7 @@ import static org.mockito.Mockito.when;
 import com.newcodes7.small_town.search.config.RagModelProperties.ModelOption;
 import com.newcodes7.small_town.search.config.RagModelProperties.Provider;
 import com.newcodes7.small_town.search.dto.AiSummaryChunkDto;
+import com.newcodes7.small_town.search.dto.RagAnswerCacheDto;
 import com.newcodes7.small_town.search.entity.RagQueryLog;
 import com.newcodes7.small_town.search.llm.LlmTokenUsage;
 import com.newcodes7.small_town.search.llm.RagLlmClient;
@@ -32,6 +33,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import tools.jackson.databind.ObjectMapper;
 
@@ -41,6 +44,8 @@ class RagAnswerServiceTest {
     @Mock private RagQueryPreprocessService preprocessService;
     @Mock private ArticleSearchService articleSearchService;
     @Mock private VectorSearchService vectorSearchService;
+    @Mock private CacheManager cacheManager;
+    @Mock private Cache cache;
     @Mock private RagQueryLogRepository ragQueryLogRepository;
     @Mock private RagLlmClientResolver llmClientResolver;
     @Mock private RagLlmClient llmClient;
@@ -54,6 +59,7 @@ class RagAnswerServiceTest {
                 preprocessService,
                 articleSearchService,
                 vectorSearchService,
+                cacheManager,
                 ragQueryLogRepository,
                 new ObjectMapper(),
                 llmClientResolver
@@ -222,5 +228,116 @@ class RagAnswerServiceTest {
         verify(emitter).complete();
         verify(preprocessService, never()).preprocess(anyString(), anyString(), any());
         verify(ragQueryLogRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("캐시 히트(첫 턴): 전처리·LLM 미호출, 캐시된 답변을 SSE로 재생, ANSWERED 로그")
+    void streamAnswer_cacheHit_firstTurn() throws Exception {
+        String question = "네이버 Kafka 도입 사례";
+        String cacheKey = "rag-answer:" + question.toLowerCase();
+        RagAnswerCacheDto cached = new RagAnswerCacheDto(
+                "**Kafka**를 도입했습니다.",
+                List.of(new com.newcodes7.small_town.search.dto.AiSummarySourceDto(
+                        10L, "Kafka 도입기", "https://example.com/kafka", null, "네이버", null)),
+                List.of("Kafka 성능", "메시지 큐 비교", "이벤트 드리븐"),
+                "Gemini 3.5 Flash");
+
+        when(cacheManager.getCache("ragAnswer")).thenReturn(cache);
+        when(cache.get(eq(cacheKey), eq(RagAnswerCacheDto.class))).thenReturn(cached);
+
+        ragAnswerService.streamAnswer(question, 5, 3, 0.6, geminiModel(), null, "127.0.0.1", null, emitter);
+
+        verify(preprocessService, never()).preprocess(anyString(), anyString(), any());
+        verify(llmClient, never()).generateStream(anyString(), anyString(), anyString(), any(), any());
+        verify(emitter, atLeast(2)).send(any(SseEmitter.SseEventBuilder.class));
+        verify(emitter).complete();
+
+        RagQueryLog log = capturedLog();
+        assertThat(log.getOutcome()).isEqualTo(RagQueryLog.Outcome.ANSWERED);
+        assertThat(log.getAnswer()).isEqualTo("**Kafka**를 도입했습니다.");
+        assertThat(log.getArticleCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("캐시 미스(첫 턴): 정상 생성 후 캐시에 저장")
+    void streamAnswer_cacheMiss_populatesCache() throws Exception {
+        String question = "네이버에서 Kafka 도입한 사례";
+        String cacheKey = "rag-answer:" + question.toLowerCase();
+
+        when(cacheManager.getCache("ragAnswer")).thenReturn(cache);
+        when(cache.get(eq(cacheKey), eq(RagAnswerCacheDto.class))).thenReturn(null);
+        when(preprocessService.preprocess(anyString(), anyString(), any()))
+                .thenReturn(preprocessResult(List.of("네이버"), List.of(1L), List.of("네이버")));
+        when(articleSearchService.getTopArticleIdsForRag(
+                anyString(), anyString(), anyList(), anyInt(), anyDouble()))
+                .thenReturn(new ArticleSearchService.HybridTopArticles(List.of(10L), null));
+        when(vectorSearchService.getChunksForRag(anyString(), anyList(), any(), anyInt()))
+                .thenReturn(List.of(new AiSummaryChunkDto(
+                        10L, "Kafka 도입기", "https://example.com/kafka", "Kafka 도입 배경과 성과", null, "네이버", null)));
+        when(llmClientResolver.resolve(Provider.GEMINI)).thenReturn(llmClient);
+        when(llmClient.generateStream(anyString(), anyString(), anyString(), any(), any()))
+                .thenAnswer(invocation -> {
+                    Consumer<String> onText = invocation.getArgument(4);
+                    onText.accept("**Kafka**를 도입했습니다. [출처1]");
+                    onText.accept("[QUERIES]{\"queries\":[\"Kafka 성능\",\"메시지 큐 비교\",\"이벤트 드리븐\"]}[/QUERIES]");
+                    return new LlmTokenUsage(200, 50, 250);
+                });
+
+        ragAnswerService.streamAnswer(question, 5, 3, 0.6, geminiModel(), null, "127.0.0.1", null, emitter);
+
+        verify(cache).put(eq(cacheKey), any(RagAnswerCacheDto.class));
+    }
+
+    @Test
+    @DisplayName("멀티턴(히스토리 존재): 캐시 조회/저장 모두 건너뜀")
+    void streamAnswer_multiTurn_bypassesCache() throws Exception {
+        String conversationId = "conv-1";
+        when(cacheManager.getCache("ragAnswer")).thenReturn(cache);
+        when(ragQueryLogRepository.findTop3ByConversationIdAndOutcomeOrderByCreatedAtDesc(
+                eq(conversationId), eq(RagQueryLog.Outcome.ANSWERED)))
+                .thenReturn(List.of(RagQueryLog.builder()
+                        .question("네이버 Kafka 도입 사례")
+                        .answer("네이버는 Kafka를 도입했습니다.")
+                        .outcome(RagQueryLog.Outcome.ANSWERED)
+                        .build()));
+        when(preprocessService.preprocess(anyString(), anyString(), any()))
+                .thenReturn(preprocessResult(List.of("네이버"), List.of(1L), List.of("네이버")));
+        when(articleSearchService.getTopArticleIdsForRag(
+                anyString(), anyString(), anyList(), anyInt(), anyDouble()))
+                .thenReturn(new ArticleSearchService.HybridTopArticles(List.of(10L), null));
+        when(vectorSearchService.getChunksForRag(anyString(), anyList(), any(), anyInt()))
+                .thenReturn(List.of(new AiSummaryChunkDto(
+                        10L, "Kafka 도입기", "https://example.com/kafka", "Kafka 도입 배경과 성과", null, "네이버", null)));
+        when(llmClientResolver.resolve(Provider.GEMINI)).thenReturn(llmClient);
+        when(llmClient.generateStream(anyString(), anyString(), anyString(), any(), any()))
+                .thenReturn(new LlmTokenUsage(200, 50, 250));
+
+        ragAnswerService.streamAnswer("그 회사 다른 사례는?", 5, 3, 0.6, geminiModel(),
+                conversationId, "127.0.0.1", null, emitter);
+
+        verify(cache, never()).get(anyString(), eq(RagAnswerCacheDto.class));
+        verify(cache, never()).put(anyString(), any());
+    }
+
+    @Test
+    @DisplayName("관리자(6-arg) 오버로드: 캐시 조회/저장 모두 건너뜀")
+    void streamAnswer_adminOverload_neverCaches() throws Exception {
+        when(cacheManager.getCache("ragAnswer")).thenReturn(cache);
+        when(preprocessService.preprocess(anyString(), anyString(), any()))
+                .thenReturn(preprocessResult(List.of("네이버"), List.of(1L), List.of("네이버")));
+        when(articleSearchService.getTopArticleIdsForRag(
+                anyString(), anyString(), anyList(), anyInt(), anyDouble()))
+                .thenReturn(new ArticleSearchService.HybridTopArticles(List.of(10L), null));
+        when(vectorSearchService.getChunksForRag(anyString(), anyList(), any(), anyInt()))
+                .thenReturn(List.of(new AiSummaryChunkDto(
+                        10L, "Kafka 도입기", "https://example.com/kafka", "Kafka 도입 배경과 성과", null, "네이버", null)));
+        when(llmClientResolver.resolve(Provider.GEMINI)).thenReturn(llmClient);
+        when(llmClient.generateStream(anyString(), anyString(), anyString(), any(), any()))
+                .thenReturn(new LlmTokenUsage(200, 50, 250));
+
+        ragAnswerService.streamAnswer("네이버에서 Kafka 도입한 사례", 5, 3, 0.6, geminiModel(), emitter);
+
+        verify(cache, never()).get(anyString(), eq(RagAnswerCacheDto.class));
+        verify(cache, never()).put(anyString(), any());
     }
 }

@@ -25,6 +25,7 @@ public class CacheConfig {
             buildTtlCache("monthlyPopularArticles", 5, TimeUnit.MINUTES),
             buildTtlCache("relatedArticles", 24, TimeUnit.HOURS),
             buildTtlCache("aiSummary", 1, TimeUnit.HOURS),
+            buildTtlCache("ragAnswer", 1, TimeUnit.HOURS, 1000),
             buildTtlCache("chunkSearchResults", 5, TimeUnit.MINUTES),
             buildTtlCache("vectorSearchResults", 5, TimeUnit.MINUTES, 500),
             buildTtlCache("hybridTopArticles", 10, TimeUnit.MINUTES, 1000),

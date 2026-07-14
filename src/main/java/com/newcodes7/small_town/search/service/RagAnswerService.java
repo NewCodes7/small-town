@@ -31,7 +31,8 @@ import tools.jackson.databind.ObjectMapper;
  *
  * AiSummaryService의 SSE 스트리밍 구조를 따르되 질의응답형으로 확장:
  * 전처리(이중 쿼리 분해) → 기업 프리필터 하이브리드 retrieval → 선택 모델(Gemini/Bedrock/OpenAI) SSE 생성.
- * 캐시 없이 매 요청 실행하고 RagQueryLog에 기록한다.
+ * 대화 히스토리가 없는 공개 챗봇 첫 턴 질의는 1시간 로컬 캐시(ragAnswer)를 거치고,
+ * 그 외(멀티턴, 관리자 테스트 페이지)는 캐시 없이 매 요청 실행한다. 모든 요청은 RagQueryLog에 기록한다.
  *
  * SSE 이벤트: preprocess → sources → prompt → token* → done / notfound / error
  */
@@ -43,6 +44,7 @@ public class RagAnswerService {
     private final RagQueryPreprocessService preprocessService;
     private final ArticleSearchService articleSearchService;
     private final VectorSearchService vectorSearchService;
+    private final CacheManager cacheManager;
     private final RagQueryLogRepository ragQueryLogRepository;
     private final ObjectMapper objectMapper;
     private final RagLlmClientResolver llmClientResolver;
@@ -53,6 +55,10 @@ public class RagAnswerService {
     private static final int ANSWER_MAX_TOKENS = 2000;
     private static final int HISTORY_TURN_LIMIT = 3;
     private static final int HISTORY_ANSWER_MAX_CHARS = 500;
+
+    private static final String CACHE_NAME = "ragAnswer";
+    private static final String CACHE_KEY_PREFIX = "rag-answer:";
+    private static final int CACHE_REPLAY_CHUNK_SIZE = 50;
 
     private static final String NO_CORP_MESSAGE = "해당 기업의 글이 없습니다";
     private static final String NO_RESULT_MESSAGE = "관련 글을 찾지 못했습니다";
@@ -86,16 +92,27 @@ public class RagAnswerService {
     public void streamAnswer(
             String question, int topArticles, int chunksPerArticle, double threshold,
             ModelOption model, SseEmitter emitter) {
-        streamAnswer(question, topArticles, chunksPerArticle, threshold, model, null, null, null, emitter);
+        // 관리자 테스트 페이지 전용 — 모델/파라미터를 매 요청 자유롭게 바꾸므로 캐시 대상에서 제외한다.
+        streamAnswerInternal(question, topArticles, chunksPerArticle, threshold, model,
+                null, null, null, emitter, false);
     }
 
     /**
      * 사용자용 챗봇 엔드포인트용 오버로드 — conversationId가 있으면 직전 턴들을 로드해
      * 전처리·답변 생성 프롬프트에 대화 맥락으로 주입하고, 로그에 대화/사용자 식별 정보를 남긴다.
+     * 히스토리가 없는 첫 턴 질의는 1시간 로컬 캐시 대상이 된다.
      */
     public void streamAnswer(
             String question, int topArticles, int chunksPerArticle, double threshold,
             ModelOption model, String conversationId, String ipAddress, Long userId, SseEmitter emitter) {
+        streamAnswerInternal(question, topArticles, chunksPerArticle, threshold, model,
+                conversationId, ipAddress, userId, emitter, true);
+    }
+
+    private void streamAnswerInternal(
+            String question, int topArticles, int chunksPerArticle, double threshold,
+            ModelOption model, String conversationId, String ipAddress, Long userId,
+            SseEmitter emitter, boolean cacheAllowed) {
         if (question == null || question.trim().isEmpty()) {
             sendErrorEvent(emitter, "질문을 입력해주세요");
             completeEmitter(emitter);
@@ -110,9 +127,23 @@ public class RagAnswerService {
             return;
         }
         String historyContext = buildHistoryContext(loadHistory(conversationId));
+        boolean cacheEligible = cacheAllowed && historyContext.isBlank();
+        String cacheKey = CACHE_KEY_PREFIX + trimmedQuestion.toLowerCase();
 
         RagPreprocessResult pre = null;
         try {
+            Cache cache = cacheManager.getCache(CACHE_NAME);
+            if (cacheEligible && cache != null) {
+                RagAnswerCacheDto cached = cache.get(cacheKey, RagAnswerCacheDto.class);
+                if (cached != null) {
+                    sendSourcesEvent(emitter, cached.sources());
+                    replayFromCache(emitter, cached);
+                    saveLog(trimmedQuestion, null, cached.sources().size(), RagQueryLog.Outcome.ANSWERED,
+                            null, null, null, model, conversationId, ipAddress, userId, cached.answerText());
+                    return;
+                }
+            }
+
             pre = preprocessService.preprocess(trimmedQuestion, historyContext, model);
             sendPreprocessEvent(emitter, pre);
 
@@ -212,6 +243,10 @@ public class RagAnswerService {
                     RagQueryLog.Outcome.ANSWERED, inTokens, outTokens, totalTokens, model,
                     conversationId, ipAddress, userId, cleanAnswer);
 
+            if (cacheEligible && cache != null && !cleanAnswer.isEmpty()) {
+                cache.put(cacheKey, new RagAnswerCacheDto(cleanAnswer, sources, relatedQueries, model.getLabel()));
+            }
+
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.error("RAG 처리 중 인터럽트: {}", e.getMessage());
@@ -241,6 +276,16 @@ public class RagAnswerService {
         return ragQueryLogRepository
                 .findTop3ByConversationIdAndOutcomeOrderByCreatedAtDesc(conversationId, RagQueryLog.Outcome.ANSWERED)
                 .reversed();
+    }
+
+    private void replayFromCache(SseEmitter emitter, RagAnswerCacheDto cached) {
+        String text = cached.answerText();
+        for (int i = 0; i < text.length(); i += CACHE_REPLAY_CHUNK_SIZE) {
+            sendTokenEvent(emitter, text.substring(i, Math.min(i + CACHE_REPLAY_CHUNK_SIZE, text.length())));
+        }
+        sendDoneEvent(emitter,
+                new RagDoneDto(cached.sources(), cached.relatedQueries(), null, null, null, cached.model()));
+        completeEmitter(emitter);
     }
 
     private String buildHistoryContext(List<RagQueryLog> history) {
