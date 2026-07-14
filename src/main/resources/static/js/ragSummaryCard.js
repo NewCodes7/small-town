@@ -5,15 +5,12 @@ class RagSummaryManager {
         this.answerEl = document.getElementById('aiSummaryAnswer');
         this.referencesEl = document.getElementById('aiSummaryReferences');
         this.relatedQueriesEl = document.getElementById('aiSummaryRelatedQueries');
-        this.fadeEl = document.getElementById('aiSummaryFade');
-        this.moreBtn = document.getElementById('aiSummaryMoreBtn');
         this.errorEl = document.getElementById('aiSummaryError');
         this.fullText = '';
         this.sources = null;
         this._rafScheduled = false;
         this.currentKeyword = null;
         this._abortController = null;
-        this.moreBtn?.addEventListener('click', () => this._expandClamp());
     }
 
     async start(keyword) {
@@ -84,7 +81,6 @@ class RagSummaryManager {
         this._rafScheduled = false;
         if (this.answerEl) {
             this.answerEl.innerHTML = '';
-            this.answerEl.classList.remove('expanded');
         }
         if (this.referencesEl) {
             this.referencesEl.innerHTML = '';
@@ -95,8 +91,6 @@ class RagSummaryManager {
             this.relatedQueriesEl.style.display = 'none';
         }
         if (this.errorEl) { this.errorEl.textContent = ''; this.errorEl.style.display = 'none'; }
-        if (this.fadeEl) this.fadeEl.style.display = 'none';
-        if (this.moreBtn) this.moreBtn.style.display = 'none';
         if (this.loadingEl) this.loadingEl.style.display = 'none';
     }
 
@@ -165,7 +159,6 @@ class RagSummaryManager {
         if (!this.answerEl) return;
         if (this.loadingEl) this.loadingEl.style.display = 'none';
         this.answerEl.innerHTML = this._renderMarkdown(this.fullText);
-        this._checkClampOverflow();
     }
 
     // marked.js로 정식 마크다운 렌더링 후 DOMPurify로 sanitize, 마지막으로 [출처N]을 인라인 각주 배지로 치환
@@ -228,22 +221,6 @@ class RagSummaryManager {
         if (typeof articleManager !== 'undefined' && articleManager) {
             articleManager.handleSearch();
         }
-    }
-
-    // 답변 영역은 처음부터 고정 높이로 잘려 있고(clamp), 넘치는 순간 fade+더보기 버튼을 노출한다
-    _checkClampOverflow() {
-        const box = this.answerEl;
-        if (!box || !this.fadeEl || !this.moreBtn || box.classList.contains('expanded')) return;
-        const isOverflowing = box.scrollHeight > box.clientHeight + 1;
-        this.fadeEl.style.display = isOverflowing ? 'block' : 'none';
-        this.moreBtn.style.display = isOverflowing ? 'block' : 'none';
-    }
-
-    _expandClamp() {
-        if (!this.answerEl) return;
-        this.answerEl.classList.add('expanded');
-        if (this.fadeEl) this.fadeEl.style.display = 'none';
-        if (this.moreBtn) this.moreBtn.style.display = 'none';
     }
 
     _showError(message) {
