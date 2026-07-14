@@ -3,6 +3,7 @@ package com.newcodes7.small_town.search.service;
 import com.newcodes7.small_town.search.config.RagModelProperties.ModelOption;
 import com.newcodes7.small_town.search.dto.AiSummaryChunkDto;
 import com.newcodes7.small_town.search.dto.AiSummarySourceDto;
+import com.newcodes7.small_town.search.dto.RagAnswerCacheDto;
 import com.newcodes7.small_town.search.dto.RagDoneDto;
 import com.newcodes7.small_town.search.entity.RagQueryLog;
 import com.newcodes7.small_town.search.llm.LlmOptions;
@@ -18,8 +19,11 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -70,7 +74,14 @@ public class RagAnswerService {
             - 근거로 사용한 문단마다 끝에 [출처N]을 표기하세요.
             - 핵심 키워드(기술명, 수치, 성과)만 **볼드체**로 강조하세요.
             - 인사말, 질문 반복, 결론 없는 채움 문장은 쓰지 마세요.
+
+            마지막에 반드시 관련 검색어 3개를 아래 형식으로 포함하세요.
+            [QUERIES]{"queries":["검색어1","검색어2","검색어3"]}[/QUERIES]
             """;
+
+    private static final String QUERIES_START_TAG = "[QUERIES]";
+    private static final String QUERIES_END_TAG = "[/QUERIES]";
+    private static final int QUERIES_HOLD_BACK = QUERIES_START_TAG.length() - 1;
 
     public void streamAnswer(
             String question, int topArticles, int chunksPerArticle, double threshold,
@@ -143,22 +154,63 @@ public class RagAnswerService {
             LlmOptions answerOptions = new LlmOptions(
                     model.isTemperatureSupported() ? ANSWER_TEMPERATURE : null, ANSWER_MAX_TOKENS);
             StringBuilder answerBuilder = new StringBuilder();
+            StringBuilder pendingBuf = new StringBuilder();
+            boolean[] queriesDetected = {false};
             LlmTokenUsage usage = llmClientResolver.resolve(model.getProvider())
                     .generateStream(model.getId(), RAG_SYSTEM_PROMPT, userMessage,
                             answerOptions, text -> {
                                 answerBuilder.append(text);
-                                sendTokenEvent(emitter, text);
+                                if (queriesDetected[0]) {
+                                    return;
+                                }
+                                pendingBuf.append(text);
+                                String pending = pendingBuf.toString();
+                                int queryIdx = pending.indexOf(QUERIES_START_TAG);
+                                if (queryIdx != -1) {
+                                    queriesDetected[0] = true;
+                                    if (queryIdx > 0) sendTokenEvent(emitter, pending.substring(0, queryIdx));
+                                    pendingBuf.setLength(0);
+                                } else {
+                                    int safeLen = pending.length() - QUERIES_HOLD_BACK;
+                                    if (safeLen > 0) {
+                                        sendTokenEvent(emitter, pending.substring(0, safeLen));
+                                        pendingBuf.delete(0, safeLen);
+                                    }
+                                }
                             });
+            if (!queriesDetected[0] && pendingBuf.length() > 0) {
+                sendTokenEvent(emitter, pendingBuf.toString());
+            }
+
+            String rawAnswer = answerBuilder.toString();
+            String cleanAnswer = rawAnswer;
+            List<String> relatedQueries = List.of();
+            int qStart = rawAnswer.indexOf(QUERIES_START_TAG);
+            int qEnd = rawAnswer.indexOf(QUERIES_END_TAG);
+            if (qStart != -1 && qEnd > qStart) {
+                cleanAnswer = rawAnswer.substring(0, qStart).trim();
+                String queriesJson = rawAnswer.substring(qStart + QUERIES_START_TAG.length(), qEnd).trim();
+                try {
+                    JsonNode queriesNode = objectMapper.readTree(queriesJson).path("queries");
+                    if (queriesNode.isArray()) {
+                        relatedQueries = objectMapper.convertValue(queriesNode,
+                                objectMapper.getTypeFactory().constructCollectionType(List.class, String.class));
+                    }
+                } catch (Exception e) {
+                    log.warn("RAG 관련 검색어 파싱 실패: {}", queriesJson);
+                }
+            }
 
             Integer inTokens = sumTokens(pre.inputTokens(), usage.inputTokens());
             Integer outTokens = sumTokens(pre.outputTokens(), usage.outputTokens());
             Integer totalTokens = sumTokens(pre.totalTokens(), usage.totalTokens());
-            sendDoneEvent(emitter, new RagDoneDto(sources, inTokens, outTokens, totalTokens, model.getLabel()));
+            sendDoneEvent(emitter,
+                    new RagDoneDto(sources, relatedQueries, inTokens, outTokens, totalTokens, model.getLabel()));
             completeEmitter(emitter);
 
             saveLog(trimmedQuestion, pre, topArticleIds.size(),
                     RagQueryLog.Outcome.ANSWERED, inTokens, outTokens, totalTokens, model,
-                    conversationId, ipAddress, userId, answerBuilder.toString());
+                    conversationId, ipAddress, userId, cleanAnswer);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

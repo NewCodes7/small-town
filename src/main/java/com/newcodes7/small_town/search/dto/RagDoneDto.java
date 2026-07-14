@@ -7,6 +7,7 @@ import java.util.List;
  */
 public record RagDoneDto(
         List<AiSummarySourceDto> sources,
+        List<String> relatedQueries,
         Integer inputTokens,
         Integer outputTokens,
         Integer totalTokens,

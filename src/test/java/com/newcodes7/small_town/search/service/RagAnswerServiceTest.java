@@ -136,6 +136,7 @@ class RagAnswerServiceTest {
                 .thenAnswer(invocation -> {
                     Consumer<String> onText = invocation.getArgument(4);
                     onText.accept("**Kafka**를 도입했습니다. [출처1]");
+                    onText.accept("[QUERIES]{\"queries\":[\"Kafka 성능\",\"메시지 큐 비교\",\"이벤트 드리븐\"]}[/QUERIES]");
                     return new LlmTokenUsage(200, 50, 250);
                 });
 
@@ -150,6 +151,23 @@ class RagAnswerServiceTest {
         verify(llmClient).generateStream(
                 eq("gemini-3.5-flash"), anyString(), anyString(), any(), any());
 
+        ArgumentCaptor<SseEmitter.SseEventBuilder> eventCaptor =
+                ArgumentCaptor.forClass(SseEmitter.SseEventBuilder.class);
+        verify(emitter, atLeast(5)).send(eventCaptor.capture());
+        String allSentData = eventCaptor.getAllValues().stream()
+                .flatMap(builder -> builder.build().stream())
+                .map(part -> String.valueOf(part.getData()))
+                .collect(java.util.stream.Collectors.joining("\n"));
+        // done 이벤트에 관련 검색어가 포함되어야 함
+        assertThat(allSentData).contains("Kafka 성능", "메시지 큐 비교", "이벤트 드리븐");
+        // 스트리밍된 답변 본문(token 이벤트)에는 [QUERIES] 태그가 새면 안 됨 — prompt 이벤트(시스템 프롬프트 디버그 표시)는 제외
+        String tokenEventsData = eventCaptor.getAllValues().stream()
+                .flatMap(builder -> builder.build().stream())
+                .map(part -> String.valueOf(part.getData()))
+                .filter(data -> data.startsWith("\"")) // token 이벤트는 JSON 문자열(따옴표로 시작), 다른 이벤트는 객체(중괄호)/배열
+                .collect(java.util.stream.Collectors.joining("\n"));
+        assertThat(tokenEventsData).doesNotContain("QUERIES");
+
         RagQueryLog log = capturedLog();
         assertThat(log.getOutcome()).isEqualTo(RagQueryLog.Outcome.ANSWERED);
         assertThat(log.getArticleCount()).isEqualTo(1);
@@ -159,6 +177,8 @@ class RagAnswerServiceTest {
         assertThat(log.getTotalTokens()).isEqualTo(380);
         assertThat(log.getMatchedCorporationIds()).isEqualTo("1");
         assertThat(log.getModel()).isEqualTo("gemini-3.5-flash");
+        assertThat(log.getAnswer()).isEqualTo("**Kafka**를 도입했습니다. [출처1]");
+        assertThat(log.getAnswer()).doesNotContain("QUERIES");
     }
 
     @Test

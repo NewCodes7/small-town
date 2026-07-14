@@ -4,6 +4,7 @@ class RagSummaryManager {
         this.loadingEl = document.getElementById('aiSummaryLoading');
         this.answerEl = document.getElementById('aiSummaryAnswer');
         this.referencesEl = document.getElementById('aiSummaryReferences');
+        this.relatedQueriesEl = document.getElementById('aiSummaryRelatedQueries');
         this.fadeEl = document.getElementById('aiSummaryFade');
         this.moreBtn = document.getElementById('aiSummaryMoreBtn');
         this.errorEl = document.getElementById('aiSummaryError');
@@ -63,10 +64,11 @@ class RagSummaryManager {
             error: (data) => {
                 this._showError(data.message || '요약을 불러올 수 없습니다');
             },
-            done: () => {
+            done: (data) => {
                 // rAF로 미룬 마지막 토큰 렌더링이 아직 반영되지 않았을 수 있어 동기적으로 한 번 더 그린다
                 this._render();
                 this._renderReferences();
+                this._renderRelatedQueries(data.relatedQueries);
             },
         }, controller.signal);
     }
@@ -88,6 +90,10 @@ class RagSummaryManager {
         if (this.referencesEl) {
             this.referencesEl.innerHTML = '';
             this.referencesEl.style.display = 'none';
+        }
+        if (this.relatedQueriesEl) {
+            this.relatedQueriesEl.innerHTML = '';
+            this.relatedQueriesEl.style.display = 'none';
         }
         if (this.errorEl) { this.errorEl.textContent = ''; this.errorEl.style.display = 'none'; }
         if (this.fadeEl) this.fadeEl.style.display = 'none';
@@ -204,6 +210,32 @@ class RagSummaryManager {
         target.scrollIntoView({ behavior: 'smooth', block: 'center' });
         target.classList.add('ai-reference-highlight');
         setTimeout(() => target.classList.remove('ai-reference-highlight'), 1200);
+    }
+
+    // done 이벤트로 받은 관련 검색어를 배지로 렌더링, 클릭 시 검색창 값 교체 + 전체 재검색 트리거
+    _renderRelatedQueries(queries) {
+        if (!this.relatedQueriesEl || !Array.isArray(queries) || queries.length === 0) return;
+        const label = document.createElement('span');
+        label.className = 'recommended-queries-label';
+        label.textContent = '관련 검색어';
+        this.relatedQueriesEl.innerHTML = '';
+        this.relatedQueriesEl.appendChild(label);
+        queries.forEach(q => {
+            const btn = document.createElement('button');
+            btn.className = 'recommended-query-btn';
+            btn.textContent = q;
+            btn.addEventListener('click', () => this._triggerSearch(q));
+            this.relatedQueriesEl.appendChild(btn);
+        });
+        this.relatedQueriesEl.style.display = 'flex';
+    }
+
+    _triggerSearch(query) {
+        const input = document.getElementById('searchInput');
+        if (input) input.value = query;
+        if (typeof articleManager !== 'undefined' && articleManager) {
+            articleManager.handleSearch();
+        }
     }
 
     // 답변 영역은 처음부터 고정 높이로 잘려 있고(clamp), 넘치는 순간 fade+더보기 버튼을 노출한다
