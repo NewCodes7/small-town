@@ -1,13 +1,10 @@
 package com.newcodes7.small_town.article.dto;
 
 import com.newcodes7.small_town.corporation.dto.CorporationDto;
-
+import com.newcodes7.small_town.global.entity.Article;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-
-import com.newcodes7.small_town.global.entity.Article;
-
 import lombok.Getter;
 
 /**
@@ -21,6 +18,7 @@ public class RelatedArticleDto {
     private final String translatedTitle;
     private final String thumbnailImage;
     private final String detailUrl;
+    private final String link;
     private final CorporationDto corporation;
     private final Double similarity;
     private final String representativeChunkContent;
@@ -33,6 +31,7 @@ public class RelatedArticleDto {
         this.translatedTitle = article.getTranslatedTitle();
         this.thumbnailImage = article.getThumbnailImage();
         this.detailUrl = generateDetailUrl(article);
+        this.link = article.getLink();
         this.corporation = new CorporationDto(article.getCorporation());
         this.similarity = similarity;
         this.representativeChunkContent = representativeChunkContent;
