@@ -66,7 +66,8 @@ public class FeedbackService {
             savedFeedback.getId(), savedFeedback.getType(), savedFeedback.getName(),
             user != null ? user.getEmail() : "비로그인");
 
-        feedbackEmailService.notifyNewFeedback(savedFeedback);
+        // TODO: SMTP 자격증명 설정 후 재활성화 — 메일 관련 기능 임시 비활성화
+        // feedbackEmailService.notifyNewFeedback(savedFeedback);
 
         return FeedbackResponseDto.from(savedFeedback);
     }
