@@ -37,6 +37,10 @@ services:
       - CLOVA_API_KEY=${CLOVA_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GOOGLE_TRANSLATE_API_KEY=${GOOGLE_TRANSLATE_API_KEY}
+      # Gmail SMTP: Grafana 알림과 동일한 계정/앱 비밀번호 재사용
+      - MAIL_USERNAME=${MY_EMAIL}
+      - MAIL_PASSWORD=${MY_EMAIL_PASSWORD}
+      - FEEDBACK_NOTIFICATION_EMAIL=${FEEDBACK_NOTIFICATION_EMAIL}
     expose:
       - "8080"
     healthcheck:
