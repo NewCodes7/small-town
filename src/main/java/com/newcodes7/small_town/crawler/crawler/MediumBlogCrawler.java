@@ -15,8 +15,6 @@ import com.rometools.rome.io.XmlReader;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -102,10 +100,6 @@ public class MediumBlogCrawler implements BlogCrawler {
 
             // 인간처럼 페이지 행동 시뮬레이션
             simulateHumanBehavior(driver);
-
-            String pageSource = driver.getPageSource();
-
-            Files.writeString(Path.of("medium_page.html"), pageSource);
 
             // ✅ window.__APOLLO_STATE__에서 데이터 추출 (Medium의 내부 데이터 구조)
             JavascriptExecutor js = (JavascriptExecutor) driver;

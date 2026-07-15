@@ -50,6 +50,9 @@ public class CrawlingScheduler {
     private static final int BATCH_SIZE = 400;
     private static final long RATE_LIMIT_DELAY_MS = 1000;
     private static final long MEDIUM_CRAWL_TIMEOUT_MS = 25 * 60 * 1000; // 25분
+    // 한 WebDriver로 이 개수만큼 페이지를 처리하면 재시작 — renderer-process-limit=1로 인해
+    // 단일 프로세스에 누적되는 메모리를 주기적으로 반환하기 위함
+    private static final int DRIVER_RESTART_INTERVAL = 30;
 
     /**
      * 블로그 크롤링 스케줄러
@@ -241,10 +244,6 @@ public class CrawlingScheduler {
     public void scheduledContentCrawling() {
         log.info("스케줄된 본문 백필 크롤링 작업 시작 (타임아웃: 25분)");
 
-        int successCount = 0;
-        int failureCount = 0;
-        int skippedByTimeout = 0;
-        WebDriver driver = null;
         long startTime = System.currentTimeMillis();
 
         try {
@@ -261,40 +260,84 @@ public class CrawlingScheduler {
 
             log.info("본문 백필 크롤링 대상: {}개 Article", articles.size());
 
-            // WebDriver 생성 (배치 전체에서 재사용)
-            driver = webDriverConfig.createWebDriver();
+            // Medium은 bot 감지 우회를 위해 이미지 로딩이 필요하므로, 두 그룹을 별도 WebDriver로 처리
+            List<Article> defaultArticles = articles.stream()
+                    .filter(a -> a.getCorporation().getBlogType() != BlogType.MEDIUM)
+                    .toList();
+            List<Article> mediumArticles = articles.stream()
+                    .filter(a -> a.getCorporation().getBlogType() == BlogType.MEDIUM)
+                    .toList();
 
-            for (Article article : articles) {
-                // 25분 타임아웃 체크
+            ContentCrawlBatchResult defaultResult = crawlContentBatch(
+                    defaultArticles, false, startTime, defaultBlogCrawler::extractArticleContent);
+
+            ContentCrawlBatchResult mediumResult = Thread.currentThread().isInterrupted()
+                    ? ContentCrawlBatchResult.skippedAll(mediumArticles.size())
+                    : crawlContentBatch(mediumArticles, true, startTime, mediumBlogCrawler::extractArticleContent);
+
+            int successCount = defaultResult.successCount() + mediumResult.successCount();
+            int failureCount = defaultResult.failureCount() + mediumResult.failureCount();
+            int skippedByTimeout = defaultResult.skippedByTimeout() + mediumResult.skippedByTimeout();
+
+            long totalElapsed = System.currentTimeMillis() - startTime;
+            log.info("스케줄된 본문 백필 크롤링 작업 완료 - 성공: {}개, 실패: {}개, 타임아웃 스킵: {}개, 소요시간: {}분",
+                    successCount, failureCount, skippedByTimeout, totalElapsed / 60000);
+
+        } catch (Exception e) {
+            log.error("스케줄된 본문 백필 크롤링 작업 중 오류 발생", e);
+        }
+    }
+
+    /**
+     * Article 목록에 대해 본문을 추출·저장한다. WebDriver는 DRIVER_RESTART_INTERVAL개마다 재시작해
+     * (renderer-process-limit=1로 인해) 단일 프로세스에 누적되는 메모리를 주기적으로 반환한다.
+     */
+    private ContentCrawlBatchResult crawlContentBatch(
+            List<Article> articles,
+            boolean allowImages,
+            long startTime,
+            java.util.function.BiFunction<String, WebDriver, String> contentExtractor) {
+
+        int successCount = 0;
+        int failureCount = 0;
+        int skippedByTimeout = 0;
+        WebDriver driver = null;
+        int processedSinceRestart = 0;
+
+        try {
+            for (int i = 0; i < articles.size(); i++) {
+                Article article = articles.get(i);
+
+                // 25분 타임아웃 체크 (두 그룹이 시작 시각을 공유)
                 long elapsedTime = System.currentTimeMillis() - startTime;
                 if (elapsedTime >= MEDIUM_CRAWL_TIMEOUT_MS) {
-                    skippedByTimeout = articles.size() - successCount - failureCount;
+                    skippedByTimeout = articles.size() - i;
                     log.warn("25분 타임아웃 도달 - 크롤링 종료 (경과: {}분, 남은 Article: {}개)",
                             elapsedTime / 60000, skippedByTimeout);
                     break;
                 }
 
-                try {
-                    // BlogType에 따라 적절한 크롤러 선택
-                    BlogType blogType = article.getCorporation().getBlogType();
-                    String content;
-
-                    if (blogType == BlogType.MEDIUM) {
-                        content = mediumBlogCrawler.extractArticleContent(article.getLink(), driver);
-                    } else {
-                        content = defaultBlogCrawler.extractArticleContent(article.getLink(), driver);
+                if (driver == null || processedSinceRestart >= DRIVER_RESTART_INTERVAL) {
+                    if (driver != null) {
+                        log.debug("WebDriver 재시작 - 누적 메모리 반환 ({}개 처리)", processedSinceRestart);
+                        webDriverConfig.forceCloseWebDriver(driver);
                     }
+                    driver = webDriverConfig.createWebDriver(allowImages);
+                    processedSinceRestart = 0;
+                }
+
+                try {
+                    String content = contentExtractor.apply(article.getLink(), driver);
 
                     if (content != null && !content.isBlank() && content.length() > MAX_CONTENT_LENGTH) {
                         // 본문 업데이트 (독립 트랜잭션)
                         updateArticleContent(article.getId(), content);
                         successCount++;
-                        log.debug("Article {} 본문 추출 완료 ({}자, 타입: {})",
-                                article.getId(), content.length(), blogType);
+                        log.debug("Article {} 본문 추출 완료 ({}자)", article.getId(), content.length());
                     } else {
                         failureCount++;
-                        log.warn("Article {} 본문 추출 실패 또는 여전히 짧음 ({}자, 타입: {})",
-                                article.getId(), content != null ? content.length() : 0, blogType);
+                        log.warn("Article {} 본문 추출 실패 또는 여전히 짧음 ({}자)",
+                                article.getId(), content != null ? content.length() : 0);
                     }
 
                     // Rate limiting
@@ -303,19 +346,15 @@ public class CrawlingScheduler {
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     log.error("본문 백필 크롤링 중단됨");
+                    skippedByTimeout = articles.size() - i - 1;
                     break;
                 } catch (Exception e) {
                     failureCount++;
                     log.error("Article {} 본문 추출 실패: {}", article.getId(), e.getMessage());
                 }
+
+                processedSinceRestart++;
             }
-
-            long totalElapsed = System.currentTimeMillis() - startTime;
-            log.info("스케줄된 본문 백필 크롤링 작업 완료 - 성공: {}개, 실패: {}개, 타임아웃 스킵: {}개, 소요시간: {}분",
-                    successCount, failureCount, skippedByTimeout, totalElapsed / 60000);
-
-        } catch (Exception e) {
-            log.error("스케줄된 본문 백필 크롤링 작업 중 오류 발생", e);
         } finally {
             if (driver != null) {
                 try {
@@ -324,6 +363,14 @@ public class CrawlingScheduler {
                     log.warn("WebDriver 종료 중 오류 발생 (무시)", e);
                 }
             }
+        }
+
+        return new ContentCrawlBatchResult(successCount, failureCount, skippedByTimeout);
+    }
+
+    private record ContentCrawlBatchResult(int successCount, int failureCount, int skippedByTimeout) {
+        static ContentCrawlBatchResult skippedAll(int count) {
+            return new ContentCrawlBatchResult(0, 0, count);
         }
     }
 

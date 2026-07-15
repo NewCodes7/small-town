@@ -1,20 +1,18 @@
 package com.newcodes7.small_town.crawler.config;
 
+import io.github.bonigarcia.wdm.WebDriverManager;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
-
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.PageLoadStrategy;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.springframework.context.annotation.Configuration;
-
-import io.github.bonigarcia.wdm.WebDriverManager;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 @Configuration
 @RequiredArgsConstructor
@@ -25,6 +23,14 @@ public class WebDriverConfig {
     private static volatile boolean webDriverSetupDone = false;
 
     public WebDriver createWebDriver() {
+        return createWebDriver(true);
+    }
+
+    /**
+     * @param allowImages Medium 등 bot 감지 우회가 필요한 크롤러만 true로 사용 — 텍스트만 필요한 본문 추출은
+     *                    false로 호출해 이미지 다운로드/디코딩에 드는 렌더러 메모리를 아낀다.
+     */
+    public WebDriver createWebDriver(boolean allowImages) {
         if (!webDriverSetupDone) {
             synchronized (WebDriverConfig.class) {
                 if (!webDriverSetupDone) {
@@ -119,8 +125,8 @@ public class WebDriverConfig {
         Map<String, Object> prefs = new HashMap<>();
         prefs.put("profile.default_content_setting_values.notifications", 2); // 알림 차단
         prefs.put("profile.default_content_settings.popups", 0); // 팝업 차단
-        // 이미지 로딩 활성화 (bot 감지 우회를 위해)
-        prefs.put("profile.managed_default_content_settings.images", 1); // 이미지 허용으로 변경
+        // 이미지 로딩 (Medium 등 bot 감지 우회가 필요할 때만 허용, 그 외엔 렌더러 메모리 절약을 위해 차단)
+        prefs.put("profile.managed_default_content_settings.images", allowImages ? 1 : 2);
         prefs.put("credentials_enable_service", false);
         prefs.put("profile.password_manager_enabled", false);
         // DevTools 자동 열림 방지
