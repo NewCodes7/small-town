@@ -12,6 +12,7 @@ import com.newcodes7.small_town.search.llm.RagLlmClientResolver;
 import com.newcodes7.small_town.search.llm.RagLlmException;
 import com.newcodes7.small_town.search.repository.RagQueryLogRepository;
 import com.newcodes7.small_town.search.service.RagQueryPreprocessService.RagPreprocessResult;
+import io.micrometer.observation.annotation.Observed;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -101,7 +102,11 @@ public class RagAnswerService {
      * 사용자용 챗봇 엔드포인트용 오버로드 — conversationId가 있으면 직전 턴들을 로드해
      * 전처리·답변 생성 프롬프트에 대화 맥락으로 주입하고, 로그에 대화/사용자 식별 정보를 남긴다.
      * 히스토리가 없는 첫 턴 질의는 1시간 로컬 캐시 대상이 된다.
+     *
+     * searchExecutor(ContextExecutorService로 trace context 전파)에서 비동기 호출되므로
+     * RagChatController의 HTTP 요청 span과 같은 trace로 이어져 Tempo에 기록된다.
      */
+    @Observed(name = "rag-answer", contextualName = "rag-answer-stream")
     public void streamAnswer(
             String question, int topArticles, int chunksPerArticle, double threshold,
             ModelOption model, String conversationId, String ipAddress, Long userId, SseEmitter emitter) {
