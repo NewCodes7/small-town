@@ -2,6 +2,7 @@ class RagSummaryManager {
     constructor() {
         this.card = document.getElementById('aiSummaryCard');
         this.loadingEl = document.getElementById('aiSummaryLoading');
+        this.loadingTextEl = document.getElementById('aiLoadingText');
         this.answerEl = document.getElementById('aiSummaryAnswer');
         this.referencesEl = document.getElementById('aiSummaryReferences');
         this.relatedQueriesEl = document.getElementById('aiSummaryRelatedQueries');
@@ -19,6 +20,7 @@ class RagSummaryManager {
         this.reset();
         this.card.style.display = 'block';
         this.loadingEl.style.display = 'flex';
+        this._setLoadingText('관련 글을 찾고 있어요');
 
         const controller = new AbortController();
         this._abortController = controller;
@@ -49,6 +51,8 @@ class RagSummaryManager {
         await this._parseEventStream(response, {
             sources: (data) => {
                 this.sources = data;
+                const count = Array.isArray(data) ? data.length : 0;
+                this._setLoadingText(count > 0 ? `글 ${count}개를 요약하고 있어요` : '글을 요약하고 있어요');
             },
             token: (text) => {
                 this.fullText += text;
@@ -92,6 +96,11 @@ class RagSummaryManager {
         }
         if (this.errorEl) { this.errorEl.textContent = ''; this.errorEl.style.display = 'none'; }
         if (this.loadingEl) this.loadingEl.style.display = 'none';
+        clearTimeout(this._loadingTextTimer);
+        if (this.loadingTextEl) {
+            this.loadingTextEl.textContent = '';
+            this.loadingTextEl.classList.remove('fading');
+        }
     }
 
     _close() {
@@ -222,6 +231,23 @@ class RagSummaryManager {
             articleManager.handleSearch();
         }
         this.card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // 로딩 상태 멘트를 fade-out → 교체 → fade-in으로 부드럽게 전환
+    _setLoadingText(text) {
+        const el = this.loadingTextEl;
+        if (!el) return;
+        clearTimeout(this._loadingTextTimer);
+        if (el.textContent === text) return;
+        if (!el.textContent) {
+            el.textContent = text;
+            return;
+        }
+        el.classList.add('fading');
+        this._loadingTextTimer = setTimeout(() => {
+            el.textContent = text;
+            el.classList.remove('fading');
+        }, 250);
     }
 
     _showError(message) {
