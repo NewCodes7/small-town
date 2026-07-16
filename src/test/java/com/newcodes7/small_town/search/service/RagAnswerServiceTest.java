@@ -24,6 +24,7 @@ import com.newcodes7.small_town.search.llm.RagLlmClientResolver;
 import com.newcodes7.small_town.search.llm.RagLlmException;
 import com.newcodes7.small_town.search.repository.RagQueryLogRepository;
 import com.newcodes7.small_town.search.service.RagQueryPreprocessService.RagPreprocessResult;
+import io.micrometer.observation.ObservationRegistry;
 import java.util.List;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,7 +63,8 @@ class RagAnswerServiceTest {
                 cacheManager,
                 ragQueryLogRepository,
                 new ObjectMapper(),
-                llmClientResolver
+                llmClientResolver,
+                ObservationRegistry.NOOP
         );
     }
 
@@ -245,7 +247,7 @@ class RagAnswerServiceTest {
         when(cacheManager.getCache("ragAnswer")).thenReturn(cache);
         when(cache.get(eq(cacheKey), eq(RagAnswerCacheDto.class))).thenReturn(cached);
 
-        ragAnswerService.streamAnswer(question, 5, 3, 0.6, geminiModel(), null, "127.0.0.1", null, emitter);
+        ragAnswerService.streamAnswer(question, 5, 3, 0.6, geminiModel(), geminiModel(), null, "127.0.0.1", null, emitter);
 
         verify(preprocessService, never()).preprocess(anyString(), anyString(), any());
         verify(llmClient, never()).generateStream(anyString(), anyString(), anyString(), any(), any());
@@ -266,12 +268,13 @@ class RagAnswerServiceTest {
 
         when(cacheManager.getCache("ragAnswer")).thenReturn(cache);
         when(cache.get(eq(cacheKey), eq(RagAnswerCacheDto.class))).thenReturn(null);
-        when(preprocessService.preprocess(anyString(), anyString(), any()))
+        // 첫 턴(cacheEligible)은 전처리·검색 모두 캐시 경유 변형을 사용한다
+        when(preprocessService.preprocessCached(anyString(), any()))
                 .thenReturn(preprocessResult(List.of("네이버"), List.of(1L), List.of("네이버")));
-        when(articleSearchService.getTopArticleIdsForRag(
+        when(articleSearchService.getTopArticleIdsForRagCached(
                 anyString(), anyString(), anyList(), anyInt(), anyDouble()))
                 .thenReturn(new ArticleSearchService.HybridTopArticles(List.of(10L), null));
-        when(vectorSearchService.getChunksForRag(anyString(), anyList(), any(), anyInt()))
+        when(vectorSearchService.getChunksForRagCached(anyString(), anyList(), any(), anyInt()))
                 .thenReturn(List.of(new AiSummaryChunkDto(
                         10L, "Kafka 도입기", "https://example.com/kafka", "Kafka 도입 배경과 성과", null, "네이버", null)));
         when(llmClientResolver.resolve(Provider.GEMINI)).thenReturn(llmClient);
@@ -283,9 +286,12 @@ class RagAnswerServiceTest {
                     return new LlmTokenUsage(200, 50, 250);
                 });
 
-        ragAnswerService.streamAnswer(question, 5, 3, 0.6, geminiModel(), null, "127.0.0.1", null, emitter);
+        ragAnswerService.streamAnswer(question, 5, 3, 0.6, geminiModel(), geminiModel(), null, "127.0.0.1", null, emitter);
 
         verify(cache).put(eq(cacheKey), any(RagAnswerCacheDto.class));
+        verify(preprocessService, never()).preprocess(anyString(), anyString(), any());
+        verify(articleSearchService, never()).getTopArticleIdsForRag(
+                anyString(), anyString(), anyList(), anyInt(), anyDouble());
     }
 
     @Test
@@ -312,7 +318,7 @@ class RagAnswerServiceTest {
         when(llmClient.generateStream(anyString(), anyString(), anyString(), any(), any()))
                 .thenReturn(new LlmTokenUsage(200, 50, 250));
 
-        ragAnswerService.streamAnswer("그 회사 다른 사례는?", 5, 3, 0.6, geminiModel(),
+        ragAnswerService.streamAnswer("그 회사 다른 사례는?", 5, 3, 0.6, geminiModel(), geminiModel(),
                 conversationId, "127.0.0.1", null, emitter);
 
         verify(cache, never()).get(anyString(), eq(RagAnswerCacheDto.class));
@@ -339,5 +345,43 @@ class RagAnswerServiceTest {
 
         verify(cache, never()).get(anyString(), eq(RagAnswerCacheDto.class));
         verify(cache, never()).put(anyString(), any());
+    }
+
+    @Test
+    @DisplayName("공개 경로(첫 턴): 전처리는 별도 preprocessModel로 캐시 경유 호출")
+    void streamAnswer_publicPath_usesPreprocessModel() throws Exception {
+        ModelOption answerModel = geminiModel();
+        ModelOption preprocessModel = new ModelOption();
+        preprocessModel.setId("global.anthropic.claude-haiku-4-5-20251001-v1:0");
+        preprocessModel.setLabel("Claude Haiku 4.5 (Bedrock)");
+        preprocessModel.setProvider(Provider.BEDROCK);
+
+        when(cacheManager.getCache("ragAnswer")).thenReturn(cache);
+        when(cache.get(anyString(), eq(RagAnswerCacheDto.class))).thenReturn(null);
+        // 기업 지목했지만 무매칭 → NO_CORP 조기 종료 경로 (답변 LLM 스텁 불필요)
+        when(preprocessService.preprocessCached(anyString(), any()))
+                .thenReturn(preprocessResult(List.of("없는회사"), List.of(), List.of()));
+
+        ragAnswerService.streamAnswer("없는회사 Kafka 사례", 5, 3, 0.6, answerModel, preprocessModel,
+                null, "127.0.0.1", null, emitter);
+
+        verify(preprocessService).preprocessCached(eq("없는회사 Kafka 사례"), org.mockito.ArgumentMatchers.same(preprocessModel));
+        verify(preprocessService, never()).preprocess(anyString(), anyString(), any());
+    }
+
+    @Test
+    @DisplayName("관리자(6-arg) 오버로드: 선택 모델로 전처리를 비캐시 직접 호출")
+    void streamAnswer_adminOverload_preprocessesWithSelectedModel() throws Exception {
+        ModelOption model = geminiModel();
+        when(cacheManager.getCache("ragAnswer")).thenReturn(cache);
+        when(preprocessService.preprocess(anyString(), anyString(), any()))
+                .thenReturn(preprocessResult(List.of("없는회사"), List.of(), List.of()));
+
+        ragAnswerService.streamAnswer("없는회사 Kafka 사례", 5, 3, 0.6, model, emitter);
+
+        verify(preprocessService).preprocess(eq("없는회사 Kafka 사례"), eq(""), org.mockito.ArgumentMatchers.same(model));
+        verify(preprocessService, never()).preprocessCached(anyString(), any());
+        verify(articleSearchService, never()).getTopArticleIdsForRagCached(
+                anyString(), anyString(), anyList(), anyInt(), anyDouble());
     }
 }

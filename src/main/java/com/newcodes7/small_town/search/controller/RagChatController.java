@@ -12,7 +12,9 @@ import java.time.ZoneId;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -31,6 +33,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  */
 @Controller
 @RequiredArgsConstructor
+@Slf4j
 public class RagChatController {
 
     // Claude Sonnet 4.5 (Bedrock) 고정 — rag.models[4] (application.properties)
@@ -42,6 +45,10 @@ public class RagChatController {
     private static final long SSE_TIMEOUT_MS = 150_000L;
     // nginx는 분당 rate limit만 처리(정수 r/m 제약으로 시간당 30회를 표현 못 함) — 시간당 한도는 여기서 카운트
     private static final int HOURLY_LIMIT_PER_IP = 30;
+
+    // 전처리(쿼리 분해 JSON 추출) 전용 경량 모델 — 답변 모델과 분리해 TTFT 단축. 미설정/미등록이면 답변 모델 사용.
+    @Value("${rag.chat.preprocess-model-id:}")
+    private String preprocessModelId;
 
     private final RagAnswerService ragAnswerService;
     private final RagModelProperties ragModelProperties;
@@ -58,6 +65,7 @@ public class RagChatController {
             HttpServletRequest request) {
         RagModelProperties.ModelOption model = ragModelProperties.findById(FIXED_MODEL_ID)
                 .orElseThrow(() -> new IllegalStateException("rag.models에 " + FIXED_MODEL_ID + " 설정이 없습니다"));
+        RagModelProperties.ModelOption preprocessModel = resolvePreprocessModel(model);
         String ipAddress = Client.getClientIpAddress(request);
         Long userId = resolveUserId(userDetails);
 
@@ -69,10 +77,21 @@ public class RagChatController {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
         CompletableFuture.runAsync(
                 () -> ragAnswerService.streamAnswer(
-                        body.question(), TOP_ARTICLES, CHUNKS_PER_ARTICLE, THRESHOLD, model,
+                        body.question(), TOP_ARTICLES, CHUNKS_PER_ARTICLE, THRESHOLD, model, preprocessModel,
                         body.conversationId(), ipAddress, userId, emitter),
                 searchExecutor);
         return emitter;
+    }
+
+    private RagModelProperties.ModelOption resolvePreprocessModel(RagModelProperties.ModelOption answerModel) {
+        if (preprocessModelId == null || preprocessModelId.isBlank()) {
+            return answerModel;
+        }
+        return ragModelProperties.findById(preprocessModelId)
+                .orElseGet(() -> {
+                    log.warn("rag.chat.preprocess-model-id={}가 rag.models에 없어 답변 모델로 전처리합니다", preprocessModelId);
+                    return answerModel;
+                });
     }
 
     private Long resolveUserId(UserDetails userDetails) {

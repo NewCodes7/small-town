@@ -594,6 +594,39 @@ public class VectorSearchService {
     }
 
     /**
+     * 공개 챗봇용: getChunksForRag 결과를 chunkSearchResults 캐시("rag:" prefix 키)로 공유하는 wrapper.
+     * 결과 순서는 호출부(RagAnswerService)가 topArticleIds 기준으로 재정렬하므로
+     * 캐시 키의 articleIds는 정렬해 순서 무관하게 재사용한다.
+     * admin 테스트 페이지 경로는 이 wrapper를 거치지 않고 비캐시 메서드를 직접 호출한다.
+     */
+    public List<AiSummaryChunkDto> getChunksForRagCached(
+            String vectorQuery, List<Long> articleIds, float[] queryEmbedding, int chunksPerArticle) {
+        if (vectorQuery == null || vectorQuery.trim().isEmpty() || articleIds == null || articleIds.isEmpty()) {
+            return List.of();
+        }
+        String idsKey = articleIds.stream().sorted().map(String::valueOf).collect(Collectors.joining(","));
+        String cacheKey = "rag:" + vectorQuery.toLowerCase().trim() + ":" + chunksPerArticle + ":" + idsKey;
+        Cache cache = cacheManager.getCache(CHUNK_CACHE_NAME);
+        if (cache != null) {
+            Cache.ValueWrapper wrapper = cache.get(cacheKey);
+            if (wrapper != null) {
+                @SuppressWarnings("unchecked")
+                List<AiSummaryChunkDto> cached = (List<AiSummaryChunkDto>) wrapper.get();
+                if (cached != null) {
+                    log.debug("RAG chunk 캐시 히트 - 쿼리: '{}', {}개", vectorQuery, cached.size());
+                    return cached;
+                }
+            }
+        }
+
+        List<AiSummaryChunkDto> chunks = getChunksForRag(vectorQuery, articleIds, queryEmbedding, chunksPerArticle);
+        if (cache != null && !chunks.isEmpty()) {
+            cache.put(cacheKey, chunks);
+        }
+        return chunks;
+    }
+
+    /**
      * RAG용: 지정 아티클 목록에서 아티클별 첫 청크 + 유사도 상위 chunksPerArticle개 청크 반환
      * getChunksForArticlesByIds의 확장 — 아티클당 청크 수를 조절 가능
      * queryEmbedding이 null이면 임베딩을 조회/생성 (fallback)

@@ -5,6 +5,7 @@ import com.newcodes7.small_town.search.service.ArticleSearchService;
 import com.newcodes7.small_town.search.service.AutocompleteService;
 import com.newcodes7.small_town.search.service.SearchQueryEmbeddingService;
 import com.newcodes7.small_town.search.service.SemanticTermExpansionService;
+import com.newcodes7.small_town.search.service.VectorSearchService;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -73,6 +74,12 @@ public class SearchPrewarmScheduler {
     private final SemanticTermExpansionService semanticExpansionService;
     private final ArticleSearchService articleSearchService;
     private final SearchQueryEmbeddingService searchQueryEmbeddingService;
+    private final VectorSearchService vectorSearchService;
+
+    // 공개 챗봇(/api/rag/answer, RagChatController)의 고정 검색 파라미터와 동일하게 warm
+    private static final int RAG_WARM_TOP_ARTICLES = 5;
+    private static final int RAG_WARM_CHUNKS_PER_ARTICLE = 3;
+    private static final double RAG_WARM_THRESHOLD = 0.6;
 
     private final AtomicLong prewarmSuccess = new AtomicLong(0);
     private final AtomicLong prewarmFailure = new AtomicLong(0);
@@ -92,6 +99,8 @@ public class SearchPrewarmScheduler {
      * Step 1. 자동완성 → autocompleteExecutor 스레드 + Corp/Term/Theme covering index warm
      * Step 2. 검색어 확장 → Lucene/Nori JIT + termRepository warm
      * Step 3. 하이브리드 검색 → binary HNSW, halfvec reranking, BM25 pg_search warm
+     * Step 4. RAG retrieval → corp 프리필터/threshold 벡터 검색 + 아티클별 top 청크 조회 경로 warm
+     *         (전처리 LLM은 Bedrock 호출 비용이 발생하고 cold start를 제어할 수 없어 warm 대상에서 제외)
      *
      * ArticleSearchService를 직접 호출하므로 SearchLogService를 거치지 않아 search_log 미저장 보장.
      * 매 실행마다 WARM_KEYWORDS에서 순서대로 키워드를 순환하여 다양한 경로를 warm.
@@ -119,6 +128,16 @@ public class SearchPrewarmScheduler {
             // Step 3. 하이브리드 검색
             articleSearchService.searchArticlesHybrid(
                     keyword, expandedTerms, null, null, 0, 5, "relevance", null, null);
+
+            // Step 4. RAG retrieval 경로 (threshold 벡터 검색 플랜 + 아티클별 top 청크 쿼리 warm)
+            // 캐시 오염 방지를 위해 캐시 wrapper가 아닌 비캐시 메서드를 직접 호출한다
+            // (keyword를 vectorQuery 자리에 넣은 warm용 키가 실제 전처리 결과 키와 섞이면 안 됨)
+            ArticleSearchService.HybridTopArticles ragTop = articleSearchService.getTopArticleIdsForRag(
+                    keyword, keyword, null, RAG_WARM_TOP_ARTICLES, RAG_WARM_THRESHOLD);
+            if (!ragTop.articleIds().isEmpty()) {
+                vectorSearchService.getChunksForRag(
+                        keyword, ragTop.articleIds(), ragTop.queryEmbedding(), RAG_WARM_CHUNKS_PER_ARTICLE);
+            }
 
             log.debug("[Prewarm] 검색 파이프라인 prewarm 완료: {}ms", System.currentTimeMillis() - start);
             prewarmSuccess.incrementAndGet();

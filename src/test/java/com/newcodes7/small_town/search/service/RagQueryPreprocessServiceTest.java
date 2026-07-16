@@ -26,6 +26,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import tools.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
@@ -34,13 +36,15 @@ class RagQueryPreprocessServiceTest {
     @Mock private CorporationRepository corporationRepository;
     @Mock private RagLlmClientResolver llmClientResolver;
     @Mock private RagLlmClient llmClient;
+    @Mock private CacheManager cacheManager;
+    @Mock private Cache cache;
 
     private RagQueryPreprocessService preprocessService;
 
     @BeforeEach
     void setUp() {
         preprocessService = new RagQueryPreprocessService(
-                corporationRepository, new ObjectMapper(), llmClientResolver);
+                corporationRepository, new ObjectMapper(), llmClientResolver, cacheManager);
     }
 
     private ModelOption geminiModel() {
@@ -145,5 +149,45 @@ class RagQueryPreprocessServiceTest {
         assertThat(result.matchedCorporationIds()).isEmpty();
         assertThat(result.isCorporationTargetedButNotMatched()).isFalse();
         verify(corporationRepository, never()).findActiveByLowerNames(anyList());
+    }
+
+    @Test
+    @DisplayName("preprocessCached 캐시 미스: LLM 1회 호출, 캐시에는 토큰 사용량 없이 저장")
+    void preprocessCached_missCallsLlmAndCachesWithoutTokens() throws Exception {
+        givenLlmJson("{\"corporations\":[],\"keywords\":\"Kafka 도입\",\"vectorQuery\":\"Kafka 도입 사례\"}");
+        String cacheKey = "gemini-3.5-flash:kafka 도입한 회사 사례";
+        when(cacheManager.getCache("ragPreprocess")).thenReturn(cache);
+        when(cache.get(eq(cacheKey), eq(RagPreprocessResult.class))).thenReturn(null);
+
+        RagPreprocessResult result =
+                preprocessService.preprocessCached("Kafka 도입한 회사 사례", geminiModel());
+
+        // 호출자에게는 이번 요청에서 실제 소모된 토큰 사용량을 그대로 전달
+        assertThat(result.keywords()).isEqualTo("Kafka 도입");
+        assertThat(result.inputTokens()).isEqualTo(100);
+        verify(llmClient).generateJson(anyString(), anyString(), anyString(), any(), any());
+
+        // 캐시에는 토큰 사용량을 비워 저장 (재사용 시 소모량 0으로 집계되도록)
+        ArgumentCaptor<RagPreprocessResult> captor = ArgumentCaptor.forClass(RagPreprocessResult.class);
+        verify(cache).put(eq(cacheKey), captor.capture());
+        assertThat(captor.getValue().keywords()).isEqualTo("Kafka 도입");
+        assertThat(captor.getValue().inputTokens()).isNull();
+        assertThat(captor.getValue().totalTokens()).isNull();
+    }
+
+    @Test
+    @DisplayName("preprocessCached 캐시 히트: LLM 미호출, 캐시 결과 반환")
+    void preprocessCached_hitSkipsLlm() throws Exception {
+        RagPreprocessResult cached = new RagPreprocessResult(
+                List.of(), List.of(), List.of(), "Kafka 도입", "Kafka 도입 사례", null, null, null);
+        when(cacheManager.getCache("ragPreprocess")).thenReturn(cache);
+        when(cache.get(eq("gemini-3.5-flash:kafka 도입한 회사 사례"), eq(RagPreprocessResult.class)))
+                .thenReturn(cached);
+
+        RagPreprocessResult result =
+                preprocessService.preprocessCached("Kafka 도입한 회사 사례", geminiModel());
+
+        assertThat(result).isSameAs(cached);
+        verify(llmClient, never()).generateJson(anyString(), anyString(), anyString(), any(), any());
     }
 }

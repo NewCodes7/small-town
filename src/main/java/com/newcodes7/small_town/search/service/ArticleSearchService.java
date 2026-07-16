@@ -63,6 +63,7 @@ public class ArticleSearchService {
     private final ObservationRegistry observationRegistry;
 
     private static final String HYBRID_TOP_ARTICLES_CACHE_NAME = "hybridTopArticles";
+    private static final String RAG_TOP_ARTICLES_CACHE_NAME = "ragTopArticles";
 
     /**
      * 무필터 하이브리드 코어 single-flight 캐시.
@@ -795,6 +796,38 @@ public class ArticleSearchService {
     }
 
     /**
+     * 공개 챗봇용: getTopArticleIdsForRag 결과를 짧은 TTL 캐시(ragTopArticles) 경유로 반환하는 wrapper.
+     * 검색 파라미터 전부를 캐시 키에 포함하므로 파라미터가 바뀌어도 안전하다.
+     * admin 테스트 페이지 경로는 이 wrapper를 거치지 않고 비캐시 메서드를 직접 호출한다.
+     */
+    @Transactional(readOnly = true)
+    public HybridTopArticles getTopArticleIdsForRagCached(
+            String bm25Keywords, String vectorQuery, List<Long> corporationIds,
+            int limit, double vectorThreshold) {
+        String corpKey = (corporationIds == null || corporationIds.isEmpty())
+                ? ""
+                : corporationIds.stream().sorted().map(String::valueOf).collect(Collectors.joining(","));
+        String cacheKey = normalizeRagCacheKeyPart(bm25Keywords) + "|" + normalizeRagCacheKeyPart(vectorQuery)
+                + "|" + corpKey + "|" + limit + "|" + vectorThreshold;
+        Cache cache = cacheManager != null ? cacheManager.getCache(RAG_TOP_ARTICLES_CACHE_NAME) : null;
+        if (cache != null) {
+            HybridTopArticles cached = cache.get(cacheKey, HybridTopArticles.class);
+            if (cached != null) return cached;
+        }
+
+        HybridTopArticles result = getTopArticleIdsForRag(
+                bm25Keywords, vectorQuery, corporationIds, limit, vectorThreshold);
+        if (cache != null && !result.articleIds().isEmpty()) {
+            cache.put(cacheKey, result);
+        }
+        return result;
+    }
+
+    private String normalizeRagCacheKeyPart(String value) {
+        return value == null ? "" : value.toLowerCase().trim();
+    }
+
+    /**
      * RAG용: 이중 쿼리(BM25 키워드 + 벡터 재작성 문장) 하이브리드 검색 상위 limit개 아티클 ID 반환
      * computeTopArticleIdsByHybrid와 동일한 NSF 병합·cross-scoring 구조에
      * corporationIds 프리필터와 요청별 벡터 임계값을 추가 적용. 캐시는 사용하지 않음 (파라미터 실험용)
@@ -857,17 +890,38 @@ public class ArticleSearchService {
         vectorOnlyIds.removeAll(bm25Results.keySet());
 
         // cross-scoring: 대상 id들이 이미 corp 필터를 통과했으므로 필터 없는 보충 쿼리 재사용
+        // computeHybridCore와 동일하게 Vector 보충 ∥ BM25 보충을 병렬 실행 (실패 시 개별 warn 후 계속)
         final float[] cachedEmbedding = queryEmbedding;
-        if (!bm25OnlyIds.isEmpty() && cachedEmbedding != null) {
-            vectorResults.putAll(vectorSearchService.computeSimilarityForArticlesWithEmbedding(
-                    cachedEmbedding, new ArrayList<>(bm25OnlyIds), vectorThreshold));
+
+        CompletableFuture<Map<Long, Double>> vectorSupplementFuture = CompletableFuture.supplyAsync(() -> {
+            if (bm25OnlyIds.isEmpty() || cachedEmbedding == null) return Map.<Long, Double>of();
+            try {
+                return vectorSearchService.computeSimilarityForArticlesWithEmbedding(
+                        cachedEmbedding, new ArrayList<>(bm25OnlyIds), vectorThreshold);
+            } catch (Exception e) {
+                log.warn("RAG 교차검색 Vector 보충 실패: {}", e.getMessage());
+                return Map.<Long, Double>of();
+            }
+        }, searchExecutor);
+
+        CompletableFuture<List<Object[]>> bm25SupplementFuture = CompletableFuture.supplyAsync(() -> {
+            if (vectorOnlyIds.isEmpty()) return Collections.<Object[]>emptyList();
+            return computeBM25ScoreForArticles(bm25SearchQuery, null, null, new ArrayList<>(vectorOnlyIds));
+        }, searchExecutor);
+
+        try {
+            vectorResults.putAll(vectorSupplementFuture.get(5, TimeUnit.SECONDS));
+        } catch (Exception e) {
+            log.warn("RAG 교차검색 Vector 보충 결과 대기 실패: {}", e.getMessage());
         }
-        if (!vectorOnlyIds.isEmpty()) {
-            for (Object[] row : computeBM25ScoreForArticles(bm25SearchQuery, null, null, new ArrayList<>(vectorOnlyIds))) {
+        try {
+            for (Object[] row : bm25SupplementFuture.get(5, TimeUnit.SECONDS)) {
                 Long id = ((Number) row[0]).longValue();
                 Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
                 if (score != null) bm25Results.put(id, score);
             }
+        } catch (Exception e) {
+            log.warn("RAG 교차검색 BM25 보충 결과 대기 실패: {}", e.getMessage());
         }
 
         HybridSearchScorer.NSFResult nsfResult = hybridSearchScorer.calculateNSFScores(

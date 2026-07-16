@@ -12,6 +12,8 @@ import com.newcodes7.small_town.search.llm.RagLlmClientResolver;
 import com.newcodes7.small_town.search.llm.RagLlmException;
 import com.newcodes7.small_town.search.repository.RagQueryLogRepository;
 import com.newcodes7.small_town.search.service.RagQueryPreprocessService.RagPreprocessResult;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.observation.annotation.Observed;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -49,6 +51,7 @@ public class RagAnswerService {
     private final RagQueryLogRepository ragQueryLogRepository;
     private final ObjectMapper objectMapper;
     private final RagLlmClientResolver llmClientResolver;
+    private final ObservationRegistry observationRegistry;
 
     private static final int CHUNK_MAX_CHARS = 1000;
     private static final int QUESTION_MAX_CHARS = 500;
@@ -94,7 +97,8 @@ public class RagAnswerService {
             String question, int topArticles, int chunksPerArticle, double threshold,
             ModelOption model, SseEmitter emitter) {
         // 관리자 테스트 페이지 전용 — 모델/파라미터를 매 요청 자유롭게 바꾸므로 캐시 대상에서 제외한다.
-        streamAnswerInternal(question, topArticles, chunksPerArticle, threshold, model,
+        // 전처리도 선택 모델로 실행해 "선택 모델의 전처리 품질"을 그대로 실험할 수 있게 한다.
+        streamAnswerInternal(question, topArticles, chunksPerArticle, threshold, model, model,
                 null, null, null, emitter, false);
     }
 
@@ -109,14 +113,15 @@ public class RagAnswerService {
     @Observed(name = "rag-answer", contextualName = "rag-answer-stream")
     public void streamAnswer(
             String question, int topArticles, int chunksPerArticle, double threshold,
-            ModelOption model, String conversationId, String ipAddress, Long userId, SseEmitter emitter) {
-        streamAnswerInternal(question, topArticles, chunksPerArticle, threshold, model,
+            ModelOption model, ModelOption preprocessModel,
+            String conversationId, String ipAddress, Long userId, SseEmitter emitter) {
+        streamAnswerInternal(question, topArticles, chunksPerArticle, threshold, model, preprocessModel,
                 conversationId, ipAddress, userId, emitter, true);
     }
 
     private void streamAnswerInternal(
             String question, int topArticles, int chunksPerArticle, double threshold,
-            ModelOption model, String conversationId, String ipAddress, Long userId,
+            ModelOption model, ModelOption preprocessModel, String conversationId, String ipAddress, Long userId,
             SseEmitter emitter, boolean cacheAllowed) {
         if (question == null || question.trim().isEmpty()) {
             sendErrorEvent(emitter, "질문을 입력해주세요");
@@ -136,11 +141,16 @@ public class RagAnswerService {
         String cacheKey = CACHE_KEY_PREFIX + trimmedQuestion.toLowerCase();
 
         RagPreprocessResult pre = null;
+        // 부모 span(rag-answer)에 캐시 히트 여부를 태그로 남겨 Tempo에서 히트/미스 지연을 분리 조회할 수 있게 한다.
+        Observation parentObservation = observationRegistry.getCurrentObservation();
         try {
             Cache cache = cacheManager.getCache(CACHE_NAME);
             if (cacheEligible && cache != null) {
                 RagAnswerCacheDto cached = cache.get(cacheKey, RagAnswerCacheDto.class);
                 if (cached != null) {
+                    if (parentObservation != null) {
+                        parentObservation.lowCardinalityKeyValue("cache", "hit");
+                    }
                     sendSourcesEvent(emitter, cached.sources());
                     replayFromCache(emitter, cached);
                     saveLog(trimmedQuestion, null, cached.sources().size(), RagQueryLog.Outcome.ANSWERED,
@@ -148,8 +158,26 @@ public class RagAnswerService {
                     return;
                 }
             }
+            if (parentObservation != null) {
+                parentObservation.lowCardinalityKeyValue("cache", "miss");
+            }
 
-            pre = preprocessService.preprocess(trimmedQuestion, historyContext, model);
+            Observation preprocessObservation = Observation
+                    .createNotStarted("rag.preprocess", observationRegistry)
+                    .contextualName("rag-preprocess")
+                    .start();
+            try {
+                // cacheEligible(공개 경로 첫 턴)이면 전처리 결과를 로컬 캐시 경유로 재사용.
+                // 멀티턴·admin 경로는 historyContext/파라미터가 매번 달라 비캐시 호출.
+                pre = cacheEligible
+                        ? preprocessService.preprocessCached(trimmedQuestion, preprocessModel)
+                        : preprocessService.preprocess(trimmedQuestion, historyContext, preprocessModel);
+            } catch (Exception e) {
+                preprocessObservation.error(e);
+                throw e;
+            } finally {
+                preprocessObservation.stop();
+            }
             sendPreprocessEvent(emitter, pre);
 
             if (pre.isCorporationTargetedButNotMatched()) {
@@ -160,15 +188,34 @@ public class RagAnswerService {
                 return;
             }
 
-            ArticleSearchService.HybridTopArticles topArticlesResult =
-                    articleSearchService.getTopArticleIdsForRag(
-                            pre.keywords(), pre.vectorQuery(), pre.matchedCorporationIds(),
-                            topArticles, threshold);
-            List<Long> topArticleIds = topArticlesResult.articleIds();
-            List<AiSummaryChunkDto> chunks = topArticleIds.isEmpty()
-                    ? List.of()
-                    : vectorSearchService.getChunksForRag(
-                            pre.vectorQuery(), topArticleIds, topArticlesResult.queryEmbedding(), chunksPerArticle);
+            Observation retrievalObservation = Observation
+                    .createNotStarted("rag.retrieval", observationRegistry)
+                    .contextualName("rag-retrieval")
+                    .start();
+            List<Long> topArticleIds;
+            List<AiSummaryChunkDto> chunks;
+            try {
+                ArticleSearchService.HybridTopArticles topArticlesResult = cacheEligible
+                        ? articleSearchService.getTopArticleIdsForRagCached(
+                                pre.keywords(), pre.vectorQuery(), pre.matchedCorporationIds(),
+                                topArticles, threshold)
+                        : articleSearchService.getTopArticleIdsForRag(
+                                pre.keywords(), pre.vectorQuery(), pre.matchedCorporationIds(),
+                                topArticles, threshold);
+                topArticleIds = topArticlesResult.articleIds();
+                chunks = topArticleIds.isEmpty()
+                        ? List.of()
+                        : cacheEligible
+                                ? vectorSearchService.getChunksForRagCached(
+                                        pre.vectorQuery(), topArticleIds, topArticlesResult.queryEmbedding(), chunksPerArticle)
+                                : vectorSearchService.getChunksForRag(
+                                        pre.vectorQuery(), topArticleIds, topArticlesResult.queryEmbedding(), chunksPerArticle);
+            } catch (Exception e) {
+                retrievalObservation.error(e);
+                throw e;
+            } finally {
+                retrievalObservation.stop();
+            }
             if (chunks.isEmpty()) {
                 sendNotFoundEvent(emitter, NO_RESULT_MESSAGE);
                 completeEmitter(emitter);
@@ -192,9 +239,22 @@ public class RagAnswerService {
             StringBuilder answerBuilder = new StringBuilder();
             StringBuilder pendingBuf = new StringBuilder();
             boolean[] queriesDetected = {false};
-            LlmTokenUsage usage = llmClientResolver.resolve(model.getProvider())
+            // LLM 호출~스트림 소진 전체를 하나의 구간으로 기록.
+            // first-token 이벤트로 첫 토큰까지의 지연(TTFT)을 워터폴에서 구분할 수 있다.
+            Observation llmObservation = Observation
+                    .createNotStarted("rag.llm-stream", observationRegistry)
+                    .contextualName("rag-llm-stream")
+                    .start();
+            boolean[] firstTokenSeen = {false};
+            LlmTokenUsage usage;
+            try {
+                usage = llmClientResolver.resolve(model.getProvider())
                     .generateStream(model.getId(), RAG_SYSTEM_PROMPT, userMessage,
                             answerOptions, text -> {
+                                if (!firstTokenSeen[0]) {
+                                    firstTokenSeen[0] = true;
+                                    llmObservation.event(Observation.Event.of("first-token"));
+                                }
                                 answerBuilder.append(text);
                                 if (queriesDetected[0]) {
                                     return;
@@ -214,6 +274,12 @@ public class RagAnswerService {
                                     }
                                 }
                             });
+            } catch (Exception e) {
+                llmObservation.error(e);
+                throw e;
+            } finally {
+                llmObservation.stop();
+            }
             if (!queriesDetected[0] && pendingBuf.length() > 0) {
                 sendTokenEvent(emitter, pendingBuf.toString());
             }

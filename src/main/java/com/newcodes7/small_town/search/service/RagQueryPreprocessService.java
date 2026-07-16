@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -36,6 +38,9 @@ public class RagQueryPreprocessService {
     private final CorporationRepository corporationRepository;
     private final ObjectMapper objectMapper;
     private final RagLlmClientResolver llmClientResolver;
+    private final CacheManager cacheManager;
+
+    private static final String CACHE_NAME = "ragPreprocess";
 
     private static final String PREPROCESS_SYSTEM_PROMPT = """
             당신은 기업 기술 블로그 검색 시스템의 쿼리 분석기입니다.
@@ -98,6 +103,33 @@ public class RagQueryPreprocessService {
     public RagPreprocessResult preprocess(String question, ModelOption model)
             throws IOException, InterruptedException {
         return preprocess(question, "", model);
+    }
+
+    /**
+     * 전처리 결과를 로컬 캐시(ragPreprocess) 경유로 반환한다 — historyContext가 없는 첫 턴 질의 전용.
+     * 멀티턴은 augmented question이 턴마다 달라 캐시가 무의미하고 잘못된 재사용 위험이 있으므로
+     * 반드시 {@link #preprocess(String, String, ModelOption)}를 직접 호출할 것.
+     * temperature 0.0의 결정적 JSON 추출이라 긴 TTL로 재사용해도 안전하다.
+     */
+    public RagPreprocessResult preprocessCached(String question, ModelOption model)
+            throws IOException, InterruptedException {
+        Cache cache = cacheManager.getCache(CACHE_NAME);
+        String cacheKey = model.getId() + ":" + question.toLowerCase().trim();
+        if (cache != null) {
+            RagPreprocessResult cached = cache.get(cacheKey, RagPreprocessResult.class);
+            if (cached != null) {
+                log.debug("RAG 전처리 캐시 히트: {}", cacheKey);
+                return cached;
+            }
+        }
+        RagPreprocessResult result = preprocess(question, "", model);
+        if (cache != null) {
+            // 토큰 사용량은 이번 요청에서 실제 소모된 양만 집계되도록 캐시에는 null로 저장
+            cache.put(cacheKey, new RagPreprocessResult(
+                    result.rawCorporations(), result.matchedCorporationIds(), result.matchedCorporationNames(),
+                    result.keywords(), result.vectorQuery(), null, null, null));
+        }
+        return result;
     }
 
     /**
