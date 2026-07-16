@@ -1,0 +1,658 @@
+{
+  "__requires": [
+    {
+      "type": "datasource",
+      "id": "tempo",
+      "name": "Tempo",
+      "version": "1.0.0"
+    },
+    {
+      "type": "datasource",
+      "id": "prometheus",
+      "name": "Prometheus",
+      "version": "1.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "traces",
+      "name": "Traces",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "POST /api/rag/answer (RagChatController → RagAnswerService.streamAnswer, @Observed name=rag-answer) 전용 Tempo 트레이싱 + 지연시간 모니터",
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Tracing (전체)",
+      "tooltip": "전체 트레이싱 대시보드",
+      "type": "link",
+      "url": "/d/small-town-tempo-tracing"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "All Log Monitor",
+      "tooltip": "전체 로그 대시보드",
+      "type": "link",
+      "url": "/d/small-town-all-logs"
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 30,
+  "style": "dark",
+  "tags": [
+    "tempo",
+    "tracing",
+    "rag",
+    "small-town"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "small-town",
+          "value": "small-town"
+        },
+        "hide": 0,
+        "label": "Service",
+        "name": "service",
+        "options": [
+          {
+            "selected": true,
+            "text": "small-town",
+            "value": "small-town"
+          }
+        ],
+        "query": "small-town",
+        "skipUrlSync": false,
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "3s",
+          "value": "3s"
+        },
+        "hide": 0,
+        "label": "느린 트레이스 기준",
+        "name": "slow_threshold",
+        "options": [
+          {
+            "selected": false,
+            "text": "1s",
+            "value": "1s"
+          },
+          {
+            "selected": true,
+            "text": "3s",
+            "value": "3s"
+          },
+          {
+            "selected": false,
+            "text": "5s",
+            "value": "5s"
+          },
+          {
+            "selected": false,
+            "text": "10s",
+            "value": "10s"
+          }
+        ],
+        "query": "1s,3s,5s,10s",
+        "skipUrlSync": false,
+        "type": "custom"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "Asia/Seoul",
+  "title": "Small Town — RAG Answer (/api/rag/answer)",
+  "uid": "small-town-rag-answer",
+  "version": 1,
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "요청 수 (기간 내)",
+      "description": "http_server_requests_seconds_count{uri=\"/api/rag/answer\"} 증가량 합",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(http_server_requests_seconds_count{uri=\"/api/rag/answer\", method=\"POST\"}[$__range]))",
+          "instant": true,
+          "range": false,
+          "legendFormat": "요청 수",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "5xx 에러 수 (기간 내)",
+      "description": "http_server_requests_seconds_count{uri=\"/api/rag/answer\", outcome=SERVER_ERROR} 증가량 합. 429(Rate limit)는 CLIENT_ERROR로 별도 집계되어 제외됨.",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(http_server_requests_seconds_count{uri=\"/api/rag/answer\", method=\"POST\", outcome=\"SERVER_ERROR\"}[$__range]))",
+          "instant": true,
+          "range": false,
+          "legendFormat": "5xx",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "429 (시간당 한도 초과) 수",
+      "description": "RagChatController의 IP당 시간당 30회 제한 초과 응답 수",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(http_server_requests_seconds_count{uri=\"/api/rag/answer\", method=\"POST\", status=\"429\"}[$__range]))",
+          "instant": true,
+          "range": false,
+          "legendFormat": "429",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "p95 지연시간 (기간 내)",
+      "description": "SSE 스트리밍 전체 소요시간(전처리+검색+LLM) p95",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 5 },
+              { "color": "red", "value": 15 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{uri=\"/api/rag/answer\", method=\"POST\"}[$__range])))",
+          "instant": true,
+          "range": false,
+          "legendFormat": "p95",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "요청 처리 지연시간 추이 (p50/p95/p99)",
+      "description": "http_server_requests_seconds_bucket{uri=\"/api/rag/answer\"} 기반. SSE 응답이 완료(emitter.complete())되는 시점까지의 전체 요청 시간 — 전처리·하이브리드 검색·LLM 스트리밍을 모두 포함한다.",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "지연시간",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "unit": "s",
+          "min": 0,
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "p99" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "p95" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "p50" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#73BF69" } }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_requests_seconds_bucket{uri=\"/api/rag/answer\", method=\"POST\"}[$__rate_interval])))",
+          "hide": false,
+          "instant": false,
+          "range": true,
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{uri=\"/api/rag/answer\", method=\"POST\"}[$__rate_interval])))",
+          "hide": false,
+          "instant": false,
+          "range": true,
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{uri=\"/api/rag/answer\", method=\"POST\"}[$__rate_interval])))",
+          "hide": false,
+          "instant": false,
+          "range": true,
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "요청량 & 상태별 비율 (QPS)",
+      "description": "http_server_requests_seconds_count{uri=\"/api/rag/answer\"}를 outcome으로 분리 — SUCCESS(2xx) / CLIENT_ERROR(4xx, 429 rate limit 포함) / SERVER_ERROR(5xx)",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "req/s",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            }
+          },
+          "unit": "reqps",
+          "min": 0,
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "SERVER_ERROR" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "CLIENT_ERROR" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "SUCCESS" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#73BF69" } }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (outcome) (rate(http_server_requests_seconds_count{uri=\"/api/rag/answer\", method=\"POST\"}[$__rate_interval]))",
+          "range": true,
+          "legendFormat": "{{outcome}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "최근 트레이스 (POST /api/rag/answer 전체)",
+      "description": "선택된 기간 내 /api/rag/answer 요청 전체 트레이스. 클릭하면 워터폴(전처리 → 하이브리드 검색 → LLM 스트리밍) 상세 확인 가능.",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 23 },
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "options": {},
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceql",
+          "query": "{resource.service.name=\"$service\" && trace:rootName=\"POST /api/rag/answer\"}",
+          "limit": 50,
+          "tableType": "traces",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "overrides": [] }
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "느린 트레이스 ($slow_threshold 초과)",
+      "description": "duration이 임계값을 넘는 /api/rag/answer 트레이스만 필터링. 전처리·검색·LLM 중 어느 구간이 느린지는 워터폴에서 확인.",
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 33 },
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "options": {},
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceql",
+          "query": "{resource.service.name=\"$service\" && trace:rootName=\"POST /api/rag/answer\" && duration>$slow_threshold}",
+          "limit": 50,
+          "tableType": "traces",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "overrides": [] }
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "에러 트레이스",
+      "description": "status=error span이 포함된 /api/rag/answer 트레이스. RagLlmException, 인터럽트 등 예외 발생 구간 즉시 확인용.",
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 33 },
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "options": {},
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceql",
+          "query": "{resource.service.name=\"$service\" && trace:rootName=\"POST /api/rag/answer\" && status=error}",
+          "limit": 50,
+          "tableType": "traces",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "overrides": [] }
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "RAG 답변 생성 구간 (rag-answer-stream)",
+      "description": "RagAnswerService.streamAnswer — @Observed(name=rag-answer, contextualName=rag-answer-stream). searchExecutor 비동기 스레드에서 실행되지만 trace context가 전파되어 위 루트 트레이스와 같은 trace로 이어진다.",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 43 },
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "options": {},
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceql",
+          "query": "{name=\"rag-answer-stream\"}",
+          "limit": 30,
+          "tableType": "traces",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "overrides": [] }
+    },
+    {
+      "id": 11,
+      "type": "table",
+      "title": "RAG 벡터 검색 (vector-search-rag)",
+      "description": "VectorSearchService.searchForRag — RAG용 기업 프리필터 hybrid retrieval의 vector 단계 (search.vector, contextualName=vector-search-rag)",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 43 },
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "options": {},
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceql",
+          "query": "{name=\"vector-search-rag\"}",
+          "limit": 30,
+          "tableType": "traces",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "overrides": [] }
+    }
+  ]
+}

@@ -50,6 +50,18 @@
       "keepTime": true,
       "tags": [],
       "targetBlank": false,
+      "title": "RAG Answer (/api/rag/answer)",
+      "tooltip": "RAG 답변 API 전용 대시보드",
+      "type": "link",
+      "url": "/d/small-town-rag-answer"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
       "title": "All Log Monitor",
       "tooltip": "전체 로그 대시보드",
       "type": "link",
