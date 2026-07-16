@@ -239,9 +239,8 @@
             </div>
         </div>
 
-        <!-- Admin: AI 기업 사례 카드 (RAG) -->
-        <div th:if="${#authorization.expression('hasRole(''ADMIN'')')}"
-             id="aiSummaryCard" class="ai-summary-card" style="display:none;">
+        <!-- AI 기업 사례 카드 (RAG) -->
+        <div id="aiSummaryCard" class="ai-summary-card" style="display:none;">
             <div class="ai-summary-header">
                 <span class="ai-badge">✨ 기업 사례 모아보기</span>
             </div>
@@ -1367,9 +1366,9 @@
         <script th:src="@{/js/articleLikeButton.js}"></script>
         <script th:src="@{/js/searchAutocomplete.js}"></script>
         <script th:if="${#authorization.expression('hasRole(''ADMIN'')')}" th:src="@{/js/aiSummary.js}"></script>
-        <script th:if="${#authorization.expression('hasRole(''ADMIN'')')}" src="https://cdn.jsdelivr.net/npm/marked@12/lib/marked.umd.min.js"></script>
-        <script th:if="${#authorization.expression('hasRole(''ADMIN'')')}" src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
-        <script th:if="${#authorization.expression('hasRole(''ADMIN'')')}" th:src="@{/js/ragSummaryCard.js}"></script>
+        <script src="https://cdn.jsdelivr.net/npm/marked@12/lib/marked.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+        <script th:src="@{/js/ragSummaryCard.js}"></script>
 
         <!-- Floating Feedback Widget Script -->
         <script>
