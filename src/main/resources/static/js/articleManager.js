@@ -154,7 +154,8 @@ class ArticleManager {
                 const page = parseInt(pageLink.dataset.page);
                 if (!isNaN(page)) {
                     this.currentPage = page;
-                    smoothScrollToElement('searchForm', -70);
+                    const targetId = this.currentView === 'grouped' ? 'article-grouped-container' : 'article-list-container';
+                    smoothScrollToElement(targetId, -70);
                     this.loadArticles();
                 }
             }

@@ -221,6 +221,7 @@ class RagSummaryManager {
         if (typeof articleManager !== 'undefined' && articleManager) {
             articleManager.handleSearch();
         }
+        this.card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     _showError(message) {
