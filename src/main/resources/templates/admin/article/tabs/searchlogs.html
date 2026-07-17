@@ -43,10 +43,36 @@
                                 <li class="page-item" th:classappend="${searchLogs.first} ? 'disabled'">
                                     <a class="page-link" th:href="@{/admin/articles(tab='searchlogs', page=${searchLogs.number - 1}, size=${searchLogs.size})}">이전</a>
                                 </li>
-                                <li class="page-item" th:each="pageNum : ${#numbers.sequence(0, searchLogs.totalPages - 1)}"
-                                    th:classappend="${pageNum == searchLogs.number} ? 'active'">
-                                    <a class="page-link" th:href="@{/admin/articles(tab='searchlogs', page=${pageNum}, size=${searchLogs.size})}" th:text="${pageNum + 1}">1</a>
-                                </li>
+
+                                <!-- 페이지 번호들 (최대 5개만 표시) -->
+                                <th:block th:with="
+                                    startPage=${searchLogs.number > 2 ? searchLogs.number - 2 : 0},
+                                    endPage=${searchLogs.number + 2 < searchLogs.totalPages - 1 ? searchLogs.number + 2 : searchLogs.totalPages - 1}
+                                ">
+                                    <!-- 첫 페이지가 범위에 없으면 표시 -->
+                                    <li class="page-item" th:if="${startPage > 0}">
+                                        <a class="page-link" th:href="@{/admin/articles(tab='searchlogs', page=0, size=${searchLogs.size})}">1</a>
+                                    </li>
+                                    <li class="page-item disabled" th:if="${startPage > 1}">
+                                        <span class="page-link">...</span>
+                                    </li>
+
+                                    <!-- 현재 페이지 주변의 페이지들 -->
+                                    <li class="page-item"
+                                        th:each="pageNum : ${#numbers.sequence(startPage, endPage)}"
+                                        th:classappend="${pageNum == searchLogs.number} ? 'active'">
+                                        <a class="page-link" th:href="@{/admin/articles(tab='searchlogs', page=${pageNum}, size=${searchLogs.size})}" th:text="${pageNum + 1}">1</a>
+                                    </li>
+
+                                    <!-- 마지막 페이지가 범위에 없으면 표시 -->
+                                    <li class="page-item disabled" th:if="${endPage < searchLogs.totalPages - 2}">
+                                        <span class="page-link">...</span>
+                                    </li>
+                                    <li class="page-item" th:if="${endPage < searchLogs.totalPages - 1}">
+                                        <a class="page-link" th:href="@{/admin/articles(tab='searchlogs', page=${searchLogs.totalPages - 1}, size=${searchLogs.size})}" th:text="${searchLogs.totalPages}"></a>
+                                    </li>
+                                </th:block>
+
                                 <li class="page-item" th:classappend="${searchLogs.last} ? 'disabled'">
                                     <a class="page-link" th:href="@{/admin/articles(tab='searchlogs', page=${searchLogs.number + 1}, size=${searchLogs.size})}">다음</a>
                                 </li>
