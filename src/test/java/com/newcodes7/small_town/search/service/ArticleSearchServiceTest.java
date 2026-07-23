@@ -33,6 +33,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
 
 /**
  * ArticleSearchService 단위 테스트
@@ -55,6 +57,7 @@ class ArticleSearchServiceTest {
     @Mock private MorphemeAnalyzer morphemeAnalyzer;
     @Mock private SearchWeightConfigService weightConfig;
     @Mock private org.springframework.cache.CacheManager cacheManager;
+    @Mock private PlatformTransactionManager transactionManager;
 
     private ArticleSearchService articleSearchService;
 
@@ -63,6 +66,9 @@ class ArticleSearchServiceTest {
 
     @BeforeEach
     void setUp() {
+        // TransactionTemplate.execute()가 실제 트랜잭션 없이도 콜백을 실행하도록 최소 스텁
+        lenient().when(transactionManager.getTransaction(any())).thenReturn(mock(TransactionStatus.class));
+
         articleSearchService = new ArticleSearchService(
                 articleRepository,
                 articleTermRepository,
@@ -77,7 +83,8 @@ class ArticleSearchServiceTest {
                 syncExecutor,
                 weightConfig,
                 cacheManager,
-                ObservationRegistry.create()
+                ObservationRegistry.create(),
+                transactionManager
         );
     }
 

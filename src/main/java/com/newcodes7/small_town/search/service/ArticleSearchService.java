@@ -40,10 +40,11 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
-@Transactional(readOnly = true)
 @Slf4j
 public class ArticleSearchService {
 
@@ -61,6 +62,14 @@ public class ArticleSearchService {
     private final SearchWeightConfigService weightConfig;
     private final CacheManager cacheManager;
     private final ObservationRegistry observationRegistry;
+
+    /**
+     * 하이브리드 검색 경로(computeHybridCore, getTopArticleIdsForRag) 전용 read-only 트랜잭션 템플릿.
+     * 메서드 전체를 하나의 @Transactional로 묶는 대신, 실제 DB 접근 구간만 짧게 감싸서
+     * Vector future 대기(최대 5초) 동안 커넥션을 점유하지 않도록 한다.
+     * REQUIRED 전파(기본값)이므로 테스트의 앰비언트 트랜잭션에는 그대로 합류한다.
+     */
+    private final TransactionTemplate readOnlyTx;
 
     private static final String HYBRID_TOP_ARTICLES_CACHE_NAME = "hybridTopArticles";
     private static final String RAG_TOP_ARTICLES_CACHE_NAME = "ragTopArticles";
@@ -85,7 +94,8 @@ public class ArticleSearchService {
                                 @Qualifier("searchExecutor") ExecutorService searchExecutor,
                                 SearchWeightConfigService weightConfig,
                                 CacheManager cacheManager,
-                                ObservationRegistry observationRegistry) {
+                                ObservationRegistry observationRegistry,
+                                PlatformTransactionManager transactionManager) {
         this.articleRepository = articleRepository;
         this.articleTermRepository = articleTermRepository;
         this.termRepository = termRepository;
@@ -106,6 +116,8 @@ public class ArticleSearchService {
                 .expireAfterWrite(5, TimeUnit.MINUTES)
                 .maximumSize(500)
                 .buildAsync();
+        this.readOnlyTx = new TransactionTemplate(transactionManager);
+        this.readOnlyTx.setReadOnly(true);
     }
 
     /**
@@ -187,7 +199,6 @@ public class ArticleSearchService {
      * @param ipAddress 사용자 IP 주소 (좋아요 상태 조회용)
      * @return 검색 결과 (RRF 스코어 기반 정렬, 좋아요 상태 포함)
      */
-    @Transactional(readOnly = true, noRollbackFor = {Exception.class, RuntimeException.class})
     public Page<ArticleSearchResultDto> searchArticlesHybrid(
             String keyword,
             List<String> regions,
@@ -200,7 +211,6 @@ public class ArticleSearchService {
         return searchArticlesHybrid(keyword, null, regions, category, page, size, sort, ipAddress, username);
     }
 
-    @Transactional(readOnly = true, noRollbackFor = {Exception.class, RuntimeException.class})
     public Page<ArticleSearchResultDto> searchArticlesHybrid(
             String keyword,
             Map<String, Double> expandedTerms,
@@ -273,13 +283,16 @@ public class ArticleSearchService {
                 .limit(size)
                 .collect(Collectors.toList());
 
-        // 11. 현재 페이지 article만 로딩 (Corporation fetch join으로 N+1 방지)
-        Map<Long, Article> pageArticleMap = articleRepository.findByIdInWithCorporation(pageArticleIds)
-                .stream()
-                .collect(Collectors.toMap(Article::getId, a -> a));
-
-        // 12. 좋아요 상태 batch 조회 (N+1 방지)
-        Map<Long, Boolean> likeStatusMap = getLikeStatusMap(pageArticleIds, username, ipAddress);
+        // 11-12. Phase C: 현재 페이지 article 로딩(Corporation fetch join으로 N+1 방지) + 좋아요 상태
+        // batch 조회를 짧은 트랜잭션 하나로 묶는다 (getLikeStatusMap도 자체 @Transactional(REQUIRED)이라 합류)
+        Map<Long, Article> pageArticleMap = new HashMap<>();
+        Map<Long, Boolean> likeStatusMap = new HashMap<>();
+        readOnlyTx.executeWithoutResult(status -> {
+            pageArticleMap.putAll(articleRepository.findByIdInWithCorporation(pageArticleIds)
+                    .stream()
+                    .collect(Collectors.toMap(Article::getId, a -> a)));
+            likeStatusMap.putAll(getLikeStatusMap(pageArticleIds, username, ipAddress));
+        });
 
         // 13. DTO 생성 (페이지 순서 유지, 순위 정보 + 정규화 점수 포함)
         List<ArticleSearchResultDto> results = pageArticleIds.stream()
@@ -435,24 +448,28 @@ public class ArticleSearchService {
                 }, searchExecutor);
 
         // BM25 검색은 현재 스레드에서 실행 (Vector가 별도 스레드에서 도는 동안 병렬 수행)
+        // Phase A: BM25 쿼리만 짧게 트랜잭션으로 감싼다 — 뒤이은 vectorFuture.get() 대기 구간에는
+        // 커넥션을 물고 있지 않도록 여기서 트랜잭션을 닫는다
         long bm25StartTime = System.currentTimeMillis();
         Map<Long, Double> bm25Results = new HashMap<>();
         Map<Long, LocalDateTime> publishedAtMap = new HashMap<>();
 
-        List<Object[]> bm25RawResults = executeBM25Search(bm25SearchQuery, regions, category);
-        for (Object[] row : bm25RawResults) {
-            Long articleId = ((Number) row[0]).longValue();
-            Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
-            // Hibernate 7부터 native 쿼리도 timestamp 컬럼을 LocalDateTime으로 반환
-            LocalDateTime publishedAt = row.length > 2 ? (LocalDateTime) row[2] : null;
+        readOnlyTx.executeWithoutResult(status -> {
+            List<Object[]> bm25RawResults = executeBM25Search(bm25SearchQuery, regions, category);
+            for (Object[] row : bm25RawResults) {
+                Long articleId = ((Number) row[0]).longValue();
+                Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
+                // Hibernate 7부터 native 쿼리도 timestamp 컬럼을 LocalDateTime으로 반환
+                LocalDateTime publishedAt = row.length > 2 ? (LocalDateTime) row[2] : null;
 
-            if (score != null) {
-                bm25Results.put(articleId, score);
+                if (score != null) {
+                    bm25Results.put(articleId, score);
+                }
+                if (publishedAt != null) {
+                    publishedAtMap.put(articleId, publishedAt);
+                }
             }
-            if (publishedAt != null) {
-                publishedAtMap.put(articleId, publishedAt);
-            }
-        }
+        });
         long bm25EndTime = System.currentTimeMillis();
 
         // 3. Vector 검색 결과 대기
@@ -461,7 +478,7 @@ public class ArticleSearchService {
         VectorSearchService.VectorSearchResult vectorSearchResult = new VectorSearchService.VectorSearchResult(new HashMap<>(), null);
         try {
             vectorSearchResult = vectorFuture.get(5, TimeUnit.SECONDS);
-            vectorResults = new HashMap<>(vectorSearchResult.getScores());
+            vectorResults.putAll(vectorSearchResult.getScores());
             queryEmbedding = vectorSearchResult.getQueryEmbedding();
         } catch (Exception e) {
             log.warn("Vector 검색 결과 대기 실패 (스킵): {}", e.getMessage());
@@ -484,44 +501,40 @@ public class ArticleSearchService {
         // 4-2. BM25 보충 대상 (Vector-only)
         Set<Long> needBm25Ids = new HashSet<>(vectorOnlyIds);
 
-        // 병렬 실행: Vector 보충 + BM25 보충
+        // Phase B: 순차 실행: Vector 보충 → BM25 보충 (Phase A와 별개의 짧은 트랜잭션으로 재진입 —
+        // 이미 열려있는 트랜잭션을 재사용하는 게 아니라, Vector future 대기가 끝난 뒤 새로
+        // 커넥션을 잠깐만 잡는다. 별도 스레드로 병렬화하면 커넥션을 2개 더 열게 되어
+        // HikariCP 풀(5개)을 요청 1건이 최대 3개까지 점유하게 됨 — 둘 다 필요한 경우는 드문
+        // edge case이므로 그 지연시간보다 커넥션 풀 절약을 우선한다.
         final float[] cachedEmbedding = queryEmbedding;
 
-        CompletableFuture<Map<Long, Double>> vectorSupplementFuture = CompletableFuture.supplyAsync(() -> {
-            if (needVectorIds.isEmpty() || cachedEmbedding == null) return Map.<Long, Double>of();
-            try {
-                return vectorSearchService.computeSimilarityForArticlesWithEmbedding(cachedEmbedding, new ArrayList<>(needVectorIds));
-            } catch (Exception e) {
-                log.warn("교차검색 Vector 보충 실패: {}", e.getMessage());
-                return Map.<Long, Double>of();
-            }
-        }, searchExecutor);
-
-        CompletableFuture<List<Object[]>> bm25SupplementFuture = CompletableFuture.supplyAsync(() -> {
-            if (needBm25Ids.isEmpty()) return Collections.<Object[]>emptyList();
-            return computeBM25ScoreForArticles(bm25SearchQuery, regions, category, new ArrayList<>(needBm25Ids));
-        }, searchExecutor);
-
-        // 결과 대기 및 병합
-        try {
-            Map<Long, Double> supplementVectorScores = vectorSupplementFuture.get(5, TimeUnit.SECONDS);
-            vectorResults.putAll(supplementVectorScores);
-        } catch (Exception e) {
-            log.warn("교차검색 Vector 보충 결과 대기 실패: {}", e.getMessage());
-        }
-
-        try {
-            List<Object[]> supplementBm25 = bm25SupplementFuture.get(5, TimeUnit.SECONDS);
-            for (Object[] row : supplementBm25) {
-                Long id = ((Number) row[0]).longValue();
-                Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
-                if (score != null) {
-                    bm25Results.put(id, score);
+        readOnlyTx.executeWithoutResult(status -> {
+            if (!needVectorIds.isEmpty() && cachedEmbedding != null) {
+                try {
+                    Map<Long, Double> supplementVectorScores =
+                            vectorSearchService.computeSimilarityForArticlesWithEmbedding(cachedEmbedding, new ArrayList<>(needVectorIds));
+                    vectorResults.putAll(supplementVectorScores);
+                } catch (Exception e) {
+                    log.warn("교차검색 Vector 보충 실패: {}", e.getMessage());
                 }
             }
-        } catch (Exception e) {
-            log.warn("교차검색 BM25 보충 결과 대기 실패: {}", e.getMessage());
-        }
+
+            if (!needBm25Ids.isEmpty()) {
+                try {
+                    List<Object[]> supplementBm25 =
+                            computeBM25ScoreForArticles(bm25SearchQuery, regions, category, new ArrayList<>(needBm25Ids));
+                    for (Object[] row : supplementBm25) {
+                        Long id = ((Number) row[0]).longValue();
+                        Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
+                        if (score != null) {
+                            bm25Results.put(id, score);
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("교차검색 BM25 보충 실패: {}", e.getMessage());
+                }
+            }
+        });
 
         // 5-6. Normalized Score Fusion (NSF) 계산 + 순위 계산 (한 번에 수행)
         // NSF: 각 검색 방법의 점수를 min-max 정규화 후 가중 합산
@@ -551,21 +564,22 @@ public class ArticleSearchService {
             rerankEndTime - rerankStartTime, nsfScores.size(),
             totalEndTime - totalStartTime);
 
-        // 8. 전체 NSF 결과에 대해 (id, publishedAt) 경량 조회
+        // 8. 전체 NSF 결과에 대해 (id, publishedAt) 경량 조회 — Phase B와 이어지는 짧은 트랜잭션
         // - deleted_at 검증 (동기화 지연으로 인한 stale 항목 제거)
         // - vector-only 항목의 publishedAt 보충 (BM25 쿼리에서 수집되지 않은 날짜)
-        List<Object[]> idAndDateRows = articleRepository.findIdAndPublishedAtByIdIn(
-                new ArrayList<>(nsfScores.keySet()));
-
         Set<Long> validArticleIds = new HashSet<>();
-        for (Object[] row : idAndDateRows) {
-            Long id = ((Number) row[0]).longValue();
-            validArticleIds.add(id);
-            LocalDateTime publishedAt = row.length > 1 && row[1] != null ? (LocalDateTime) row[1] : null;
-            if (publishedAt != null && !publishedAtMap.containsKey(id)) {
-                publishedAtMap.put(id, publishedAt);
+        readOnlyTx.executeWithoutResult(status -> {
+            List<Object[]> idAndDateRows = articleRepository.findIdAndPublishedAtByIdIn(
+                    new ArrayList<>(nsfScores.keySet()));
+            for (Object[] row : idAndDateRows) {
+                Long id = ((Number) row[0]).longValue();
+                validArticleIds.add(id);
+                LocalDateTime publishedAt = row.length > 1 && row[1] != null ? (LocalDateTime) row[1] : null;
+                if (publishedAt != null && !publishedAtMap.containsKey(id)) {
+                    publishedAtMap.put(id, publishedAt);
+                }
             }
-        }
+        });
 
         log.debug("NSF 결과 {}개 중 유효한 article: {}개", nsfScores.size(), validArticleIds.size());
 
@@ -711,6 +725,7 @@ public class ArticleSearchService {
      * @param pageable 페이징 정보
      * @return 검색된 Article 목록
      */
+    @Transactional(readOnly = true)
     public Page<Article> searchByTermWithSynonyms(String termString, Pageable pageable) {
         // 1. term 문자열로 Term 엔티티 찾기
         Optional<Term> termOpt = termRepository.findByTermAndTermType(termString, "NNG");
@@ -800,7 +815,6 @@ public class ArticleSearchService {
      * 검색 파라미터 전부를 캐시 키에 포함하므로 파라미터가 바뀌어도 안전하다.
      * admin 테스트 페이지 경로는 이 wrapper를 거치지 않고 비캐시 메서드를 직접 호출한다.
      */
-    @Transactional(readOnly = true)
     public HybridTopArticles getTopArticleIdsForRagCached(
             String bm25Keywords, String vectorQuery, List<Long> corporationIds,
             int limit, double vectorThreshold) {
@@ -838,7 +852,6 @@ public class ArticleSearchService {
      * @param limit           상위 아티클 수
      * @param vectorThreshold 벡터 유사도 임계값
      */
-    @Transactional(readOnly = true)
     public HybridTopArticles getTopArticleIdsForRag(
             String bm25Keywords, String vectorQuery, List<Long> corporationIds,
             int limit, double vectorThreshold) {
@@ -858,27 +871,31 @@ public class ArticleSearchService {
                         () -> vectorSearchService.searchForRag(vectorQuery, corporationIds, vectorThreshold),
                         searchExecutor);
 
+        // Phase A: BM25 쿼리만 짧게 트랜잭션으로 감싼다 — 뒤이은 vectorFuture.get() 대기 구간에는
+        // 커넥션을 물고 있지 않도록 여기서 트랜잭션을 닫는다
         Map<Long, Double> bm25Results = new HashMap<>();
-        List<Object[]> bm25Rows;
-        try {
-            bm25Rows = hasCorpFilter
-                    ? articleRepository.searchByBM25WithCorporations(bm25SearchQuery, corporationIds, 100)
-                    : articleRepository.searchByBM25(bm25SearchQuery, 100);
-        } catch (Exception e) {
-            log.error("RAG BM25 검색 실행 실패: {}", e.getMessage(), e);
-            bm25Rows = Collections.emptyList();
-        }
-        for (Object[] row : bm25Rows) {
-            Long id = ((Number) row[0]).longValue();
-            Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
-            if (score != null) bm25Results.put(id, score);
-        }
+        readOnlyTx.executeWithoutResult(status -> {
+            List<Object[]> bm25Rows;
+            try {
+                bm25Rows = hasCorpFilter
+                        ? articleRepository.searchByBM25WithCorporations(bm25SearchQuery, corporationIds, 100)
+                        : articleRepository.searchByBM25(bm25SearchQuery, 100);
+            } catch (Exception e) {
+                log.error("RAG BM25 검색 실행 실패: {}", e.getMessage(), e);
+                bm25Rows = Collections.emptyList();
+            }
+            for (Object[] row : bm25Rows) {
+                Long id = ((Number) row[0]).longValue();
+                Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
+                if (score != null) bm25Results.put(id, score);
+            }
+        });
 
         Map<Long, Double> vectorResults = new HashMap<>();
         float[] queryEmbedding = null;
         try {
             VectorSearchService.VectorSearchResult vsr = vectorFuture.get(5, TimeUnit.SECONDS);
-            vectorResults = new HashMap<>(vsr.getScores());
+            vectorResults.putAll(vsr.getScores());
             queryEmbedding = vsr.getQueryEmbedding();
         } catch (Exception e) {
             log.warn("RAG Vector 검색 실패: {}", e.getMessage());
@@ -889,40 +906,33 @@ public class ArticleSearchService {
         Set<Long> vectorOnlyIds = new HashSet<>(vectorResults.keySet());
         vectorOnlyIds.removeAll(bm25Results.keySet());
 
-        // cross-scoring: 대상 id들이 이미 corp 필터를 통과했으므로 필터 없는 보충 쿼리 재사용
-        // computeHybridCore와 동일하게 Vector 보충 ∥ BM25 보충을 병렬 실행 (실패 시 개별 warn 후 계속)
+        // Phase B: cross-scoring — 대상 id들이 이미 corp 필터를 통과했으므로 필터 없는 보충 쿼리 재사용.
+        // computeHybridCore와 동일한 이유로 Vector 보충 → BM25 보충을 순차 실행하되, Phase A와는
+        // 별개의 짧은 트랜잭션으로 재진입한다(Vector future 대기 구간에는 커넥션을 물지 않기 위해).
         final float[] cachedEmbedding = queryEmbedding;
 
-        CompletableFuture<Map<Long, Double>> vectorSupplementFuture = CompletableFuture.supplyAsync(() -> {
-            if (bm25OnlyIds.isEmpty() || cachedEmbedding == null) return Map.<Long, Double>of();
-            try {
-                return vectorSearchService.computeSimilarityForArticlesWithEmbedding(
-                        cachedEmbedding, new ArrayList<>(bm25OnlyIds), vectorThreshold);
-            } catch (Exception e) {
-                log.warn("RAG 교차검색 Vector 보충 실패: {}", e.getMessage());
-                return Map.<Long, Double>of();
+        readOnlyTx.executeWithoutResult(status -> {
+            if (!bm25OnlyIds.isEmpty() && cachedEmbedding != null) {
+                try {
+                    vectorResults.putAll(vectorSearchService.computeSimilarityForArticlesWithEmbedding(
+                            cachedEmbedding, new ArrayList<>(bm25OnlyIds), vectorThreshold));
+                } catch (Exception e) {
+                    log.warn("RAG 교차검색 Vector 보충 실패: {}", e.getMessage());
+                }
             }
-        }, searchExecutor);
 
-        CompletableFuture<List<Object[]>> bm25SupplementFuture = CompletableFuture.supplyAsync(() -> {
-            if (vectorOnlyIds.isEmpty()) return Collections.<Object[]>emptyList();
-            return computeBM25ScoreForArticles(bm25SearchQuery, null, null, new ArrayList<>(vectorOnlyIds));
-        }, searchExecutor);
-
-        try {
-            vectorResults.putAll(vectorSupplementFuture.get(5, TimeUnit.SECONDS));
-        } catch (Exception e) {
-            log.warn("RAG 교차검색 Vector 보충 결과 대기 실패: {}", e.getMessage());
-        }
-        try {
-            for (Object[] row : bm25SupplementFuture.get(5, TimeUnit.SECONDS)) {
-                Long id = ((Number) row[0]).longValue();
-                Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
-                if (score != null) bm25Results.put(id, score);
+            if (!vectorOnlyIds.isEmpty()) {
+                try {
+                    for (Object[] row : computeBM25ScoreForArticles(bm25SearchQuery, null, null, new ArrayList<>(vectorOnlyIds))) {
+                        Long id = ((Number) row[0]).longValue();
+                        Double score = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
+                        if (score != null) bm25Results.put(id, score);
+                    }
+                } catch (Exception e) {
+                    log.warn("RAG 교차검색 BM25 보충 실패: {}", e.getMessage());
+                }
             }
-        } catch (Exception e) {
-            log.warn("RAG 교차검색 BM25 보충 결과 대기 실패: {}", e.getMessage());
-        }
+        });
 
         HybridSearchScorer.NSFResult nsfResult = hybridSearchScorer.calculateNSFScores(
                 bm25Results, vectorResults, weights.bm25NsfWeight(), weights.vectorNsfWeight());
@@ -930,9 +940,11 @@ public class ArticleSearchService {
         if (nsfScores.isEmpty()) return new HybridTopArticles(List.of(), cachedEmbedding);
 
         Set<Long> validIds = new HashSet<>();
-        for (Object[] row : articleRepository.findIdAndPublishedAtByIdIn(new ArrayList<>(nsfScores.keySet()))) {
-            validIds.add(((Number) row[0]).longValue());
-        }
+        readOnlyTx.executeWithoutResult(status -> {
+            for (Object[] row : articleRepository.findIdAndPublishedAtByIdIn(new ArrayList<>(nsfScores.keySet()))) {
+                validIds.add(((Number) row[0]).longValue());
+            }
+        });
 
         List<Long> topIds = nsfScores.entrySet().stream()
                 .filter(e -> validIds.contains(e.getKey()))
@@ -950,6 +962,7 @@ public class ArticleSearchService {
      * @param pageable 페이징 정보
      * @return 검색된 Article 목록
      */
+    @Transactional(readOnly = true)
     public Page<Article> searchByTermsWithSynonyms(List<String> termStrings, Pageable pageable) {
         // 1. term 문자열들로 Term 엔티티 찾기
         List<Long> allTermIds = new ArrayList<>();
@@ -998,6 +1011,7 @@ public class ArticleSearchService {
      * If username is provided (logged in), use UserLikeService
      * Otherwise, use LikeService with IP address
      */
+    @Transactional(readOnly = true)
     public Map<Long, Boolean> getLikeStatusMap(List<Long> articleIds, String username, String ipAddress) {
         if (username != null && !username.trim().isEmpty()) {
             // Logged in user - use UserLikeService
@@ -1014,6 +1028,7 @@ public class ArticleSearchService {
      * @param keyword 검색 키워드
      * @return 유의어를 포함한 Term과 연결된 Article ID 목록
      */
+    @Transactional(readOnly = true)
     public List<Long> getArticleIdsByKeywordWithSynonyms(String keyword) {
         if (keyword == null || keyword.trim().isEmpty()) {
             return null;
