@@ -47,14 +47,16 @@ class AiSummaryServiceTest {
     @Mock private AiSummaryLogRepository aiSummaryLogRepository;
 
     private AiSummaryService aiSummaryService;
+    private SimpleMeterRegistry meterRegistry;
 
     @BeforeEach
     void setUp() {
+        meterRegistry = new SimpleMeterRegistry();
         AiSummaryService realService = new AiSummaryService(
                 vectorSearchService,
                 articleSearchService,
                 cacheManager,
-                new SimpleMeterRegistry(),
+                meterRegistry,
                 new ObjectMapper(),
                 aiSummaryLogRepository,
                 ObservationRegistry.create()
@@ -92,6 +94,14 @@ class AiSummaryServiceTest {
         verify(emitter).complete();
         // 캐시 저장 확인
         verify(cache).put(eq(cacheKey), any(AiSummaryCacheDto.class));
+
+        // 신규 메트릭 기록 확인 (모의 스트림 2개 청크 → chunk size 2건, gap 1건)
+        assertThat(meterRegistry.get("ai_summary_requests_total").tag("status", "success").counter().count()).isEqualTo(1.0);
+        assertThat(meterRegistry.get("ai_summary_latency_seconds").tag("status", "success").timer().count()).isEqualTo(1L);
+        assertThat(meterRegistry.get("ai_summary_gemini_ttfb_seconds").timer().count()).isEqualTo(1L);
+        assertThat(meterRegistry.get("ai_summary_gemini_duration_seconds").timer().count()).isEqualTo(1L);
+        assertThat(meterRegistry.get("ai_summary_gemini_chunk_size_bytes").summary().count()).isEqualTo(2L);
+        assertThat(meterRegistry.get("ai_summary_gemini_chunk_gap_seconds").timer().count()).isEqualTo(1L);
     }
 
     @Test
@@ -119,6 +129,11 @@ class AiSummaryServiceTest {
         // token + done 이벤트 전송 후 complete
         verify(emitter, atLeast(2)).send(any(SseEmitter.SseEventBuilder.class));
         verify(emitter).complete();
+
+        // 캐시 히트는 Gemini를 호출하지 않으므로 Gemini 전용 메트릭은 기록되지 않아야 함 (미리 등록만 돼 있어 count=0)
+        assertThat(meterRegistry.get("ai_summary_requests_total").tag("status", "cached").counter().count()).isEqualTo(1.0);
+        assertThat(meterRegistry.get("ai_summary_latency_seconds").tag("status", "cached").timer().count()).isEqualTo(1L);
+        assertThat(meterRegistry.get("ai_summary_gemini_ttfb_seconds").timer().count()).isZero();
     }
 
     @Test
@@ -143,6 +158,12 @@ class AiSummaryServiceTest {
         verify(emitter).complete();
         // 캐시 저장 미호출
         verify(cache, never()).put(anyString(), any());
+
+        // finally 블록은 타임아웃에도 실행되므로 duration은 기록되지만, 청크가 한 번도 도착하지 않아 TTFB는 미기록
+        assertThat(meterRegistry.get("ai_summary_requests_total").tag("status", "failure").counter().count()).isEqualTo(1.0);
+        assertThat(meterRegistry.get("ai_summary_latency_seconds").tag("status", "failure").timer().count()).isEqualTo(1L);
+        assertThat(meterRegistry.get("ai_summary_gemini_duration_seconds").timer().count()).isEqualTo(1L);
+        assertThat(meterRegistry.get("ai_summary_gemini_ttfb_seconds").timer().count()).isZero();
     }
 
     @Test
@@ -164,6 +185,28 @@ class AiSummaryServiceTest {
         verify(emitter).complete();
         // Gemini 미호출
         verify(aiSummaryService, never()).callGeminiStream(anyString());
+
+        // chunk 없음 경로도 failure latency는 기록되지만, Gemini를 호출하지 않았으므로 Gemini 전용 메트릭은 미기록
+        assertThat(meterRegistry.get("ai_summary_latency_seconds").tag("status", "failure").timer().count()).isEqualTo(1L);
+        assertThat(meterRegistry.get("ai_summary_gemini_duration_seconds").timer().count()).isZero();
+        assertThat(meterRegistry.get("ai_summary_gemini_ttfb_seconds").timer().count()).isZero();
+    }
+
+    @Test
+    @DisplayName("예상치 못한 예외: outer catch에서도 failure latency가 기록되어야 함")
+    void streamAiSummary_unexpectedException_recordsFailureLatency() throws Exception {
+        String query = "예외 발생 쿼리";
+
+        when(cacheManager.getCache("aiSummary")).thenReturn(cache);
+        when(cache.get(any(), eq(AiSummaryCacheDto.class))).thenReturn(null);
+        when(articleSearchService.getTopArticleIdsByHybrid(anyString(), anyInt()))
+                .thenThrow(new RuntimeException("예상치 못한 오류"));
+
+        aiSummaryService.streamAiSummary(query, emitter);
+
+        verify(emitter).complete();
+        assertThat(meterRegistry.get("ai_summary_requests_total").tag("status", "failure").counter().count()).isEqualTo(1.0);
+        assertThat(meterRegistry.get("ai_summary_latency_seconds").tag("status", "failure").timer().count()).isEqualTo(1L);
     }
 
     @Test
@@ -178,6 +221,10 @@ class AiSummaryServiceTest {
         verify(articleSearchService, never()).getTopArticleIdsByHybrid(anyString(), anyInt());
         verify(vectorSearchService, never()).getChunksForArticlesByIds(anyString(), anyList(), any());
         verify(aiSummaryService, never()).callGeminiStream(anyString());
+
+        // 빈 쿼리는 try 블록 진입 전에 반환되므로 Gemini 전용 메트릭 미기록
+        assertThat(meterRegistry.get("ai_summary_gemini_duration_seconds").timer().count()).isZero();
+        assertThat(meterRegistry.get("ai_summary_gemini_ttfb_seconds").timer().count()).isZero();
     }
 
     @Test
