@@ -25,3 +25,6 @@ notification-e2e*.png
 # 임시 분석 파일
 bm25_normalization_analysis.md
 bm25_score_analysis.sql
+
+# 부하테스트 계정별 설정 (커밋 금지)
+load-test/fargate/env

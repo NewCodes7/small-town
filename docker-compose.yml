@@ -91,11 +91,21 @@ services:
         max-file: "3"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    # command 오버라이드 시 이미지 기본 인자가 사라지므로 config/storage 경로 재명시.
+    # --web.enable-remote-write-receiver: k6 부하테스트 결과 수신용 (load-test/README.md)
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-remote-write-receiver
     restart: always
     networks:
       - app-network
     expose:
       - "9090"
+    # 부하테스트 기간에만 개방: Fargate k6가 remote-write로 접근하는 경로.
+    # 반드시 보안그룹/방화벽에서 소스 IP를 부하테스트 NAT EIP로만 제한할 것 (load-test/README.md)
+    ports:
+      - "9090:9090"
     extra_hosts:
       - "db-node-exporter:${DB_NODE_IP}"
 

@@ -1,0 +1,31 @@
+{
+  "family": "newcodes-loadtest",
+  "requiresCompatibilities": ["FARGATE"],
+  "networkMode": "awsvpc",
+  "cpu": "2048",
+  "memory": "4096",
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "k6",
+      "image": "<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/newcodes-k6-sse:latest",
+      "essential": true,
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/newcodes-loadtest",
+          "awslogs-region": "<REGION>",
+          "awslogs-stream-prefix": "k6",
+          "awslogs-create-group": "true"
+        }
+      },
+      "environment": [
+        { "name": "BASE_URL", "value": "https://newcodes.net" }
+      ]
+    }
+  ]
+}
