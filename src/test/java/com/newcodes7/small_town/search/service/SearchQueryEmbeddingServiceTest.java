@@ -3,18 +3,6 @@ package com.newcodes7.small_town.search.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-import java.util.Optional;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
 import com.newcodes7.small_town.embedding.dto.ModelEmbeddingResult;
 import com.newcodes7.small_town.embedding.service.EmbeddingApiService;
 import com.newcodes7.small_town.search.entity.SearchLog;
@@ -22,6 +10,16 @@ import com.newcodes7.small_town.search.entity.SearchQueryEmbedding;
 import com.newcodes7.small_town.search.repository.SearchLogRepository;
 import com.newcodes7.small_town.search.repository.SearchQueryEmbeddingRepository;
 import com.newcodes7.small_town.search.service.SearchQueryEmbeddingService.CachedEmbeddingResult;
+import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 public class SearchQueryEmbeddingServiceTest {
@@ -148,7 +146,7 @@ public class SearchQueryEmbeddingServiceTest {
                 .embedding(newEmbedding)
                 .success(true)
                 .build();
-        when(embeddingApiService.generateEmbedding("java", null)).thenReturn(embResult);
+        when(embeddingApiService.generateEmbedding("java", null, false)).thenReturn(embResult);
 
         // when
         CachedEmbeddingResult result = service.getEmbeddingWithCacheInfo("java", null);
@@ -160,6 +158,30 @@ public class SearchQueryEmbeddingServiceTest {
     }
 
     @Test
+    @DisplayName("getEmbeddingWithCacheInfo - mock 모드: mock 엔드포인트로 호출하고 DB upsert는 스킵")
+    void getEmbeddingWithCacheInfo_MockMode_CallsMockEndpointAndSkipsUpsert() throws Exception {
+        // given
+        float[] mockEmbedding = new float[]{0.7f, 0.8f, 0.9f};
+        when(repository.findByNormalizedKeyword("java")).thenReturn(Optional.empty());
+        ModelEmbeddingResult embResult = ModelEmbeddingResult.builder()
+                .embedding(mockEmbedding)
+                .success(true)
+                .build();
+        when(embeddingApiService.generateEmbedding("java", null, true)).thenReturn(embResult);
+
+        // when
+        CachedEmbeddingResult result = service.getEmbeddingWithCacheInfo("java", null, true);
+
+        // then
+        assertThat(result.isCacheHit()).isFalse();
+        assertThat(result.getEmbedding()).isEqualTo(mockEmbedding);
+        // 비동기 저장이 스케줄되지 않았는지 executor를 비운 뒤 확인 — mock 벡터가 실사용자 캐시(search_query_embedding)에 남으면 안 됨
+        searchExecutor.shutdown();
+        searchExecutor.awaitTermination(2, java.util.concurrent.TimeUnit.SECONDS);
+        verify(repository, never()).upsertEmbedding(anyString(), anyString(), anyString(), any());
+    }
+
+    @Test
     @DisplayName("getEmbeddingWithCacheInfo - 임베딩 생성 실패")
     void getEmbeddingWithCacheInfo_EmbeddingFailure() {
         // given
@@ -168,7 +190,7 @@ public class SearchQueryEmbeddingServiceTest {
                 .success(false)
                 .errorMessage("API error")
                 .build();
-        when(embeddingApiService.generateEmbedding("fail", null)).thenReturn(failResult);
+        when(embeddingApiService.generateEmbedding("fail", null, false)).thenReturn(failResult);
 
         // when
         CachedEmbeddingResult result = service.getEmbeddingWithCacheInfo("fail", null);

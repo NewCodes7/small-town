@@ -162,13 +162,20 @@ public class VectorSearchService {
      */
     @Observed(name = "search.vector", contextualName = "vector-search-rag")
     public VectorSearchResult searchForRag(String vectorQuery, List<Long> corporationIds, double threshold) {
+        return searchForRag(vectorQuery, corporationIds, threshold, false);
+    }
+
+    /** useMockEmbedding=true(부하테스트 경로)면 임베딩을 mock 엔드포인트로 생성한다 (DB 캐시 저장 안 함). */
+    @Observed(name = "search.vector", contextualName = "vector-search-rag")
+    public VectorSearchResult searchForRag(
+            String vectorQuery, List<Long> corporationIds, double threshold, boolean useMockEmbedding) {
         if (vectorQuery == null || vectorQuery.trim().isEmpty()) {
             return new VectorSearchResult(Map.of(), null);
         }
 
         try {
             SearchQueryEmbeddingService.CachedEmbeddingResult cachedEmbedding =
-                    searchQueryEmbeddingService.getEmbeddingWithCacheInfo(vectorQuery, null);
+                    searchQueryEmbeddingService.getEmbeddingWithCacheInfo(vectorQuery, null, useMockEmbedding);
             float[] queryEmbedding = cachedEmbedding.getEmbedding();
             if (queryEmbedding == null) {
                 log.warn("RAG 벡터 검색 임베딩 생성 실패: {}", vectorQuery);
@@ -601,11 +608,19 @@ public class VectorSearchService {
      */
     public List<AiSummaryChunkDto> getChunksForRagCached(
             String vectorQuery, List<Long> articleIds, float[] queryEmbedding, int chunksPerArticle) {
+        return getChunksForRagCached(vectorQuery, articleIds, queryEmbedding, chunksPerArticle, false);
+    }
+
+    /** useMockEmbedding=true(부하테스트 경로)면 캐시 키를 분리해 mock 기반 결과가 실사용자에게 서빙되지 않게 한다. */
+    public List<AiSummaryChunkDto> getChunksForRagCached(
+            String vectorQuery, List<Long> articleIds, float[] queryEmbedding, int chunksPerArticle,
+            boolean useMockEmbedding) {
         if (vectorQuery == null || vectorQuery.trim().isEmpty() || articleIds == null || articleIds.isEmpty()) {
             return List.of();
         }
         String idsKey = articleIds.stream().sorted().map(String::valueOf).collect(Collectors.joining(","));
-        String cacheKey = "rag:" + vectorQuery.toLowerCase().trim() + ":" + chunksPerArticle + ":" + idsKey;
+        String cacheKey = (useMockEmbedding ? "rag:mock:" : "rag:")
+                + vectorQuery.toLowerCase().trim() + ":" + chunksPerArticle + ":" + idsKey;
         Cache cache = cacheManager.getCache(CHUNK_CACHE_NAME);
         if (cache != null) {
             Cache.ValueWrapper wrapper = cache.get(cacheKey);
@@ -619,7 +634,8 @@ public class VectorSearchService {
             }
         }
 
-        List<AiSummaryChunkDto> chunks = getChunksForRag(vectorQuery, articleIds, queryEmbedding, chunksPerArticle);
+        List<AiSummaryChunkDto> chunks =
+                getChunksForRag(vectorQuery, articleIds, queryEmbedding, chunksPerArticle, useMockEmbedding);
         if (cache != null && !chunks.isEmpty()) {
             cache.put(cacheKey, chunks);
         }
@@ -633,12 +649,21 @@ public class VectorSearchService {
      */
     public List<AiSummaryChunkDto> getChunksForRag(
             String vectorQuery, List<Long> articleIds, float[] queryEmbedding, int chunksPerArticle) {
+        return getChunksForRag(vectorQuery, articleIds, queryEmbedding, chunksPerArticle, false);
+    }
+
+    /** useMockEmbedding=true(부하테스트 경로)면 null-embedding fallback도 mock 엔드포인트로 생성한다. */
+    public List<AiSummaryChunkDto> getChunksForRag(
+            String vectorQuery, List<Long> articleIds, float[] queryEmbedding, int chunksPerArticle,
+            boolean useMockEmbedding) {
         if (vectorQuery == null || vectorQuery.trim().isEmpty() || articleIds == null || articleIds.isEmpty()) {
             return List.of();
         }
         try {
             if (queryEmbedding == null) {
-                queryEmbedding = searchQueryEmbeddingService.getOrCreateEmbedding(vectorQuery);
+                queryEmbedding = searchQueryEmbeddingService
+                        .getEmbeddingWithCacheInfo(vectorQuery, null, useMockEmbedding)
+                        .getEmbedding();
             }
             if (queryEmbedding == null) {
                 log.warn("RAG chunk 조회 임베딩 생성 실패: {}", vectorQuery);

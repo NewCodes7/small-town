@@ -41,6 +41,11 @@ services:
       - MAIL_USERNAME=${MY_EMAIL}
       - MAIL_PASSWORD=${MY_EMAIL_PASSWORD}
       - FEEDBACK_NOTIFICATION_EMAIL=${FEEDBACK_NOTIFICATION_EMAIL}
+      # RAG 부하테스트 mock (load-test/README.md) — enabled는 테스트 창에만 true로. endpoint 기본값은
+      # compose 서비스 llm-mock(profiles: loadtest) — 빈 문자열 주입 트랩 방지 위해 기본값 필수
+      - RAG_CHAT_LOADTEST_ENABLED=${RAG_CHAT_LOADTEST_ENABLED:-false}
+      - RAG_LOADTEST_BEDROCK_ENDPOINT=${RAG_LOADTEST_BEDROCK_ENDPOINT:-http://llm-mock:9099}
+      - CLOVA_LOADTEST_ENDPOINT=${CLOVA_LOADTEST_ENDPOINT:-http://llm-mock:9099/v1/api-tools/embedding/v2}
     expose:
       - "8080"
     healthcheck:
@@ -80,6 +85,32 @@ services:
     profiles:
       - green
     init: true
+
+  # 부하테스트용 LLM API mock (Bedrock Converse/ConverseStream + Clova Embedding) — load-test/mock/
+  # 평시 미기동(profiles: loadtest). 기동: docker compose --profile loadtest up -d llm-mock
+  llm-mock:
+    build:
+      context: ./load-test/mock
+    container_name: llm-mock
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+    # 지연/장애 주입 env는 필요 시 여기에 추가 (MOCK_TTFT_MEDIAN_MS 등 — load-test/README.md)
+    expose:
+      - "9099"   # 호스트 포트 미공개 — app-network 내부(backend)에서만 접근
+    healthcheck:
+      # JRE 이미지에 curl/wget이 없어 bash /dev/tcp로 포트 오픈만 확인
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/9099"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - app-network
+    profiles:
+      - loadtest
 
   prometheus:
     image: prom/prometheus:v2.37.4

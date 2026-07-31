@@ -42,6 +42,17 @@ public class RagModelProperties {
          * global. 프로파일이 없는 모델(US geo 프로파일, In-Region 전용)에 지정하고, null이면 기본 리전 사용.
          */
         private String region;
+        /**
+         * BEDROCK 전용 — 부하테스트 mock server 등 실 AWS 대신 호출할 엔드포인트 URL.
+         * 설정 시 BedrockClientFactory가 endpointOverride로 적용한다.
+         */
+        private String endpoint;
+        /** true면 admin 테스트 페이지 모델 드롭다운에서 숨긴다 (부하테스트 mock 전용 모델). */
+        private boolean hidden = false;
+
+        public boolean hasEndpointOverride() {
+            return endpoint != null && !endpoint.isBlank();
+        }
     }
 
     public ModelOption getDefaultModel() {
@@ -53,5 +64,10 @@ public class RagModelProperties {
 
     public Optional<ModelOption> findById(String id) {
         return models.stream().filter(m -> m.getId().equals(id)).findFirst();
+    }
+
+    /** admin 테스트 페이지 노출용 — 부하테스트 mock 등 hidden 모델은 제외한다. */
+    public List<ModelOption> visibleModels() {
+        return models.stream().filter(m -> !m.isHidden()).toList();
     }
 }

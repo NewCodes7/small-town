@@ -17,6 +17,8 @@ export const CONFIG = {
   duration: __ENV.DURATION || '5m',
   vus: num(__ENV.VUS, 5), // vus 계열의 동시 VU 수
   mode: __ENV.MODE || '', // rag-answer 등 시나리오별 모드 스위치
+  // RAG 엔드포인트 — LLM mock 경유 테스트는 RAG_PATH=/api/rag/answer/loadtest 지정 (README "LLM Mock 모드")
+  ragPath: __ENV.RAG_PATH || '/api/rag/answer',
   target: __ENV.TARGET || '', // ramp-limit-finder 대상 전환
   zipfS: numf(__ENV.ZIPF_S, 1.1),
   testRunId: __ENV.TEST_RUN_ID || `local-${Date.now()}`,

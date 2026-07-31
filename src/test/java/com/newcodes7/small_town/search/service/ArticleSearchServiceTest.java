@@ -636,7 +636,7 @@ class ArticleSearchServiceTest {
 
         // corp 필터 + threshold 벡터 검색 결과
         float[] dummyEmbedding = new float[]{0.1f, 0.2f};
-        when(vectorSearchService.searchForRag(vectorQuery, corporationIds, 0.6))
+        when(vectorSearchService.searchForRag(vectorQuery, corporationIds, 0.6, false))
                 .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(20L, 0.8), dummyEmbedding));
 
         // cross-scoring (빈 결과)
@@ -665,7 +665,7 @@ class ArticleSearchServiceTest {
         assertThat(result.queryEmbedding()).isEqualTo(dummyEmbedding);
         verify(articleRepository).searchByBM25WithCorporations(bm25Query, corporationIds, 100);
         verify(articleRepository, never()).searchByBM25(anyString(), anyInt());
-        verify(vectorSearchService).searchForRag(vectorQuery, corporationIds, 0.6);
+        verify(vectorSearchService).searchForRag(vectorQuery, corporationIds, 0.6, false);
     }
 
     @Test
@@ -687,7 +687,7 @@ class ArticleSearchServiceTest {
 
         when(articleRepository.searchByBM25(bm25Query, 100))
                 .thenReturn(List.<Object[]>of(new Object[]{10L, 10.0, LocalDateTime.of(2024, 1, 1, 0, 0)}));
-        when(vectorSearchService.searchForRag(vectorQuery, List.of(), 0.6))
+        when(vectorSearchService.searchForRag(vectorQuery, List.of(), 0.6, false))
                 .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), null));
 
         Map<Long, Double> nsfScores = Map.of(10L, 0.9);

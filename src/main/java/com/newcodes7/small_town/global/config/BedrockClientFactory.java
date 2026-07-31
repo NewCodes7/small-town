@@ -1,6 +1,7 @@
 package com.newcodes7.small_town.global.config;
 
 import jakarta.annotation.PreDestroy;
+import java.net.URI;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -9,6 +10,8 @@ import org.springframework.stereotype.Component;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.http.Protocol;
+import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
@@ -48,23 +51,56 @@ public class BedrockClientFactory {
     }
 
     public BedrockRuntimeClient sync(String region) {
-        return syncClients.computeIfAbsent(region, r -> BedrockRuntimeClient.builder()
-                .region(Region.of(r))
-                .credentialsProvider(credentials())
-                .overrideConfiguration(ClientOverrideConfiguration.builder()
-                        .apiCallTimeout(SYNC_API_CALL_TIMEOUT)
-                        .build())
-                .build());
+        return sync(region, null);
     }
 
     public BedrockRuntimeAsyncClient async(String region) {
-        return asyncClients.computeIfAbsent(region, r -> BedrockRuntimeAsyncClient.builder()
-                .region(Region.of(r))
-                .credentialsProvider(credentials())
-                .overrideConfiguration(ClientOverrideConfiguration.builder()
-                        .apiCallTimeout(ASYNC_API_CALL_TIMEOUT)
-                        .build())
-                .build());
+        return async(region, null);
+    }
+
+    /**
+     * endpointOverride가 있으면 실 AWS 대신 해당 URL(부하테스트 mock server)로 호출한다.
+     * null/blank면 기존과 동일하게 리전 기본 엔드포인트를 쓴다.
+     */
+    public BedrockRuntimeClient sync(String region, String endpointOverride) {
+        return syncClients.computeIfAbsent(cacheKey(region, endpointOverride), key -> {
+            var builder = BedrockRuntimeClient.builder()
+                    .region(Region.of(region))
+                    .credentialsProvider(credentials())
+                    .overrideConfiguration(ClientOverrideConfiguration.builder()
+                            .apiCallTimeout(SYNC_API_CALL_TIMEOUT)
+                            .build());
+            if (hasText(endpointOverride)) {
+                builder.endpointOverride(URI.create(endpointOverride));
+            }
+            return builder.build();
+        });
+    }
+
+    public BedrockRuntimeAsyncClient async(String region, String endpointOverride) {
+        return asyncClients.computeIfAbsent(cacheKey(region, endpointOverride), key -> {
+            var builder = BedrockRuntimeAsyncClient.builder()
+                    .region(Region.of(region))
+                    .credentialsProvider(credentials())
+                    .overrideConfiguration(ClientOverrideConfiguration.builder()
+                            .apiCallTimeout(ASYNC_API_CALL_TIMEOUT)
+                            .build());
+            if (hasText(endpointOverride)) {
+                // mock server(JDK HttpServer)는 h2 미지원 — SDK 기본 HTTP/2 대신 HTTP/1.1로 강제.
+                // 실 AWS 경로(endpointOverride 없음)는 기존 h2 그대로 유지된다.
+                builder.endpointOverride(URI.create(endpointOverride))
+                        .httpClientBuilder(NettyNioAsyncHttpClient.builder().protocol(Protocol.HTTP1_1));
+            }
+            return builder.build();
+        });
+    }
+
+    private String cacheKey(String region, String endpointOverride) {
+        return region + "|" + (hasText(endpointOverride) ? endpointOverride : "");
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private StaticCredentialsProvider credentials() {

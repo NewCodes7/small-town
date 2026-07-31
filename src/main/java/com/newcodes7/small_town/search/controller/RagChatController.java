@@ -6,11 +6,15 @@ import com.newcodes7.small_town.search.config.RagModelProperties;
 import com.newcodes7.small_town.search.dto.RagChatRequestDto;
 import com.newcodes7.small_town.search.repository.RagQueryLogRepository;
 import com.newcodes7.small_town.search.service.RagAnswerService;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Arrays;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -43,12 +47,27 @@ public class RagChatController {
     private static final double THRESHOLD = 0.6;
     // 전처리(sync, 30s) + 답변 생성(async, 90s) 순차 호출 worst case(BedrockClientFactory) + 여유
     private static final long SSE_TIMEOUT_MS = 150_000L;
-    // nginx는 분당 rate limit만 처리(정수 r/m 제약으로 시간당 30회를 표현 못 함) — 시간당 한도는 여기서 카운트
-    private static final int HOURLY_LIMIT_PER_IP = 30;
-
     // 전처리(쿼리 분해 JSON 추출) 전용 경량 모델 — 답변 모델과 분리해 TTFT 단축. 미설정/미등록이면 답변 모델 사용.
     @Value("${rag.chat.preprocess-model-id:}")
     private String preprocessModelId;
+
+    // nginx는 분당 rate limit만 처리(정수 r/m 제약으로 시간당 30회를 표현 못 함) — 시간당 한도는 여기서 카운트
+    @Value("${rag.chat.hourly-limit-per-ip:30}")
+    private int hourlyLimitPerIp;
+
+    // 부하테스트(Fargate) 전용 IP 예외 — nginx default.conf의 $loadtest_bypass geo 블록과 같은 IP를 넣어야 함
+    // 다른 IP(실사용자)의 시간당 한도는 그대로 유지됨
+    @Value("${rag.chat.rate-limit-exempt-ips:}")
+    private String rateLimitExemptIpsRaw;
+    private Set<String> rateLimitExemptIps;
+
+    @PostConstruct
+    void initRateLimitExemptIps() {
+        rateLimitExemptIps = Arrays.stream(rateLimitExemptIpsRaw.split(","))
+                .map(String::trim)
+                .filter(ip -> !ip.isEmpty())
+                .collect(Collectors.toSet());
+    }
 
     private final RagAnswerService ragAnswerService;
     private final RagModelProperties ragModelProperties;
@@ -70,7 +89,8 @@ public class RagChatController {
         Long userId = resolveUserId(userDetails);
 
         LocalDateTime hourAgo = LocalDateTime.now(ZoneId.of("Asia/Seoul")).minusHours(1);
-        if (ragQueryLogRepository.countByIpAddressAndCreatedAtAfter(ipAddress, hourAgo) >= HOURLY_LIMIT_PER_IP) {
+        boolean exempt = rateLimitExemptIps.contains(ipAddress);
+        if (!exempt && ragQueryLogRepository.countByIpAddressAndCreatedAtAfter(ipAddress, hourAgo) >= hourlyLimitPerIp) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "시간당 요청 한도를 초과했습니다");
         }
 

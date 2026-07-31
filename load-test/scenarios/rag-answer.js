@@ -1,10 +1,12 @@
 // RAG 챗봇 SSE 부하테스트 (핵심 시나리오).
 //
-// ⚠️ 비용 경고: cache-miss/multi-turn 모드는 요청마다 실제 LLM(Bedrock) 호출을 발생시킨다.
-//    VU 수 × 실행 시간에 비례해 과금되므로 파라미터를 확인하고 실행할 것.
-// ⚠️ 전제: nginx 10r/m + 앱 30회/시간 rate limit이 있어 면제 IP 등록 필수
+// ⚠️ 비용 경고: 기본 경로(/api/rag/answer)의 cache-miss/multi-turn 모드는 요청마다 실제
+//    LLM(Bedrock)+Clova 호출을 발생시킨다. VU 수 × 실행 시간에 비례해 과금되므로 확인 후 실행할 것.
+//    → 과금 없이 돌리려면 RAG_PATH=/api/rag/answer/loadtest (LLM mock 경유 — README "LLM Mock 모드").
+// ⚠️ 전제(실경로): nginx 10r/m + 앱 30회/시간 rate limit이 있어 면제 IP 등록 필수
 //    (nginx geo $loadtest_bypass + rag.chat.rate-limit-exempt-ips — README 참고).
 //    로컬은 백엔드 직결 + RAG_CHAT_RATELIMITEXEMPTIPS=127.0.0.1 로 기동.
+//    mock 경로는 앱 rate limit이 없다 — 단 nginx 경유 시 geo IP 등록은 여전히 필요(403).
 //
 // SSE는 스트림 점유 시간이 길어 arrival-rate보다 "동시 스트림 수"(constant-vus) 통제가
 // 실험적으로 깨끗하다. VU당 iteration = SSE 1회(블로킹).
@@ -35,7 +37,11 @@ export const options = {
       duration: __ENV.DURATION || '10m',
     },
   },
-  tags: Object.assign({ mode: MODE }, COMMON_TAGS),
+  // target: 결과 대시보드에서 실 LLM(real)/mock 실행을 구분하는 라벨
+  tags: Object.assign(
+    { mode: MODE, target: CONFIG.ragPath === '/api/rag/answer' ? 'real' : 'mock' },
+    COMMON_TAGS,
+  ),
   summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(50)', 'p(95)', 'p(99)'],
   thresholds: merge(
     sla120('sse_first_token', 'RAG_BASE_FIRST_TOKEN_MS', 3000),
@@ -48,7 +54,7 @@ export const options = {
 };
 
 function ask(question, conversationId, extraTags) {
-  return sseRequest(`${CONFIG.baseUrl}/api/rag/answer`, {
+  return sseRequest(`${CONFIG.baseUrl}${CONFIG.ragPath}`, {
     method: 'POST',
     body: JSON.stringify({ question, conversationId }),
     headers: { 'Content-Type': 'application/json' },

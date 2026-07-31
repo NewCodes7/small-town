@@ -6,9 +6,74 @@ RAG 검색(SSE) 중심 부하테스트. 설계 배경은 [`docs/testing/LOAD_TES
 - **도구**: k6 + [xk6-sse](https://github.com/phymbert/xk6-sse) 커스텀 빌드 (k6 v1.2.1 + xk6-sse v0.1.12 핀 고정)
 - **결과 저장**: `--out experimental-prometheus-rw` → 기존 Prometheus/Grafana
 
-> ⚠️ **LLM 과금 경고**: `rag-answer.js`의 cache-miss/multi-turn 모드는 요청마다 실제 Bedrock 호출이 발생한다. VU 수 × 실행 시간 확인 후 실행할 것.
+> ⚠️ **LLM 과금 경고**: `rag-answer.js`를 **기본 경로**(`/api/rag/answer`)로 실행하면 cache-miss/multi-turn 모드에서 요청마다 실제 Bedrock 2회(전처리+답변) + Clova 1회 호출이 발생한다. 반복 실행은 아래 **LLM Mock 모드**로 돌릴 것.
 >
 > ⚠️ **실행 창 주의**: 02:00/02:30 크롤링, 매시 :30 컨텐츠 추출·HN 크롤링 스케줄러, blue/green 배포와 겹치지 않는 시간대에 실행한다.
+
+## LLM Mock 모드 (과금 없는 RAG 부하테스트)
+
+`load-test/mock/`의 mock server가 Bedrock Converse/ConverseStream(AWS eventstream wire 포맷 그대로)과 Clova Embedding v2를 재현한다. 백엔드는 운영과 동일한 `BedrockRagLlmClient`(netty async)·`EmbeddingApiService` 코드 경로로 호출하므로 계측 정합성이 유지된다 (차이는 mock 구간의 HTTP/1.1 전송뿐 — JDK HttpServer가 h2 미지원).
+
+**실사용자 요청과의 구분**: mock은 전용 엔드포인트 `POST /api/rag/answer/loadtest`로만 탄다. 실사용자 경로(`/api/rag/answer`)는 코드·과금·캐시 모두 무변경이며, mock 요청은 `rag_query_log`에 `model LIKE 'mock.%'`로 기록되고 응답 캐시도 `rag-answer:lt:` 키로 격리된다.
+
+### 기동 절차
+
+```bash
+# 1. mock server 기동 (평시 미기동 — compose profile)
+docker compose --profile loadtest up -d --build llm-mock
+
+# 2. 백엔드에 게이트 활성화 env 주입 후 재기동/배포
+#    (endpoint 2개는 compose 기본값이 llm-mock을 가리키므로 enabled만 켜면 됨)
+RAG_CHAT_LOADTEST_ENABLED=true
+
+# 3. k6 실행 — RAG_PATH로 mock 엔드포인트 지정
+RAG_PATH=/api/rag/answer/loadtest ./scripts/run-local.sh rag-answer -e VUS=5 -e DURATION=5m
+```
+
+로컬 개발(bootRun)에서는:
+
+```bash
+RAG_CHAT_LOADTEST_ENABLED=true \
+RAG_LOADTEST_BEDROCK_ENDPOINT=http://localhost:9099 \
+CLOVA_LOADTEST_ENDPOINT=http://localhost:9099/v1/api-tools/embedding/v2 ./gradlew bootRun
+```
+
+### 접근 통제 (3중)
+
+1. **앱 게이트**: `rag.chat.loadtest.enabled`(env `RAG_CHAT_LOADTEST_ENABLED`) 기본 false → 비활성 시 404
+2. **nginx**: `location = /api/rag/answer/loadtest`는 `geo $loadtest_bypass` 등록 IP만 통과, 그 외 403
+3. **오설정 차단**: mock 모델에 endpoint가 비어 있으면 503 (실 Bedrock 과금 호출로 새는 것 방지)
+
+mock 경로는 앱 시간당 rate limit이 없으므로 `rag.chat.rate-limit-exempt-ips` 등록이 불필요하다. 단 nginx 경유 시 geo IP 등록은 여전히 필요하다.
+
+### 지연·장애 주입 env (compose의 llm-mock 서비스에 추가)
+
+| env | 기본값 | 의미 |
+|---|---|---|
+| `MOCK_PREPROCESS_MEDIAN_MS` / `MOCK_PREPROCESS_SIGMA` | 800 / 0.4 | 전처리 Converse 지연 lognormal(median, sigma) |
+| `MOCK_TTFT_MEDIAN_MS` / `MOCK_TTFT_SIGMA` | 1500 / 0.5 | 답변 스트림 첫 토큰까지 지연 |
+| `MOCK_TOKEN_INTERVAL_MS` / `MOCK_TOKEN_JITTER_MS` | 30 / 20 | 토큰 간 간격 + 지터 |
+| `MOCK_ANSWER_TOKENS` | 350 | 답변 delta 이벤트 수 |
+| `MOCK_EMBED_MEDIAN_MS` / `MOCK_EMBED_SIGMA` | 150 / 0.3 | Clova 임베딩 지연 |
+| `MOCK_ERROR_RATE` | 0 | 0~1 확률로 429 ThrottlingException 주입 (circuit breaker 실험) |
+| `MOCK_SLOW_RATE` / `MOCK_SLOW_EXTRA_MS` | 0 / 60000 | slow-call 주입 (전처리/TTFT에 가산) |
+
+지연 기본값은 실측 캘리브레이션 전 추정치다. 갱신하려면 실 경로로 저부하 스모크(`RATE=1`)를 돌려 Grafana의 `rag.llm-stream` first-token/duration 분포를 읽고 median/sigma를 맞춘다. 기본값 합이 Bedrock async 타임아웃 예산(80s)을 넘으면 mock이 기동 시 fail-fast 한다.
+
+### mock 수정 시 검증
+
+eventstream 프레이밍(CRC/헤더)은 실 SDK 언마샬러로만 검증 가능하다 — mock 코드를 고치면 반드시:
+
+```bash
+# mock 기동 후
+MOCK_LLM_URL=http://localhost:9099 ./gradlew test --tests "*BedrockMockServerSdkIT*"
+```
+
+### 종료 후 체크리스트 (mock 모드)
+
+- [ ] `RAG_CHAT_LOADTEST_ENABLED` env 제거 후 재배포 (게이트 원복 — 404 확인)
+- [ ] `docker compose --profile loadtest down llm-mock` (또 쓸 예정이면 유지해도 무방 — 게이트가 닫히면 접근 불가)
+- [ ] mock 로그 정리: `DELETE FROM rag_query_log WHERE model LIKE 'mock.%';`
 
 ## 빠른 시작 (로컬)
 
@@ -46,7 +111,7 @@ RAG_CHAT_RATELIMITEXEMPTIPS=127.0.0.1 ./gradlew bootRun
 | `baseline.js` | 일반 조회 대조군 (articles 60% / popular 20% / home-latest 20%) | constant-arrival-rate | `RATE=10`, `DURATION=5m` |
 | `search-hybrid.js` | 하이브리드 검색 **SLA 판정 메인** | constant-arrival-rate | `RATE=10`, `DURATION=5m`, `SEARCH_BASE_P95_MS` |
 | `autocomplete.js` | 짧은 요청 대량 처리 (iteration=타이핑 세션) | constant-arrival-rate | `RATE=20`, `DURATION=3m` |
-| `rag-answer.js` | **RAG SSE** — TTFB/첫 token/스트림완료 분리 측정 | constant-vus | `VUS=5`, `DURATION=10m`, `MODE=cache-miss\|cache-hit\|multi-turn` |
+| `rag-answer.js` | **RAG SSE** — TTFB/첫 token/스트림완료 분리 측정 | constant-vus | `VUS=5`, `DURATION=10m`, `MODE=cache-miss\|cache-hit\|multi-turn`, `RAG_PATH`(mock 모드) |
 | `ramp-limit-finder.js` | 동시성 10/20/50/100 단계별 한계점 곡선 | constant-vus ×4 (startTime 직렬) | `TARGET=search\|baseline` |
 | `spike.js` | 순간 폭증(2→50 RPS) + 회복 관찰 | ramping-arrival-rate | — |
 | `soak.js` | 장시간 혼합 부하 — 누수 탐지 | 혼합 (arrival ×2 + vus) | `SOAK_DURATION=1h` |

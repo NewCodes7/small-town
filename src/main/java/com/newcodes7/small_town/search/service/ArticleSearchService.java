@@ -818,11 +818,18 @@ public class ArticleSearchService {
     public HybridTopArticles getTopArticleIdsForRagCached(
             String bm25Keywords, String vectorQuery, List<Long> corporationIds,
             int limit, double vectorThreshold) {
+        return getTopArticleIdsForRagCached(bm25Keywords, vectorQuery, corporationIds, limit, vectorThreshold, false);
+    }
+
+    /** useMockEmbedding=true(부하테스트 경로)면 캐시 키를 분리해 mock 기반 결과가 실사용자에게 서빙되지 않게 한다. */
+    public HybridTopArticles getTopArticleIdsForRagCached(
+            String bm25Keywords, String vectorQuery, List<Long> corporationIds,
+            int limit, double vectorThreshold, boolean useMockEmbedding) {
         String corpKey = (corporationIds == null || corporationIds.isEmpty())
                 ? ""
                 : corporationIds.stream().sorted().map(String::valueOf).collect(Collectors.joining(","));
         String cacheKey = normalizeRagCacheKeyPart(bm25Keywords) + "|" + normalizeRagCacheKeyPart(vectorQuery)
-                + "|" + corpKey + "|" + limit + "|" + vectorThreshold;
+                + "|" + corpKey + "|" + limit + "|" + vectorThreshold + (useMockEmbedding ? "|mock" : "");
         Cache cache = cacheManager != null ? cacheManager.getCache(RAG_TOP_ARTICLES_CACHE_NAME) : null;
         if (cache != null) {
             HybridTopArticles cached = cache.get(cacheKey, HybridTopArticles.class);
@@ -830,7 +837,7 @@ public class ArticleSearchService {
         }
 
         HybridTopArticles result = getTopArticleIdsForRag(
-                bm25Keywords, vectorQuery, corporationIds, limit, vectorThreshold);
+                bm25Keywords, vectorQuery, corporationIds, limit, vectorThreshold, useMockEmbedding);
         if (cache != null && !result.articleIds().isEmpty()) {
             cache.put(cacheKey, result);
         }
@@ -855,6 +862,13 @@ public class ArticleSearchService {
     public HybridTopArticles getTopArticleIdsForRag(
             String bm25Keywords, String vectorQuery, List<Long> corporationIds,
             int limit, double vectorThreshold) {
+        return getTopArticleIdsForRag(bm25Keywords, vectorQuery, corporationIds, limit, vectorThreshold, false);
+    }
+
+    /** useMockEmbedding=true(부하테스트 경로)면 벡터 검색 임베딩을 mock 엔드포인트로 생성한다. */
+    public HybridTopArticles getTopArticleIdsForRag(
+            String bm25Keywords, String vectorQuery, List<Long> corporationIds,
+            int limit, double vectorThreshold, boolean useMockEmbedding) {
         if (bm25Keywords == null || bm25Keywords.trim().isEmpty()) return HybridTopArticles.empty();
 
         SemanticTermExpansionService.QueryComplexity complexity =
@@ -868,7 +882,8 @@ public class ArticleSearchService {
 
         CompletableFuture<VectorSearchService.VectorSearchResult> vectorFuture =
                 CompletableFuture.supplyAsync(
-                        () -> vectorSearchService.searchForRag(vectorQuery, corporationIds, vectorThreshold),
+                        () -> vectorSearchService.searchForRag(
+                                vectorQuery, corporationIds, vectorThreshold, useMockEmbedding),
                         searchExecutor);
 
         // Phase A: BM25 쿼리만 짧게 트랜잭션으로 감싼다 — 뒤이은 vectorFuture.get() 대기 구간에는

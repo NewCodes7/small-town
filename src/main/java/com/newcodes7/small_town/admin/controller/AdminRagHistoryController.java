@@ -63,7 +63,7 @@ public class AdminRagHistoryController {
         uiModel.addAttribute("corporationId", corporationId);
         uiModel.addAttribute("outcomes", RagQueryLog.Outcome.values());
         uiModel.addAttribute("corporations", corporationRepository.findAllByDeletedAtIsNullOrderByNameAsc());
-        uiModel.addAttribute("ragModels", ragModelProperties.getModels());
+        uiModel.addAttribute("ragModels", ragModelProperties.visibleModels());
         uiModel.addAttribute("totalCount", adminRagHistoryService.getTotalCount());
         uiModel.addAttribute("todayCount", adminRagHistoryService.getTodayCount());
         uiModel.addAttribute("todayErrorCount", adminRagHistoryService.getTodayErrorCount());

@@ -2,6 +2,7 @@ package com.newcodes7.small_town.search.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -24,6 +25,7 @@ import com.newcodes7.small_town.search.llm.RagLlmClientResolver;
 import com.newcodes7.small_town.search.llm.RagLlmException;
 import com.newcodes7.small_town.search.repository.RagQueryLogRepository;
 import com.newcodes7.small_town.search.service.RagQueryPreprocessService.RagPreprocessResult;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
 import java.util.List;
 import java.util.function.Consumer;
@@ -53,9 +55,11 @@ class RagAnswerServiceTest {
     @Mock private SseEmitter emitter;
 
     private RagAnswerService ragAnswerService;
+    private SimpleMeterRegistry meterRegistry;
 
     @BeforeEach
     void setUp() {
+        meterRegistry = new SimpleMeterRegistry();
         ragAnswerService = new RagAnswerService(
                 preprocessService,
                 articleSearchService,
@@ -64,8 +68,10 @@ class RagAnswerServiceTest {
                 ragQueryLogRepository,
                 new ObjectMapper(),
                 llmClientResolver,
-                ObservationRegistry.NOOP
+                ObservationRegistry.NOOP,
+                meterRegistry
         );
+        ragAnswerService.init();
     }
 
     private ModelOption geminiModel() {
@@ -99,13 +105,16 @@ class RagAnswerServiceTest {
         verify(emitter, times(2)).send(any(SseEmitter.SseEventBuilder.class));
         verify(emitter).complete();
         verify(articleSearchService, never())
-                .getTopArticleIdsForRag(anyString(), anyString(), anyList(), anyInt(), anyDouble());
+                .getTopArticleIdsForRag(anyString(), anyString(), anyList(), anyInt(), anyDouble(), anyBoolean());
         verify(llmClient, never()).generateStream(anyString(), anyString(), anyString(), any(), any());
 
         RagQueryLog log = capturedLog();
         assertThat(log.getOutcome()).isEqualTo(RagQueryLog.Outcome.NO_CORP);
         assertThat(log.getExtractedCorporations()).isEqualTo("존재하지않는회사");
         assertThat(log.getModel()).isEqualTo("gemini-3.5-flash");
+
+        assertThat(meterRegistry.get("rag_answer_requests_total").tag("status", "not_found").counter().count()).isEqualTo(1.0);
+        assertThat(meterRegistry.get("rag_answer_latency_seconds").tag("status", "not_found").timer().count()).isEqualTo(1L);
     }
 
     @Test
@@ -113,7 +122,7 @@ class RagAnswerServiceTest {
     void streamAnswer_noRetrievalResults() throws Exception {
         when(preprocessService.preprocess(anyString(), anyString(), any()))
                 .thenReturn(preprocessResult(List.of(), List.of(), List.of()));
-        when(articleSearchService.getTopArticleIdsForRag(anyString(), anyString(), anyList(), anyInt(), anyDouble()))
+        when(articleSearchService.getTopArticleIdsForRag(anyString(), anyString(), anyList(), anyInt(), anyDouble(), anyBoolean()))
                 .thenReturn(ArticleSearchService.HybridTopArticles.empty());
 
         ragAnswerService.streamAnswer("사내 미보유 기술 사례", 5, 3, 0.6, geminiModel(), emitter);
@@ -126,6 +135,9 @@ class RagAnswerServiceTest {
         RagQueryLog log = capturedLog();
         assertThat(log.getOutcome()).isEqualTo(RagQueryLog.Outcome.NO_RESULT);
         assertThat(log.getArticleCount()).isZero();
+
+        assertThat(meterRegistry.get("rag_answer_requests_total").tag("status", "not_found").counter().count()).isEqualTo(1.0);
+        assertThat(meterRegistry.get("rag_answer_latency_seconds").tag("status", "not_found").timer().count()).isEqualTo(1L);
     }
 
     @Test
@@ -134,9 +146,9 @@ class RagAnswerServiceTest {
         when(preprocessService.preprocess(anyString(), anyString(), any()))
                 .thenReturn(preprocessResult(List.of("네이버"), List.of(1L), List.of("네이버")));
         when(articleSearchService.getTopArticleIdsForRag(
-                anyString(), anyString(), anyList(), anyInt(), anyDouble()))
+                anyString(), anyString(), anyList(), anyInt(), anyDouble(), anyBoolean()))
                 .thenReturn(new ArticleSearchService.HybridTopArticles(List.of(10L), null));
-        when(vectorSearchService.getChunksForRag(anyString(), anyList(), any(), anyInt()))
+        when(vectorSearchService.getChunksForRag(anyString(), anyList(), any(), anyInt(), anyBoolean()))
                 .thenReturn(List.of(new AiSummaryChunkDto(
                         10L, "Kafka 도입기", "https://example.com/kafka", "Kafka 도입 배경과 성과", null, "네이버", null)));
         when(llmClientResolver.resolve(Provider.GEMINI)).thenReturn(llmClient);
@@ -154,8 +166,8 @@ class RagAnswerServiceTest {
         verify(emitter, atLeast(5)).send(any(SseEmitter.SseEventBuilder.class));
         verify(emitter).complete();
         verify(articleSearchService).getTopArticleIdsForRag(
-                "Kafka 도입", "Kafka를 도입한 사례", List.of(1L), 5, 0.6);
-        verify(vectorSearchService).getChunksForRag("Kafka를 도입한 사례", List.of(10L), null, 3);
+                "Kafka 도입", "Kafka를 도입한 사례", List.of(1L), 5, 0.6, false);
+        verify(vectorSearchService).getChunksForRag("Kafka를 도입한 사례", List.of(10L), null, 3, false);
         verify(llmClient).generateStream(
                 eq("gemini-3.5-flash"), anyString(), anyString(), any(), any());
 
@@ -187,6 +199,14 @@ class RagAnswerServiceTest {
         assertThat(log.getModel()).isEqualTo("gemini-3.5-flash");
         assertThat(log.getAnswer()).isEqualTo("**Kafka**를 도입했습니다. [출처1]");
         assertThat(log.getAnswer()).doesNotContain("QUERIES");
+
+        // 신규 메트릭 기록 확인 (모의 스트림 2개 청크 → chunk size 2건, gap 1건)
+        assertThat(meterRegistry.get("rag_answer_requests_total").tag("status", "success").counter().count()).isEqualTo(1.0);
+        assertThat(meterRegistry.get("rag_answer_latency_seconds").tag("status", "success").timer().count()).isEqualTo(1L);
+        assertThat(meterRegistry.get("rag_answer_llm_ttfb_seconds").timer().count()).isEqualTo(1L);
+        assertThat(meterRegistry.get("rag_answer_llm_duration_seconds").timer().count()).isEqualTo(1L);
+        assertThat(meterRegistry.get("rag_answer_llm_chunk_size_bytes").summary().count()).isEqualTo(2L);
+        assertThat(meterRegistry.get("rag_answer_llm_chunk_gap_seconds").timer().count()).isEqualTo(1L);
     }
 
     @Test
@@ -203,6 +223,9 @@ class RagAnswerServiceTest {
 
         RagQueryLog log = capturedLog();
         assertThat(log.getOutcome()).isEqualTo(RagQueryLog.Outcome.ERROR);
+
+        assertThat(meterRegistry.get("rag_answer_requests_total").tag("status", "failure").counter().count()).isEqualTo(1.0);
+        assertThat(meterRegistry.get("rag_answer_latency_seconds").tag("status", "failure").timer().count()).isEqualTo(1L);
     }
 
     @Test
@@ -219,6 +242,9 @@ class RagAnswerServiceTest {
         RagQueryLog log = capturedLog();
         assertThat(log.getOutcome()).isEqualTo(RagQueryLog.Outcome.ERROR);
         assertThat(log.getModel()).isEqualTo("gemini-3.5-flash");
+
+        assertThat(meterRegistry.get("rag_answer_requests_total").tag("status", "failure").counter().count()).isEqualTo(1.0);
+        assertThat(meterRegistry.get("rag_answer_latency_seconds").tag("status", "failure").timer().count()).isEqualTo(1L);
     }
 
     @Test
@@ -258,6 +284,11 @@ class RagAnswerServiceTest {
         assertThat(log.getOutcome()).isEqualTo(RagQueryLog.Outcome.ANSWERED);
         assertThat(log.getAnswer()).isEqualTo("**Kafka**를 도입했습니다.");
         assertThat(log.getArticleCount()).isEqualTo(1);
+
+        // 캐시 히트는 LLM을 호출하지 않으므로 LLM 전용 메트릭은 기록되지 않아야 함 (미리 등록만 돼 있어 count=0)
+        assertThat(meterRegistry.get("rag_answer_requests_total").tag("status", "cached").counter().count()).isEqualTo(1.0);
+        assertThat(meterRegistry.get("rag_answer_latency_seconds").tag("status", "cached").timer().count()).isEqualTo(1L);
+        assertThat(meterRegistry.get("rag_answer_llm_ttfb_seconds").timer().count()).isZero();
     }
 
     @Test
@@ -272,9 +303,9 @@ class RagAnswerServiceTest {
         when(preprocessService.preprocessCached(anyString(), any()))
                 .thenReturn(preprocessResult(List.of("네이버"), List.of(1L), List.of("네이버")));
         when(articleSearchService.getTopArticleIdsForRagCached(
-                anyString(), anyString(), anyList(), anyInt(), anyDouble()))
+                anyString(), anyString(), anyList(), anyInt(), anyDouble(), anyBoolean()))
                 .thenReturn(new ArticleSearchService.HybridTopArticles(List.of(10L), null));
-        when(vectorSearchService.getChunksForRagCached(anyString(), anyList(), any(), anyInt()))
+        when(vectorSearchService.getChunksForRagCached(anyString(), anyList(), any(), anyInt(), anyBoolean()))
                 .thenReturn(List.of(new AiSummaryChunkDto(
                         10L, "Kafka 도입기", "https://example.com/kafka", "Kafka 도입 배경과 성과", null, "네이버", null)));
         when(llmClientResolver.resolve(Provider.GEMINI)).thenReturn(llmClient);
@@ -291,7 +322,7 @@ class RagAnswerServiceTest {
         verify(cache).put(eq(cacheKey), any(RagAnswerCacheDto.class));
         verify(preprocessService, never()).preprocess(anyString(), anyString(), any());
         verify(articleSearchService, never()).getTopArticleIdsForRag(
-                anyString(), anyString(), anyList(), anyInt(), anyDouble());
+                anyString(), anyString(), anyList(), anyInt(), anyDouble(), anyBoolean());
     }
 
     @Test
@@ -309,9 +340,9 @@ class RagAnswerServiceTest {
         when(preprocessService.preprocess(anyString(), anyString(), any()))
                 .thenReturn(preprocessResult(List.of("네이버"), List.of(1L), List.of("네이버")));
         when(articleSearchService.getTopArticleIdsForRag(
-                anyString(), anyString(), anyList(), anyInt(), anyDouble()))
+                anyString(), anyString(), anyList(), anyInt(), anyDouble(), anyBoolean()))
                 .thenReturn(new ArticleSearchService.HybridTopArticles(List.of(10L), null));
-        when(vectorSearchService.getChunksForRag(anyString(), anyList(), any(), anyInt()))
+        when(vectorSearchService.getChunksForRag(anyString(), anyList(), any(), anyInt(), anyBoolean()))
                 .thenReturn(List.of(new AiSummaryChunkDto(
                         10L, "Kafka 도입기", "https://example.com/kafka", "Kafka 도입 배경과 성과", null, "네이버", null)));
         when(llmClientResolver.resolve(Provider.GEMINI)).thenReturn(llmClient);
@@ -332,9 +363,9 @@ class RagAnswerServiceTest {
         when(preprocessService.preprocess(anyString(), anyString(), any()))
                 .thenReturn(preprocessResult(List.of("네이버"), List.of(1L), List.of("네이버")));
         when(articleSearchService.getTopArticleIdsForRag(
-                anyString(), anyString(), anyList(), anyInt(), anyDouble()))
+                anyString(), anyString(), anyList(), anyInt(), anyDouble(), anyBoolean()))
                 .thenReturn(new ArticleSearchService.HybridTopArticles(List.of(10L), null));
-        when(vectorSearchService.getChunksForRag(anyString(), anyList(), any(), anyInt()))
+        when(vectorSearchService.getChunksForRag(anyString(), anyList(), any(), anyInt(), anyBoolean()))
                 .thenReturn(List.of(new AiSummaryChunkDto(
                         10L, "Kafka 도입기", "https://example.com/kafka", "Kafka 도입 배경과 성과", null, "네이버", null)));
         when(llmClientResolver.resolve(Provider.GEMINI)).thenReturn(llmClient);
@@ -382,6 +413,43 @@ class RagAnswerServiceTest {
         verify(preprocessService).preprocess(eq("없는회사 Kafka 사례"), eq(""), org.mockito.ArgumentMatchers.same(model));
         verify(preprocessService, never()).preprocessCached(anyString(), any());
         verify(articleSearchService, never()).getTopArticleIdsForRagCached(
-                anyString(), anyString(), anyList(), anyInt(), anyDouble());
+                anyString(), anyString(), anyList(), anyInt(), anyDouble(), anyBoolean());
+    }
+
+    @Test
+    @DisplayName("부하테스트 오버로드: 캐시 키 rag-answer:lt: 분리 + retrieval 전체에 mock 플래그(true) 전달")
+    void streamAnswerForLoadTest_usesLoadTestCacheKeyAndMockFlag() throws Exception {
+        String question = "네이버에서 Kafka 도입한 사례";
+        String cacheKey = "rag-answer:lt:" + question.toLowerCase();
+        when(cacheManager.getCache("ragAnswer")).thenReturn(cache);
+        when(cache.get(eq(cacheKey), eq(RagAnswerCacheDto.class))).thenReturn(null);
+        when(preprocessService.preprocessCached(anyString(), any()))
+                .thenReturn(preprocessResult(List.of(), List.of(), List.of()));
+        when(articleSearchService.getTopArticleIdsForRagCached(
+                anyString(), anyString(), anyList(), anyInt(), anyDouble(), eq(true)))
+                .thenReturn(new ArticleSearchService.HybridTopArticles(List.of(10L), null));
+        when(vectorSearchService.getChunksForRagCached(anyString(), anyList(), any(), anyInt(), eq(true)))
+                .thenReturn(List.of(new AiSummaryChunkDto(
+                        10L, "Kafka 도입기", "https://example.com/kafka", "Kafka 도입 배경과 성과", null, "네이버", null)));
+        when(llmClientResolver.resolve(Provider.GEMINI)).thenReturn(llmClient);
+        when(llmClient.generateStream(anyString(), anyString(), anyString(), any(), any()))
+                .thenAnswer(invocation -> {
+                    Consumer<String> onText = invocation.getArgument(4);
+                    onText.accept("**Kafka**를 도입했습니다. [출처1]");
+                    return new LlmTokenUsage(200, 50, 250);
+                });
+
+        ragAnswerService.streamAnswerForLoadTest(question, 5, 3, 0.6, geminiModel(), geminiModel(),
+                null, "127.0.0.1", null, emitter);
+
+        // 실사용자 캐시 키(rag-answer:)가 아닌 lt: 키로만 조회·저장되어야 함
+        verify(cache).get(eq(cacheKey), eq(RagAnswerCacheDto.class));
+        verify(cache).put(eq(cacheKey), any(RagAnswerCacheDto.class));
+        verify(cache, never()).get(eq("rag-answer:" + question.toLowerCase()), eq(RagAnswerCacheDto.class));
+        // retrieval 두 단계 모두 mock 임베딩 플래그로 호출
+        verify(articleSearchService).getTopArticleIdsForRagCached(
+                anyString(), anyString(), anyList(), anyInt(), anyDouble(), eq(true));
+        verify(vectorSearchService).getChunksForRagCached(anyString(), anyList(), any(), anyInt(), eq(true));
+        verify(emitter).complete();
     }
 }

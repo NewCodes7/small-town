@@ -32,6 +32,10 @@ public class EmbeddingApiService implements EmbeddingService {
     @Value("${clova.api-key}")
     private String apiKey;
 
+    // 부하테스트 mock 엔드포인트 — /api/rag/answer/loadtest 경로의 요청만 이 URL로 임베딩 호출 (blank면 미설정)
+    @Value("${clova.loadtest-endpoint:}")
+    private String loadTestEndpoint;
+
     private static final String EMBEDDING_API_URL = "https://clovastudio.stream.ntruss.com/v1/api-tools/embedding/v2";
     private static final String SEGMENTATION_API_URL = "https://clovastudio.stream.ntruss.com/v1/api-tools/segmentation";
     private static final String REQUEST_ID = "cc14b4c4fa4c4506ad8bb98372cb991a";
@@ -47,9 +51,21 @@ public class EmbeddingApiService implements EmbeddingService {
 
     @Override
     public ModelEmbeddingResult generateEmbedding(String text, String wholeDocument) {
+        return generateEmbedding(text, wholeDocument, false);
+    }
+
+    /**
+     * useMockEndpoint=true면 실 Clova 대신 clova.loadtest-endpoint(부하테스트 mock server)로 호출한다.
+     * mock 엔드포인트 미설정 시 실 Clova로 새지 않도록 즉시 실패 처리한다.
+     */
+    public ModelEmbeddingResult generateEmbedding(String text, String wholeDocument, boolean useMockEndpoint) {
         long startTime = System.currentTimeMillis();
 
         try {
+            if (useMockEndpoint && (loadTestEndpoint == null || loadTestEndpoint.isBlank())) {
+                throw new IllegalStateException(
+                        "부하테스트 mock 임베딩 요청인데 clova.loadtest-endpoint가 비어 있습니다 (CLOVA_LOADTEST_ENDPOINT 확인)");
+            }
             // 토큰 수 계산
             int tokenUsage = tokenCounter.countTokens(text);
 
@@ -67,7 +83,7 @@ public class EmbeddingApiService implements EmbeddingService {
 
             // API 호출
             ResponseEntity<String> response = restTemplate.exchange(
-                    EMBEDDING_API_URL,
+                    useMockEndpoint ? loadTestEndpoint : EMBEDDING_API_URL,
                     HttpMethod.POST,
                     entity,
                     String.class

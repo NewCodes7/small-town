@@ -54,8 +54,8 @@ class BedrockRagLlmClientTest {
     @BeforeEach
     void setUp() {
         lenient().when(bedrockClientFactory.defaultRegion()).thenReturn(DEFAULT_REGION);
-        lenient().when(bedrockClientFactory.sync(DEFAULT_REGION)).thenReturn(bedrockRuntimeClient);
-        lenient().when(bedrockClientFactory.async(DEFAULT_REGION)).thenReturn(bedrockRuntimeAsyncClient);
+        lenient().when(bedrockClientFactory.sync(DEFAULT_REGION, null)).thenReturn(bedrockRuntimeClient);
+        lenient().when(bedrockClientFactory.async(DEFAULT_REGION, null)).thenReturn(bedrockRuntimeAsyncClient);
         client = new BedrockRagLlmClient(bedrockClientFactory, ragModelProperties);
     }
 
@@ -105,13 +105,32 @@ class BedrockRagLlmClientTest {
         option.setProvider(Provider.BEDROCK);
         option.setRegion("us-east-1");
         ragModelProperties.setModels(List.of(option));
-        when(bedrockClientFactory.sync("us-east-1")).thenReturn(bedrockRuntimeClient);
+        when(bedrockClientFactory.sync("us-east-1", null)).thenReturn(bedrockRuntimeClient);
         when(bedrockRuntimeClient.converse(any(ConverseRequest.class)))
                 .thenReturn(converseResponse("{}"));
 
         client.generateJson(regionalModelId, "시스템", "질문", OUTPUT_SPEC, OPTIONS);
 
-        verify(bedrockClientFactory).sync("us-east-1");
+        verify(bedrockClientFactory).sync("us-east-1", null);
+    }
+
+    @Test
+    @DisplayName("generateJson: rag.models의 endpoint 지정 모델(부하테스트 mock)은 endpoint override로 호출")
+    void generateJson_usesModelEndpointOverride() throws Exception {
+        String mockModelId = "mock.anthropic.claude-haiku-4-5";
+        ModelOption option = new ModelOption();
+        option.setId(mockModelId);
+        option.setLabel("Mock Haiku (loadtest)");
+        option.setProvider(Provider.BEDROCK);
+        option.setEndpoint("http://llm-mock:9099");
+        ragModelProperties.setModels(List.of(option));
+        when(bedrockClientFactory.sync(DEFAULT_REGION, "http://llm-mock:9099")).thenReturn(bedrockRuntimeClient);
+        when(bedrockRuntimeClient.converse(any(ConverseRequest.class)))
+                .thenReturn(converseResponse("{}"));
+
+        client.generateJson(mockModelId, "시스템", "질문", OUTPUT_SPEC, OPTIONS);
+
+        verify(bedrockClientFactory).sync(DEFAULT_REGION, "http://llm-mock:9099");
     }
 
     @Test

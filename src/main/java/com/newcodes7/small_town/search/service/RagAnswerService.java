@@ -12,13 +12,20 @@ import com.newcodes7.small_town.search.llm.RagLlmClientResolver;
 import com.newcodes7.small_town.search.llm.RagLlmException;
 import com.newcodes7.small_town.search.repository.RagQueryLogRepository;
 import com.newcodes7.small_town.search.service.RagQueryPreprocessService.RagPreprocessResult;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.DistributionSummary;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.observation.annotation.Observed;
+import jakarta.annotation.PostConstruct;
+import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -52,6 +59,7 @@ public class RagAnswerService {
     private final ObjectMapper objectMapper;
     private final RagLlmClientResolver llmClientResolver;
     private final ObservationRegistry observationRegistry;
+    private final MeterRegistry meterRegistry;
 
     private static final int CHUNK_MAX_CHARS = 1000;
     private static final int QUESTION_MAX_CHARS = 500;
@@ -62,6 +70,7 @@ public class RagAnswerService {
 
     private static final String CACHE_NAME = "ragAnswer";
     private static final String CACHE_KEY_PREFIX = "rag-answer:";
+    private static final String LOADTEST_CACHE_KEY_PREFIX = "rag-answer:lt:";
     private static final int CACHE_REPLAY_CHUNK_SIZE = 50;
 
     private static final String NO_CORP_MESSAGE = "해당 기업의 글이 없습니다";
@@ -95,13 +104,97 @@ public class RagAnswerService {
     private static final String QUERIES_END_TAG = "[/QUERIES]";
     private static final int QUERIES_HOLD_BACK = QUERIES_START_TAG.length() - 1;
 
+    private Counter successCounter;
+    private Counter failureCounter;
+    private Counter cachedCounter;
+    private Counter notFoundCounter;
+    private Timer successLatencyTimer;
+    private Timer failureLatencyTimer;
+    private Timer cachedLatencyTimer;
+    private Timer notFoundLatencyTimer;
+    private Timer llmTtfbTimer;
+    private Timer llmDurationTimer;
+    private Timer llmChunkGapTimer;
+    private DistributionSummary llmChunkSizeSummary;
+
+    @PostConstruct
+    public void init() {
+        successCounter = Counter.builder("rag_answer_requests_total")
+                .tag("status", "success")
+                .description("RAG answer successful requests")
+                .register(meterRegistry);
+        failureCounter = Counter.builder("rag_answer_requests_total")
+                .tag("status", "failure")
+                .description("RAG answer failed requests")
+                .register(meterRegistry);
+        cachedCounter = Counter.builder("rag_answer_requests_total")
+                .tag("status", "cached")
+                .description("RAG answer cached requests")
+                .register(meterRegistry);
+        notFoundCounter = Counter.builder("rag_answer_requests_total")
+                .tag("status", "not_found")
+                .description("RAG answer requests with no matching corporation or result")
+                .register(meterRegistry);
+        successLatencyTimer = Timer.builder("rag_answer_latency_seconds")
+                .tag("status", "success")
+                .description("RAG answer end-to-end latency")
+                .publishPercentileHistogram()
+                .register(meterRegistry);
+        failureLatencyTimer = Timer.builder("rag_answer_latency_seconds")
+                .tag("status", "failure")
+                .description("RAG answer end-to-end latency")
+                .publishPercentileHistogram()
+                .register(meterRegistry);
+        cachedLatencyTimer = Timer.builder("rag_answer_latency_seconds")
+                .tag("status", "cached")
+                .description("RAG answer end-to-end latency")
+                .publishPercentileHistogram()
+                .register(meterRegistry);
+        notFoundLatencyTimer = Timer.builder("rag_answer_latency_seconds")
+                .tag("status", "not_found")
+                .description("RAG answer end-to-end latency")
+                .publishPercentileHistogram()
+                .register(meterRegistry);
+        llmTtfbTimer = Timer.builder("rag_answer_llm_ttfb_seconds")
+                .description("Time from LLM call start to first streamed chunk")
+                .publishPercentileHistogram()
+                .register(meterRegistry);
+        llmDurationTimer = Timer.builder("rag_answer_llm_duration_seconds")
+                .description("LLM call wall time from request start to stream fully consumed or errored")
+                .publishPercentileHistogram()
+                .register(meterRegistry);
+        llmChunkGapTimer = Timer.builder("rag_answer_llm_chunk_gap_seconds")
+                .description("Inter-arrival gap between consecutive LLM stream chunks (second chunk onward)")
+                .publishPercentileHistogram()
+                .register(meterRegistry);
+        llmChunkSizeSummary = DistributionSummary.builder("rag_answer_llm_chunk_size_bytes")
+                .description("Size in bytes of each streamed LLM chunk")
+                .baseUnit("bytes")
+                .publishPercentileHistogram()
+                .register(meterRegistry);
+    }
+
     public void streamAnswer(
             String question, int topArticles, int chunksPerArticle, double threshold,
             ModelOption model, SseEmitter emitter) {
         // 관리자 테스트 페이지 전용 — 모델/파라미터를 매 요청 자유롭게 바꾸므로 캐시 대상에서 제외한다.
         // 전처리도 선택 모델로 실행해 "선택 모델의 전처리 품질"을 그대로 실험할 수 있게 한다.
         streamAnswerInternal(question, topArticles, chunksPerArticle, threshold, model, model,
-                null, null, null, emitter, false);
+                null, null, null, emitter, false, false);
+    }
+
+    /**
+     * 부하테스트 전용(/api/rag/answer/loadtest) — 공개 챗봇과 동일한 흐름을 타되
+     * LLM은 mock 모델(rag.models endpoint override), 임베딩은 mock 엔드포인트로 호출하고
+     * 캐시 키를 분리(rag-answer:lt:)해 mock 답변이 실사용자에게 서빙되지 않게 한다.
+     */
+    @Observed(name = "rag-answer", contextualName = "rag-answer-stream-loadtest")
+    public void streamAnswerForLoadTest(
+            String question, int topArticles, int chunksPerArticle, double threshold,
+            ModelOption model, ModelOption preprocessModel,
+            String conversationId, String ipAddress, Long userId, SseEmitter emitter) {
+        streamAnswerInternal(question, topArticles, chunksPerArticle, threshold, model, preprocessModel,
+                conversationId, ipAddress, userId, emitter, true, true);
     }
 
     /**
@@ -118,13 +211,13 @@ public class RagAnswerService {
             ModelOption model, ModelOption preprocessModel,
             String conversationId, String ipAddress, Long userId, SseEmitter emitter) {
         streamAnswerInternal(question, topArticles, chunksPerArticle, threshold, model, preprocessModel,
-                conversationId, ipAddress, userId, emitter, true);
+                conversationId, ipAddress, userId, emitter, true, false);
     }
 
     private void streamAnswerInternal(
             String question, int topArticles, int chunksPerArticle, double threshold,
             ModelOption model, ModelOption preprocessModel, String conversationId, String ipAddress, Long userId,
-            SseEmitter emitter, boolean cacheAllowed) {
+            SseEmitter emitter, boolean cacheAllowed, boolean loadTest) {
         if (question == null || question.trim().isEmpty()) {
             sendErrorEvent(emitter, "질문을 입력해주세요");
             completeEmitter(emitter);
@@ -140,7 +233,9 @@ public class RagAnswerService {
         }
         String historyContext = buildHistoryContext(loadHistory(conversationId));
         boolean cacheEligible = cacheAllowed && historyContext.isBlank();
-        String cacheKey = CACHE_KEY_PREFIX + trimmedQuestion.toLowerCase();
+        // 부하테스트 캐시 키는 분리 — mock 답변이 실사용자 캐시에 섞이면 안 됨
+        String cacheKey = (loadTest ? LOADTEST_CACHE_KEY_PREFIX : CACHE_KEY_PREFIX) + trimmedQuestion.toLowerCase();
+        long startTime = System.currentTimeMillis();
 
         RagPreprocessResult pre = null;
         // 부모 span(rag-answer)에 캐시 히트 여부를 태그로 남겨 Tempo에서 히트/미스 지연을 분리 조회할 수 있게 한다.
@@ -157,6 +252,8 @@ public class RagAnswerService {
                     replayFromCache(emitter, cached);
                     saveLog(trimmedQuestion, null, cached.sources().size(), RagQueryLog.Outcome.ANSWERED,
                             null, null, null, model, conversationId, ipAddress, userId, cached.answerText());
+                    cachedCounter.increment();
+                    cachedLatencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
                     return;
                 }
             }
@@ -187,6 +284,8 @@ public class RagAnswerService {
                 completeEmitter(emitter);
                 saveLog(trimmedQuestion, pre, 0, RagQueryLog.Outcome.NO_CORP, null, null, null, model,
                         conversationId, ipAddress, userId, null);
+                notFoundCounter.increment();
+                notFoundLatencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
                 return;
             }
 
@@ -200,18 +299,20 @@ public class RagAnswerService {
                 ArticleSearchService.HybridTopArticles topArticlesResult = cacheEligible
                         ? articleSearchService.getTopArticleIdsForRagCached(
                                 pre.keywords(), pre.vectorQuery(), pre.matchedCorporationIds(),
-                                topArticles, threshold)
+                                topArticles, threshold, loadTest)
                         : articleSearchService.getTopArticleIdsForRag(
                                 pre.keywords(), pre.vectorQuery(), pre.matchedCorporationIds(),
-                                topArticles, threshold);
+                                topArticles, threshold, loadTest);
                 topArticleIds = topArticlesResult.articleIds();
                 chunks = topArticleIds.isEmpty()
                         ? List.of()
                         : cacheEligible
                                 ? vectorSearchService.getChunksForRagCached(
-                                        pre.vectorQuery(), topArticleIds, topArticlesResult.queryEmbedding(), chunksPerArticle)
+                                        pre.vectorQuery(), topArticleIds, topArticlesResult.queryEmbedding(),
+                                        chunksPerArticle, loadTest)
                                 : vectorSearchService.getChunksForRag(
-                                        pre.vectorQuery(), topArticleIds, topArticlesResult.queryEmbedding(), chunksPerArticle);
+                                        pre.vectorQuery(), topArticleIds, topArticlesResult.queryEmbedding(),
+                                        chunksPerArticle, loadTest);
             } catch (Exception e) {
                 retrievalObservation.error(e);
                 throw e;
@@ -223,6 +324,8 @@ public class RagAnswerService {
                 completeEmitter(emitter);
                 saveLog(trimmedQuestion, pre, 0, RagQueryLog.Outcome.NO_RESULT, null, null, null, model,
                         conversationId, ipAddress, userId, null);
+                notFoundCounter.increment();
+                notFoundLatencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
                 return;
             }
 
@@ -248,6 +351,8 @@ public class RagAnswerService {
                     .contextualName("rag-llm-stream")
                     .start();
             boolean[] firstTokenSeen = {false};
+            long llmStartNanos = System.nanoTime();
+            long[] lastChunkNanos = {0L};
             LlmTokenUsage usage;
             try {
                 usage = llmClientResolver.resolve(model.getProvider())
@@ -255,8 +360,13 @@ public class RagAnswerService {
                             answerOptions, text -> {
                                 if (!firstTokenSeen[0]) {
                                     firstTokenSeen[0] = true;
+                                    llmTtfbTimer.record(System.nanoTime() - llmStartNanos, TimeUnit.NANOSECONDS);
                                     llmObservation.event(Observation.Event.of("first-token"));
+                                } else {
+                                    llmChunkGapTimer.record(System.nanoTime() - lastChunkNanos[0], TimeUnit.NANOSECONDS);
                                 }
+                                lastChunkNanos[0] = System.nanoTime();
+                                llmChunkSizeSummary.record(text.getBytes(StandardCharsets.UTF_8).length);
                                 answerBuilder.append(text);
                                 if (queriesDetected[0]) {
                                     return;
@@ -280,6 +390,7 @@ public class RagAnswerService {
                 llmObservation.error(e);
                 throw e;
             } finally {
+                llmDurationTimer.record(System.nanoTime() - llmStartNanos, TimeUnit.NANOSECONDS);
                 llmObservation.stop();
             }
             if (!queriesDetected[0] && pendingBuf.length() > 0) {
@@ -320,6 +431,9 @@ public class RagAnswerService {
                 cache.put(cacheKey, new RagAnswerCacheDto(cleanAnswer, sources, relatedQueries, model.getLabel()));
             }
 
+            successCounter.increment();
+            successLatencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
+
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.error("RAG 처리 중 인터럽트: {}", e.getMessage());
@@ -327,18 +441,24 @@ public class RagAnswerService {
             completeEmitter(emitter);
             saveLog(trimmedQuestion, pre, null, RagQueryLog.Outcome.ERROR, null, null, null, model,
                     conversationId, ipAddress, userId, null);
+            failureCounter.increment();
+            failureLatencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
         } catch (RagLlmException e) {
             log.error("RAG LLM 호출 실패: {}", e.getMessage(), e);
             sendErrorEvent(emitter, e.getMessage());
             completeEmitter(emitter);
             saveLog(trimmedQuestion, pre, null, RagQueryLog.Outcome.ERROR, null, null, null, model,
                     conversationId, ipAddress, userId, null);
+            failureCounter.increment();
+            failureLatencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             log.error("RAG 처리 중 예외 발생: {}", e.getMessage(), e);
             sendErrorEvent(emitter, "답변을 불러올 수 없습니다");
             completeEmitter(emitter);
             saveLog(trimmedQuestion, pre, null, RagQueryLog.Outcome.ERROR, null, null, null, model,
                     conversationId, ipAddress, userId, null);
+            failureCounter.increment();
+            failureLatencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
         }
     }
 

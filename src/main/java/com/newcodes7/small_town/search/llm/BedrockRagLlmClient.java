@@ -52,7 +52,8 @@ public class BedrockRagLlmClient implements RagLlmClient {
             JsonOutputSpec outputSpec, LlmOptions options) throws RagLlmException {
         String systemWithJsonRule = systemPrompt + "\n\n" + outputSpec.jsonInstruction();
         try {
-            ConverseResponse response = bedrockClientFactory.sync(resolveRegion(modelId)).converse(
+            ConverseResponse response = bedrockClientFactory.sync(resolveRegion(modelId), resolveEndpoint(modelId))
+                    .converse(
                     ConverseRequest.builder()
                             .modelId(modelId)
                             .system(SystemContentBlock.fromText(systemWithJsonRule))
@@ -89,7 +90,7 @@ public class BedrockRagLlmClient implements RagLlmClient {
                         .build())
                 .build();
         try {
-            bedrockClientFactory.async(resolveRegion(modelId)).converseStream(
+            bedrockClientFactory.async(resolveRegion(modelId), resolveEndpoint(modelId)).converseStream(
                     ConverseStreamRequest.builder()
                             .modelId(modelId)
                             .system(SystemContentBlock.fromText(systemPrompt))
@@ -108,6 +109,14 @@ public class BedrockRagLlmClient implements RagLlmClient {
                 .map(ModelOption::getRegion)
                 .filter(region -> region != null && !region.isBlank())
                 .orElseGet(bedrockClientFactory::defaultRegion);
+    }
+
+    /** rag.models[N].endpoint가 지정된 모델(부하테스트 mock)은 해당 엔드포인트로 호출한다. null이면 실 AWS. */
+    private String resolveEndpoint(String modelId) {
+        return ragModelProperties.findById(modelId)
+                .filter(ModelOption::hasEndpointOverride)
+                .map(ModelOption::getEndpoint)
+                .orElse(null);
     }
 
     private Message userMessage(String userMessage) {

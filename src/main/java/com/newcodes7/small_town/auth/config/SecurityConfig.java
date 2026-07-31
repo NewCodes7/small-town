@@ -80,6 +80,8 @@ public class SecurityConfig {
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/search/**").permitAll()
                 // RAG 챗봇 API - 로그인 여부 무관 허용 (rate limit은 nginx에서 IP 기준으로 처리)
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/rag/answer").permitAll()
+                // RAG 부하테스트 API - 기본 비활성(404), nginx geo IP 제한 + rag.chat.loadtest.enabled 게이트
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/rag/answer/loadtest").permitAll()
                 // 카테고리 목록 조회는 모든 사용자 허용
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/categories").permitAll()
 

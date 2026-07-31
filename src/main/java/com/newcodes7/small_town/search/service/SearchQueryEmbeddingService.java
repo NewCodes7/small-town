@@ -50,6 +50,16 @@ public class SearchQueryEmbeddingService {
     @Observed(name = "search.query-embedding", contextualName = "query-embedding")
     @Transactional
     public CachedEmbeddingResult getEmbeddingWithCacheInfo(String keyword, SearchLog searchLog) {
+        return getEmbeddingWithCacheInfo(keyword, searchLog, false);
+    }
+
+    /**
+     * useMockEmbedding=true(부하테스트 경로)면 실 Clova 대신 mock 엔드포인트로 호출하고,
+     * mock 벡터가 실사용자 검색에 서빙되지 않도록 DB 캐시(search_query_embedding) 저장을 건너뛴다.
+     * DB lookup은 그대로 수행해 실측과 동일한 조회 부하를 유지한다.
+     */
+    @Transactional
+    public CachedEmbeddingResult getEmbeddingWithCacheInfo(String keyword, SearchLog searchLog, boolean useMockEmbedding) {
         String normalized = normalizeKeyword(keyword);
         if (normalized.isEmpty()) {
             return CachedEmbeddingResult.empty();
@@ -66,7 +76,7 @@ public class SearchQueryEmbeddingService {
         }
 
         long embedStart = System.currentTimeMillis();
-        ModelEmbeddingResult embResult = embeddingApiService.generateEmbedding(keyword, null);
+        ModelEmbeddingResult embResult = embeddingApiService.generateEmbedding(keyword, null, useMockEmbedding);
         long embedMs = System.currentTimeMillis() - embedStart;
         if (!embResult.isSuccess() || embResult.getEmbedding() == null) {
             log.warn("검색어 임베딩 생성 실패: {}", embResult.getErrorMessage());
@@ -74,7 +84,9 @@ public class SearchQueryEmbeddingService {
         }
 
         float[] embedding = embResult.getEmbedding();
-        scheduleSaveAsync(keyword, normalized, embedding, searchLog);
+        if (!useMockEmbedding) {
+            scheduleSaveAsync(keyword, normalized, embedding, searchLog);
+        }
         return CachedEmbeddingResult.miss(embedding, lookupMs, embedMs);
     }
 

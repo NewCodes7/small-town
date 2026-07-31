@@ -40,7 +40,7 @@ public class AdminRagController {
 
     @GetMapping("/admin/rag")
     public String page(Model model) {
-        model.addAttribute("ragModels", ragModelProperties.getModels());
+        model.addAttribute("ragModels", ragModelProperties.visibleModels());
         return "admin/rag";
     }
 
