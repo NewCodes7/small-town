@@ -1,0 +1,58 @@
+.stat-card .stat-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+}
+
+.stat-card .stat-label {
+    font-size: 0.85rem;
+    color: #6c757d;
+}
+
+.lt-status-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.lt-status-PLANNED {
+    background-color: #e2e3e5;
+    color: #41464b;
+}
+
+.lt-status-RUNNING {
+    background-color: #cfe2ff;
+    color: #084298;
+}
+
+.lt-status-COMPLETED {
+    background-color: #d1e7dd;
+    color: #0f5132;
+}
+
+.lt-status-FAILED {
+    background-color: #f8d7da;
+    color: #842029;
+}
+
+.lt-status-CANCELLED {
+    background-color: #fff3cd;
+    color: #664d03;
+}
+
+.lt-command-block {
+    white-space: pre-wrap;
+    word-break: break-all;
+    background: #f8f9fa;
+    font-family: var(--bs-font-monospace, monospace);
+    font-size: 0.85rem;
+    min-height: 2.5rem;
+    margin-bottom: 0;
+}
+
+.lt-meta dt {
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.lt-meta dd {
+    word-break: break-word;
+}

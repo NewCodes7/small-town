@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>부하테스트 관리</title>
+    <link rel="stylesheet" type="text/css" th:href="@{/css/admin/load-test.css}">
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="container-fluid">
+        <h1 class="h3 mb-4 text-gray-800">부하테스트 관리</h1>
+        <p class="text-muted small mb-4">
+            이 페이지는 실행 기록을 관리할 뿐, k6/Fargate를 직접 실행하지 않습니다. "커맨드 생성"으로 만들어진
+            명령어를 터미널에 복사해서 직접 실행한 뒤, 결과를 이 페이지에 기록하세요.
+            자세한 절차는 <code>load-test/README.md</code> 참고.
+        </p>
+
+        <!-- 통계 요약 -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card shadow stat-card text-center py-3">
+                    <div class="stat-value text-primary" th:text="${totalCount}">0</div>
+                    <div class="stat-label">전체 실행 기록</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card shadow stat-card text-center py-3">
+                    <div class="stat-value text-success" th:text="${thisMonthCount}">0</div>
+                    <div class="stat-label">이번 달 실행 수</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card shadow stat-card text-center py-3">
+                    <div class="stat-value text-danger" th:text="${failedCount}">0</div>
+                    <div class="stat-label">실패 건수</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 새 실행 기록 -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">새 실행 기록 — 커맨드 생성</h6>
+            </div>
+            <div class="card-body">
+                <form id="ltCreateForm" class="row g-2">
+                    <div class="col-md-3">
+                        <label class="form-label small">시나리오</label>
+                        <select name="scenario" id="ltScenario" class="form-select" required>
+                            <option th:each="s : ${scenarios}" th:value="${s}" th:text="${s}"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">실행 방식</label>
+                        <select name="executionType" id="ltExecutionType" class="form-select" required>
+                            <option th:each="t : ${executionTypes}" th:value="${t}" th:text="${t}"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small">대상 환경</label>
+                        <select name="targetEnv" id="ltTargetEnv" class="form-select" required>
+                            <option th:each="e : ${targetEnvs}" th:value="${e}" th:text="${e}"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small">트리거한 사람</label>
+                        <input type="text" name="triggeredBy" id="ltTriggeredBy" class="form-control"
+                               placeholder="이름 또는 이메일">
+                    </div>
+
+                    <div id="ltFargateFields" class="col-12 row g-2 d-none">
+                        <div class="col-md-2">
+                            <label class="form-label small">task 수 (-n)</label>
+                            <input type="number" name="taskCount" id="ltTaskCount" class="form-control" min="1">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">총 RPS (-r)</label>
+                            <input type="number" name="totalRate" id="ltTotalRate" class="form-control" min="1">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">총 VUS (-v)</label>
+                            <input type="number" name="totalVus" id="ltTotalVus" class="form-control" min="1">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">duration (-d)</label>
+                            <input type="text" name="duration" id="ltDuration" class="form-control"
+                                   placeholder="예: 10m">
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <div class="form-check">
+                                <input type="checkbox" name="publicMode" id="ltPublicMode" class="form-check-input">
+                                <label class="form-check-label small" for="ltPublicMode">
+                                    --public (rate-limit-check 전용, bypass 미등록 IP)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label small">env 오버라이드 (한 줄에 하나, KEY=VALUE)</label>
+                        <textarea name="extraEnv" id="ltExtraEnv" class="form-control" rows="3"
+                                  placeholder="RATE=5&#10;MODE=cache-miss&#10;SEARCH_BASE_P95_MS=400"></textarea>
+                    </div>
+
+                    <div id="ltProductionWarning" class="col-12 alert alert-warning d-none py-2 mb-0 mt-2">
+                        ⚠️ 대상 환경이 프로덕션입니다. 스케줄러(02:00/02:30, 매시 :30)·blue/green 배포와
+                        겹치지 않는 시간대인지, NAT EIP 예외 등록(nginx geo + <code>RAG_CHAT_RATELIMITEXEMPTIPS</code>)이
+                        필요한 시나리오인지 확인하세요.
+                    </div>
+
+                    <div class="col-12 mt-2">
+                        <button type="submit" class="btn btn-primary">커맨드 생성</button>
+                    </div>
+                </form>
+
+                <div id="ltCommandResult" class="mt-3 d-none">
+                    <label class="form-label small">생성된 커맨드</label>
+                    <div class="input-group">
+                        <pre id="ltGeneratedCommand" class="form-control lt-command-block"></pre>
+                        <button type="button" id="ltCopyCommand" class="btn btn-outline-secondary">복사</button>
+                    </div>
+                    <div id="ltTestRunIdNote" class="small text-muted mt-1"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 목록 -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-primary">실행 이력</h6>
+                <small class="text-muted">최신순 정렬 · 행을 클릭하면 상세/수정할 수 있습니다</small>
+            </div>
+            <div class="card-body">
+                <form th:action="@{/admin/load-test}" method="get" class="row g-2 mb-4">
+                    <div class="col-md-3">
+                        <select name="scenario" class="form-select">
+                            <option value="">전체 시나리오</option>
+                            <option th:each="s : ${scenarios}" th:value="${s}" th:text="${s}"
+                                    th:selected="${s == scenario}"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select name="status" class="form-select">
+                            <option value="">전체 상태</option>
+                            <option th:each="s : ${statuses}" th:value="${s}" th:text="${s}"
+                                    th:selected="${s == status}"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-flex gap-1">
+                        <input type="date" name="dateFrom" class="form-control" th:value="${dateFrom}">
+                        <input type="date" name="dateTo" class="form-control" th:value="${dateTo}">
+                    </div>
+                    <div class="col-md-2 d-flex gap-1">
+                        <button type="submit" class="btn btn-primary w-100">검색</button>
+                    </div>
+                    <div class="col-12">
+                        <a th:href="@{/admin/load-test}" class="btn btn-sm btn-secondary">필터 초기화</a>
+                    </div>
+                </form>
+
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover table-sm" width="100%" cellspacing="0">
+                        <thead class="table-light">
+                        <tr>
+                            <th>시각</th>
+                            <th>시나리오</th>
+                            <th>실행 방식</th>
+                            <th>대상</th>
+                            <th>상태</th>
+                            <th>testid</th>
+                            <th>트리거</th>
+                            <th>Pass/Fail</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="run : ${runs.content}" class="lt-run-row" style="cursor:pointer;"
+                            th:attr="data-run-id=${run.id}">
+                            <td class="text-nowrap small"
+                                th:text="${#temporals.format(run.createdAt, 'MM-dd HH:mm')}">00-00 00:00</td>
+                            <td class="small" th:text="${run.scenario}">scenario</td>
+                            <td class="small" th:text="${run.executionType}">LOCAL</td>
+                            <td class="small" th:text="${run.targetEnv}">LOCAL_DIRECT</td>
+                            <td class="text-center">
+                                <span class="badge lt-status-badge" th:classappend="'lt-status-' + ${run.status}"
+                                      th:text="${run.status}">PLANNED</span>
+                            </td>
+                            <td class="small text-truncate" style="max-width: 160px;"
+                                th:text="${run.testRunId != null ? run.testRunId : '-'}">-</td>
+                            <td class="small" th:text="${run.triggeredBy != null ? run.triggeredBy : '-'}">-</td>
+                            <td class="small text-center"
+                                th:text="${run.passFail == null ? '-' : (run.passFail ? 'PASS' : 'FAIL')}">-</td>
+                        </tr>
+                        <tr th:if="${runs.empty}">
+                            <td colspan="8" class="text-center text-muted py-4">데이터가 없습니다.</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <nav th:if="${!runs.empty && runs.totalPages > 1}" aria-label="Page navigation">
+                    <ul class="pagination justify-content-center mt-3">
+                        <li class="page-item" th:classappend="${runs.first} ? 'disabled'">
+                            <a class="page-link"
+                               th:href="@{/admin/load-test(page=${runs.number - 1}, scenario=${scenario}, status=${status}, dateFrom=${dateFrom}, dateTo=${dateTo})}">이전</a>
+                        </li>
+                        <li class="page-item"
+                            th:each="i : ${#numbers.sequence(0, runs.totalPages - 1)}"
+                            th:classappend="${i == runs.number} ? 'active'">
+                            <a class="page-link"
+                               th:href="@{/admin/load-test(page=${i}, scenario=${scenario}, status=${status}, dateFrom=${dateFrom}, dateTo=${dateTo})}"
+                               th:text="${i + 1}">1</a>
+                        </li>
+                        <li class="page-item" th:classappend="${runs.last} ? 'disabled'">
+                            <a class="page-link"
+                               th:href="@{/admin/load-test(page=${runs.number + 1}, scenario=${scenario}, status=${status}, dateFrom=${dateFrom}, dateTo=${dateTo})}">다음</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+
+    <!-- 상세/수정 모달 -->
+    <div class="modal fade" id="ltDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">실행 기록 상세 <span id="ltDetailId" class="text-muted small"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="ltDetailLoading" class="text-center text-muted py-4">불러오는 중...</div>
+                    <div id="ltDetailBody" class="d-none">
+                        <dl class="row lt-meta">
+                            <dt class="col-sm-3">시나리오</dt>
+                            <dd class="col-sm-9" id="ltDScenario"></dd>
+                            <dt class="col-sm-3">실행 방식 / 대상</dt>
+                            <dd class="col-sm-9" id="ltDExecTarget"></dd>
+                            <dt class="col-sm-3">파라미터</dt>
+                            <dd class="col-sm-9" id="ltDParams"></dd>
+                        </dl>
+                        <h6>생성된 커맨드</h6>
+                        <div class="input-group mb-3">
+                            <pre id="ltDCommand" class="form-control lt-command-block"></pre>
+                            <button type="button" id="ltDCopyCommand" class="btn btn-outline-secondary">복사</button>
+                        </div>
+                        <hr>
+                        <form id="ltEditForm">
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label small">testid (TEST_RUN_ID)</label>
+                                    <input type="text" id="ltEditTestRunId" class="form-control">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small">상태</label>
+                                    <select id="ltEditStatus" class="form-select">
+                                        <option th:each="s : ${statuses}" th:value="${s}" th:text="${s}"></option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small">Pass/Fail</label>
+                                    <select id="ltEditPassFail" class="form-select">
+                                        <option value="">미기록</option>
+                                        <option value="true">PASS</option>
+                                        <option value="false">FAIL</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small">시작 시각</label>
+                                    <input type="datetime-local" id="ltEditStartedAt" class="form-control">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small">종료 시각</label>
+                                    <input type="datetime-local" id="ltEditFinishedAt" class="form-control">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small">
+                                        Grafana 링크
+                                        <button type="button" id="ltFillGrafana" class="btn btn-sm btn-link p-0 ms-1">
+                                            testid/시각으로 초안 채우기
+                                        </button>
+                                    </label>
+                                    <input type="text" id="ltEditGrafanaUrl" class="form-control"
+                                           placeholder="/admin/monitor/d/small-town-load-test/...">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small">주요 지표 (직접 기록)</label>
+                                    <textarea id="ltEditRecordedMetrics" class="form-control" rows="3"
+                                              placeholder="p95=..., 에러율=..., 관측 RPS=..."></textarea>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small">메모</label>
+                                    <textarea id="ltEditNotes" class="form-control" rows="2"></textarea>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small">트리거한 사람</label>
+                                    <input type="text" id="ltEditTriggeredBy" class="form-control">
+                                </div>
+                            </div>
+                            <div class="mt-3 d-flex justify-content-between">
+                                <button type="button" id="ltDeleteRun" class="btn btn-outline-danger">삭제</button>
+                                <button type="submit" class="btn btn-primary">저장</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div layout:fragment="scripts">
+    <script th:src="@{/js/admin/load-test.js}"></script>
+</div>
+</body>
+</html>
