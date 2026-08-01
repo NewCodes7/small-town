@@ -934,7 +934,7 @@
         {
           "datasource": { "type": "tempo", "uid": "tempo" },
           "queryType": "traceql",
-          "query": "{resource.service.name=\"$service\" && trace:rootName=\"POST /api/rag/answer\"}",
+          "query": "{resource.service.name=\"$service\" && trace:rootName=\"http post /api/rag/answer\"}",
           "limit": 50,
           "tableType": "traces",
           "refId": "A"
@@ -954,7 +954,7 @@
         {
           "datasource": { "type": "tempo", "uid": "tempo" },
           "queryType": "traceql",
-          "query": "{resource.service.name=\"$service\" && trace:rootName=\"POST /api/rag/answer\" && duration>$slow_threshold}",
+          "query": "{resource.service.name=\"$service\" && trace:rootName=\"http post /api/rag/answer\" && duration>$slow_threshold}",
           "limit": 50,
           "tableType": "traces",
           "refId": "A"
@@ -974,7 +974,7 @@
         {
           "datasource": { "type": "tempo", "uid": "tempo" },
           "queryType": "traceql",
-          "query": "{resource.service.name=\"$service\" && trace:rootName=\"POST /api/rag/answer\" && status=error}",
+          "query": "{resource.service.name=\"$service\" && trace:rootName=\"http post /api/rag/answer\" && status=error}",
           "limit": 50,
           "tableType": "traces",
           "refId": "A"
