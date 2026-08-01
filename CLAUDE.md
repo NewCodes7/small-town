@@ -1,8 +1,12 @@
 # CLAUDE.md
 
-## What This Project Is
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Spring Boot 4.1 / Java 26 기반 기업 기술 블로그·유튜브 큐레이션 서비스.
+## Project Overview
+
+Spring Boot 4.1 / Java 26 기반 기업 기술 블로그·유튜브 큐레이션 서비스 (NewCodes).
+
+**데이터 흐름**: 크롤링 → 형태소 분석(Lucene Nori) → BM25 인덱싱 + 벡터 임베딩(Clova) → 하이브리드 검색(BM25 + Vector, NSF 리랭킹) → AI 요약/RAG 답변(SSE 스트리밍)
 
 > **Boot 4 / JDK 26 마이그레이션 주의** (2026-07 업그레이드):
 > - JSON은 **Jackson 3 (`tools.jackson`)** 사용 — `com.fasterxml.jackson.databind` import 금지 (어노테이션 `com.fasterxml.jackson.annotation`은 그대로). Jackson 3는 java.time 내장, 예외는 unchecked.
@@ -13,8 +17,6 @@ Spring Boot 4.1 / Java 26 기반 기업 기술 블로그·유튜브 큐레이션
 > - Security 7: `DaoAuthenticationProvider`는 생성자로 `UserDetailsService` 주입.
 > - Framework 7: `UriComponentsBuilder.fromHttpUrl` 삭제 → `fromUriString`, `HttpComponentsClientHttpRequestFactory.setConnectTimeout` 삭제 → HttpClient `ConnectionConfig`로 설정.
 > - JDK 26은 SDKMAN(`26.0.1-tem`)으로 설치, 없으면 foojay resolver가 자동 다운로드. Gradle 데몬은 시스템 JDK 17로 동작.
-
-**데이터 흐름**: 크롤링 → 형태소 분석(Lucene Nori) → BM25 인덱싱 + 벡터 임베딩(Clova) → 하이브리드 검색(BM25 + Vector, NSF 리랭킹) → AI 요약(Gemini, SSE 스트리밍)
 
 ---
 
@@ -27,9 +29,13 @@ set -a; . ./.env; set +a
 ./gradlew build
 ./gradlew test
 ./gradlew test --tests "*ClassName*"
-./gradlew test --tests "*ClassName.methodName"
+./gradlew test --tests "*ClassName.methodName*"
 ./gradlew bootRun
 ```
+
+- 병렬 테스트 포크 수는 기본 `CPU/2`, `-PtestForks=N` / `-PtestCpusPerFork=N`으로 오버라이드 가능 (포크당 `ActiveProcessorCount` 고정, `TieredStopAtLevel=1`로 C2 JIT 생략).
+- 커버리지 리포트(Jacoco)는 `CI` 환경변수가 있거나 `-Pcoverage`를 줄 때만 생성됨 (로컬 반복 실행 시간 절약).
+- 포맷/린트(Spotless)·SAST(SpotBugs + find-sec-bugs) 검증은 `/verify` 슬래시 커맨드(`.claude/hooks/verify.sh`)로 실행 — Spotless는 `ratchetFrom HEAD`라 **작업 트리에서 변경된 파일만** 검사(레거시 코드에 안 막힘). SpotBugs는 `ignoreFailures=true`로 항상 통과하고, 실제 게이트 판정은 훅이 diff 라인 기준으로 수행.
 
 ---
 
@@ -37,19 +43,23 @@ set -a; . ./.env; set +a
 
 ```
 com.newcodes7.small_town/
-├── global/        # 공유 엔티티(Article, Corporation, Video, Term, Tag…), AOP, 캐시, 유틸
-├── article/       # 아티클 CRUD, 좋아요/조회수, Term 추출, 임베딩 트리거
-├── search/        # 하이브리드 검색, AI 요약(Gemini SSE), 자동완성, 가중치 설정
+├── global/        # 공유 엔티티(Article, Corporation, Video, Term, Tag…), AOP, 캐시, 유틸, BedrockClientFactory
+├── article/       # 아티클 CRUD, Term 추출, 임베딩 트리거
+├── search/        # 하이브리드 검색, AI 요약(레거시), RAG 채팅(신규), 자동완성, 가중치 설정
 ├── embedding/     # Clova 임베딩 (ArticleChunk / ChunkContent / ChunkVector)
 ├── crawler/       # 블로그·유튜브 크롤링, 컨텐츠 추출, 저장
 ├── hackernews/    # Hacker News 스토리·댓글 크롤링 및 조회
-├── video/         # 유튜브 비디오 큐레이션 (좋아요, 조회수)
+├── video/         # 유튜브 비디오 큐레이션
 ├── theme/         # AI 기반 테마 분류
 ├── term/          # 기술 용어 관리 (동의어, StackExchange)
-├── admin/         # 관리자 UI (카테고리, 임베딩 배치, 번역, GA, 검색 가중치)
+├── admin/         # 관리자 UI (카테고리, 임베딩 배치, 번역, GA, 검색 가중치, RAG 이력/부하테스트)
 ├── auth/          # OAuth2(Google/GitHub) + JWT
 ├── corporation/   # 기업 관리, S3/CloudFront 파일 업로드
 ├── feedback/      # 사용자 피드백 (PENDING→IN_PROGRESS→COMPLETED/REJECTED)
+├── like/          # 좋아요 (Like, LikeLog, UserLikeService)
+├── view/          # 조회수 로그 (ViewLog, ViewService)
+├── activity/      # 아티클 클릭/유입 경로 로그 (ArticleClickLog, ReferralSource)
+├── notification/  # 관리자 알림 (AdminNotification)
 └── exception/     # 글로벌 예외 처리
 ```
 
@@ -59,29 +69,10 @@ com.newcodes7.small_town/
 
 - **운영**: PostgreSQL + pgvector + ParadeDB(pg_search)
 - **테스트**: PostgreSQL `small_town_test` (H2 미사용, `create-drop`)
-- **마이그레이션**: Flyway (`src/main/resources/db/migration/`)
+- **마이그레이션**: Flyway (`src/main/resources/db/migration/`), 현재 최신 버전 V1_32
 
-### Flyway 마이그레이션 현황
-
-| 버전 | 내용 |
-|------|------|
-| V1_1 | feedback 테이블 생성 |
-| V1_2 | corporation.logo_filename 컬럼 추가 |
-| V1_5 | embedding_normalized halfvec(1024) 분리 |
-| V1_6 | embedding 컬럼 제거 |
-| V1_7 | chunk_content 테이블 분리 |
-| V1_8 | crawling_scheduler_run 로그 테이블 생성 |
-| V1_9 | search_query_embedding 테이블 생성 |
-| V1_10 | search_query_embedding 차원 변경 (halfvec(1024)) |
-| V1_11 | article_search_view title_terms BOTH source 포함 수정 |
-| V1_12 | search_weight_config 테이블 생성 |
-| V1_13 | hacker_news_item / hacker_news_comment 테이블 생성 (파일 2개 — Flyway checksum 주의) |
-| V1_14 | article_analyzed_content 테이블 생성 + BM25 인덱스 + 데이터 이관 |
-| V1_15 | article_search_view Materialized View 삭제 |
-| V1_16 | Term 전체 소문자 변환, 자동완성 커버링 인덱스 생성 |
-| V1_17 | hacker_news_item.rank / crawl_batch_at 컬럼 추가 |
-
-> **V1_13 주의**: `V1_13__create_hacker_news_tables.sql`과 `V1_13__drop_article_legacy_embedding_columns.sql` 두 파일이 같은 버전을 사용함 — Flyway가 어느 쪽을 적용했는지 확인 필요.
+> **V1_13 주의**: `V1_13__create_hacker_news_tables.sql`과 `V1_13_1__drop_article_legacy_embedding_columns.sql` — Flyway가 어느 쪽을 적용했는지 확인 필요할 때는 DB `flyway_schema_history` 조회.
+> `article_search_view` Materialized View는 V1_15에서 삭제됨 — 구 코드에서 참조하면 오류, `article_analyzed_content` 테이블로 교체.
 
 ---
 
@@ -89,12 +80,8 @@ com.newcodes7.small_town/
 
 ### 1. BM25 검색 — article_analyzed_content 테이블
 
-`article_search_view` Materialized View는 **삭제됨** (V1_15). 대신 `article_analyzed_content` 일반 테이블 사용.
-
-- `title_terms`, `content_terms`: 형태소 분석된 텍스트 (BM25 인덱스 대상)
-- BM25 인덱스: ParadeDB `bm25` 인덱스 타입으로 생성됨
-- Term CRUD 시 `ArticleAnalyzedContentService.refresh(article)`를 호출해 동기화 (더 이상 REFRESH MATERIALIZED VIEW 불필요)
-- 구 코드에서 `article_search_view`나 `refresh_article_search_index()` 참조하면 오류 — `article_analyzed_content`로 교체
+- `title_terms`, `content_terms`: 형태소 분석된 텍스트 (ParadeDB `bm25` 인덱스 대상, V1_27에서 인덱스 생성)
+- Term CRUD 시 `ArticleAnalyzedContentService.refresh(article)`를 호출해 동기화
 
 ### 2. Vector 검색
 
@@ -102,7 +89,7 @@ Clova Embedding v2 (1024차원), 2단계 검색:
 
 1. **Stage 1**: `embedding_binary bit(1024)` binary HNSW → 빠른 후보 필터링
 2. **Stage 2**: `embedding_normalized halfvec(1024)` halfvec reranking → cosine 유사도 (L2 정규화 → inner product = cosine)
-- 유사도 threshold: `0.52`
+- 유사도 threshold: `0.52` (일반 검색 기준, RAG 채팅은 `0.6` 별도 적용)
 - `hnsw.ef_search=250` (HikariCP `connection-init-sql`로 설정)
 
 ### 3. Hybrid Search — NSF 리랭킹
@@ -116,22 +103,27 @@ Clova Embedding v2 (1024차원), 2단계 검색:
 - 따옴표 검색 지원 (정확한 구문 매칭)
 - `SearchQueryEmbedding`: 쿼리별 임베딩 캐싱 (halfvec(1024))
 
-### 4. AI 요약 — Gemini SSE
+### 4. AI 요약(레거시) vs RAG 채팅(신규) — 두 개의 SSE 스트리밍 답변 시스템이 공존
 
-`AiSummaryService` + `AiSummaryController`.
-
-- Gemini API (`gemini.api-key`, `gemini.model=gemini-3.5-flash`)
-- Vector 검색으로 관련 청크 최대 10개 추출 → Gemini에 컨텍스트로 전달
-- 응답을 **SSE(Server-Sent Events)** 스트리밍으로 클라이언트에 전달
+**`AiSummaryController`/`AiSummaryService`** (`GET /ai-summary`)
+- Gemini 고정 (`gemini.api-key`, `gemini.model`)
+- Vector 검색으로 관련 청크 최대 10개 추출 → 컨텍스트로 전달
 - 캐시: Caffeine `aiSummary` 캐시 (`ai-summary:{query}` 키)
-- Micrometer Counter/Timer로 메트릭 수집
+
+**`RagChatController`/`RagAnswerService`** (`POST /api/rag/answer`)
+- 멀티 LLM 지원: `RagLlmClientResolver`가 Gemini/OpenAI/Bedrock(`RagLlmClient` 구현체) 중 모델 ID로 라우팅. 기본 고정 모델은 Bedrock Claude Sonnet 4.5 (`rag.models[4]`, `application.properties`)
+- **전처리(쿼리 분해, sync) → 답변 생성(async) 2단계**, 경량 전처리 모델을 답변 모델과 분리 지정 가능(`rag.chat.preprocess-model-id`)해 TTFT 단축
+- 아티클 단위 검색: 상위 5개 아티클 × 아티클당 3청크(`TOP_ARTICLES`/`CHUNKS_PER_ARTICLE`), threshold `0.6`
+- Rate limit: nginx는 분당 제한만 처리 가능해 **시간당 IP별 한도(`rag.chat.hourly-limit-per-ip`, 기본 30)는 컨트롤러에서 카운트**. 부하테스트(Fargate) IP는 `rag.chat.rate-limit-exempt-ips`로 예외 처리(nginx `$loadtest_bypass` geo 블록과 IP 동기화 필요)
+- SSE 타임아웃 150초 (전처리 30초 + 답변 90초 worst case + 여유)
+- `RagQueryLog`: 질의/모델/응답시간 로깅, `AdminRagHistoryController`에서 조회
+- `RagChatLoadTestController` (`POST /api/rag/answer/loadtest`): k6/Fargate 부하테스트 전용 엔드포인트 — `load-test/` 디렉터리 참고
 
 ### 5. Hacker News 모듈
 
 - `HackerNewsApiClient`: HN Firebase API 호출 (무인증)
 - `HackerNewsService`: 인기 스토리 크롤링, 댓글 수집, DeepL로 제목·댓글 번역
 - `HackerNewsCrawlingScheduler`: 매시 :30 실행 (`crawler.enabled=true` 조건)
-- 설정: `hackernews.crawl.top-stories-limit=30`, `hackernews.crawl.max-comments-per-item=20`
 
 ### 6. 크롤러 플러그인
 
@@ -146,11 +138,11 @@ List<Article> crawl(WebDriver driver, Corporation corporation)
 | `YouTubeCrawler` / `VideoCrawler` | YouTube Data API |
 
 - `blogType` enum으로 크롤러 선택 (`CrawlingService.selectCrawler()` — `canHandle(Corporation)`이 true인 non-Default 크롤러 우선, 없으면 Default로 fallback)
-- 기업(Corporation)은 **순차 for-loop로 처리** — 동시 크롤링 스레드 풀/Corporation별 `REQUIRES_NEW` 격리는 없음. `REQUIRES_NEW`는 Article 단위 개별 content 업데이트에만 적용됨. (`crawler.concurrent.max-threads`, `crawler.retry.max-attempts` 프로퍼티는 미바인딩 죽은 설정)
+- 기업(Corporation)은 **순차 for-loop로 처리** — 동시 크롤링 스레드 풀/Corporation별 격리는 없음
 - robots.txt 준수 (`crawlWithRobotsCheck()`)
 - 이력: `CrawlingSchedulerRun`, `CrawlingArticleProcessingLog`
 - **`driver.quit()`은 반드시 finally에서 호출** — `pkill`/`kill -9` 금지 (OOM Exit 137 원인)
-- `ContentAndTermExtractionScheduler`는 `@Scheduled`가 주석처리되어 비활성 (죽은 코드) — `CrawlingScheduler.scheduledContentCrawling()`(매시 30분)이 본문 백필 역할을 대체 수행
+- `ContentAndTermExtractionScheduler`는 `@Scheduled`가 주석처리되어 비활성 (죽은 코드) — `CrawlingScheduler.scheduledContentCrawling()`(매시 30분, 본문 200자 이하 Article 대상)이 본문 백필 역할을 대체 수행
 
 ### 7. Term 추출
 
@@ -189,6 +181,9 @@ Term ─< TermSynonym (self-ref, term_id < synonym_term_id)
 HackerNewsItem ─< HackerNewsComment
 SearchLog, SearchQueryEmbedding, SearchWeightConfig
 ArticleAnalyzedContent (article.id = FK)
+RagQueryLog          # RAG 채팅 질의 로그
+Like ─ LikeLog, ViewLog, ArticleClickLog   # 좋아요/조회수/유입 로그
+AdminNotification
 ```
 
 ---
@@ -197,13 +192,13 @@ ArticleAnalyzedContent (article.id = FK)
 
 | 스케줄러 | Cron | 내용 |
 |----------|------|------|
-| `CrawlingScheduler` (블로그) | `0 0 2 * * ?` (02:00) | 블로그 크롤링 |
-| `CrawlingScheduler` (YouTube) | `0 30 2 * * ?` (02:30) | YouTube 크롤링 |
-| `ContentAndTermExtractionScheduler` | `0 30 * * * ?` (매시 :30) | 컨텐츠/용어 추출 |
+| `CrawlingScheduler.scheduledBlogCrawling()` | `0 0 4 * * ?` (04:00) | 블로그 크롤링 |
+| `CrawlingScheduler.scheduledYoutubeCrawling()` | `0 30 4 * * ?` (04:30) | YouTube 크롤링 |
+| `CrawlingScheduler.scheduledContentCrawling()` | `0 30 * * * ?` (매시 :30) | 본문 백필 크롤링 (200자 이하 Article 대상) |
 | `HackerNewsCrawlingScheduler` | `0 30 * * * ?` (매시 :30) | HN 크롤링 |
 | `SearchPrewarmScheduler` | fixedDelay 300s + `0 30 * * * *` | 검색 사전 워밍 |
 
-> `crawler.enabled=true`일 때만 크롤러 스케줄러 활성화.
+> 프로퍼티 키(`crawler.schedule.*.cron`)로 오버라이드 가능. `crawler.enabled=true`일 때만 크롤러 스케줄러 활성화. `ContentAndTermExtractionScheduler`는 죽은 코드(위 6번 참고).
 
 ---
 
@@ -212,8 +207,9 @@ ArticleAnalyzedContent (article.id = FK)
 | API | 용도 | 설정 키 |
 |-----|------|---------|
 | **Naver Clova** | 임베딩 v2 (1024차원) | `clova.api-key` (`nv-` prefix 자동) |
-| **Google Gemini** | AI 요약 (SSE 스트리밍) | `gemini.api-key`, `gemini.model` |
-| **OpenAI** | 아티클 요약/분석 (Responses API) | `openai.api-key` |
+| **Google Gemini** | AI 요약(레거시) SSE, RAG 채팅 LLM 옵션 | `gemini.api-key`, `gemini.model` |
+| **OpenAI** | 아티클 요약/분석 (Responses API), RAG 채팅 LLM 옵션 | `openai.api-key` |
+| **AWS Bedrock** | RAG 채팅 기본 LLM (Claude, Bedrock mantle 경유) | `BEDROCK_API_KEY` |
 | **DeepL** | 제목·HN 댓글 번역 | `deepl.api-key` |
 | **YouTube Data API** | 채널 비디오 크롤링 | `youtube.api.key` |
 | **AWS S3/CloudFront** | 파일 업로드, 이미지 서빙 | `AWS_ACCESS_KEY`, `S3_BUCKET_NAME` |
@@ -276,45 +272,9 @@ public class ExampleServiceTest { ... }
 
 - `UserTestHelper`: 테스트용 User 생성
 - `ArticleCreator`: 테스트용 Article 생성
-- `TestDatabaseInitializer`: DB 초기화
+- `TestDatabaseInitializer`: DB 초기화 (포크별 슬롯 분리, worker id % slots)
+- `IntegrationTestBase`: 통합 테스트 공통 베이스
 - `TestWebDriverConfig`: WebDriver Mock
-
-### 주요 테스트 파일
-
-| 파일 | 내용 |
-|------|------|
-| `AuthServiceTest` | 회원가입/로그인/토큰갱신/탈퇴 |
-| `JwtTokenProviderTest` | JWT 생성/검증/파싱 |
-| `ArticleRepositoryTest` | 아티클 조회/검색/페이징 |
-| `ArticleServiceTest` | 아티클 비즈니스 로직 |
-| `ArticleControllerTest` / `ArticleControllerCacheTest` | 컨트롤러 + 캐시 |
-| `ArticleTermServiceTest` | Term 추출/저장 |
-| `HybridSearchScorerTest` | NSF 점수 계산 단위 테스트 |
-| `ArticleSearchControllerTest` | 검색 컨트롤러 |
-| `HackerNewsServiceTest` | HN 크롤링/조회 |
-| `HackerNewsControllerTest` | HN API 컨트롤러 |
-| `CrawlingServiceTest` | 크롤링 서비스 |
-| `DefaultBlogCrawlerTest` | 블로그 크롤러 |
-| `ArticleContentExtractionServiceTest` | 컨텐츠 추출 |
-| `ChunkEmbeddingBatchServiceTest` | 임베딩 배치 |
-| `FeedbackServiceTest` | 피드백 CRUD |
-| `VideoServiceTest` / `VideoLikeServiceTest` | 비디오 서비스 |
-| `TermSynonymServiceTest` / `ArticleTermServiceTest` | 용어/동의어 |
-| `LikeServiceTest` / `UserLikeServiceTest` / `ViewServiceTest` | 좋아요/조회수 |
-
----
-
-## Key Dependencies
-
-- Spring Boot 4.1.0, Java 26 (Jackson 3 `tools.jackson`, Hibernate 7, Security 7)
-- PostgreSQL 42.7.3, pgvector 0.1.4, ParadeDB(pg_search)
-- Lucene Nori 9.12.3 (한국어 형태소), Lucene Core 9.12.3
-- Selenium 4.41.0 + WebDriverManager 6.3.3
-- Caffeine (캐싱), Quartz (스케줄링)
-- Micrometer/Prometheus (`/actuator/health`)
-- jjwt 0.12.3, Spring Security + OAuth2 (Google, GitHub)
-- Readability4j, Rome (RSS), Jsoup
-- Scrimage (WebP 변환), jtokkit (토큰 카운터)
 
 ---
 
@@ -340,7 +300,7 @@ JWT_SECRET
 OPENAI_API_KEY, OPENAI_ORG_ID, OPENAI_MY_PROJECT_ID, OPENAI_WEBHOOK_SECRET
 GEMINI_API_KEY
 CLOVA_API_KEY
-BEDROCK_API_KEY   # admin RAG 테스트 OpenAI 호환 모델(GPT·Gemma·Grok, Bedrock mantle 경유)용 long-term API key
+BEDROCK_API_KEY   # RAG 채팅 기본 LLM(Claude, Bedrock mantle 경유)용 long-term API key
 
 DEEPL_API_KEY
 YOUTUBE_API_KEY
@@ -358,11 +318,12 @@ GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_REDIRECT_URI
 | OOM (Exit 137) | `driver.quit()` finally에서 호출, `pkill` 금지 |
 | BM25 결과 없음 | `SELECT COUNT(*) FROM article_analyzed_content;` 확인, Term 추출 후 `ArticleAnalyzedContentService.refresh()` 호출 |
 | `article_search_view` 참조 오류 | V1_15에서 삭제됨 — `article_analyzed_content`로 교체 |
-| Vector 검색 부정확 | `embedding_normalized` 인덱스 확인, threshold(0.52) 조정 |
-| Flyway V1_13 충돌 | 동일 버전 파일 2개 존재 — DB `flyway_schema_history` 확인 |
+| Vector 검색 부정확 | `embedding_normalized` 인덱스 확인, threshold(일반 0.52 / RAG 채팅 0.6) 조정 |
+| Flyway V1_13 충돌 | 동일 버전대 파일 2개(`V1_13`, `V1_13_1`) 존재 — DB `flyway_schema_history` 확인 |
 | Sequence 충돌 | `fix_sequences.sql` 실행 |
 | Nginx 설정 드리프트 | `sed -i` 금지 → `docker restart newcodes-nginx` |
 | 배포 실패 | `./deploy.sh status` → 로그 → `./deploy.sh rollback` |
 | OpenAI 파싱 오류 | Responses API 역직렬화 설정, readTimeout=120s 유지 |
 | Gemini AI 요약 실패 | `gemini.api-key` 확인, SSE emitter timeout 확인 |
+| RAG 채팅 실패 | 모델 ID가 `rag.models`에 등록됐는지, `BEDROCK_API_KEY`/`rag.chat.preprocess-model-id` 확인, SSE 타임아웃(150s) 확인 |
 | pgvector 오류 | `CREATE EXTENSION IF NOT EXISTS vector;` 실행 |
