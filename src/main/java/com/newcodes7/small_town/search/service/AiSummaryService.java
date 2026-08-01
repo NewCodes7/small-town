@@ -7,10 +7,6 @@ import com.newcodes7.small_town.search.dto.AiSummaryPromptDto;
 import com.newcodes7.small_town.search.dto.AiSummarySourceDto;
 import com.newcodes7.small_town.search.entity.AiSummaryLog;
 import com.newcodes7.small_town.search.repository.AiSummaryLogRepository;
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.DistributionSummary;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.observation.annotation.Observed;
@@ -21,14 +17,12 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
@@ -49,7 +43,6 @@ public class AiSummaryService {
     private final VectorSearchService vectorSearchService;
     private final ArticleSearchService articleSearchService;
     private final CacheManager cacheManager;
-    private final MeterRegistry meterRegistry;
     private final ObjectMapper objectMapper;
     private final AiSummaryLogRepository aiSummaryLogRepository;
     private final ObservationRegistry observationRegistry;
@@ -108,16 +101,6 @@ public class AiSummaryService {
             [QUERIES]{"queries":["검색어1","검색어2","검색어3"]}[/QUERIES]
             """;
 
-    private Counter successCounter;
-    private Counter failureCounter;
-    private Counter cachedCounter;
-    private Timer successLatencyTimer;
-    private Timer failureLatencyTimer;
-    private Timer cachedLatencyTimer;
-    private Timer geminiTtfbTimer;
-    private Timer geminiDurationTimer;
-    private Timer geminiChunkGapTimer;
-    private DistributionSummary geminiChunkSizeSummary;
     private HttpClient httpClient;
 
     @PostConstruct
@@ -125,50 +108,6 @@ public class AiSummaryService {
         httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(3))
                 .build();
-        successCounter = Counter.builder("ai_summary_requests_total")
-                .tag("status", "success")
-                .description("AI summary successful requests")
-                .register(meterRegistry);
-        failureCounter = Counter.builder("ai_summary_requests_total")
-                .tag("status", "failure")
-                .description("AI summary failed requests")
-                .register(meterRegistry);
-        cachedCounter = Counter.builder("ai_summary_requests_total")
-                .tag("status", "cached")
-                .description("AI summary cached requests")
-                .register(meterRegistry);
-        successLatencyTimer = Timer.builder("ai_summary_latency_seconds")
-                .tag("status", "success")
-                .description("AI summary end-to-end latency")
-                .publishPercentileHistogram()
-                .register(meterRegistry);
-        failureLatencyTimer = Timer.builder("ai_summary_latency_seconds")
-                .tag("status", "failure")
-                .description("AI summary end-to-end latency")
-                .publishPercentileHistogram()
-                .register(meterRegistry);
-        cachedLatencyTimer = Timer.builder("ai_summary_latency_seconds")
-                .tag("status", "cached")
-                .description("AI summary end-to-end latency")
-                .publishPercentileHistogram()
-                .register(meterRegistry);
-        geminiTtfbTimer = Timer.builder("ai_summary_gemini_ttfb_seconds")
-                .description("Time from Gemini call start to first non-empty streamed chunk")
-                .publishPercentileHistogram()
-                .register(meterRegistry);
-        geminiDurationTimer = Timer.builder("ai_summary_gemini_duration_seconds")
-                .description("Gemini call wall time from request start to stream fully consumed or errored")
-                .publishPercentileHistogram()
-                .register(meterRegistry);
-        geminiChunkGapTimer = Timer.builder("ai_summary_gemini_chunk_gap_seconds")
-                .description("Inter-arrival gap between consecutive Gemini stream chunks (second chunk onward)")
-                .publishPercentileHistogram()
-                .register(meterRegistry);
-        geminiChunkSizeSummary = DistributionSummary.builder("ai_summary_gemini_chunk_size_bytes")
-                .description("Size in bytes of each raw Gemini SSE line (wire payload, before holdback buffering)")
-                .baseUnit("bytes")
-                .publishPercentileHistogram()
-                .register(meterRegistry);
     }
 
     @Observed(name = "ai-summary", contextualName = "ai-summary-stream")
@@ -181,7 +120,6 @@ public class AiSummaryService {
 
         String normalizedQuery = query.toLowerCase().trim();
         String cacheKey = CACHE_KEY_PREFIX + normalizedQuery;
-        long startTime = System.currentTimeMillis();
 
         try {
             Cache cache = cacheManager.getCache(CACHE_NAME);
@@ -191,8 +129,6 @@ public class AiSummaryService {
                     sendSourcesEvent(emitter, cached.sources());
                     replayFromCache(emitter, cached);
                     saveAiSummaryLog(normalizedQuery, null, null, null, true);
-                    cachedCounter.increment();
-                    cachedLatencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
                     return;
                 }
             }
@@ -205,8 +141,6 @@ public class AiSummaryService {
             if (chunks.isEmpty()) {
                 sendHideEvent(emitter);
                 completeEmitter(emitter);
-                failureCounter.increment();
-                failureLatencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
                 return;
             }
 
@@ -231,8 +165,6 @@ public class AiSummaryService {
                     .contextualName("gemini-stream")
                     .start();
             boolean firstTokenSeen = false;
-            long geminiStartNanos = System.nanoTime();
-            long lastChunkNanos = 0L;
 
             try (Stream<String> lines = callGeminiStream(requestBody)) {
                 for (String line : (Iterable<String>) lines::iterator) {
@@ -247,13 +179,8 @@ public class AiSummaryService {
 
                     if (!firstTokenSeen) {
                         firstTokenSeen = true;
-                        geminiTtfbTimer.record(System.nanoTime() - geminiStartNanos, TimeUnit.NANOSECONDS);
                         geminiObservation.event(Observation.Event.of("first-token"));
-                    } else {
-                        geminiChunkGapTimer.record(System.nanoTime() - lastChunkNanos, TimeUnit.NANOSECONDS);
                     }
-                    lastChunkNanos = System.nanoTime();
-                    geminiChunkSizeSummary.record(line.getBytes(StandardCharsets.UTF_8).length);
                     fullText.append(text);
 
                     if (!queriesDetected) {
@@ -283,8 +210,6 @@ public class AiSummaryService {
                 log.warn("Gemini API 타임아웃 - 쿼리: {}", query);
                 sendErrorEvent(emitter, "요약을 불러올 수 없습니다");
                 completeEmitter(emitter);
-                failureCounter.increment();
-                failureLatencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
                 return;
             } catch (InterruptedException e) {
                 geminiObservation.error(e);
@@ -292,19 +217,14 @@ public class AiSummaryService {
                 log.error("Gemini API 호출 중 인터럽트: {}", e.getMessage());
                 sendErrorEvent(emitter, "요약을 불러올 수 없습니다");
                 completeEmitter(emitter);
-                failureCounter.increment();
-                failureLatencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
                 return;
             } catch (IOException e) {
                 geminiObservation.error(e);
                 log.error("Gemini API 호출 실패: {}", e.getMessage(), e);
                 sendErrorEvent(emitter, "요약을 불러올 수 없습니다");
                 completeEmitter(emitter);
-                failureCounter.increment();
-                failureLatencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
                 return;
             } finally {
-                geminiDurationTimer.record(System.nanoTime() - geminiStartNanos, TimeUnit.NANOSECONDS);
                 geminiObservation.stop();
             }
 
@@ -340,15 +260,10 @@ public class AiSummaryService {
                 cache.put(cacheKey, new AiSummaryCacheDto(cleanText, sources, queries));
             }
 
-            successCounter.increment();
-            successLatencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
-
         } catch (Exception e) {
             log.error("AI 요약 처리 중 예외 발생: {}", e.getMessage(), e);
             sendErrorEvent(emitter, "요약을 불러올 수 없습니다");
             completeEmitter(emitter);
-            failureCounter.increment();
-            failureLatencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
         }
     }
 

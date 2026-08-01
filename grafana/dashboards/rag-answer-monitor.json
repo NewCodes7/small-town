@@ -555,11 +555,379 @@
       ]
     },
     {
+      "id": 12,
+      "type": "timeseries",
+      "title": "RAG 답변 지연시간 상태별 분리 (p95)",
+      "description": "RagAnswerService의 rag_answer_latency_seconds Timer(percentile histogram) 기반. status={success,failure,cached,not_found} 태그로 분리 — not_found는 기업 미매칭(NO_CORP)/검색결과 없음(NO_RESULT) 경로.",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "지연시간",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "unit": "s",
+          "min": 0,
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le, status) (rate(rag_answer_latency_seconds_bucket[$__rate_interval])))",
+          "range": true,
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "LLM TTFB / 전체 호출시간 (p50/p95/p99)",
+      "description": "RagAnswerService.streamAnswerInternal의 LLM 스트림 구간(rag.llm-stream)만 떼어낸 계측. TTFB=호출 시작~첫 토큰, duration=호출 시작~스트림 소진/에러. 캐시 히트·not_found 경로는 LLM을 호출하지 않으므로 포함되지 않는다.",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "지연시간",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "unit": "s",
+          "min": 0,
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "duration p99" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "duration p95" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "TTFB p50" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#73BF69" } }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(rag_answer_llm_ttfb_seconds_bucket[$__rate_interval])))",
+          "range": true,
+          "legendFormat": "TTFB p50",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(rag_answer_llm_ttfb_seconds_bucket[$__rate_interval])))",
+          "range": true,
+          "legendFormat": "TTFB p95",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(rag_answer_llm_ttfb_seconds_bucket[$__rate_interval])))",
+          "range": true,
+          "legendFormat": "TTFB p99",
+          "refId": "C"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(rag_answer_llm_duration_seconds_bucket[$__rate_interval])))",
+          "range": true,
+          "legendFormat": "duration p50",
+          "refId": "D"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(rag_answer_llm_duration_seconds_bucket[$__rate_interval])))",
+          "range": true,
+          "legendFormat": "duration p95",
+          "refId": "E"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(rag_answer_llm_duration_seconds_bucket[$__rate_interval])))",
+          "range": true,
+          "legendFormat": "duration p99",
+          "refId": "F"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "LLM chunk 간격 (p50/p95/p99)",
+      "description": "연속된 LLM 스트림 콜백(generateStream onText) 간 도착 간격 — 부하테스트 mock 서버가 재현해야 할 스트리밍 cadence.",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 41
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "간격",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "unit": "s",
+          "min": 0,
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "p99" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "p95" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "p50" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#73BF69" } }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(rag_answer_llm_chunk_gap_seconds_bucket[$__rate_interval])))",
+          "range": true,
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(rag_answer_llm_chunk_gap_seconds_bucket[$__rate_interval])))",
+          "range": true,
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(rag_answer_llm_chunk_gap_seconds_bucket[$__rate_interval])))",
+          "range": true,
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "LLM chunk 크기 (bytes, p50/p95/p99)",
+      "description": "LLM 스트림 콜백으로 전달되는 각 텍스트 청크의 UTF-8 바이트 크기 분포 — 부하테스트 mock 서버가 재현해야 할 청크 크기.",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 41
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "bytes",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "unit": "bytes",
+          "min": 0,
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "p99" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "p95" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "p50" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#73BF69" } }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(rag_answer_llm_chunk_size_bytes_bucket[$__rate_interval])))",
+          "range": true,
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(rag_answer_llm_chunk_size_bytes_bucket[$__rate_interval])))",
+          "range": true,
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(rag_answer_llm_chunk_size_bytes_bucket[$__rate_interval])))",
+          "range": true,
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ]
+    },
+    {
       "id": 7,
       "type": "table",
       "title": "최근 트레이스 (POST /api/rag/answer 전체)",
       "description": "선택된 기간 내 /api/rag/answer 요청 전체 트레이스. 클릭하면 워터폴(전처리 → 하이브리드 검색 → LLM 스트리밍) 상세 확인 가능.",
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 23 },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 50 },
       "datasource": { "type": "tempo", "uid": "tempo" },
       "options": {},
       "targets": [
@@ -579,7 +947,7 @@
       "type": "table",
       "title": "느린 트레이스 ($slow_threshold 초과)",
       "description": "duration이 임계값을 넘는 /api/rag/answer 트레이스만 필터링. 전처리·검색·LLM 중 어느 구간이 느린지는 워터폴에서 확인.",
-      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 33 },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 60 },
       "datasource": { "type": "tempo", "uid": "tempo" },
       "options": {},
       "targets": [
@@ -599,7 +967,7 @@
       "type": "table",
       "title": "에러 트레이스",
       "description": "status=error span이 포함된 /api/rag/answer 트레이스. RagLlmException, 인터럽트 등 예외 발생 구간 즉시 확인용.",
-      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 33 },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 60 },
       "datasource": { "type": "tempo", "uid": "tempo" },
       "options": {},
       "targets": [
@@ -619,7 +987,7 @@
       "type": "table",
       "title": "RAG 답변 생성 구간 (rag-answer-stream)",
       "description": "RagAnswerService.streamAnswer — @Observed(name=rag-answer, contextualName=rag-answer-stream). searchExecutor 비동기 스레드에서 실행되지만 trace context가 전파되어 위 루트 트레이스와 같은 trace로 이어진다.",
-      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 43 },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 70 },
       "datasource": { "type": "tempo", "uid": "tempo" },
       "options": {},
       "targets": [
@@ -639,7 +1007,7 @@
       "type": "table",
       "title": "RAG 벡터 검색 (vector-search-rag)",
       "description": "VectorSearchService.searchForRag — RAG용 기업 프리필터 hybrid retrieval의 vector 단계 (search.vector, contextualName=vector-search-rag)",
-      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 43 },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 70 },
       "datasource": { "type": "tempo", "uid": "tempo" },
       "options": {},
       "targets": [
