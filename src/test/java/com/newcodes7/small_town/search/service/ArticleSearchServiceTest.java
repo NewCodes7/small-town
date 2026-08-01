@@ -266,6 +266,337 @@ class ArticleSearchServiceTest {
         assertThat(result).isEmpty();
     }
 
+    // ===== computeHybridCore (필터 경유 직접 호출) 테스트 =====
+    // regions/category가 비어있지 않으면 searchArticlesHybrid가 getHybridCoreShared의
+    // single-flight 캐시를 건너뛰고 computeHybridCore를 직접·동기 호출한다 (캐시 설정 불필요)
+
+    @Test
+    @DisplayName("searchArticlesHybrid: 필터 있음 + BM25 쿼리 생성 실패(의미 확장 결과 없음) → 빈 페이지")
+    void searchArticlesHybrid_withFilters_bm25QueryBuildFails_returnsEmpty() {
+        // given
+        when(semanticExpansionService.classifyQueryComplexity("redis"))
+                .thenReturn(SemanticTermExpansionService.QueryComplexity.SIMPLE);
+        when(weightConfig.getWeights(SemanticTermExpansionService.QueryComplexity.SIMPLE))
+                .thenReturn(new SearchWeightConfigService.WeightEntry(3.0, 0.6, 0.4));
+        when(semanticExpansionService.expandSearchTerms("redis")).thenReturn(Collections.emptyMap());
+
+        // when
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
+                "redis", List.of("domestic"), List.of(), 0, 10, "relevance", "127.0.0.1", null);
+
+        // then
+        assertThat(result).isEmpty();
+        verifyNoInteractions(vectorSearchService);
+    }
+
+    @Test
+    @DisplayName("searchArticlesHybrid: 필터 있음 + Vector 검색 예외 → BM25 단독 결과로 폴백")
+    void searchArticlesHybrid_withFilters_vectorFutureThrows_fallsBackToBm25Only() {
+        // given
+        String keyword = "redis";
+        List<Object[]> bm25RawResults = List.of(
+                new Object[]{1L, 10.0, LocalDateTime.of(2024, 1, 1, 0, 0)},
+                new Object[]{2L, 5.0, LocalDateTime.of(2024, 2, 1, 0, 0)}
+        );
+        setupHybridSearchWithDomesticFilter(keyword, bm25RawResults);
+
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+                .thenThrow(new RuntimeException("vector down"));
+
+        Map<Long, Double> nsfScores = Map.of(1L, 0.8, 2L, 0.5);
+        HybridSearchScorer.NSFResult nsfResult = new HybridSearchScorer.NSFResult(
+                nsfScores, Map.of(1L, 1.0, 2L, 0.0), Map.of(), Map.of(1L, 1.0, 2L, 1.0));
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(nsfResult);
+        when(articleRepository.findIdAndPublishedAtByIdIn(anyList())).thenReturn(List.of(
+                new Object[]{1L, LocalDateTime.of(2024, 1, 1, 0, 0)},
+                new Object[]{2L, LocalDateTime.of(2024, 2, 1, 0, 0)}
+        ));
+
+        Corporation corp = Corporation.builder().name("Corp").build();
+        corp.setId(100L);
+        when(articleRepository.findByIdInWithCorporation(anyList())).thenReturn(List.of(
+                createArticle(1L, "Redis 입문", corp), createArticle(2L, "캐시 전략", corp)));
+        when(userLikeService.getLikeStatusBatchByIp(anyList(), any())).thenReturn(Map.of());
+
+        // when
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
+                keyword, List.of("domestic"), List.of(), 0, 10, "relevance", "127.0.0.1", null);
+
+        // then: Vector 결과 없이도 BM25 단독으로 정상 반환
+        assertThat(result.getContent()).hasSize(2);
+        assertThat(result.getContent()).allSatisfy(dto -> assertThat(dto.getVectorScore()).isNull());
+        verify(vectorSearchService, never()).computeSimilarityForArticlesWithEmbedding(any(float[].class), anyList());
+    }
+
+    @Test
+    @DisplayName("searchArticlesHybrid: 필터 있음 + cross-scoring — embedding 있으면 BM25-only id에 Vector 점수 보충")
+    void searchArticlesHybrid_withFilters_bm25OnlyIds_supplementedWithVectorWhenEmbeddingPresent() {
+        // given
+        String keyword = "redis";
+        List<Object[]> bm25RawResults = List.of(
+                new Object[]{1L, 10.0, LocalDateTime.of(2024, 1, 1, 0, 0)},
+                new Object[]{2L, 5.0, LocalDateTime.of(2024, 2, 1, 0, 0)}
+        );
+        setupHybridSearchWithDomesticFilter(keyword, bm25RawResults);
+
+        float[] dummyEmbedding = new float[]{0.1f, 0.2f};
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+                .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(3L, 0.7), dummyEmbedding));
+        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(eq(dummyEmbedding), anyList()))
+                .thenReturn(Map.of(1L, 0.4));
+
+        Map<Long, Double> nsfScores = Map.of(1L, 0.8, 2L, 0.3, 3L, 0.5);
+        HybridSearchScorer.NSFResult nsfResult = new HybridSearchScorer.NSFResult(
+                nsfScores, Map.of(), Map.of(), Map.of());
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(nsfResult);
+        when(articleRepository.findIdAndPublishedAtByIdIn(anyList())).thenReturn(List.of(
+                new Object[]{1L, LocalDateTime.of(2024, 1, 1, 0, 0)},
+                new Object[]{2L, LocalDateTime.of(2024, 2, 1, 0, 0)},
+                new Object[]{3L, LocalDateTime.of(2024, 3, 1, 0, 0)}
+        ));
+
+        Corporation corp = Corporation.builder().name("Corp").build();
+        corp.setId(100L);
+        when(articleRepository.findByIdInWithCorporation(anyList())).thenReturn(List.of(
+                createArticle(1L, "Redis", corp), createArticle(2L, "Cache", corp), createArticle(3L, "DB", corp)));
+        when(userLikeService.getLikeStatusBatchByIp(anyList(), any())).thenReturn(Map.of());
+
+        // when
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
+                keyword, List.of("domestic"), List.of(), 0, 10, "relevance", "127.0.0.1", null);
+
+        // then: BM25-only였던 id 1이 Vector 보충 점수를 받음
+        assertThat(result.getContent())
+                .filteredOn(dto -> dto.getId().equals(1L))
+                .first()
+                .satisfies(dto -> assertThat(dto.getVectorScore()).isEqualTo(0.4));
+        verify(vectorSearchService).computeSimilarityForArticlesWithEmbedding(
+                eq(dummyEmbedding), argThat(ids -> ids.containsAll(List.of(1L, 2L))));
+    }
+
+    @Test
+    @DisplayName("searchArticlesHybrid: 필터 있음 + cross-scoring — embedding 없으면 Vector 보충 스킵")
+    void searchArticlesHybrid_withFilters_bm25OnlyIds_notSupplementedWhenEmbeddingNull() {
+        // given
+        String keyword = "redis";
+        List<Object[]> bm25RawResults = List.<Object[]>of(
+                new Object[]{1L, 10.0, LocalDateTime.of(2024, 1, 1, 0, 0)}
+        );
+        setupHybridSearchWithDomesticFilter(keyword, bm25RawResults);
+
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+                .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), null));
+
+        Map<Long, Double> nsfScores = Map.of(1L, 0.6);
+        HybridSearchScorer.NSFResult nsfResult = new HybridSearchScorer.NSFResult(
+                nsfScores, Map.of(), Map.of(), Map.of());
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(nsfResult);
+        when(articleRepository.findIdAndPublishedAtByIdIn(anyList())).thenReturn(List.<Object[]>of(
+                new Object[]{1L, LocalDateTime.of(2024, 1, 1, 0, 0)}
+        ));
+
+        Corporation corp = Corporation.builder().name("Corp").build();
+        corp.setId(100L);
+        when(articleRepository.findByIdInWithCorporation(anyList()))
+                .thenReturn(List.of(createArticle(1L, "Redis", corp)));
+        when(userLikeService.getLikeStatusBatchByIp(anyList(), any())).thenReturn(Map.of());
+
+        // when
+        articleSearchService.searchArticlesHybrid(
+                keyword, List.of("domestic"), List.of(), 0, 10, "relevance", "127.0.0.1", null);
+
+        // then
+        verify(vectorSearchService, never()).computeSimilarityForArticlesWithEmbedding(any(float[].class), anyList());
+    }
+
+    @Test
+    @DisplayName("searchArticlesHybrid: 필터 있음 + cross-scoring — Vector-only id에 BM25 점수 보충")
+    void searchArticlesHybrid_withFilters_vectorOnlyIds_supplementedWithBm25() {
+        // given
+        String keyword = "redis";
+        List<Object[]> bm25RawResults = List.<Object[]>of(
+                new Object[]{1L, 10.0, LocalDateTime.of(2024, 1, 1, 0, 0)}
+        );
+        String bm25Query = setupHybridSearchWithDomesticFilter(keyword, bm25RawResults);
+
+        float[] dummyEmbedding = new float[]{0.1f, 0.2f};
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+                .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(2L, 0.9), dummyEmbedding));
+        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(eq(dummyEmbedding), anyList()))
+                .thenReturn(Map.of());
+        when(articleRepository.computeBM25ScoreForArticleIdsWithDomesticTypes(eq(bm25Query), eq(List.of(1)), anyList()))
+                .thenReturn(List.<Object[]>of(new Object[]{2L, 3.0, LocalDateTime.of(2024, 2, 1, 0, 0)}));
+
+        Map<Long, Double> nsfScores = Map.of(1L, 0.5, 2L, 0.7);
+        HybridSearchScorer.NSFResult nsfResult = new HybridSearchScorer.NSFResult(
+                nsfScores, Map.of(), Map.of(), Map.of());
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(nsfResult);
+        when(articleRepository.findIdAndPublishedAtByIdIn(anyList())).thenReturn(List.of(
+                new Object[]{1L, LocalDateTime.of(2024, 1, 1, 0, 0)},
+                new Object[]{2L, LocalDateTime.of(2024, 2, 1, 0, 0)}
+        ));
+
+        Corporation corp = Corporation.builder().name("Corp").build();
+        corp.setId(100L);
+        when(articleRepository.findByIdInWithCorporation(anyList())).thenReturn(List.of(
+                createArticle(1L, "Redis", corp), createArticle(2L, "Cache", corp)));
+        when(userLikeService.getLikeStatusBatchByIp(anyList(), any())).thenReturn(Map.of());
+
+        // when
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
+                keyword, List.of("domestic"), List.of(), 0, 10, "relevance", "127.0.0.1", null);
+
+        // then: Vector-only였던 id 2가 BM25 보충 점수를 받음
+        assertThat(result.getContent())
+                .filteredOn(dto -> dto.getId().equals(2L))
+                .first()
+                .satisfies(dto -> assertThat(dto.getBm25Score()).isEqualTo(3.0));
+    }
+
+    @Test
+    @DisplayName("searchArticlesHybrid: region+category 모두 지정 → searchByBM25WithBothFilters 사용")
+    void searchArticlesHybrid_withFilters_bothRegionAndCategory_usesBothFiltersQuery() {
+        // given
+        String keyword = "redis";
+        when(semanticExpansionService.classifyQueryComplexity(keyword))
+                .thenReturn(SemanticTermExpansionService.QueryComplexity.SIMPLE);
+        when(weightConfig.getWeights(SemanticTermExpansionService.QueryComplexity.SIMPLE))
+                .thenReturn(new SearchWeightConfigService.WeightEntry(3.0, 0.6, 0.4));
+        Map<String, Double> expandedTerms = Map.of(keyword, 1.0);
+        when(semanticExpansionService.expandSearchTerms(keyword)).thenReturn(expandedTerms);
+        String bm25Query = "title_terms:" + keyword + "^6.0 OR content_terms:" + keyword + "^2.0";
+        when(hybridSearchScorer.buildBM25Query(expandedTerms, 3.0)).thenReturn(bm25Query);
+        when(articleRepository.searchByBM25WithBothFilters(eq(bm25Query), eq(List.of(1)), eq(List.of("공지")), eq(100)))
+                .thenReturn(Collections.emptyList());
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+                .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), null));
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(new HybridSearchScorer.NSFResult(Map.of(), Map.of(), Map.of(), Map.of()));
+
+        // when
+        articleSearchService.searchArticlesHybrid(
+                keyword, List.of("domestic"), List.of("공지"), 0, 10, "relevance", "127.0.0.1", null);
+
+        // then
+        verify(articleRepository).searchByBM25WithBothFilters(bm25Query, List.of(1), List.of("공지"), 100);
+        verify(articleRepository, never()).searchByBM25WithDomesticTypes(anyString(), anyList(), anyInt());
+        verify(articleRepository, never()).searchByBM25WithCategory(anyString(), anyList(), anyInt());
+        verify(articleRepository, never()).searchByBM25(anyString(), anyInt());
+    }
+
+    @Test
+    @DisplayName("searchArticlesHybrid: region만 지정 → searchByBM25WithDomesticTypes 사용")
+    void searchArticlesHybrid_withFilters_regionOnly_usesDomesticTypesQuery() {
+        // given
+        String keyword = "redis";
+        setupHybridSearchWithDomesticFilter(keyword, Collections.emptyList());
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+                .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), null));
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(new HybridSearchScorer.NSFResult(Map.of(), Map.of(), Map.of(), Map.of()));
+
+        // when
+        articleSearchService.searchArticlesHybrid(
+                keyword, List.of("domestic"), List.of(), 0, 10, "relevance", "127.0.0.1", null);
+
+        // then
+        verify(articleRepository).searchByBM25WithDomesticTypes(anyString(), eq(List.of(1)), eq(100));
+        verify(articleRepository, never()).searchByBM25WithBothFilters(anyString(), anyList(), anyList(), anyInt());
+        verify(articleRepository, never()).searchByBM25WithCategory(anyString(), anyList(), anyInt());
+        verify(articleRepository, never()).searchByBM25(anyString(), anyInt());
+    }
+
+    @Test
+    @DisplayName("searchArticlesHybrid: category만 지정 → searchByBM25WithCategory 사용")
+    void searchArticlesHybrid_withFilters_categoryOnly_usesCategoryQuery() {
+        // given
+        String keyword = "redis";
+        when(semanticExpansionService.classifyQueryComplexity(keyword))
+                .thenReturn(SemanticTermExpansionService.QueryComplexity.SIMPLE);
+        when(weightConfig.getWeights(SemanticTermExpansionService.QueryComplexity.SIMPLE))
+                .thenReturn(new SearchWeightConfigService.WeightEntry(3.0, 0.6, 0.4));
+        Map<String, Double> expandedTerms = Map.of(keyword, 1.0);
+        when(semanticExpansionService.expandSearchTerms(keyword)).thenReturn(expandedTerms);
+        String bm25Query = "title_terms:" + keyword + "^6.0 OR content_terms:" + keyword + "^2.0";
+        when(hybridSearchScorer.buildBM25Query(expandedTerms, 3.0)).thenReturn(bm25Query);
+        when(articleRepository.searchByBM25WithCategory(eq(bm25Query), eq(List.of("공지")), eq(100)))
+                .thenReturn(Collections.emptyList());
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+                .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), null));
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(new HybridSearchScorer.NSFResult(Map.of(), Map.of(), Map.of(), Map.of()));
+
+        // when
+        articleSearchService.searchArticlesHybrid(
+                keyword, List.of(), List.of("공지"), 0, 10, "relevance", "127.0.0.1", null);
+
+        // then
+        verify(articleRepository).searchByBM25WithCategory(bm25Query, List.of("공지"), 100);
+        verify(articleRepository, never()).searchByBM25WithBothFilters(anyString(), anyList(), anyList(), anyInt());
+        verify(articleRepository, never()).searchByBM25WithDomesticTypes(anyString(), anyList(), anyInt());
+        verify(articleRepository, never()).searchByBM25(anyString(), anyInt());
+    }
+
+    @Test
+    @DisplayName("searchArticlesHybrid: 필터 있음 + BM25/Vector 모두 결과 없음(cross-scoring 후에도) → 빈 페이지")
+    void searchArticlesHybrid_withFilters_allNsfScoresEmpty_returnsEmptyPage() {
+        // given
+        String keyword = "redis";
+        setupHybridSearchWithDomesticFilter(keyword, Collections.emptyList());
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+                .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), null));
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(new HybridSearchScorer.NSFResult(Map.of(), Map.of(), Map.of(), Map.of()));
+
+        // when
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
+                keyword, List.of("domestic"), List.of(), 0, 10, "relevance", "127.0.0.1", null);
+
+        // then
+        assertThat(result).isEmpty();
+        verifyNoInteractions(userLikeService);
+    }
+
+    @Test
+    @DisplayName("searchArticlesHybrid: 필터 있음 + stale article(삭제됨) → 최종 결과에서 제외")
+    void searchArticlesHybrid_withFilters_staleArticleExcludedFromValidIds() {
+        // given
+        String keyword = "redis";
+        List<Object[]> bm25RawResults = List.of(
+                new Object[]{1L, 10.0, LocalDateTime.of(2024, 1, 1, 0, 0)},
+                new Object[]{2L, 5.0, LocalDateTime.of(2024, 2, 1, 0, 0)}
+        );
+        setupHybridSearchWithDomesticFilter(keyword, bm25RawResults);
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+                .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), null));
+
+        Map<Long, Double> nsfScores = Map.of(1L, 0.8, 2L, 0.5);
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(new HybridSearchScorer.NSFResult(nsfScores, Map.of(), Map.of(), Map.of()));
+        // id 2는 삭제되어 DB에서 조회되지 않음 (stale)
+        when(articleRepository.findIdAndPublishedAtByIdIn(anyList())).thenReturn(List.<Object[]>of(
+                new Object[]{1L, LocalDateTime.of(2024, 1, 1, 0, 0)}
+        ));
+
+        Corporation corp = Corporation.builder().name("Corp").build();
+        corp.setId(100L);
+        when(articleRepository.findByIdInWithCorporation(anyList()))
+                .thenReturn(List.of(createArticle(1L, "Redis", corp)));
+        when(userLikeService.getLikeStatusBatchByIp(anyList(), any())).thenReturn(Map.of());
+
+        // when
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
+                keyword, List.of("domestic"), List.of(), 0, 10, "relevance", "127.0.0.1", null);
+
+        // then
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        assertThat(result.getContent()).extracting(ArticleSearchResultDto::getId).containsExactly(1L);
+    }
+
     // ===== searchArticlesExactMatch 테스트 =====
 
     @Test
@@ -351,6 +682,161 @@ class ArticleSearchServiceTest {
 
         // then
         assertThat(result.getContent().get(0).getId()).isEqualTo(1L); // 오래된 글 먼저
+    }
+
+    @Test
+    @DisplayName("searchArticlesExactMatch: 공백 키워드 → 빈 페이지, 상호작용 없음")
+    void searchArticlesExactMatch_blankKeyword_returnsEmpty() {
+        // when
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesExactMatch(
+                "   ", List.of(), List.of(), 0, 10, "latest", "127.0.0.1", null);
+
+        // then
+        assertThat(result).isEmpty();
+        verifyNoInteractions(articleRepository, vectorSearchService, embeddingService);
+    }
+
+    @Test
+    @DisplayName("searchArticlesExactMatch: sort=null(기본값) → 발행일 내림차순")
+    void searchArticlesExactMatch_defaultSort_orderedByDateDesc() {
+        // given
+        List<Object[]> ilikeResults = List.of(
+                new Object[]{1L, LocalDateTime.of(2024, 1, 1, 0, 0)},
+                new Object[]{2L, LocalDateTime.of(2024, 6, 1, 0, 0)}
+        );
+        when(articleRepository.findArticleIdsWithPublishedAtByFilters(
+                anyString(), anyList(), anyInt(), anyList(), anyInt()))
+                .thenReturn(ilikeResults);
+
+        Corporation corp = Corporation.builder().name("Corp").build();
+        corp.setId(100L);
+        Article a1 = createArticle(1L, "Old", corp);
+        Article a2 = createArticle(2L, "New", corp);
+        when(articleRepository.findByIdInWithCorporation(anyList())).thenReturn(List.of(a1, a2));
+        when(userLikeService.getLikeStatusBatchByIp(anyList(), any())).thenReturn(Map.of());
+
+        // when
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesExactMatch(
+                "test", List.of(), List.of(), 0, 10, null, "127.0.0.1", null);
+
+        // then
+        assertThat(result.getContent().get(0).getId()).isEqualTo(2L); // 최신
+        verifyNoInteractions(embeddingService);
+    }
+
+    @Test
+    @DisplayName("searchArticlesExactMatch: relevance 정렬 + Vector 유사도 계산 성공 → 유사도 내림차순")
+    void searchArticlesExactMatch_relevanceSort_successPath_orderedByVectorScoreDesc() {
+        // given
+        List<Object[]> ilikeResults = List.of(
+                new Object[]{1L, LocalDateTime.of(2024, 1, 1, 0, 0)},
+                new Object[]{2L, LocalDateTime.of(2024, 6, 1, 0, 0)}
+        );
+        when(articleRepository.findArticleIdsWithPublishedAtByFilters(
+                anyString(), anyList(), anyInt(), anyList(), anyInt()))
+                .thenReturn(ilikeResults);
+
+        float[] dummyEmbedding = new float[]{0.1f, 0.2f};
+        when(embeddingService.generateEmbedding("redis")).thenReturn(dummyEmbedding);
+        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(dummyEmbedding, List.of(1L, 2L)))
+                .thenReturn(Map.of(1L, 0.3, 2L, 0.9));
+
+        Corporation corp = Corporation.builder().name("Corp").build();
+        corp.setId(100L);
+        Article a1 = createArticle(1L, "Redis 입문", corp);
+        Article a2 = createArticle(2L, "Redis 캐시", corp);
+        when(articleRepository.findByIdInWithCorporation(anyList())).thenReturn(List.of(a1, a2));
+        when(userLikeService.getLikeStatusBatchByIp(anyList(), any())).thenReturn(Map.of());
+
+        // when
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesExactMatch(
+                "redis", List.of(), List.of(), 0, 10, "relevance", "127.0.0.1", null);
+
+        // then: 유사도가 더 높은 article 2가 먼저
+        assertThat(result.getContent().get(0).getId()).isEqualTo(2L);
+        assertThat(result.getContent().get(0).getVectorScore()).isEqualTo(0.9);
+    }
+
+    @Test
+    @DisplayName("searchArticlesExactMatch: 페이지 오프셋이 결과 수 초과 시 빈 페이지")
+    void searchArticlesExactMatch_offsetExceedsTotalResults_returnsEmpty() {
+        // given
+        List<Object[]> ilikeResults = List.<Object[]>of(
+                new Object[]{1L, LocalDateTime.of(2024, 1, 1, 0, 0)}
+        );
+        when(articleRepository.findArticleIdsWithPublishedAtByFilters(
+                anyString(), anyList(), anyInt(), anyList(), anyInt()))
+                .thenReturn(ilikeResults);
+
+        Corporation corp = Corporation.builder().name("Corp").build();
+        corp.setId(100L);
+        when(articleRepository.findByIdInWithCorporation(anyList()))
+                .thenReturn(List.of(createArticle(1L, "Redis", corp)));
+
+        // when: page=5, size=10 → offset=50 > 1
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesExactMatch(
+                "redis", List.of(), List.of(), 5, 10, "latest", "127.0.0.1", null);
+
+        // then
+        assertThat(result).isEmpty();
+        verifyNoInteractions(userLikeService);
+    }
+
+    @Test
+    @DisplayName("searchArticlesExactMatch: 소프트 삭제된 article은 ILIKE 매칭돼도 결과에서 제외")
+    void searchArticlesExactMatch_softDeletedArticleExcluded() {
+        // given
+        List<Object[]> ilikeResults = List.of(
+                new Object[]{1L, LocalDateTime.of(2024, 1, 1, 0, 0)},
+                new Object[]{2L, LocalDateTime.of(2024, 6, 1, 0, 0)}
+        );
+        when(articleRepository.findArticleIdsWithPublishedAtByFilters(
+                anyString(), anyList(), anyInt(), anyList(), anyInt()))
+                .thenReturn(ilikeResults);
+
+        Corporation corp = Corporation.builder().name("Corp").build();
+        corp.setId(100L);
+        Article active = createArticle(1L, "Redis", corp);
+        Article deleted = createArticle(2L, "Redis 삭제됨", corp);
+        deleted.softDelete();
+        when(articleRepository.findByIdInWithCorporation(anyList())).thenReturn(List.of(active, deleted));
+        when(userLikeService.getLikeStatusBatchByIp(anyList(), any())).thenReturn(Map.of());
+
+        // when
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesExactMatch(
+                "redis", List.of(), List.of(), 0, 10, "latest", "127.0.0.1", null);
+
+        // then
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        assertThat(result.getContent()).extracting(ArticleSearchResultDto::getId).containsExactly(1L);
+    }
+
+    @Test
+    @DisplayName("searchArticlesExactMatch: 로그인 유저(username) → UserLikeService batch-by-user 경로")
+    void searchArticlesExactMatch_loggedInUsername_usesUserLikeServiceBatchByUser() {
+        // given
+        List<Object[]> ilikeResults = List.<Object[]>of(
+                new Object[]{1L, LocalDateTime.of(2024, 1, 1, 0, 0)}
+        );
+        when(articleRepository.findArticleIdsWithPublishedAtByFilters(
+                anyString(), anyList(), anyInt(), anyList(), anyInt()))
+                .thenReturn(ilikeResults);
+
+        Corporation corp = Corporation.builder().name("Corp").build();
+        corp.setId(100L);
+        when(articleRepository.findByIdInWithCorporation(anyList()))
+                .thenReturn(List.of(createArticle(1L, "Redis", corp)));
+        when(userLikeService.getLikeStatusBatchByUser(anyList(), eq("testuser")))
+                .thenReturn(Map.of(1L, true));
+
+        // when
+        Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesExactMatch(
+                "redis", List.of(), List.of(), 0, 10, "latest", "127.0.0.1", "testuser");
+
+        // then
+        assertThat(result.getContent().get(0).getIsLiked()).isTrue();
+        verify(userLikeService).getLikeStatusBatchByUser(anyList(), eq("testuser"));
+        verify(userLikeService, never()).getLikeStatusBatchByIp(any(), any());
     }
 
     // ===== searchArticlesWithExpandedTerms 테스트 =====
@@ -708,6 +1194,249 @@ class ArticleSearchServiceTest {
         verify(articleRepository, never()).searchByBM25WithCorporations(anyString(), anyList(), anyInt());
     }
 
+    @Test
+    @DisplayName("getTopArticleIdsForRag: null bm25Keywords → 빈 결과, 상호작용 없음")
+    void getTopArticleIdsForRag_nullBm25Keywords_returnsEmpty() {
+        // when
+        ArticleSearchService.HybridTopArticles result = articleSearchService.getTopArticleIdsForRag(
+                null, "query", List.of(), 5, 0.6);
+
+        // then
+        assertThat(result.articleIds()).isEmpty();
+        assertThat(result.queryEmbedding()).isNull();
+        verifyNoInteractions(semanticExpansionService, vectorSearchService);
+    }
+
+    @Test
+    @DisplayName("getTopArticleIdsForRag: 공백 bm25Keywords → 빈 결과")
+    void getTopArticleIdsForRag_blankBm25Keywords_returnsEmpty() {
+        // when
+        ArticleSearchService.HybridTopArticles result = articleSearchService.getTopArticleIdsForRag(
+                "   ", "query", List.of(), 5, 0.6);
+
+        // then
+        assertThat(result.articleIds()).isEmpty();
+        verifyNoInteractions(semanticExpansionService, vectorSearchService);
+    }
+
+    @Test
+    @DisplayName("getTopArticleIdsForRag: 의미 확장 결과 없음 → BM25 쿼리 생성 실패 → 빈 결과")
+    void getTopArticleIdsForRag_bm25QueryBuildFails_returnsEmpty() {
+        // given
+        when(semanticExpansionService.classifyQueryComplexity("kafka"))
+                .thenReturn(SemanticTermExpansionService.QueryComplexity.SIMPLE);
+        when(weightConfig.getWeights(SemanticTermExpansionService.QueryComplexity.SIMPLE))
+                .thenReturn(new SearchWeightConfigService.WeightEntry(3.0, 0.6, 0.4));
+        when(semanticExpansionService.expandSearchTerms("kafka")).thenReturn(Collections.emptyMap());
+
+        // when
+        ArticleSearchService.HybridTopArticles result = articleSearchService.getTopArticleIdsForRag(
+                "kafka", "query", List.of(), 5, 0.6);
+
+        // then
+        assertThat(result.articleIds()).isEmpty();
+        verifyNoInteractions(vectorSearchService);
+    }
+
+    @Test
+    @DisplayName("getTopArticleIdsForRag: Vector 검색 예외 → BM25 단독 결과로 폴백")
+    void getTopArticleIdsForRag_vectorSearchThrows_fallsBackToBm25Only() {
+        // given
+        String bm25Keywords = "kafka";
+        String bm25Query = setupRagBm25Query(bm25Keywords);
+        when(articleRepository.searchByBM25(bm25Query, 100))
+                .thenReturn(List.<Object[]>of(new Object[]{10L, 10.0, LocalDateTime.of(2024, 1, 1, 0, 0)}));
+        when(vectorSearchService.searchForRag(anyString(), any(), anyDouble(), anyBoolean()))
+                .thenThrow(new RuntimeException("vector down"));
+
+        Map<Long, Double> nsfScores = Map.of(10L, 0.9);
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(new HybridSearchScorer.NSFResult(nsfScores, Map.of(), Map.of(), Map.of()));
+        when(articleRepository.findIdAndPublishedAtByIdIn(anyList()))
+                .thenReturn(List.<Object[]>of(new Object[]{10L, LocalDateTime.of(2024, 1, 1, 0, 0)}));
+
+        // when
+        ArticleSearchService.HybridTopArticles result = articleSearchService.getTopArticleIdsForRag(
+                bm25Keywords, "query", List.of(), 5, 0.6);
+
+        // then
+        assertThat(result.articleIds()).containsExactly(10L);
+        assertThat(result.queryEmbedding()).isNull();
+    }
+
+    @Test
+    @DisplayName("getTopArticleIdsForRag: useMockEmbedding=true → searchForRag에 그대로 전달")
+    void getTopArticleIdsForRag_useMockEmbeddingTrue_plumbsFlagToVectorSearchService() {
+        // given
+        String bm25Keywords = "kafka";
+        String vectorQuery = "Kafka 도입 사례";
+        String bm25Query = setupRagBm25Query(bm25Keywords);
+        when(articleRepository.searchByBM25(bm25Query, 100)).thenReturn(Collections.emptyList());
+        when(vectorSearchService.searchForRag(vectorQuery, List.of(), 0.6, true))
+                .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), null));
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(new HybridSearchScorer.NSFResult(Map.of(), Map.of(), Map.of(), Map.of()));
+
+        // when
+        articleSearchService.getTopArticleIdsForRag(bm25Keywords, vectorQuery, List.of(), 5, 0.6, true);
+
+        // then
+        verify(vectorSearchService).searchForRag(vectorQuery, List.of(), 0.6, true);
+    }
+
+    @Test
+    @DisplayName("getTopArticleIdsForRag: cross-scoring — BM25-only id에 Vector 점수 보충 (threshold 포함 오버로드)")
+    void getTopArticleIdsForRag_crossScoring_vectorSupplementsBm25OnlyIds() {
+        // given
+        String bm25Keywords = "kafka";
+        String vectorQuery = "Kafka 도입 사례";
+        String bm25Query = setupRagBm25Query(bm25Keywords);
+        when(articleRepository.searchByBM25(bm25Query, 100))
+                .thenReturn(List.<Object[]>of(new Object[]{10L, 10.0, LocalDateTime.of(2024, 1, 1, 0, 0)}));
+
+        float[] dummyEmbedding = new float[]{0.1f, 0.2f};
+        when(vectorSearchService.searchForRag(vectorQuery, List.of(), 0.6, false))
+                .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(20L, 0.8), dummyEmbedding));
+        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(eq(dummyEmbedding), anyList(), eq(0.6)))
+                .thenReturn(Map.of(10L, 0.55));
+
+        Map<Long, Double> nsfScores = Map.of(10L, 0.7, 20L, 0.5);
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(new HybridSearchScorer.NSFResult(nsfScores, Map.of(), Map.of(), Map.of()));
+        when(articleRepository.findIdAndPublishedAtByIdIn(anyList())).thenReturn(List.of(
+                new Object[]{10L, LocalDateTime.of(2024, 1, 1, 0, 0)},
+                new Object[]{20L, LocalDateTime.of(2024, 2, 1, 0, 0)}
+        ));
+
+        // when
+        articleSearchService.getTopArticleIdsForRag(bm25Keywords, vectorQuery, List.of(), 5, 0.6);
+
+        // then
+        verify(vectorSearchService).computeSimilarityForArticlesWithEmbedding(
+                eq(dummyEmbedding), argThat(ids -> ids.contains(10L)), eq(0.6));
+    }
+
+    @Test
+    @DisplayName("getTopArticleIdsForRag: cross-scoring — Vector-only id에 BM25 점수 보충 (필터 없는 쿼리 재사용)")
+    void getTopArticleIdsForRag_crossScoring_bm25SupplementsVectorOnlyIds() {
+        // given
+        String bm25Keywords = "kafka";
+        String vectorQuery = "Kafka 도입 사례";
+        String bm25Query = setupRagBm25Query(bm25Keywords);
+        when(articleRepository.searchByBM25(bm25Query, 100))
+                .thenReturn(List.<Object[]>of(new Object[]{10L, 10.0, LocalDateTime.of(2024, 1, 1, 0, 0)}));
+
+        float[] dummyEmbedding = new float[]{0.1f, 0.2f};
+        when(vectorSearchService.searchForRag(vectorQuery, List.of(), 0.6, false))
+                .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(20L, 0.8), dummyEmbedding));
+        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(float[].class), anyList(), anyDouble()))
+                .thenReturn(Map.of());
+        when(articleRepository.computeBM25ScoreForArticleIds(eq(bm25Query), argThat(ids -> ids.contains(20L))))
+                .thenReturn(List.<Object[]>of(new Object[]{20L, 4.0, LocalDateTime.of(2024, 2, 1, 0, 0)}));
+
+        Map<Long, Double> nsfScores = Map.of(10L, 0.6, 20L, 0.8);
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(new HybridSearchScorer.NSFResult(nsfScores, Map.of(), Map.of(), Map.of()));
+        when(articleRepository.findIdAndPublishedAtByIdIn(anyList())).thenReturn(List.of(
+                new Object[]{10L, LocalDateTime.of(2024, 1, 1, 0, 0)},
+                new Object[]{20L, LocalDateTime.of(2024, 2, 1, 0, 0)}
+        ));
+
+        // when
+        articleSearchService.getTopArticleIdsForRag(bm25Keywords, vectorQuery, List.of(), 5, 0.6);
+
+        // then: regions/category 없는(필터 없는) computeBM25ScoreForArticleIds 변형이 호출됨
+        verify(articleRepository).computeBM25ScoreForArticleIds(eq(bm25Query), argThat(ids -> ids.contains(20L)));
+        verify(articleRepository, never()).computeBM25ScoreForArticleIdsWithDomesticTypes(anyString(), anyList(), anyList());
+    }
+
+    @Test
+    @DisplayName("getTopArticleIdsForRag: nsfScores 비어도 embedding은 보존됨 (computeHybridCore와 다른 지점)")
+    void getTopArticleIdsForRag_allNsfScoresEmpty_returnsEmptyListButPreservesEmbedding() {
+        // given
+        String bm25Keywords = "kafka";
+        String vectorQuery = "Kafka 도입 사례";
+        String bm25Query = setupRagBm25Query(bm25Keywords);
+        when(articleRepository.searchByBM25(bm25Query, 100)).thenReturn(Collections.emptyList());
+
+        float[] dummyEmbedding = new float[]{0.1f, 0.2f};
+        when(vectorSearchService.searchForRag(vectorQuery, List.of(), 0.6, false))
+                .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), dummyEmbedding));
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(new HybridSearchScorer.NSFResult(Map.of(), Map.of(), Map.of(), Map.of()));
+
+        // when
+        ArticleSearchService.HybridTopArticles result = articleSearchService.getTopArticleIdsForRag(
+                bm25Keywords, vectorQuery, List.of(), 5, 0.6);
+
+        // then
+        assertThat(result.articleIds()).isEmpty();
+        assertThat(result.queryEmbedding()).isEqualTo(dummyEmbedding);
+    }
+
+    @Test
+    @DisplayName("getTopArticleIdsForRag: 후보가 limit보다 많으면 상위 limit개만 반환")
+    void getTopArticleIdsForRag_limitTruncatesResults() {
+        // given
+        String bm25Keywords = "kafka";
+        String vectorQuery = "Kafka 도입 사례";
+        String bm25Query = setupRagBm25Query(bm25Keywords);
+        when(articleRepository.searchByBM25(bm25Query, 100)).thenReturn(List.<Object[]>of(
+                new Object[]{1L, 10.0, LocalDateTime.of(2024, 1, 1, 0, 0)},
+                new Object[]{2L, 9.0, LocalDateTime.of(2024, 1, 2, 0, 0)},
+                new Object[]{3L, 8.0, LocalDateTime.of(2024, 1, 3, 0, 0)},
+                new Object[]{4L, 7.0, LocalDateTime.of(2024, 1, 4, 0, 0)},
+                new Object[]{5L, 6.0, LocalDateTime.of(2024, 1, 5, 0, 0)}
+        ));
+        when(vectorSearchService.searchForRag(vectorQuery, List.of(), 0.6, false))
+                .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), null));
+
+        Map<Long, Double> nsfScores = Map.of(1L, 0.1, 2L, 0.9, 3L, 0.5, 4L, 0.7, 5L, 0.3);
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(new HybridSearchScorer.NSFResult(nsfScores, Map.of(), Map.of(), Map.of()));
+        when(articleRepository.findIdAndPublishedAtByIdIn(anyList())).thenReturn(List.of(
+                new Object[]{1L, LocalDateTime.of(2024, 1, 1, 0, 0)},
+                new Object[]{2L, LocalDateTime.of(2024, 1, 2, 0, 0)},
+                new Object[]{3L, LocalDateTime.of(2024, 1, 3, 0, 0)},
+                new Object[]{4L, LocalDateTime.of(2024, 1, 4, 0, 0)},
+                new Object[]{5L, LocalDateTime.of(2024, 1, 5, 0, 0)}
+        ));
+
+        // when: 상위 2개만 (점수 내림차순: 2L(0.9), 4L(0.7))
+        ArticleSearchService.HybridTopArticles result = articleSearchService.getTopArticleIdsForRag(
+                bm25Keywords, vectorQuery, List.of(), 2, 0.6);
+
+        // then
+        assertThat(result.articleIds()).containsExactly(2L, 4L);
+    }
+
+    @Test
+    @DisplayName("getTopArticleIdsForRag: BM25 리포지토리 예외 → 빈 BM25 결과로 처리, 예외 전파 안 됨")
+    void getTopArticleIdsForRag_bm25RepositoryThrows_treatedAsEmptyBm25() {
+        // given
+        String bm25Keywords = "kafka";
+        String vectorQuery = "Kafka 도입 사례";
+        String bm25Query = setupRagBm25Query(bm25Keywords);
+        when(articleRepository.searchByBM25(bm25Query, 100)).thenThrow(new RuntimeException("db error"));
+
+        float[] dummyEmbedding = new float[]{0.1f, 0.2f};
+        when(vectorSearchService.searchForRag(vectorQuery, List.of(), 0.6, false))
+                .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(20L, 0.8), dummyEmbedding));
+
+        Map<Long, Double> nsfScores = Map.of(20L, 0.5);
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(new HybridSearchScorer.NSFResult(nsfScores, Map.of(), Map.of(), Map.of()));
+        when(articleRepository.findIdAndPublishedAtByIdIn(anyList()))
+                .thenReturn(List.<Object[]>of(new Object[]{20L, LocalDateTime.of(2024, 2, 1, 0, 0)}));
+
+        // when
+        ArticleSearchService.HybridTopArticles result = articleSearchService.getTopArticleIdsForRag(
+                bm25Keywords, vectorQuery, List.of(), 5, 0.6);
+
+        // then: 예외 없이 Vector 결과 기반으로 정상 반환
+        assertThat(result.articleIds()).containsExactly(20L);
+    }
+
     // ===== 헬퍼 메서드 =====
 
     private Article createArticle(Long id, String title, Corporation corporation) {
@@ -746,5 +1475,41 @@ class ArticleSearchServiceTest {
         // Vector 결과 (빈 결과)
         when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
                 .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), null));
+    }
+
+    /**
+     * region=domestic 필터 하이브리드 검색의 기본 mock 설정 (쿼리 생성 + WithDomesticTypes BM25 검색까지)
+     */
+    private String setupHybridSearchWithDomesticFilter(String keyword, List<Object[]> bm25RawResults) {
+        when(semanticExpansionService.classifyQueryComplexity(keyword))
+                .thenReturn(SemanticTermExpansionService.QueryComplexity.SIMPLE);
+        when(weightConfig.getWeights(SemanticTermExpansionService.QueryComplexity.SIMPLE))
+                .thenReturn(new SearchWeightConfigService.WeightEntry(3.0, 0.6, 0.4));
+
+        Map<String, Double> expandedTerms = Map.of(keyword, 1.0);
+        when(semanticExpansionService.expandSearchTerms(keyword)).thenReturn(expandedTerms);
+
+        String bm25Query = "title_terms:" + keyword + "^6.0 OR content_terms:" + keyword + "^2.0";
+        when(hybridSearchScorer.buildBM25Query(expandedTerms, 3.0)).thenReturn(bm25Query);
+        when(articleRepository.searchByBM25WithDomesticTypes(eq(bm25Query), eq(List.of(1)), eq(100)))
+                .thenReturn(bm25RawResults);
+        return bm25Query;
+    }
+
+    /**
+     * getTopArticleIdsForRag의 기본 mock 설정 (BM25 쿼리 생성까지, 필터 없음)
+     */
+    private String setupRagBm25Query(String bm25Keywords) {
+        when(semanticExpansionService.classifyQueryComplexity(bm25Keywords))
+                .thenReturn(SemanticTermExpansionService.QueryComplexity.SIMPLE);
+        when(weightConfig.getWeights(SemanticTermExpansionService.QueryComplexity.SIMPLE))
+                .thenReturn(new SearchWeightConfigService.WeightEntry(3.0, 0.6, 0.4));
+
+        Map<String, Double> expandedTerms = Map.of(bm25Keywords, 1.0);
+        when(semanticExpansionService.expandSearchTerms(bm25Keywords)).thenReturn(expandedTerms);
+
+        String bm25Query = "title_terms:" + bm25Keywords + "^6.0 OR content_terms:" + bm25Keywords + "^2.0";
+        when(hybridSearchScorer.buildBM25Query(expandedTerms, 3.0)).thenReturn(bm25Query);
+        return bm25Query;
     }
 }

@@ -132,6 +132,7 @@ public class ArticleSearchService {
      * @param sort 정렬 방식
      * @return BM25 검색 결과
      */
+    // TODO(cleanup): unused - no controller/service caller as of 2026-08
     @Transactional(readOnly = true, noRollbackFor = {Exception.class, RuntimeException.class})
     public Page<ArticleSearchResultDto> searchArticlesWithExpandedTerms(
             Map<String, Double> expandedTerms,

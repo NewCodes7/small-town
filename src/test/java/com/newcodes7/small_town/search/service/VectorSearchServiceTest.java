@@ -399,4 +399,308 @@ class VectorSearchServiceTest {
         verify(chunkRepository).findArticlesByTwoStageSearch(
                 eq("[0.5,-0.3,0.1]"), eq("101"), anyInt(), anyInt(), anyDouble(), anyInt());
     }
+
+    @Test
+    @DisplayName("검색 임베딩 조회 중 예외 발생 → 빈 VectorSearchResult 반환 (예외 전파 없음)")
+    void searchByKeywordWithEmbedding_임베딩조회예외_빈결과반환() {
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull()))
+                .thenThrow(new RuntimeException("embedding api error"));
+
+        VectorSearchService.VectorSearchResult result =
+                vectorSearchService.searchByKeywordWithEmbedding("java");
+
+        assertThat(result.getScores()).isEmpty();
+        assertThat(result.getQueryEmbedding()).isNull();
+        verifyNoInteractions(chunkRepository);
+    }
+
+    // ==================== searchForRag ====================
+
+    @Test
+    @DisplayName("searchForRag: 공백 쿼리 → 빈 VectorSearchResult, 의존성 미호출")
+    void searchForRag_공백쿼리() {
+        VectorSearchService.VectorSearchResult result =
+                vectorSearchService.searchForRag("   ", List.of(), 0.6);
+
+        assertThat(result.getScores()).isEmpty();
+        assertThat(result.getQueryEmbedding()).isNull();
+        verifyNoInteractions(chunkRepository, searchQueryEmbeddingService);
+    }
+
+    @Test
+    @DisplayName("searchForRag: 임베딩 생성 실패 → 빈 VectorSearchResult")
+    void searchForRag_임베딩생성실패() {
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false)))
+                .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.empty());
+
+        VectorSearchService.VectorSearchResult result =
+                vectorSearchService.searchForRag("kafka 도입 사례", List.of(), 0.6);
+
+        assertThat(result.getScores()).isEmpty();
+        verifyNoInteractions(chunkRepository);
+    }
+
+    @Test
+    @DisplayName("searchForRag: corporationIds 없음 → findArticlesByTwoStageSearch 호출")
+    void searchForRag_corp필터없음() {
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false)))
+                .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.hit(DUMMY_EMBEDDING, 5));
+        when(chunkRepository.findArticlesByTwoStageSearch(
+                anyString(), anyString(), anyInt(), anyInt(), eq(0.6), anyInt()))
+                .thenReturn(List.<Object[]>of(new Object[]{10L, 0.8}));
+
+        VectorSearchService.VectorSearchResult result =
+                vectorSearchService.searchForRag("kafka 도입 사례", List.of(), 0.6);
+
+        assertThat(result.getScores()).containsEntry(10L, 0.8);
+        assertThat(result.getQueryEmbedding()).isEqualTo(DUMMY_EMBEDDING);
+        verify(chunkRepository, never()).findArticlesByTwoStageSearchWithCorporationFilter(
+                anyString(), anyString(), anyInt(), anyInt(), anyDouble(), anyInt(), anyList());
+    }
+
+    @Test
+    @DisplayName("searchForRag: corporationIds 있음 → findArticlesByTwoStageSearchWithCorporationFilter 호출")
+    void searchForRag_corp필터있음() {
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false)))
+                .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.hit(DUMMY_EMBEDDING, 5));
+        when(chunkRepository.findArticlesByTwoStageSearchWithCorporationFilter(
+                anyString(), anyString(), anyInt(), anyInt(), eq(0.6), anyInt(), eq(List.of(1L, 2L))))
+                .thenReturn(List.<Object[]>of(new Object[]{20L, 0.7}));
+
+        VectorSearchService.VectorSearchResult result =
+                vectorSearchService.searchForRag("kafka 도입 사례", List.of(1L, 2L), 0.6);
+
+        assertThat(result.getScores()).containsEntry(20L, 0.7);
+        verify(chunkRepository, never()).findArticlesByTwoStageSearch(
+                anyString(), anyString(), anyInt(), anyInt(), anyDouble(), anyInt());
+    }
+
+    @Test
+    @DisplayName("searchForRag: Repository 예외 발생 → 빈 VectorSearchResult 반환 (예외 전파 없음)")
+    void searchForRag_예외발생() {
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false)))
+                .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.hit(DUMMY_EMBEDDING, 5));
+        when(chunkRepository.findArticlesByTwoStageSearch(
+                anyString(), anyString(), anyInt(), anyInt(), anyDouble(), anyInt()))
+                .thenThrow(new RuntimeException("DB 오류"));
+
+        VectorSearchService.VectorSearchResult result =
+                vectorSearchService.searchForRag("kafka 도입 사례", List.of(), 0.6);
+
+        assertThat(result.getScores()).isEmpty();
+        assertThat(result.getQueryEmbedding()).isNull();
+    }
+
+    @Test
+    @DisplayName("searchForRag: useMockEmbedding=true → getEmbeddingWithCacheInfo에 그대로 전달")
+    void searchForRag_useMockEmbeddingTrue() {
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(true)))
+                .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.hit(DUMMY_EMBEDDING, 5));
+        when(chunkRepository.findArticlesByTwoStageSearch(
+                anyString(), anyString(), anyInt(), anyInt(), anyDouble(), anyInt()))
+                .thenReturn(List.of());
+
+        vectorSearchService.searchForRag("kafka 도입 사례", List.of(), 0.6, true);
+
+        verify(searchQueryEmbeddingService).getEmbeddingWithCacheInfo(anyString(), isNull(), eq(true));
+    }
+
+    @Test
+    @DisplayName("searchForRag: threshold 파라미터가 Repository 호출에 그대로 전달")
+    void searchForRag_threshold전달() {
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false)))
+                .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.hit(DUMMY_EMBEDDING, 5));
+        when(chunkRepository.findArticlesByTwoStageSearch(
+                anyString(), anyString(), anyInt(), anyInt(), eq(0.75), anyInt()))
+                .thenReturn(List.of());
+
+        vectorSearchService.searchForRag("kafka 도입 사례", List.of(), 0.75);
+
+        verify(chunkRepository).findArticlesByTwoStageSearch(
+                anyString(), anyString(), anyInt(), anyInt(), eq(0.75), anyInt());
+    }
+
+    // ==================== computeSimilarityForArticlesWithEmbedding — 커스텀 threshold ====================
+
+    @Test
+    @DisplayName("커스텀 threshold(0.6) 미만 결과는 제외 (기본 threshold와 다르게 동작)")
+    void computeSimilarityForArticlesWithEmbedding_커스텀threshold() {
+        when(chunkRepository.computeSimilarityForArticleIds(anyString(), anyList(), anyInt()))
+                .thenReturn(List.of(
+                        new Object[]{1L, 0.55},   // 기본 threshold(0.52)는 넘지만 커스텀(0.6) 미만 → 제외
+                        new Object[]{2L, 0.65}    // 커스텀 threshold 이상 → 포함
+                ));
+
+        Map<Long, Double> result = vectorSearchService.computeSimilarityForArticlesWithEmbedding(
+                DUMMY_EMBEDDING, List.of(1L, 2L), 0.6);
+
+        assertThat(result).hasSize(1).containsKey(2L).doesNotContainKey(1L);
+    }
+
+    // ==================== getChunksForRag / getChunksForRagCached ====================
+
+    @Test
+    @DisplayName("getChunksForRag: 빈 articleIds → 빈 리스트, 의존성 미호출")
+    void getChunksForRag_빈articleIds() {
+        List<com.newcodes7.small_town.search.dto.AiSummaryChunkDto> chunks =
+                vectorSearchService.getChunksForRag("query", List.of(), DUMMY_EMBEDDING, 3);
+
+        assertThat(chunks).isEmpty();
+        verifyNoInteractions(chunkRepository, searchQueryEmbeddingService);
+    }
+
+    @Test
+    @DisplayName("getChunksForRag: queryEmbedding 전달되면 임베딩 재조회 없이 chunk 조회")
+    void getChunksForRag_임베딩전달시_재조회없음() {
+        when(chunkRepository.findFirstAndTopChunksByArticleIds(anyString(), anyList(), eq(3)))
+                .thenReturn(List.<Object[]>of(new Object[]{
+                        1L, "제목", "https://example.com/1", "내용", null, null, "테스트기업", null}));
+
+        List<com.newcodes7.small_town.search.dto.AiSummaryChunkDto> chunks =
+                vectorSearchService.getChunksForRag("kafka", List.of(1L), DUMMY_EMBEDDING, 3);
+
+        assertThat(chunks).hasSize(1);
+        verifyNoInteractions(searchQueryEmbeddingService);
+    }
+
+    @Test
+    @DisplayName("getChunksForRag: queryEmbedding null → 임베딩 조회 후 chunk 조회 (fallback)")
+    void getChunksForRag_임베딩null_fallback조회() {
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false)))
+                .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.hit(DUMMY_EMBEDDING, 5));
+        when(chunkRepository.findFirstAndTopChunksByArticleIds(anyString(), anyList(), eq(3)))
+                .thenReturn(List.<Object[]>of(new Object[]{
+                        1L, "제목", "https://example.com/1", "내용", null, null, "테스트기업", null}));
+
+        List<com.newcodes7.small_town.search.dto.AiSummaryChunkDto> chunks =
+                vectorSearchService.getChunksForRag("kafka", List.of(1L), null, 3);
+
+        assertThat(chunks).hasSize(1);
+        verify(searchQueryEmbeddingService).getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false));
+    }
+
+    @Test
+    @DisplayName("getChunksForRag: 임베딩 fallback 조회도 실패 → 빈 리스트")
+    void getChunksForRag_임베딩fallback실패() {
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false)))
+                .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.empty());
+
+        List<com.newcodes7.small_town.search.dto.AiSummaryChunkDto> chunks =
+                vectorSearchService.getChunksForRag("kafka", List.of(1L), null, 3);
+
+        assertThat(chunks).isEmpty();
+        verifyNoInteractions(chunkRepository);
+    }
+
+    @Test
+    @DisplayName("getChunksForRagCached: 캐시 히트 시 2번째 호출부터 chunkRepository 미호출")
+    void getChunksForRagCached_캐시히트() {
+        org.springframework.cache.concurrent.ConcurrentMapCache cache =
+                new org.springframework.cache.concurrent.ConcurrentMapCache("chunkSearchResults");
+        when(cacheManager.getCache("chunkSearchResults")).thenReturn(cache);
+        when(chunkRepository.findFirstAndTopChunksByArticleIds(anyString(), anyList(), eq(3)))
+                .thenReturn(List.<Object[]>of(new Object[]{
+                        1L, "제목", "https://example.com/1", "내용", null, null, "테스트기업", null}));
+
+        List<com.newcodes7.small_town.search.dto.AiSummaryChunkDto> first =
+                vectorSearchService.getChunksForRagCached("kafka", List.of(1L), DUMMY_EMBEDDING, 3);
+        List<com.newcodes7.small_town.search.dto.AiSummaryChunkDto> second =
+                vectorSearchService.getChunksForRagCached("kafka", List.of(1L), DUMMY_EMBEDDING, 3);
+
+        assertThat(second).isEqualTo(first);
+        verify(chunkRepository, times(1)).findFirstAndTopChunksByArticleIds(anyString(), anyList(), eq(3));
+    }
+
+    // ==================== getTopChunksForSummary ====================
+
+    @Test
+    @DisplayName("getTopChunksForSummary: null 키워드 → 빈 리스트")
+    void getTopChunksForSummary_null키워드() {
+        assertThat(vectorSearchService.getTopChunksForSummary(null, 10)).isEmpty();
+        verifyNoInteractions(chunkRepository, searchQueryEmbeddingService);
+    }
+
+    @Test
+    @DisplayName("getTopChunksForSummary: 캐시 히트 → 임베딩/Repository 미호출")
+    void getTopChunksForSummary_캐시히트() {
+        org.springframework.cache.concurrent.ConcurrentMapCache cache =
+                new org.springframework.cache.concurrent.ConcurrentMapCache("chunkSearchResults");
+        List<com.newcodes7.small_town.search.dto.AiSummaryChunkDto> cachedChunks = List.of(
+                new com.newcodes7.small_town.search.dto.AiSummaryChunkDto(
+                        1L, "제목", "url", "내용", null, "기업", null));
+        cache.put("kafka", cachedChunks);
+        when(cacheManager.getCache("chunkSearchResults")).thenReturn(cache);
+
+        List<com.newcodes7.small_town.search.dto.AiSummaryChunkDto> result =
+                vectorSearchService.getTopChunksForSummary("kafka", 10);
+
+        assertThat(result).isEqualTo(cachedChunks);
+        verifyNoInteractions(searchQueryEmbeddingService, chunkRepository);
+    }
+
+    @Test
+    @DisplayName("getTopChunksForSummary: 캐시 미스 + 임베딩 실패 → 빈 리스트")
+    void getTopChunksForSummary_캐시미스_임베딩실패() {
+        when(searchQueryEmbeddingService.getOrCreateEmbedding(anyString())).thenReturn(null);
+
+        List<com.newcodes7.small_town.search.dto.AiSummaryChunkDto> result =
+                vectorSearchService.getTopChunksForSummary("kafka", 10);
+
+        assertThat(result).isEmpty();
+        verifyNoInteractions(chunkRepository);
+    }
+
+    @Test
+    @DisplayName("getTopChunksForSummary: 정상 조회 → chunk 반환 및 캐시에 저장")
+    void getTopChunksForSummary_정상조회_캐시저장() {
+        org.springframework.cache.concurrent.ConcurrentMapCache cache =
+                new org.springframework.cache.concurrent.ConcurrentMapCache("chunkSearchResults");
+        when(cacheManager.getCache("chunkSearchResults")).thenReturn(cache);
+        when(searchQueryEmbeddingService.getOrCreateEmbedding(anyString())).thenReturn(DUMMY_EMBEDDING);
+        when(chunkRepository.findTopChunksForAiSummary(anyString(), anyString(), anyInt(), anyDouble(), anyInt()))
+                .thenReturn(List.<Object[]>of(new Object[]{
+                        1L, "제목", "https://example.com/1", "내용", null, null, "테스트기업", null}));
+
+        List<com.newcodes7.small_town.search.dto.AiSummaryChunkDto> result =
+                vectorSearchService.getTopChunksForSummary("kafka", 10);
+
+        assertThat(result).hasSize(1);
+        assertThat(cache.get("kafka")).isNotNull();
+    }
+
+    // ==================== getChunksForArticlesByIds — 추가 분기 ====================
+
+    @Test
+    @DisplayName("getChunksForArticlesByIds: null articleIds → 빈 리스트, 의존성 미호출")
+    void getChunksForArticlesByIds_nullArticleIds() {
+        assertThat(vectorSearchService.getChunksForArticlesByIds("kafka", null)).isEmpty();
+        verifyNoInteractions(chunkRepository, searchQueryEmbeddingService);
+    }
+
+    @Test
+    @DisplayName("getChunksForArticlesByIds: queryEmbedding 미전달 → getOrCreateEmbedding으로 fallback 조회")
+    void getChunksForArticlesByIds_임베딩미전달_fallback조회() {
+        when(searchQueryEmbeddingService.getOrCreateEmbedding(anyString())).thenReturn(DUMMY_EMBEDDING);
+        when(chunkRepository.findFirstAndBestChunksByArticleIds(anyString(), anyList()))
+                .thenReturn(List.<Object[]>of(new Object[]{
+                        1L, "제목", "https://example.com/1", "내용", null, null, "테스트기업", null}));
+
+        List<com.newcodes7.small_town.search.dto.AiSummaryChunkDto> chunks =
+                vectorSearchService.getChunksForArticlesByIds("kafka", List.of(1L));
+
+        assertThat(chunks).hasSize(1);
+        verify(searchQueryEmbeddingService).getOrCreateEmbedding("kafka");
+    }
+
+    @Test
+    @DisplayName("getChunksForArticlesByIds: fallback 임베딩 조회도 실패 → 빈 리스트")
+    void getChunksForArticlesByIds_fallback임베딩실패() {
+        when(searchQueryEmbeddingService.getOrCreateEmbedding(anyString())).thenReturn(null);
+
+        List<com.newcodes7.small_town.search.dto.AiSummaryChunkDto> chunks =
+                vectorSearchService.getChunksForArticlesByIds("kafka", List.of(1L));
+
+        assertThat(chunks).isEmpty();
+        verifyNoInteractions(chunkRepository);
+    }
 }
