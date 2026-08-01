@@ -3,6 +3,7 @@ import com.sun.net.httpserver.HttpHandler;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Bedrock Runtime mock — POST /model/{urlencoded-modelId}/converse | /converse-stream.
@@ -16,8 +17,13 @@ import java.nio.charset.StandardCharsets;
  */
 public final class BedrockHandlers implements HttpHandler {
 
-    // contentBlockDelta 1개당 문자 수 — QUERIES 태그가 자연스럽게 청크 경계에 걸치도록 작게 유지
-    private static final int TOKEN_CHARS = 8;
+    // contentBlockDelta 바이트 크기(UTF-8) — 2026-08-01 Prometheus 실측(rag_answer_llm_chunk_size_bytes,
+    // n=4933청크) median 5.7B/mean 7.86B를 lognormal(median, sigma)로 역산. 실제 LLM 스트리밍은 고정폭이
+    // 아니라 서브워드 단위라 청크마다 크기가 들쭉날쭉함 — QUERIES 태그도 매 요청 다른 지점에서 쪼개진다.
+    private static final double CHUNK_BYTES_MEDIAN = 5.7;
+    private static final double CHUNK_BYTES_SIGMA = 0.8;
+    // SENTENCE_POOL 텍스트(한글+마크다운 혼합)의 실측 UTF-8 bytes/char — 답변 총 길이 계산용
+    private static final double POOL_BYTES_PER_CHAR = 2.28;
 
     private static final String[] SENTENCE_POOL = {
             "이 기업은 대규모 트래픽 환경에서 **캐시 계층**을 도입해 응답 시간을 크게 단축했습니다 [출처1].",
@@ -105,11 +111,14 @@ public final class BedrockHandlers implements HttpHandler {
         LatencyModel.sleep(ttft);
 
         int deltaCount = 0;
-        for (int offset = 0; offset < answer.length(); offset += TOKEN_CHARS) {
-            String token = answer.substring(offset, Math.min(offset + TOKEN_CHARS, answer.length()));
+        int offset = 0;
+        while (offset < answer.length()) {
+            int end = nextChunkEnd(answer, offset);
+            String token = answer.substring(offset, end);
             writeEvent(out, "contentBlockDelta",
                     "{\"contentBlockIndex\":0,\"delta\":{\"text\":\"" + MiniJson.esc(token) + "\"}}");
             deltaCount++;
+            offset = end;
             LatencyModel.sleep(LatencyModel.jitterMs(config.tokenIntervalMs(), config.tokenJitterMs()));
         }
 
@@ -126,9 +135,15 @@ public final class BedrockHandlers implements HttpHandler {
         out.flush();
     }
 
-    /** MOCK_ANSWER_TOKENS × TOKEN_CHARS 길이만큼 문장 풀을 순환해 답변 본문을 만든다. */
+    /**
+     * 문장 풀을 순환해 답변 본문을 만든다. 목표 길이는 answerTokens(청크 개수) × 실측 평균 청크 바이트를
+     * 텍스트의 실측 bytes/char로 환산 — nextChunkEnd()가 가변 크기로 잘라내므로 실제 청크 개수는
+     * answerTokens 근사치가 된다(정확히 일치하지 않음, 실제 스트리밍도 요청마다 편차가 있어 자연스러움).
+     */
     private String buildAnswerText() {
-        int targetChars = config.answerTokens() * TOKEN_CHARS - QUERIES_TAG.length();
+        double chunkBytesMean = CHUNK_BYTES_MEDIAN * Math.exp(CHUNK_BYTES_SIGMA * CHUNK_BYTES_SIGMA / 2);
+        int targetChars = (int) Math.round(config.answerTokens() * chunkBytesMean / POOL_BYTES_PER_CHAR)
+                - QUERIES_TAG.length();
         StringBuilder sb = new StringBuilder(targetChars + QUERIES_TAG.length() + 64);
         int sentenceIndex = 0;
         int caseNumber = 1;
@@ -176,6 +191,30 @@ public final class BedrockHandlers implements HttpHandler {
 
     private int estimateTokens(String text) {
         return Math.max(1, text.length() / 4);
+    }
+
+    /** lognormal(CHUNK_BYTES_MEDIAN, CHUNK_BYTES_SIGMA)로 목표 청크 바이트 수를 뽑고, 그 바이트 수를
+     * 채울 때까지(UTF-8 기준) 문자를 소비해 청크 끝 인덱스를 반환한다 — 멀티바이트 문자 중간에서 자르지 않음. */
+    private int nextChunkEnd(String text, int offset) {
+        double targetBytes = CHUNK_BYTES_MEDIAN * Math.exp(CHUNK_BYTES_SIGMA * ThreadLocalRandom.current().nextGaussian());
+        int minBytes = Math.max(1, (int) Math.round(targetBytes));
+        int end = offset;
+        int bytes = 0;
+        while (end < text.length() && bytes < minBytes) {
+            bytes += utf8ByteLength(text.charAt(end));
+            end++;
+        }
+        return end;
+    }
+
+    private static int utf8ByteLength(char c) {
+        if (c < 0x80) {
+            return 1;
+        }
+        if (c < 0x800) {
+            return 2;
+        }
+        return 3; // 한글 완성형(가~힣)을 포함한 BMP 대부분 — 이 텍스트에 surrogate pair는 없음
     }
 
     private void sendThrottlingError(HttpExchange exchange) throws IOException {

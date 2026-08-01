@@ -50,15 +50,19 @@ mock 경로는 앱 시간당 rate limit이 없으므로 `rag.chat.rate-limit-exe
 
 | env | 기본값 | 의미 |
 |---|---|---|
-| `MOCK_PREPROCESS_MEDIAN_MS` / `MOCK_PREPROCESS_SIGMA` | 800 / 0.4 | 전처리 Converse 지연 lognormal(median, sigma) |
-| `MOCK_TTFT_MEDIAN_MS` / `MOCK_TTFT_SIGMA` | 1500 / 0.5 | 답변 스트림 첫 토큰까지 지연 |
-| `MOCK_TOKEN_INTERVAL_MS` / `MOCK_TOKEN_JITTER_MS` | 30 / 20 | 토큰 간 간격 + 지터 |
-| `MOCK_ANSWER_TOKENS` | 350 | 답변 delta 이벤트 수 |
-| `MOCK_EMBED_MEDIAN_MS` / `MOCK_EMBED_SIGMA` | 150 / 0.3 | Clova 임베딩 지연 |
+| `MOCK_PREPROCESS_MEDIAN_MS` / `MOCK_PREPROCESS_SIGMA` | 2075 / 0.4 | 전처리 Converse 지연 lognormal(median, sigma) |
+| `MOCK_TTFT_MEDIAN_MS` / `MOCK_TTFT_SIGMA` | 1650 / 0.5 | 답변 스트림 첫 토큰까지 지연 |
+| `MOCK_TOKEN_INTERVAL_MS` / `MOCK_TOKEN_JITTER_MS` | 44 / 14 | 토큰 간 간격 + 지터 (평균 51ms) |
+| `MOCK_ANSWER_TOKENS` | 410 | 답변 delta 이벤트 수 목표치(실제 개수는 가변 청크 크기 때문에 근사치) |
+| `MOCK_EMBED_MEDIAN_MS` / `MOCK_EMBED_SIGMA` | 150 / 0.3 | Clova 임베딩 지연 (미보정 — 아래 참고) |
 | `MOCK_ERROR_RATE` | 0 | 0~1 확률로 429 ThrottlingException 주입 (circuit breaker 실험) |
 | `MOCK_SLOW_RATE` / `MOCK_SLOW_EXTRA_MS` | 0 / 60000 | slow-call 주입 (전처리/TTFT에 가산) |
 
-지연 기본값은 실측 캘리브레이션 전 추정치다. 갱신하려면 실 경로로 저부하 스모크(`RATE=1`)를 돌려 Grafana의 `rag.llm-stream` first-token/duration 분포를 읽고 median/sigma를 맞춘다. 기본값 합이 Bedrock async 타임아웃 예산(80s)을 넘으면 mock이 기동 시 fail-fast 한다.
+PREPROCESS/TTFT/TOKEN_INTERVAL/ANSWER_TOKENS 기본값은 **2026-08-01 Grafana `small-town-rag-answer` 대시보드**(Prometheus `rag_preprocess_seconds`, `rag_answer_llm_ttfb_seconds`, `rag_answer_llm_chunk_gap_seconds`, `rag_answer_llm_chunk_gap_seconds_count`)의 실측치로 캘리브레이션했다. 단 트래픽이 적어 표본이 요청 12건(청크 4921~4933개)뿐이라 신뢰구간이 넓다 — 트래픽이 쌓이면 같은 방식으로 재캘리브레이션할 것. `BedrockHandlers`의 청크 크기(`CHUNK_BYTES_MEDIAN`/`CHUNK_BYTES_SIGMA`)도 `rag_answer_llm_chunk_size_bytes` 실측(median 5.7B / mean 7.86B)에 맞춰 가변 크기로 바꿨다 — 실제 스트리밍처럼 청크마다 크기가 들쭉날쭉하다.
+
+`MOCK_EMBED_MEDIAN_MS`/`SIGMA`는 미보정이다: 유일한 후보 메트릭 `search_query_embedding_seconds`가 캐시 히트(즉시 반환)와 실제 Clova 호출을 함께 집계해 평균이 실제 API 레이턴시보다 낮게 나온다 — 캐시 미스만 분리하는 라벨/메트릭이 추가되면 재보정할 것.
+
+재캘리브레이션 절차: Grafana(`GRAFANA_URL`/service account 토큰으로 MCP 연결 가능)의 Prometheus datasource에서 `sum(<metric>_sum) / sum(<metric>_count)`로 평균을, `<metric>_bucket`으로 누적분포를 읽어 median/sigma를 역산한다(`median × exp(sigma²/2) = mean`). 기본값 합이 Bedrock async 타임아웃 예산(80s)을 넘으면 mock이 기동 시 fail-fast 한다.
 
 ### mock 수정 시 검증
 
