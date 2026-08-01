@@ -498,7 +498,7 @@ class ArticleManager {
         const title = article.translatedTitle && article.translatedTitle.length > 0
             ? article.translatedTitle : article.title;
         const thumbnailHTML = article.thumbnailImage
-            ? `<img src="${this.escapeHtml(article.thumbnailImage)}" alt="${this.escapeHtml(article.title)}" width="300" height="155" class="article-thumbnail">`
+            ? `<img src="${this.escapeHtml(article.thumbnailImage)}" alt="${this.escapeHtml(article.title)}" width="300" height="155" class="article-thumbnail" onerror="handleThumbnailError(this)">`
             : `<div class="article-thumbnail default-thumbnail"><div class="default-thumbnail-content"><i class="fas fa-code"></i><div class="thumbnail-pattern"></div></div></div>`;
         const logoHTML = article.corporation && article.corporation.effectiveLogoUrl
             ? `<img width="20px;" src="${this.escapeHtml(article.corporation.effectiveLogoUrl)}" alt="${this.escapeHtml(article.corporation.name)}" class="company-logo me-2" style="border-radius: 4px;">`
@@ -544,7 +544,7 @@ class ArticleManager {
         const title = firstArticle.translatedTitle && firstArticle.translatedTitle.length > 0
             ? firstArticle.translatedTitle : firstArticle.title;
         const thumbnailHTML = firstArticle.thumbnailImage
-            ? `<img src="${this.escapeHtml(firstArticle.thumbnailImage)}" alt="${this.escapeHtml(firstArticle.title)}" width="300" height="155" class="article-thumbnail">`
+            ? `<img src="${this.escapeHtml(firstArticle.thumbnailImage)}" alt="${this.escapeHtml(firstArticle.title)}" width="300" height="155" class="article-thumbnail" onerror="handleThumbnailError(this)">`
             : `<div class="article-thumbnail default-thumbnail"><div class="default-thumbnail-content"><i class="fas fa-code"></i><div class="thumbnail-pattern"></div></div></div>`;
         const logoHTML = corporation && corporation.effectiveLogoUrl
             ? `<img width="20px;" src="${this.escapeHtml(corporation.effectiveLogoUrl)}" alt="${this.escapeHtml(corporation.name)}" class="company-logo me-2" style="border-radius: 4px;">`
