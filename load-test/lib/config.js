@@ -31,6 +31,15 @@ export const COMMON_TAGS = {
   instance: CONFIG.instanceId,
 };
 
+// nginx rate limit bypass용 시크릿 토큰 (nginx/loadtest_token.conf와 값이 같아야 함).
+// Fargate 태스크는 매번 임의 public IP를 쓰므로 IP 대신 헤더로 판별한다 — README "Rate limit 예외" 참고.
+// 값이 없으면(빈 문자열) 헤더를 아예 안 보내 rate limit이 그대로 걸린다 (rate-limit-check.js가 의도하는 상태).
+const BYPASS_TOKEN = __ENV.LOADTEST_BYPASS_TOKEN || '';
+
+export function bypassHeaders(extra = {}) {
+  return BYPASS_TOKEN ? Object.assign({ 'X-LoadTest-Token': BYPASS_TOKEN }, extra) : extra;
+}
+
 // 외부 jslib 원격 import 없이 UUIDv4 생성 (Fargate 이미지에서 네트워크 의존 제거)
 export function uuid() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {

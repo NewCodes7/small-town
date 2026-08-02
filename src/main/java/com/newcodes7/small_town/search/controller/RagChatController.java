@@ -6,15 +6,11 @@ import com.newcodes7.small_town.search.config.RagModelProperties;
 import com.newcodes7.small_town.search.dto.RagChatRequestDto;
 import com.newcodes7.small_town.search.repository.RagQueryLogRepository;
 import com.newcodes7.small_town.search.service.RagAnswerService;
-import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.Arrays;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -55,19 +51,11 @@ public class RagChatController {
     @Value("${rag.chat.hourly-limit-per-ip:30}")
     private int hourlyLimitPerIp;
 
-    // 부하테스트(Fargate) 전용 IP 예외 — nginx default.conf의 $loadtest_bypass geo 블록과 같은 IP를 넣어야 함
-    // 다른 IP(실사용자)의 시간당 한도는 그대로 유지됨
-    @Value("${rag.chat.rate-limit-exempt-ips:}")
-    private String rateLimitExemptIpsRaw;
-    private Set<String> rateLimitExemptIps;
-
-    @PostConstruct
-    void initRateLimitExemptIps() {
-        rateLimitExemptIps = Arrays.stream(rateLimitExemptIpsRaw.split(","))
-                .map(String::trim)
-                .filter(ip -> !ip.isEmpty())
-                .collect(Collectors.toSet());
-    }
+    // 부하테스트(Fargate) 전용 예외 — nginx의 X-LoadTest-Token(nginx/loadtest_token.conf)과 같은 값이어야 함.
+    // Fargate 태스크는 매번 임의 public IP를 쓰므로 IP 대신 헤더로 판별한다. 값이 비어 있으면 기능 자체가 꺼짐.
+    // 다른 요청(실사용자)의 시간당 한도는 그대로 유지됨.
+    @Value("${rag.chat.loadtest-bypass-token:}")
+    private String loadtestBypassToken;
 
     private final RagAnswerService ragAnswerService;
     private final RagModelProperties ragModelProperties;
@@ -89,7 +77,8 @@ public class RagChatController {
         Long userId = resolveUserId(userDetails);
 
         LocalDateTime hourAgo = LocalDateTime.now(ZoneId.of("Asia/Seoul")).minusHours(1);
-        boolean exempt = rateLimitExemptIps.contains(ipAddress);
+        boolean exempt = !loadtestBypassToken.isBlank()
+                && loadtestBypassToken.equals(request.getHeader("X-LoadTest-Token"));
         if (!exempt && ragQueryLogRepository.countByIpAddressAndCreatedAtAfter(ipAddress, hourAgo) >= hourlyLimitPerIp) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "시간당 요청 한도를 초과했습니다");
         }

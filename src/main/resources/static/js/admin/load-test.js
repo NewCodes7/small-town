@@ -181,7 +181,7 @@
                 if (data.totalRate != null) paramParts.push(`RPS=${data.totalRate}`);
                 if (data.totalVus != null) paramParts.push(`VUS=${data.totalVus}`);
                 if (data.duration) paramParts.push(`duration=${data.duration}`);
-                if (data.publicMode) paramParts.push('--public');
+                if (data.publicMode) paramParts.push('--no-bypass');
                 if (data.extraEnv) paramParts.push(`env: ${data.extraEnv.replace(/\n/g, ', ')}`);
                 fill(paramsEl, paramParts.join(' · '));
                 commandEl.textContent = data.generatedCommand || '';

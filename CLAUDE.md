@@ -114,7 +114,7 @@ Clova Embedding v2 (1024차원), 2단계 검색:
 - 멀티 LLM 지원: `RagLlmClientResolver`가 Gemini/OpenAI/Bedrock(`RagLlmClient` 구현체) 중 모델 ID로 라우팅. 기본 고정 모델은 Bedrock Claude Sonnet 4.5 (`rag.models[4]`, `application.properties`)
 - **전처리(쿼리 분해, sync) → 답변 생성(async) 2단계**, 경량 전처리 모델을 답변 모델과 분리 지정 가능(`rag.chat.preprocess-model-id`)해 TTFT 단축
 - 아티클 단위 검색: 상위 5개 아티클 × 아티클당 3청크(`TOP_ARTICLES`/`CHUNKS_PER_ARTICLE`), threshold `0.6`
-- Rate limit: nginx는 분당 제한만 처리 가능해 **시간당 IP별 한도(`rag.chat.hourly-limit-per-ip`, 기본 30)는 컨트롤러에서 카운트**. 부하테스트(Fargate) IP는 `rag.chat.rate-limit-exempt-ips`로 예외 처리(nginx `$loadtest_bypass` geo 블록과 IP 동기화 필요)
+- Rate limit: nginx는 분당 제한만 처리 가능해 **시간당 IP별 한도(`rag.chat.hourly-limit-per-ip`, 기본 30)는 컨트롤러에서 카운트**. 부하테스트(Fargate, NAT 없이 임의 public IP)는 `rag.chat.loadtest-bypass-token`(시크릿 헤더 `X-LoadTest-Token`)으로 예외 처리 — nginx `$loadtest_bypass`(`nginx/loadtest_token.conf`, gitignore 대상)와 같은 토큰이어야 함
 - SSE 타임아웃 150초 (전처리 30초 + 답변 90초 worst case + 여유)
 - `RagQueryLog`: 질의/모델/응답시간 로깅, `AdminRagHistoryController`에서 조회
 - `RagChatLoadTestController` (`POST /api/rag/answer/loadtest`): k6/Fargate 부하테스트 전용 엔드포인트 — `load-test/` 디렉터리 참고

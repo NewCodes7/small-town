@@ -1,0 +1,11 @@
+# 템플릿 — 실제 파일은 nginx/loadtest_token.conf (gitignore 대상, 이 파일과 같은 디렉터리)로
+# 운영 호스트에 직접 만들어야 한다. docker-compose.yml이 이 경로를 nginx 컨테이너에 마운트한다.
+#
+# 토큰 생성 예: openssl rand -hex 24
+# load-test/fargate/env의 LT_BYPASS_TOKEN과 반드시 같은 값이어야 한다.
+#
+# cp nginx/loadtest_token.conf.example nginx/loadtest_token.conf 후 <SECRET_TOKEN>을 교체할 것.
+map $http_x_loadtest_token $loadtest_bypass {
+    default 0;
+    "<SECRET_TOKEN>" 1;
+}

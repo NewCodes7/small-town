@@ -90,7 +90,7 @@
                             <div class="form-check">
                                 <input type="checkbox" name="publicMode" id="ltPublicMode" class="form-check-input">
                                 <label class="form-check-label small" for="ltPublicMode">
-                                    --public (rate-limit-check 전용, bypass 미등록 IP)
+                                    --no-bypass (rate-limit-check 전용, bypass 토큰 미포함)
                                 </label>
                             </div>
                         </div>
@@ -104,8 +104,8 @@
 
                     <div id="ltProductionWarning" class="col-12 alert alert-warning d-none py-2 mb-0 mt-2">
                         ⚠️ 대상 환경이 프로덕션입니다. 스케줄러(02:00/02:30, 매시 :30)·blue/green 배포와
-                        겹치지 않는 시간대인지, NAT EIP 예외 등록(nginx geo + <code>RAG_CHAT_RATELIMITEXEMPTIPS</code>)이
-                        필요한 시나리오인지 확인하세요.
+                        겹치지 않는 시간대인지, <code>fargate/env</code>의 <code>LT_BYPASS_TOKEN</code>이
+                        운영 nginx의 <code>loadtest_token.conf</code>와 일치하는지 확인하세요.
                     </div>
 
                     <div class="col-12 mt-2">

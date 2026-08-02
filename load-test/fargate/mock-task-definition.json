@@ -1,0 +1,38 @@
+{
+  "family": "newcodes-llm-mock",
+  "requiresCompatibilities": ["FARGATE"],
+  "networkMode": "awsvpc",
+  "cpu": "256",
+  "memory": "512",
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "llm-mock",
+      "image": "<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/newcodes-llm-mock:latest",
+      "essential": true,
+      "portMappings": [
+        { "containerPort": 9099, "protocol": "tcp" }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "/bin/bash -c '</dev/tcp/localhost/9099' || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 10
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/newcodes-llm-mock",
+          "awslogs-region": "<REGION>",
+          "awslogs-stream-prefix": "llm-mock",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}

@@ -270,7 +270,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**목적**: `load-test/scenarios/*.js` (k6) 실행 중 클라이언트 측 처리량/지연시간과, 백엔드(DB 풀·JVM·캐시·외부 API)의 병목 신호를 한 화면에서 같이 본다. 설계 근거: `docs/testing/LOAD_TEST_DESIGN.md`, Notion \"검색 부하테스트\" 페이지.\n\n- **k6 → Prometheus**: `--out experimental-prometheus-rw` (README 참고). 메트릭명은 `k6_` 접두사 + Trend는 `stat` 라벨(`p50`/`p95`/`p99`/`avg`/`min`/`max`), Counter는 `_total` 접미사가 붙는 것으로 가정했다 — **k6/Prometheus 버전에 따라 달라질 수 있으니, 처음 실행 후 Prometheus Explore에서 `{__name__=~\"k6_.*\"}`로 실제 이름을 먼저 확인할 것.**\n- **444/429는 장애가 아니다** — nginx가 설계대로 자른 것(README 참고). 아래 \"에러율\" 패널은 444/429를 제외한 5xx·timeout만 집계한다.\n- 상단 변수로 `testid`(실행 회차), `k6_instance`(Fargate task), `server`(blue/green)를 필터링할 수 있다.\n- DB(`postgres`/`db-node` job), Fargate NAT EIP 관련 안내는 `load-test/README.md`의 \"Rate limit 예외 등록\" 절차 참고."
+        "content": "**목적**: `load-test/scenarios/*.js` (k6) 실행 중 클라이언트 측 처리량/지연시간과, 백엔드(DB 풀·JVM·캐시·외부 API)의 병목 신호를 한 화면에서 같이 본다. 설계 근거: `docs/testing/LOAD_TEST_DESIGN.md`, Notion \"검색 부하테스트\" 페이지.\n\n- **k6 → Prometheus**: `--out experimental-prometheus-rw` (README 참고). 메트릭명은 `k6_` 접두사 + Trend는 `stat` 라벨(`p50`/`p95`/`p99`/`avg`/`min`/`max`), Counter는 `_total` 접미사가 붙는 것으로 가정했다 — **k6/Prometheus 버전에 따라 달라질 수 있으니, 처음 실행 후 Prometheus Explore에서 `{__name__=~\"k6_.*\"}`로 실제 이름을 먼저 확인할 것.**\n- **444/429는 장애가 아니다** — nginx가 설계대로 자른 것(README 참고). 아래 \"에러율\" 패널은 444/429를 제외한 5xx·timeout만 집계한다.\n- 상단 변수로 `testid`(실행 회차), `k6_instance`(Fargate task), `server`(blue/green)를 필터링할 수 있다.\n- DB(`postgres`/`db-node` job), 부하테스트 시크릿 토큰(`X-LoadTest-Token`) 관련 안내는 `load-test/README.md`의 \"Rate limit 예외 등록\" 절차 참고."
       }
     },
     {

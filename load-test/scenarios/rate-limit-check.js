@@ -1,6 +1,6 @@
 // Rate limit 검증 — 의도적으로 한도를 넘겨 429/444가 설계대로 뜨는지 확인.
-// ⚠️ 전제: bypass 미등록 IP에서 실행 (로컬 nginx 경유 BASE_URL=http://localhost,
-//    또는 Fargate --public 모드). bypass IP로 실행하면 429가 안 나와 threshold가 실패한다.
+// ⚠️ 전제: bypass 토큰 없이 실행 (로컬 nginx 경유 BASE_URL=http://localhost,
+//    또는 Fargate --no-bypass). LOADTEST_BYPASS_TOKEN을 넣고 실행하면 429가 안 나와 threshold가 실패한다.
 // 겸용 목적: nginx 444(무응답 종료)가 k6에서 어떤 error_code/error로 잡히는지 실측(calibration) —
 //    api_zone 구간의 console.log 출력을 lib/metrics.js의 분류 패턴에 반영할 것.
 //

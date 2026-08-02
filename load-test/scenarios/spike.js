@@ -4,7 +4,7 @@
 // 실행 예: k6 run scenarios/spike.js
 
 import http from 'k6/http';
-import { CONFIG, COMMON_TAGS } from '../lib/config.js';
+import { CONFIG, COMMON_TAGS, bypassHeaders } from '../lib/config.js';
 import { classify } from '../lib/metrics.js';
 import { sampleKeyword, samplePage } from '../lib/keywords.js';
 
@@ -31,6 +31,6 @@ export const options = {
 
 export default function () {
   const url = `${CONFIG.baseUrl}/api/search/articles?keyword=${encodeURIComponent(sampleKeyword())}&page=${samplePage()}&size=10&view=list`;
-  const res = http.get(url, { tags: { endpoint: 'search' } });
+  const res = http.get(url, { headers: bypassHeaders(), tags: { endpoint: 'search' } });
   classify(res, { endpoint: 'search' });
 }

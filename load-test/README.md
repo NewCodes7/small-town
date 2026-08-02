@@ -10,41 +10,54 @@ RAG 검색(SSE) 중심 부하테스트. 설계 배경은 [`docs/testing/LOAD_TES
 >
 > ⚠️ **실행 창 주의**: 02:00/02:30 크롤링, 매시 :30 컨텐츠 추출·HN 크롤링 스케줄러, blue/green 배포와 겹치지 않는 시간대에 실행한다.
 
-## LLM Mock 모드 (과금 없는 RAG 부하테스트)
+## 지금 당장 설정해야 할 것 (최초 1회)
+
+운영 서버(`https://newcodes.net`) 대상으로 실제 부하테스트를 돌리려면 아래가 먼저 끝나 있어야 한다. **한 번만 하면 되고, 이후 반복 테스트는 명령어 하나(`fargate/run-prod-test.sh`)면 된다.**
+
+1. [`fargate/MOCK_SERVICE_SETUP.md`](fargate/MOCK_SERVICE_SETUP.md)를 따라 상시 LLM mock ECS 서비스 프로비저닝 (ECR/Cloud Map/보안그룹/ECS 서비스, public 서브넷 — NAT Gateway 불필요)
+2. 시크릿 토큰 생성(`openssl rand -hex 24`) 후 운영 서버 `.env`에 `RAG_CHAT_LOADTEST_ENABLED=true` + mock endpoint 2개 + `RAG_CHAT_LOADTEST_BYPASS_TOKEN` 추가 (문서 7~8번)
+3. 같은 토큰으로 운영 서버에 `nginx/loadtest_token.conf` 생성(git 미추적) 후 main에 push → 배포 → nginx 컨테이너 최초 1회 재생성 (문서 9번)
+4. `load-test/fargate/env` 채우기: `cp fargate/env.example fargate/env` 후 값 입력, `LT_BYPASS_TOKEN`은 2~3번과 동일한 값 (문서 10번)
+
+전부 끝나면:
+
+```bash
+./load-test/fargate/run-prod-test.sh -s rag-answer -v 5 -d 5m -e MODE=cache-miss
+```
+
+AWS CLI 자격증명이 없는 환경(예: 이 devcontainer)에서는 1번을 실행할 수 없다 — AWS CLI가 설정된 본인 머신에서 진행할 것.
+
+## LLM Mock 모드 (과금 없는 RAG 부하테스트, 상시 아키텍처)
 
 `load-test/mock/`의 mock server가 Bedrock Converse/ConverseStream(AWS eventstream wire 포맷 그대로)과 Clova Embedding v2를 재현한다. 백엔드는 운영과 동일한 `BedrockRagLlmClient`(netty async)·`EmbeddingApiService` 코드 경로로 호출하므로 계측 정합성이 유지된다 (차이는 mock 구간의 HTTP/1.1 전송뿐 — JDK HttpServer가 h2 미지원).
 
 **실사용자 요청과의 구분**: mock은 전용 엔드포인트 `POST /api/rag/answer/loadtest`로만 탄다. 실사용자 경로(`/api/rag/answer`)는 코드·과금·캐시 모두 무변경이며, mock 요청은 `rag_query_log`에 `model LIKE 'mock.%'`로 기록되고 응답 캐시도 `rag-answer:lt:` 키로 격리된다.
 
-### 기동 절차
+**운영 배치**: mock은 운영 docker-compose 안이 아니라 **별도의 상시 ECS Fargate 서비스**로 뜬다(`load-test/fargate/mock-task-definition.json`, 최초 세팅은 [`fargate/MOCK_SERVICE_SETUP.md`](fargate/MOCK_SERVICE_SETUP.md)). Cloud Map 프라이빗 DNS로 `http://llm-mock.loadtest.local:9099` 고정 엔드포인트를 갖고, 운영 백엔드는 `RAG_LOADTEST_BEDROCK_ENDPOINT`/`CLOVA_LOADTEST_ENDPOINT`로 이 주소를 상시 가리킨다. 게이트(`RAG_CHAT_LOADTEST_ENABLED`)도 상시 true — 매 테스트마다 운영 재배포·mock 기동/종료를 반복하지 않는다.
+
+로컬 개발(bootRun)에서는 여전히 로컬 docker-compose의 `llm-mock` profile을 그대로 쓴다 (운영 배치와 무관):
 
 ```bash
-# 1. mock server 기동 (평시 미기동 — compose profile)
 docker compose --profile loadtest up -d --build llm-mock
 
-# 2. 백엔드에 게이트 활성화 env 주입 후 재기동/배포
-#    (endpoint 2개는 compose 기본값이 llm-mock을 가리키므로 enabled만 켜면 됨)
-RAG_CHAT_LOADTEST_ENABLED=true
-
-# 3. k6 실행 — RAG_PATH로 mock 엔드포인트 지정
-RAG_PATH=/api/rag/answer/loadtest ./scripts/run-local.sh rag-answer -e VUS=5 -e DURATION=5m
-```
-
-로컬 개발(bootRun)에서는:
-
-```bash
 RAG_CHAT_LOADTEST_ENABLED=true \
 RAG_LOADTEST_BEDROCK_ENDPOINT=http://localhost:9099 \
 CLOVA_LOADTEST_ENDPOINT=http://localhost:9099/v1/api-tools/embedding/v2 ./gradlew bootRun
+
+RAG_PATH=/api/rag/answer/loadtest ./scripts/run-local.sh rag-answer -e VUS=5 -e DURATION=5m
 ```
 
-### 접근 통제 (3중)
+### 접근 통제
 
-1. **앱 게이트**: `rag.chat.loadtest.enabled`(env `RAG_CHAT_LOADTEST_ENABLED`) 기본 false → 비활성 시 404
-2. **nginx**: `location = /api/rag/answer/loadtest`는 `geo $loadtest_bypass` 등록 IP만 통과, 그 외 403
-3. **오설정 차단**: mock 모델에 endpoint가 비어 있으면 503 (실 Bedrock 과금 호출로 새는 것 방지)
+Fargate 태스크는 NAT Gateway 없이 매번 임의 public IP로 뜨므로(고정 IP 없음) IP allowlist 대신 **시크릿 헤더**(`X-LoadTest-Token`)로 판별한다.
 
-mock 경로는 앱 시간당 rate limit이 없으므로 `rag.chat.rate-limit-exempt-ips` 등록이 불필요하다. 단 nginx 경유 시 geo IP 등록은 여전히 필요하다.
+1. **nginx**: `location = /api/rag/answer/loadtest`는 `X-LoadTest-Token` 헤더가 `nginx/loadtest_token.conf`의 값과 일치해야 통과, 그 외 403 — **상시 등록 상태**라 실질적으로 이게 유일한 게이트다(아래 트레이드오프 참고)
+2. **오설정 차단**: mock 모델에 endpoint가 비어 있으면 503 (실 Bedrock 과금 호출로 새는 것 방지) — mock ECS 서비스가 죽으면 자동으로 이 상태가 되어 안전 쪽으로 fail
+3. **앱 게이트**: `rag.chat.loadtest.enabled`는 상시 true로 둔다 (더 이상 실질적 방어선이 아님, 1번이 대신함)
+
+> ⚠️ **트레이드오프**: 원래 설계는 게이트/nginx bypass를 테스트 창에만 열고 끝나면 닫는 것이었다(상시 우회 경로 방지). 반복 테스트 편의를 위해 상시로 바꿨으므로, 토큰이 유출되면 `/api/rag/answer/loadtest`가 노출된다. mock endpoint 503 안전장치와 `rag_query_log.model LIKE 'mock.%'` 격리가 남아 있어 실제 과금 유출 위험은 낮지만, 토큰은 git에 커밋하지 말고(gitignore 대상) 유출 의심 시 즉시 `nginx/loadtest_token.conf` + `.env`의 `RAG_CHAT_LOADTEST_BYPASS_TOKEN` + `fargate/env`의 `LT_BYPASS_TOKEN`을 새 값으로 함께 교체할 것.
+
+mock 경로(`/api/rag/answer/loadtest`)는 앱 시간당 rate limit이 없으므로 토큰이 nginx 게이트만 통과하면 된다. 실사용자 경로(`/api/rag/answer`)를 직접 부하테스트하는 경우(예: `soak.js`의 `ragIter`)에는 앱 레벨 시간당 30회 제한도 있어 `rag.chat.loadtest-bypass-token`(운영 `.env`의 `RAG_CHAT_LOADTEST_BYPASS_TOKEN`, nginx와 같은 값)이 같이 필요하다.
 
 ### 지연·장애 주입 env (compose의 llm-mock 서비스에 추가)
 
@@ -73,11 +86,17 @@ eventstream 프레이밍(CRC/헤더)은 실 SDK 언마샬러로만 검증 가능
 MOCK_LLM_URL=http://localhost:9099 ./gradlew test --tests "*BedrockMockServerSdkIT*"
 ```
 
-### 종료 후 체크리스트 (mock 모드)
+### 테스트 후 정리
 
-- [ ] `RAG_CHAT_LOADTEST_ENABLED` env 제거 후 재배포 (게이트 원복 — 404 확인)
-- [ ] `docker compose --profile loadtest down llm-mock` (또 쓸 예정이면 유지해도 무방 — 게이트가 닫히면 접근 불가)
+게이트/nginx bypass/mock 서비스는 상시 유지이므로 원복할 필요 없다. 매 테스트 후 남는 건 로그뿐:
+
 - [ ] mock 로그 정리: `DELETE FROM rag_query_log WHERE model LIKE 'mock.%';`
+
+mock 코드나 지연 캘리브레이션 값을 바꿨다면 이미지를 다시 push하고 서비스를 갱신한다 ([`fargate/MOCK_SERVICE_SETUP.md`](fargate/MOCK_SERVICE_SETUP.md) 맨 아래 "mock 이미지 갱신" 참고):
+
+```bash
+aws ecs update-service --cluster newcodes-loadtest --service llm-mock --force-new-deployment
+```
 
 ## 빠른 시작 (로컬)
 
@@ -102,10 +121,12 @@ BASE_URL=http://host.docker.internal ./scripts/run-local.sh rate-limit-check
 | `http://host.docker.internal` | 로컬 nginx 경유 — rate limit 검증용 |
 | `https://newcodes.net` | 실서버 (Fargate에서 사용) |
 
-로컬에서 `rag-answer`를 돌리려면 백엔드를 앱 레벨 rate limit 면제로 기동:
+로컬에서 `rag-answer`(실경로 `/api/rag/answer`)를 반복 실행하려면 백엔드를 앱 레벨 rate limit 면제로 기동하고, k6에도 같은 토큰을 넘긴다:
 
 ```bash
-RAG_CHAT_RATELIMITEXEMPTIPS=127.0.0.1 ./gradlew bootRun
+RAG_CHAT_LOADTEST_BYPASS_TOKEN=localtest ./gradlew bootRun
+
+LOADTEST_BYPASS_TOKEN=localtest ./scripts/run-local.sh rag-answer -e VUS=5 -e DURATION=5m
 ```
 
 ## 시나리오 카탈로그
@@ -119,36 +140,25 @@ RAG_CHAT_RATELIMITEXEMPTIPS=127.0.0.1 ./gradlew bootRun
 | `ramp-limit-finder.js` | 동시성 10/20/50/100 단계별 한계점 곡선 | constant-vus ×4 (startTime 직렬) | `TARGET=search\|baseline` |
 | `spike.js` | 순간 폭증(2→50 RPS) + 회복 관찰 | ramping-arrival-rate | — |
 | `soak.js` | 장시간 혼합 부하 — 누수 탐지 | 혼합 (arrival ×2 + vus) | `SOAK_DURATION=1h` |
-| `rate-limit-check.js` | 429/444 검증 + k6 관측 형태 보정 | 순차 4단계 | **bypass 미등록 IP에서 실행** |
+| `rate-limit-check.js` | 429/444 검증 + k6 관측 형태 보정 | 순차 4단계 | **bypass 토큰 없이 실행** |
 
 공통 env: `BASE_URL`, `ZIPF_S`(검색어 편중도, 기본 1.1), `TEST_RUN_ID`, `INSTANCE_ID`
 
 검색어는 `data/keywords.json`의 인기 rank 기반 **Zipfian 분포**로 샘플링한다 (균등 랜덤이면 캐시 히트율이 비현실적으로 낮아짐). 같은 검색어 다른 페이지 케이스는 페이지 독립 샘플링(70%/20%/10%)으로 자연 발생.
 
-## Rate limit 예외 등록 절차 (실서버 테스트 전 필수, 2곳)
+## Rate limit 예외 등록 (상시, 최초 1회)
 
-앱 처리량을 재려면 부하 발생 IP(Fargate NAT Gateway EIP)를 **두 곳 모두** 등록해야 한다. 한 곳만 하면 nginx 429/444 또는 앱 429가 결과를 오염시킨다.
+부하 발생 태스크는 NAT 없이 매번 임의 public IP를 쓰므로 IP allowlist 대신 **시크릿 토큰**(`X-LoadTest-Token`)을 쓴다. 이 등록은 [`fargate/MOCK_SERVICE_SETUP.md`](fargate/MOCK_SERVICE_SETUP.md) 7~9번에서 이미 한 번 처리하며, **상시 등록 상태로 유지**한다(원래는 테스트 창에만 열던 설계였으나 반복 테스트 편의를 위해 상시로 바꿈 — 트레이드오프는 위 "접근 통제" 섹션 참고).
 
-1. **nginx** — `nginx/default.conf`의 `geo $loadtest_bypass` 블록에서 예시 IP를 실제 EIP로 교체:
-   ```nginx
-   geo $loadtest_bypass {
-       default 0;
-       <NAT-EIP-1>/32 1;
-       <NAT-EIP-2>/32 1;
-   }
+1. **nginx** — 운영 서버에서 `nginx/loadtest_token.conf`(git 미추적, `loadtest_token.conf.example` 템플릿)에 토큰을 넣는다. ⚠️ `sed -i`로 default.conf를 직접 고치지 말 것(inode 교체 문제, CLAUDE.md 참고) — 이 파일 자체는 git 추적 대상이 아니므로 직접 에디터로 만들면 된다. `nginx/default.conf`/`docker-compose.yml` 쪽 변경은 항상 git 경유로 반영할 것.
+2. **앱** — 운영 `.env`에 상시 주입 (relaxed binding으로 `rag.chat.loadtest-bypass-token`에 바인딩, 1번과 같은 값):
    ```
-   적용: `docker exec newcodes-nginx nginx -s reload` (⚠️ `sed -i` 금지 — inode 교체 문제, CLAUDE.md 참고)
-2. **앱** — 배포 환경변수로 주입 (properties 파일 수정 불필요, relaxed binding으로 `rag.chat.rate-limit-exempt-ips`에 바인딩):
-   ```
-   RAG_CHAT_RATELIMITEXEMPTIPS=<NAT-EIP-1>,<NAT-EIP-2>
+   RAG_CHAT_LOADTEST_BYPASS_TOKEN=<TOKEN>
    ```
 
-IP를 저장소에 커밋하지 않는다 — 상시 우회 경로가 남는 것을 막기 위함.
+토큰을 로테이션하는 경우에만 두 곳(+ `fargate/env`의 `LT_BYPASS_TOKEN`)을 다시 갱신하면 된다.
 
-**테스트 종료 후 체크리스트**:
-- [ ] nginx geo 블록의 EIP 제거 후 reload
-- [ ] `RAG_CHAT_RATELIMITEXEMPTIPS` 환경변수 제거 후 재배포
-- [ ] Prometheus 9090 포트 개방 해제 (또는 보안그룹 룰 삭제)
+Prometheus remote-write는 9090을 인터넷에 열지 않고 nginx `/loadtest-prom/` 프록시(같은 토큰으로 게이트)를 거치므로 별도로 여닫을 포트가 없다 — 자세한 내용은 아래 "Prometheus remote-write" 참고.
 
 ## SLA(무부하 대비 120%) 측정 절차
 
@@ -167,6 +177,8 @@ baseline 수치는 코드에 박지 않고 env로 주입한다:
 baseline env 목록: `SEARCH_BASE_P95_MS`, `SEARCH_BASE_P50_MS`, `BASELINE_BASE_P95_MS`, `AUTOCOMPLETE_BASE_P95_MS`, `RAG_BASE_FIRST_TOKEN_MS`, `RAG_BASE_STREAM_MS`
 
 ## Fargate 실행
+
+RAG mock 서비스(상시 ECS) 세팅은 [`fargate/MOCK_SERVICE_SETUP.md`](fargate/MOCK_SERVICE_SETUP.md) 참고 — 아래는 k6 실행용 인프라(별개).
 
 ### 1회 세팅
 
@@ -189,33 +201,41 @@ cp fargate/env.example fargate/env   # 값 채우기 (git 미추적)
 
 ### 실행
 
+RAG 시나리오(`rag-answer`)를 mock으로 돌릴 땐 **`run-prod-test.sh`를 기본 진입점으로 쓴다** — mock ECS 서비스가 떠 있는지 먼저 확인하고, `RAG_PATH`를 mock 엔드포인트로 자동 지정한 뒤 아래 `run-task.sh`를 그대로 호출하는 래퍼다(옵션 동일):
+
 ```bash
 cd fargate
 
-# 4개 task가 각 10 RPS → 총 40 RPS. NAT EIP 여러 개면 IP도 분산됨
+# RAG: 2개 task가 각 VU 5, mock 헬스체크 후 실행
+./run-prod-test.sh -s rag-answer -n 2 -v 10 -d 10m -e MODE=cache-miss
+
+# 그 외 시나리오(mock 무관)도 동일하게 쓸 수 있음
+./run-prod-test.sh -s search-hybrid -n 4 -r 40 -d 10m
+```
+
+mock과 무관한 시나리오이거나 `run-prod-test.sh`의 헬스체크를 건너뛰고 싶다면 `run-task.sh`를 직접 써도 된다:
+
+```bash
+# 4개 task가 각 10 RPS → 총 40 RPS
 ./run-task.sh -s search-hybrid -n 4 -r 40 -d 10m
 
-# RAG: 2개 task가 각 VU 5
-./run-task.sh -s rag-answer -n 2 -v 10 -d 10m -e MODE=cache-miss
-
-# rate limit 검증 (임의 public IP — bypass 미등록 상태로 실행됨)
-./run-task.sh -s rate-limit-check --public
+# rate limit 검증 (bypass 토큰 미포함 상태로 실행됨 — rate-limit-check는 자동으로도 토큰이 빠짐)
+./run-task.sh -s rate-limit-check --no-bypass
 
 # 커맨드 확인만
 ./run-task.sh -s spike --dry-run
 ```
 
 - `-r`(총 RPS)/`-v`(총 VUS)는 task 수로 나눠 task별 `RATE`/`VUS`로 주입된다.
-- 기본 네트워크는 **private 서브넷 + NAT**(고정 EIP) — 이 EIP들을 위의 예외 등록 2곳에 넣는다. AZ별 NAT가 여러 개면 서브넷을 AZ 분산 지정해 EIP를 여러 개 확보할 수 있다.
+- 네트워크는 **public 서브넷 + assignPublicIp=ENABLED** — NAT Gateway 불필요, task마다 임의 public IP를 받는다. rate limit bypass는 IP가 아니라 `LT_BYPASS_TOKEN`(env)으로 판별한다 — `-s rate-limit-check`이거나 `--no-bypass`이면 자동으로 주입되지 않는다.
 - 로그: `aws logs tail /ecs/newcodes-loadtest --follow`
 
 ### Prometheus remote-write
 
-`docker-compose.yml`의 prometheus에 `--web.enable-remote-write-receiver`와 `9090` 포트 개방이 설정돼 있다. Fargate에서 결과를 보내려면:
+`docker-compose.yml`의 prometheus에 `--web.enable-remote-write-receiver`가 설정돼 있다. 9090은 호스트에 노출하지 않고(NAT가 없어 IP 기반 보안그룹 제한이 더 이상 성립하지 않음), nginx `/loadtest-prom/` 프록시가 `X-LoadTest-Token` 헤더로 게이트해 `http://prometheus:9090/`로 전달한다(`nginx/default.conf`). Fargate에서 결과를 보내려면:
 
-1. `fargate/env`의 `LT_PROM_RW_URL=http://<서버IP>:9090/api/v1/write` 설정
-2. **서버 보안그룹에서 9090 인바운드를 NAT EIP로만 제한** (필수 — 무제한 개방 금지)
-3. 대안: 포트 개방이 싫으면 nginx에 `location /loadtest-prom/` 프록시 + `allow <EIP>; deny all;` 구성
+1. `fargate/env`의 `LT_PROM_RW_URL=https://newcodes.net/loadtest-prom/api/v1/write` 설정
+2. `LT_BYPASS_TOKEN`이 설정돼 있으면 `run-task.sh`가 `K6_PROMETHEUS_RW_HTTP_HEADERS=X-LoadTest-Token:<토큰>`을 자동으로 같이 주입한다 — 별도 조치 불필요.
 
 Prometheus v2.37은 native histogram 미지원이므로 `K6_PROMETHEUS_RW_TREND_STATS` 방식(스크립트가 자동 설정)을 쓴다. Prometheus를 v2.40+로 올리면 `K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM=true` 전환 가능.
 

@@ -1,0 +1,131 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "EcrRepoManage",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:CreateRepository",
+        "ecr:DescribeRepositories",
+        "ecr:GetAuthorizationToken"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EcrPushPull",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload",
+        "ecr:PutImage",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage"
+      ],
+      "Resource": [
+        "arn:aws:ecr:*:*:repository/newcodes-llm-mock",
+        "arn:aws:ecr:*:*:repository/newcodes-k6-sse"
+      ]
+    },
+    {
+      "Sid": "Ecs",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:CreateCluster",
+        "ecs:DescribeClusters",
+        "ecs:RegisterTaskDefinition",
+        "ecs:DeregisterTaskDefinition",
+        "ecs:DescribeTaskDefinition",
+        "ecs:CreateService",
+        "ecs:UpdateService",
+        "ecs:DescribeServices",
+        "ecs:DeleteService",
+        "ecs:RunTask",
+        "ecs:StopTask",
+        "ecs:DescribeTasks",
+        "ecs:ListTasks",
+        "ecs:TagResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ServiceDiscovery",
+      "Effect": "Allow",
+      "Action": [
+        "servicediscovery:CreatePrivateDnsNamespace",
+        "servicediscovery:CreateService",
+        "servicediscovery:GetOperation",
+        "servicediscovery:GetNamespace",
+        "servicediscovery:GetService",
+        "servicediscovery:ListNamespaces",
+        "servicediscovery:ListServices",
+        "servicediscovery:DeleteNamespace",
+        "servicediscovery:DeleteService"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "Ec2ReadAndNetworking",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeInstances",
+        "ec2:DescribeSecurityGroups",
+        "ec2:CreateSecurityGroup",
+        "ec2:DeleteSecurityGroup",
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:AuthorizeSecurityGroupEgress",
+        "ec2:RevokeSecurityGroupIngress",
+        "ec2:CreateTags"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "PassEcsTaskExecutionRoleOnly",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::*:role/ecsTaskExecutionRole",
+      "Condition": {
+        "StringEquals": { "iam:PassedToService": "ecs-tasks.amazonaws.com" }
+      }
+    },
+    {
+      "Sid": "GetEcsTaskExecutionRole",
+      "Effect": "Allow",
+      "Action": "iam:GetRole",
+      "Resource": "arn:aws:iam::*:role/ecsTaskExecutionRole"
+    },
+    {
+      "Sid": "EcsServiceLinkedRoleFirstUse",
+      "Effect": "Allow",
+      "Action": "iam:CreateServiceLinkedRole",
+      "Resource": "arn:aws:iam::*:role/aws-service-role/ecs.amazonaws.com/*",
+      "Condition": {
+        "StringEquals": { "iam:AWSServiceName": "ecs.amazonaws.com" }
+      }
+    },
+    {
+      "Sid": "Logs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams"
+      ],
+      "Resource": [
+        "arn:aws:logs:*:*:log-group:/ecs/newcodes-loadtest*",
+        "arn:aws:logs:*:*:log-group:/ecs/newcodes-llm-mock*"
+      ]
+    },
+    {
+      "Sid": "WhoAmI",
+      "Effect": "Allow",
+      "Action": "sts:GetCallerIdentity",
+      "Resource": "*"
+    }
+  ]
+}

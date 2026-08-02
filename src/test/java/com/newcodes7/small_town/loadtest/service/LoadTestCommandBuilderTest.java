@@ -70,7 +70,7 @@ class LoadTestCommandBuilderTest {
     }
 
     @Test
-    @DisplayName("fargate — null 파라미터는 플래그 생략, --public은 뒤에 붙음")
+    @DisplayName("fargate — null 파라미터는 플래그 생략, --no-bypass는 뒤에 붙음")
     void fargate_일부파라미터_생략_public모드() {
         // when
         LoadTestCommandBuilder.Result result = commandBuilder.build(
@@ -79,7 +79,7 @@ class LoadTestCommandBuilderTest {
 
         // then
         assertThat(result.command())
-                .isEqualTo("cd fargate && ./run-task.sh -s rate-limit-check --public");
+                .isEqualTo("cd fargate && ./run-task.sh -s rate-limit-check --no-bypass");
     }
 
     @Test

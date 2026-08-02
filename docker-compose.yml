@@ -133,10 +133,8 @@ services:
       - app-network
     expose:
       - "9090"
-    # 부하테스트 기간에만 개방: Fargate k6가 remote-write로 접근하는 경로.
-    # 반드시 보안그룹/방화벽에서 소스 IP를 부하테스트 NAT EIP로만 제한할 것 (load-test/README.md)
-    ports:
-      - "9090:9090"
+    # 인터넷에 직접 노출하지 않는다 — Fargate k6는 nginx의 /loadtest-prom/ 프록시(X-LoadTest-Token
+    # 게이트, load-test/README.md)로 접근한다. 로컬에서 9090 직접 붙어야 하면 필요할 때만 임시로 열 것.
     extra_hosts:
       - "db-node-exporter:${DB_NODE_IP}"
 
@@ -278,6 +276,9 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # 부하테스트 bypass 시크릿(gitignore 대상) — 없으면 nginx가 이 경로를 디렉터리로 만들어버려 기동 실패함.
+      # 처음 docker compose up 하기 전에 반드시: cp nginx/loadtest_token.conf.example nginx/loadtest_token.conf
+      - ./nginx/loadtest_token.conf:/etc/nginx/conf.d/loadtest_token.conf:ro
       - ./certbot/conf:/etc/letsencrypt:ro
       - ./certbot/www:/var/www/certbot:ro
       - nginx-cache:/var/cache/nginx  # 캐시 디렉토리 볼륨

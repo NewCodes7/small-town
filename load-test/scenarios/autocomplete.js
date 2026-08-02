@@ -1,12 +1,12 @@
 // 자동완성 — 짧은 요청의 대량 처리량 측정.
 // iteration 1회 = 타이핑 세션 1회(prefix를 점진 전송). arrival rate는 "세션 시작률"이다.
 // 기본 20세션/s면 요청 수는 그 수 배 — nginx autocomplete zone(10r/s burst20) 초과 트래픽이므로
-// bypass IP 전제. 미적용이면 429 분류로 드러난다.
+// LOADTEST_BYPASS_TOKEN 전제. 미적용이면 429 분류로 드러난다.
 // 실행 예: RATE=20 DURATION=3m k6 run scenarios/autocomplete.js
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { CONFIG, COMMON_TAGS } from '../lib/config.js';
+import { CONFIG, COMMON_TAGS, bypassHeaders } from '../lib/config.js';
 import { classify } from '../lib/metrics.js';
 import { samplePrefixes } from '../lib/keywords.js';
 import { sla120, merge } from '../lib/thresholds.js';
@@ -34,6 +34,7 @@ export default function () {
   const prefixes = samplePrefixes();
   for (const prefix of prefixes) {
     const res = http.get(`${CONFIG.baseUrl}/api/autocomplete?q=${encodeURIComponent(prefix)}`, {
+      headers: bypassHeaders(),
       tags: { endpoint: 'autocomplete' },
     });
     classify(res, { endpoint: 'autocomplete' });

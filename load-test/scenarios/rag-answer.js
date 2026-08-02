@@ -3,10 +3,10 @@
 // ⚠️ 비용 경고: 기본 경로(/api/rag/answer)의 cache-miss/multi-turn 모드는 요청마다 실제
 //    LLM(Bedrock)+Clova 호출을 발생시킨다. VU 수 × 실행 시간에 비례해 과금되므로 확인 후 실행할 것.
 //    → 과금 없이 돌리려면 RAG_PATH=/api/rag/answer/loadtest (LLM mock 경유 — README "LLM Mock 모드").
-// ⚠️ 전제(실경로): nginx 10r/m + 앱 30회/시간 rate limit이 있어 면제 IP 등록 필수
-//    (nginx geo $loadtest_bypass + rag.chat.rate-limit-exempt-ips — README 참고).
-//    로컬은 백엔드 직결 + RAG_CHAT_RATELIMITEXEMPTIPS=127.0.0.1 로 기동.
-//    mock 경로는 앱 rate limit이 없다 — 단 nginx 경유 시 geo IP 등록은 여전히 필요(403).
+// ⚠️ 전제(실경로): nginx 10r/m + 앱 30회/시간 rate limit이 있어 LOADTEST_BYPASS_TOKEN 필수
+//    (nginx의 X-LoadTest-Token + rag.chat.loadtest-bypass-token — README 참고).
+//    로컬은 백엔드 직결 + RAG_CHAT_LOADTEST_BYPASS_TOKEN=아무값 으로 기동.
+//    mock 경로는 앱 rate limit이 없다 — 단 nginx 경유 시 토큰은 여전히 필요(403).
 //
 // SSE는 스트림 점유 시간이 길어 arrival-rate보다 "동시 스트림 수"(constant-vus) 통제가
 // 실험적으로 깨끗하다. VU당 iteration = SSE 1회(블로킹).
@@ -20,7 +20,7 @@
 
 import { fail } from 'k6';
 import { SharedArray } from 'k6/data';
-import { CONFIG, COMMON_TAGS, uuid } from '../lib/config.js';
+import { CONFIG, COMMON_TAGS, uuid, bypassHeaders } from '../lib/config.js';
 import { sseRequest } from '../lib/sse.js';
 import { sla120, merge } from '../lib/thresholds.js';
 
@@ -57,7 +57,7 @@ function ask(question, conversationId, extraTags) {
   return sseRequest(`${CONFIG.baseUrl}${CONFIG.ragPath}`, {
     method: 'POST',
     body: JSON.stringify({ question, conversationId }),
-    headers: { 'Content-Type': 'application/json' },
+    headers: bypassHeaders({ 'Content-Type': 'application/json' }),
     tags: Object.assign({ endpoint: 'rag' }, extraTags),
   });
 }
@@ -76,7 +76,7 @@ export function setup() {
   for (let i = 0; i < CACHE_HIT_SET_SIZE; i++) {
     const r = ask(questions[i], uuid(), { phase: 'warmup' });
     if (r.httpStatus === 429) {
-      fail('cache-hit 워밍 중 429 — rate limit 면제 IP(nginx geo + rag.chat.rate-limit-exempt-ips) 등록을 먼저 확인하라');
+      fail('cache-hit 워밍 중 429 — LOADTEST_BYPASS_TOKEN(nginx X-LoadTest-Token + rag.chat.loadtest-bypass-token) 설정을 먼저 확인하라');
     }
   }
 }

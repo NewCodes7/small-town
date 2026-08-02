@@ -7,7 +7,7 @@
 
 import http from 'k6/http';
 import { SharedArray } from 'k6/data';
-import { CONFIG, COMMON_TAGS, uuid } from '../lib/config.js';
+import { CONFIG, COMMON_TAGS, uuid, bypassHeaders } from '../lib/config.js';
 import { classify } from '../lib/metrics.js';
 import { sampleKeyword, samplePage } from '../lib/keywords.js';
 import { sseRequest } from '../lib/sse.js';
@@ -52,13 +52,16 @@ export const options = {
 };
 
 export function baselineIter() {
-  const res = http.get(`${CONFIG.baseUrl}/api/articles?page=${samplePage()}&size=10`, { tags: { endpoint: 'articles' } });
+  const res = http.get(`${CONFIG.baseUrl}/api/articles?page=${samplePage()}&size=10`, {
+    headers: bypassHeaders(),
+    tags: { endpoint: 'articles' },
+  });
   classify(res, { endpoint: 'articles' });
 }
 
 export function searchIter() {
   const url = `${CONFIG.baseUrl}/api/search/articles?keyword=${encodeURIComponent(sampleKeyword())}&page=${samplePage()}&size=10&view=list`;
-  const res = http.get(url, { tags: { endpoint: 'search' } });
+  const res = http.get(url, { headers: bypassHeaders(), tags: { endpoint: 'search' } });
   classify(res, { endpoint: 'search' });
 }
 
@@ -67,7 +70,7 @@ export function ragIter() {
   sseRequest(`${CONFIG.baseUrl}/api/rag/answer`, {
     method: 'POST',
     body: JSON.stringify({ question: q, conversationId: uuid() }),
-    headers: { 'Content-Type': 'application/json' },
+    headers: bypassHeaders({ 'Content-Type': 'application/json' }),
     tags: { endpoint: 'rag', cache: 'hit' },
   });
 }

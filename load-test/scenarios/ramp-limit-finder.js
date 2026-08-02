@@ -6,7 +6,7 @@
 // 실행 예: TARGET=search k6 run scenarios/ramp-limit-finder.js  (TARGET=search|baseline)
 
 import http from 'k6/http';
-import { CONFIG, COMMON_TAGS } from '../lib/config.js';
+import { CONFIG, COMMON_TAGS, bypassHeaders } from '../lib/config.js';
 import { classify } from '../lib/metrics.js';
 import { sampleKeyword, samplePage } from '../lib/keywords.js';
 
@@ -40,10 +40,13 @@ export const options = {
 export function hit() {
   let res;
   if (TARGET === 'baseline') {
-    res = http.get(`${CONFIG.baseUrl}/api/articles?page=${samplePage()}&size=10`, { tags: { endpoint: 'articles' } });
+    res = http.get(`${CONFIG.baseUrl}/api/articles?page=${samplePage()}&size=10`, {
+      headers: bypassHeaders(),
+      tags: { endpoint: 'articles' },
+    });
   } else {
     const url = `${CONFIG.baseUrl}/api/search/articles?keyword=${encodeURIComponent(sampleKeyword())}&page=${samplePage()}&size=10&view=list`;
-    res = http.get(url, { tags: { endpoint: 'search' } });
+    res = http.get(url, { headers: bypassHeaders(), tags: { endpoint: 'search' } });
   }
   classify(res, { endpoint: TARGET });
 }

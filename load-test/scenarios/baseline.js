@@ -4,7 +4,7 @@
 
 import http from 'k6/http';
 import { check } from 'k6';
-import { CONFIG, COMMON_TAGS } from '../lib/config.js';
+import { CONFIG, COMMON_TAGS, bypassHeaders } from '../lib/config.js';
 import { classify } from '../lib/metrics.js';
 import { samplePage } from '../lib/keywords.js';
 import { sla120, merge } from '../lib/thresholds.js';
@@ -42,7 +42,7 @@ export default function () {
     endpoint = 'home-latest';
     url = `${CONFIG.baseUrl}/api/articles/home-latest?offset=0&limit=8`;
   }
-  const res = http.get(url, { tags: { endpoint } });
+  const res = http.get(url, { headers: bypassHeaders(), tags: { endpoint } });
   classify(res, { endpoint });
   check(res, { 'status 200': (r) => r.status === 200 });
 }

@@ -3,17 +3,19 @@
 #
 # 사용법:
 #   ./run-task.sh -s <scenario> [-n <task수>] [-r <총RPS>] [-v <총VUS>] [-d <duration>] \
-#                 [-e KEY=VAL]... [--public] [--dry-run]
+#                 [-e KEY=VAL]... [--no-bypass] [--dry-run]
 #
 # 예:
 #   ./run-task.sh -s search-hybrid -n 4 -r 40 -d 10m          # 4개 task가 각 10 RPS
 #   ./run-task.sh -s rag-answer -n 2 -v 10 -e MODE=cache-miss # 2개 task가 각 VU 5
-#   ./run-task.sh -s rate-limit-check --public                # 임의 public IP (bypass 미등록)
+#   ./run-task.sh -s rate-limit-check --no-bypass             # bypass 토큰 없이 (rate limit 검증용)
 #   ./run-task.sh -s spike --dry-run                          # aws cli 커맨드만 출력
 #
 # 설정: fargate/env 파일(env.example 참고)에서 LT_* 값을 읽는다.
-#  - 기본 네트워크: private 서브넷 + NAT (고정 EIP → nginx geo bypass 등록 대상)
-#  - --public: public 서브넷 + assignPublicIp (rate-limit-check 전용)
+#  - 네트워크: 항상 LT_SUBNETS_PUBLIC + assignPublicIp=ENABLED (고정 IP 불필요 — NAT Gateway 없음)
+#  - LT_BYPASS_TOKEN이 설정돼 있으면 LOADTEST_BYPASS_TOKEN env로 태스크에 주입 → k6가
+#    X-LoadTest-Token 헤더에 실어 보내 nginx rate limit을 우회한다 (README "Rate limit 예외" 참고)
+#  - -s rate-limit-check 또는 --no-bypass 지정 시 토큰 주입을 생략한다(의도적으로 제한을 받게 함)
 # 총 RPS(-r)/총 VUS(-v)는 task 수로 나눠 task별 RATE/VUS로 주입한다 (나머지는 앞 task에 배분).
 set -euo pipefail
 
@@ -31,9 +33,10 @@ COUNT=1
 TOTAL_RATE=""
 TOTAL_VUS=""
 DURATION=""
-PUBLIC=0
+NO_BYPASS=0
 DRY_RUN=0
 EXTRA_ENVS=()
+BYPASS_TOKEN_SET=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -42,8 +45,11 @@ while [[ $# -gt 0 ]]; do
     -r) TOTAL_RATE="$2"; shift 2 ;;
     -v) TOTAL_VUS="$2"; shift 2 ;;
     -d) DURATION="$2"; shift 2 ;;
-    -e) EXTRA_ENVS+=("$2"); shift 2 ;;
-    --public) PUBLIC=1; shift ;;
+    -e)
+      EXTRA_ENVS+=("$2")
+      [[ "$2" == LOADTEST_BYPASS_TOKEN=* ]] && BYPASS_TOKEN_SET=1
+      shift 2 ;;
+    --no-bypass) NO_BYPASS=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     *) echo "unknown arg: $1" >&2; exit 1 ;;
   esac
@@ -53,21 +59,12 @@ done
 : "${LT_CLUSTER:?fargate/env에 LT_CLUSTER 설정 필요}"
 : "${LT_SG:?fargate/env에 LT_SG 설정 필요}"
 : "${LT_BASE_URL:?fargate/env에 LT_BASE_URL 설정 필요}"
-
-if [[ "$PUBLIC" == "1" ]]; then
-  : "${LT_SUBNETS_PUBLIC:?--public 모드는 LT_SUBNETS_PUBLIC 필요}"
-  SUBNETS="$LT_SUBNETS_PUBLIC"
-  ASSIGN_IP="ENABLED"
-else
-  : "${LT_SUBNETS_PRIVATE:?LT_SUBNETS_PRIVATE 설정 필요}"
-  SUBNETS="$LT_SUBNETS_PRIVATE"
-  ASSIGN_IP="DISABLED"
-fi
+: "${LT_SUBNETS_PUBLIC:?fargate/env에 LT_SUBNETS_PUBLIC 설정 필요}"
 
 TEST_RUN_ID="$(date +%Y%m%d-%H%M%S)"
 TASK_ARNS=()
 
-echo "TEST_RUN_ID=$TEST_RUN_ID scenario=$SCENARIO tasks=$COUNT public=$PUBLIC"
+echo "TEST_RUN_ID=$TEST_RUN_ID scenario=$SCENARIO tasks=$COUNT"
 
 for ((i = 1; i <= COUNT; i++)); do
   env_entries="{\"name\":\"BASE_URL\",\"value\":\"$LT_BASE_URL\"}"
@@ -84,10 +81,19 @@ for ((i = 1; i <= COUNT; i++)); do
   fi
   [[ -n "$DURATION" ]] && env_entries+=",{\"name\":\"DURATION\",\"value\":\"$DURATION\"}"
 
+  if [[ "$SCENARIO" != "rate-limit-check" && "$NO_BYPASS" == "0" && "$BYPASS_TOKEN_SET" == "0" \
+        && -n "${LT_BYPASS_TOKEN:-}" ]]; then
+    env_entries+=",{\"name\":\"LOADTEST_BYPASS_TOKEN\",\"value\":\"$LT_BYPASS_TOKEN\"}"
+  fi
+
   cmd_entries='"run"'
   if [[ -n "${LT_PROM_RW_URL:-}" ]]; then
     env_entries+=",{\"name\":\"K6_PROMETHEUS_RW_SERVER_URL\",\"value\":\"$LT_PROM_RW_URL\"}"
     env_entries+=",{\"name\":\"K6_PROMETHEUS_RW_TREND_STATS\",\"value\":\"p(50),p(95),p(99),avg,min,max\"}"
+    # nginx /loadtest-prom/ 프록시가 같은 토큰으로 게이트함 (LT_PROM_RW_URL이 그 경로를 가리킬 때만 의미 있음)
+    if [[ -n "${LT_BYPASS_TOKEN:-}" ]]; then
+      env_entries+=",{\"name\":\"K6_PROMETHEUS_RW_HTTP_HEADERS\",\"value\":\"X-LoadTest-Token:$LT_BYPASS_TOKEN\"}"
+    fi
     cmd_entries+=',"--out","experimental-prometheus-rw"'
   fi
   cmd_entries+=",\"--tag\",\"testid=$TEST_RUN_ID\""
@@ -98,7 +104,7 @@ for ((i = 1; i <= COUNT; i++)); do
   done
 
   overrides="{\"containerOverrides\":[{\"name\":\"k6\",\"command\":[$cmd_entries],\"environment\":[$env_entries]}]}"
-  netconf="awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$LT_SG],assignPublicIp=$ASSIGN_IP}"
+  netconf="awsvpcConfiguration={subnets=[$LT_SUBNETS_PUBLIC],securityGroups=[$LT_SG],assignPublicIp=ENABLED}"
 
   if [[ "$DRY_RUN" == "1" ]]; then
     echo "--- task $i/$COUNT (dry-run) ---"

@@ -28,3 +28,6 @@ bm25_score_analysis.sql
 
 # 부하테스트 계정별 설정 (커밋 금지)
 load-test/fargate/env
+
+# 부하테스트 nginx bypass 시크릿 토큰 (커밋 금지 — nginx/loadtest_token.conf.example 참고)
+nginx/loadtest_token.conf

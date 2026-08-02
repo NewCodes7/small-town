@@ -85,8 +85,9 @@ public class LoadTestCommandBuilder {
             cmd.append(" -d ").append(duration.trim());
         }
         extraEnvLines.forEach(line -> cmd.append(" -e ").append(line));
+        // publicMode="bypass 토큰 없이 실행"(rate-limit-check 전용) — 필드명은 과거 IP allowlist 시절 이름 그대로 유지
         if (publicMode) {
-            cmd.append(" --public");
+            cmd.append(" --no-bypass");
         }
 
         // testRunId는 실행 후 터미널 출력에서 사용자가 직접 복사해 기록한다.
