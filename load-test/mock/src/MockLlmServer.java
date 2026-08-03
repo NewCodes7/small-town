@@ -20,7 +20,8 @@ public final class MockLlmServer {
 
     public static void main(String[] args) throws IOException {
         MockConfig config = MockConfig.fromEnv();
-        HttpServer server = HttpServer.create(new InetSocketAddress(config.port()), 0);
+        // backlog 명시(0=시스템 기본, 보통 50) — VUS 급증 시 accept 큐 지연 방지
+        HttpServer server = HttpServer.create(new InetSocketAddress(config.port()), 1024);
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
 
         server.createContext("/model", new BedrockHandlers(config)); // /model/{id}/converse[-stream]

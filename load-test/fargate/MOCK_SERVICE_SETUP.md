@@ -1,6 +1,6 @@
-# 상시 LLM Mock 서비스 — 최초 1회 세팅
+# LLM Mock 서비스 — 최초 1회 세팅
 
-`run-prod-test.sh`(원커맨드 부하테스트 스크립트)가 동작하려면 먼저 이 문서의 절차를 **한 번만** 실행해 둬야 한다. 이후에는 다시 반복할 필요 없음 — mock은 상시(desired count 1) ECS 서비스로 떠 있고, 게이트/nginx bypass도 상시 활성 상태로 유지된다.
+`run-prod-test.sh`(원커맨드 부하테스트 스크립트)가 동작하려면 먼저 이 문서의 절차를 **한 번만** 실행해 둬야 한다. 이후에는 다시 반복할 필요 없음 — mock은 ECS 서비스로 등록해두되 평시 desired-count **0**(미기동)이 기본이고, `run-prod-test.sh`가 테스트 실행마다 desired-count를 1로 올렸다가 종료 후 자동으로 다시 0으로 내린다. 게이트/nginx bypass는 (재배포가 필요해 자동 토글 대상이 아니므로) 상시 활성 상태로 유지된다.
 
 이 아키텍처를 고른 이유와 트레이드오프는 [`README.md`](../README.md)의 "LLM Mock 모드" 섹션 참고.
 
@@ -207,7 +207,7 @@ aws ec2 describe-instances --instance-ids sg-002078560e9771f7c \
 - 여기 나온 `Vpc`가 `$VPC_ID`와 다르면 → `MOCK_SG`를 만든 VPC 자체가 틀린 것 (그 VPC로 재생성 필요)
 - `Vpc`는 같은데 `SG` 목록에 source-group으로 쓰려던 ID가 없다면 → 그 ID가 이 인스턴스 것이 아님 — 여기 나온 `SG` 목록에서 실제 ID를 다시 골라 사용한다
 
-## 6. ECS 서비스 생성 (상시 desired-count 1)
+## 6. ECS 서비스 생성 (평시 desired-count 0)
 
 public 서브넷 + `assignPublicIp=ENABLED`로 띄운다 (NAT 없이 ECR pull/CloudWatch Logs 전송이 되려면 인터넷 경로가 필요 — 5번 보안그룹이 실제 접근 통제를 담당).
 
@@ -234,20 +234,32 @@ aws ecs create-service \
   --cluster newcodes-loadtest \
   --service-name llm-mock \
   --task-definition newcodes-llm-mock \
-  --desired-count 1 \
+  --desired-count 0 \
   --launch-type FARGATE \
   --network-configuration "awsvpcConfiguration={subnets=[subnet-09aae0b5172d9c43f],securityGroups=[$MOCK_SG],assignPublicIp=ENABLED}" \
   --service-registries "registryArn=$SD_SERVICE_ARN" \
   --region ap-northeast-2
 ```
 
+`desired-count 0`으로 만들어두면 서비스는 등록만 되고 태스크는 뜨지 않는다 — `run-prod-test.sh`가 테스트마다 1로 올렸다가 종료 시 다시 0으로 내리므로, 이 단계에서 직접 1로 켤 필요는 없다(스모크 테스트로 기동을 바로 확인하고 싶다면 아래처럼 수동으로 한 번 올려볼 수 있다).
 
+수동으로 기동 상태만 확인해보고 싶다면:
+
+```bash
+aws ecs update-service --cluster newcodes-loadtest --service llm-mock --desired-count 1 --region ap-northeast-2
+```
 
 기동 확인:
 
 ```bash
 aws ecs describe-services --cluster newcodes-loadtest --services llm-mock \
   --query 'services[0].{desired:desiredCount,running:runningCount}'
+```
+
+확인이 끝났으면 다시 0으로 내려 평시 미기동 상태로 돌려놓는다(어차피 `run-prod-test.sh`가 자동으로 관리하므로 깜빡해도 다음 테스트 실행 시 알아서 정리되긴 하지만, 세팅 직후에는 명시적으로 내려두는 편이 안전하다):
+
+```bash
+aws ecs update-service --cluster newcodes-loadtest --service llm-mock --desired-count 0 --region ap-northeast-2
 ```
 
 ## 7. 시크릿 토큰 생성
@@ -317,6 +329,8 @@ docker build -t "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/newcodes-llm-mock:lat
 docker push "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/newcodes-llm-mock:latest"
 aws ecs update-service --cluster newcodes-loadtest --service llm-mock --force-new-deployment --region "$REGION"
 ```
+
+평시 desired-count 0(미기동) 상태라면 `force-new-deployment`는 사실상 no-op이다 — 다음 `run-prod-test.sh` 실행이 태스크를 새로 띄울 때 `:latest` 태그를 다시 pull하므로 별도 조치 없이 최신 이미지가 반영된다. 테스트가 실제로 돌고 있는 도중(desired-count 1)에 이미지를 갱신하는 경우에만 위 커맨드가 의미 있다.
 
 ## 트러블슈팅 — `UnknownHostException: llm-mock.loadtest.local` (앱 로그, RAG 호출 시)
 

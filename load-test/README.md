@@ -14,7 +14,7 @@ RAG 검색(SSE) 중심 부하테스트. 설계 배경은 [`docs/testing/LOAD_TES
 
 운영 서버(`https://newcodes.net`) 대상으로 실제 부하테스트를 돌리려면 아래가 먼저 끝나 있어야 한다. **한 번만 하면 되고, 이후 반복 테스트는 명령어 하나(`fargate/run-prod-test.sh`)면 된다.**
 
-1. [`fargate/MOCK_SERVICE_SETUP.md`](fargate/MOCK_SERVICE_SETUP.md)를 따라 상시 LLM mock ECS 서비스 프로비저닝 (ECR/Cloud Map/보안그룹/ECS 서비스, public 서브넷 — NAT Gateway 불필요)
+1. [`fargate/MOCK_SERVICE_SETUP.md`](fargate/MOCK_SERVICE_SETUP.md)를 따라 LLM mock ECS 서비스 프로비저닝 (ECR/Cloud Map/보안그룹/ECS 서비스, public 서브넷 — NAT Gateway 불필요). 서비스는 평시 desired-count 0(미기동)으로 등록해두고, 이후 `run-prod-test.sh`가 테스트마다 자동으로 기동/종료한다.
 2. 시크릿 토큰 생성(`openssl rand -hex 24`) 후 운영 서버 `.env`에 `RAG_CHAT_LOADTEST_ENABLED=true` + mock endpoint 2개 + `RAG_CHAT_LOADTEST_BYPASS_TOKEN` 추가 (문서 7~8번)
 3. 같은 토큰으로 운영 서버에 `nginx/loadtest_token.conf` 생성(git 미추적) 후 main에 push → 배포 → nginx 컨테이너 최초 1회 재생성 (문서 9번)
 4. `load-test/fargate/env` 채우기: `cp fargate/env.example fargate/env` 후 값 입력, `LT_BYPASS_TOKEN`은 2~3번과 동일한 값 (문서 10번)
@@ -27,13 +27,13 @@ RAG 검색(SSE) 중심 부하테스트. 설계 배경은 [`docs/testing/LOAD_TES
 
 AWS CLI 자격증명이 없는 환경(예: 이 devcontainer)에서는 1번을 실행할 수 없다 — AWS CLI가 설정된 본인 머신에서 진행할 것.
 
-## LLM Mock 모드 (과금 없는 RAG 부하테스트, 상시 아키텍처)
+## LLM Mock 모드 (과금 없는 RAG 부하테스트, 온디맨드 mock 기동)
 
 `load-test/mock/`의 mock server가 Bedrock Converse/ConverseStream(AWS eventstream wire 포맷 그대로)과 Clova Embedding v2를 재현한다. 백엔드는 운영과 동일한 `BedrockRagLlmClient`(netty async)·`EmbeddingApiService` 코드 경로로 호출하므로 계측 정합성이 유지된다 (차이는 mock 구간의 HTTP/1.1 전송뿐 — JDK HttpServer가 h2 미지원).
 
 **실사용자 요청과의 구분**: mock은 전용 엔드포인트 `POST /api/rag/answer/loadtest`로만 탄다. 실사용자 경로(`/api/rag/answer`)는 코드·과금·캐시 모두 무변경이며, mock 요청은 `rag_query_log`에 `model LIKE 'mock.%'`로 기록되고 응답 캐시도 `rag-answer:lt:` 키로 격리된다.
 
-**운영 배치**: mock은 운영 docker-compose 안이 아니라 **별도의 상시 ECS Fargate 서비스**로 뜬다(`load-test/fargate/mock-task-definition.json`, 최초 세팅은 [`fargate/MOCK_SERVICE_SETUP.md`](fargate/MOCK_SERVICE_SETUP.md)). Cloud Map 프라이빗 DNS로 `http://llm-mock.loadtest.local:9099` 고정 엔드포인트를 갖고, 운영 백엔드는 `RAG_LOADTEST_BEDROCK_ENDPOINT`/`CLOVA_LOADTEST_ENDPOINT`로 이 주소를 상시 가리킨다. 게이트(`RAG_CHAT_LOADTEST_ENABLED`)도 상시 true — 매 테스트마다 운영 재배포·mock 기동/종료를 반복하지 않는다.
+**운영 배치**: mock은 운영 docker-compose 안이 아니라 **별도의 ECS Fargate 서비스**로 뜬다(`load-test/fargate/mock-task-definition.json`, 최초 세팅은 [`fargate/MOCK_SERVICE_SETUP.md`](fargate/MOCK_SERVICE_SETUP.md)). Cloud Map 프라이빗 DNS로 `http://llm-mock.loadtest.local:9099` 고정 엔드포인트를 갖고, 운영 백엔드는 `RAG_LOADTEST_BEDROCK_ENDPOINT`/`CLOVA_LOADTEST_ENDPOINT`로 이 주소를 상시 가리킨다(엔드포인트 설정 자체는 재배포 불필요하게 고정, mock 서비스 자체만 온디맨드). mock ECS 서비스는 **평시 desired-count 0**(미기동)이 기본이고, `run-prod-test.sh`가 테스트 실행마다 desired-count 1로 올렸다가 종료 후 자동으로 0으로 되돌린다 — 상시 기동 비용(월 $10~12) 없이도 명령어 하나로 반복 테스트할 수 있다. 게이트(`RAG_CHAT_LOADTEST_ENABLED`)와 nginx `X-LoadTest-Token` bypass는 재배포가 필요해 자동 토글 대상이 아니므로 상시 true로 유지한다.
 
 로컬 개발(bootRun)에서는 여전히 로컬 docker-compose의 `llm-mock` profile을 그대로 쓴다 (운영 배치와 무관):
 
@@ -88,7 +88,7 @@ MOCK_LLM_URL=http://localhost:9099 ./gradlew test --tests "*BedrockMockServerSdk
 
 ### 테스트 후 정리
 
-게이트/nginx bypass/mock 서비스는 상시 유지이므로 원복할 필요 없다. 매 테스트 후 남는 건 로그뿐:
+mock 서비스는 `run-prod-test.sh`가 종료 시(성공/실패 무관) 자동으로 desired-count 0으로 되돌리므로 직접 내릴 필요 없다(이 실행이 직접 올린 경우에만 — 이미 떠 있었다면 건드리지 않는다). 게이트/nginx bypass는 상시 유지이므로 원복할 필요 없다. 매 테스트 후 남는 건 로그뿐:
 
 - [ ] mock 로그 정리: `DELETE FROM rag_query_log WHERE model LIKE 'mock.%';`
 

@@ -3,13 +3,14 @@
 #
 # 사용법:
 #   ./run-task.sh -s <scenario> [-n <task수>] [-r <총RPS>] [-v <총VUS>] [-d <duration>] \
-#                 [-e KEY=VAL]... [--no-bypass] [--dry-run]
+#                 [-e KEY=VAL]... [--no-bypass] [--dry-run] [--wait]
 #
 # 예:
 #   ./run-task.sh -s search-hybrid -n 4 -r 40 -d 10m          # 4개 task가 각 10 RPS
 #   ./run-task.sh -s rag-answer -n 2 -v 10 -e MODE=cache-miss # 2개 task가 각 VU 5
 #   ./run-task.sh -s rate-limit-check --no-bypass             # bypass 토큰 없이 (rate limit 검증용)
 #   ./run-task.sh -s spike --dry-run                          # aws cli 커맨드만 출력
+#   ./run-task.sh -s rag-answer -v 5 --wait                   # task 종료까지 블로킹 대기
 #
 # 설정: fargate/env 파일(env.example 참고)에서 LT_* 값을 읽는다.
 #  - 네트워크: 항상 LT_SUBNETS_PUBLIC + assignPublicIp=ENABLED (고정 IP 불필요 — NAT Gateway 없음)
@@ -35,6 +36,7 @@ TOTAL_VUS=""
 DURATION=""
 NO_BYPASS=0
 DRY_RUN=0
+WAIT=0
 EXTRA_ENVS=()
 BYPASS_TOKEN_SET=0
 
@@ -51,6 +53,7 @@ while [[ $# -gt 0 ]]; do
       shift 2 ;;
     --no-bypass) NO_BYPASS=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
+    --wait) WAIT=1; shift ;;
     *) echo "unknown arg: $1" >&2; exit 1 ;;
   esac
 done
@@ -132,4 +135,10 @@ if [[ "$DRY_RUN" == "0" && ${#TASK_ARNS[@]} -gt 0 ]]; then
   echo "로그 확인:  aws logs tail /ecs/newcodes-loadtest --follow"
   echo "종료 대기:  aws ecs wait tasks-stopped --cluster $LT_CLUSTER --tasks ${TASK_ARNS[*]}"
   echo "Grafana:   testid=$TEST_RUN_ID 라벨로 필터"
+
+  if [[ "$WAIT" == "1" ]]; then
+    echo "task 종료 대기 중..."
+    aws ecs wait tasks-stopped --cluster "$LT_CLUSTER" --tasks "${TASK_ARNS[@]}"
+    echo "task 전체 종료됨"
+  fi
 fi
