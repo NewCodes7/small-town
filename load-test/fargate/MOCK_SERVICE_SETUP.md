@@ -56,8 +56,8 @@ aws ec2 describe-instances --filters "Name=tag:Name,Values=<운영-백엔드-인
 ## 1. mock 이미지 ECR에 push
 
 ```bash
-ACCOUNT_ID=<ACCOUNT_ID>
-REGION=<REGION>
+ACCOUNT_ID=503561419347
+REGION=ap-northeast-2
 
 aws ecr create-repository --repository-name newcodes-llm-mock --region "$REGION"
 aws ecr get-login-password --region "$REGION" | \
@@ -88,7 +88,7 @@ aws ecs register-task-definition --cli-input-json file://load-test/fargate/task-
 `load-test/fargate/mock-task-definition.json`의 `<ACCOUNT_ID>`/`<REGION>`을 치환한 뒤:
 
 ```bash
-aws ecs register-task-definition --cli-input-json file://load-test/fargate/mock-task-definition.json --region "$REGION"
+aws ecs register-task-definition --cli-input-json file://load-test/fargate/mock-task-definition.json --region ap-northeast-2
 ```
 
 ## 4. Cloud Map(프라이빗 DNS)으로 고정 엔드포인트 만들기
@@ -96,7 +96,7 @@ aws ecs register-task-definition --cli-input-json file://load-test/fargate/mock-
 Fargate 서비스는 재시작마다 IP가 바뀌므로, 운영 백엔드가 항상 같은 주소로 mock을 호출할 수 있게 Cloud Map 네임스페이스를 만든다. **운영 백엔드 EC2와 같은 VPC**에 만들어야 DNS가 해석된다.
 
 ```bash
-VPC_ID=<운영-백엔드-VPC_ID>
+VPC_ID=vpc-0ba62c17ad21f8f49
 
 NS_OP=$(aws servicediscovery create-private-dns-namespace \
   --name loadtest.local --vpc "$VPC_ID" --region "$REGION" --query 'OperationId' --output text)
@@ -110,6 +110,8 @@ SD_SERVICE_ARN=$(aws servicediscovery create-service \
   --health-check-custom-config FailureThreshold=1 \
   --region "$REGION" --query 'Service.Arn' --output text)
 ```
+NS_ID=ns-ht26gby5u6wtmfqd
+aws cloud shell에서 함 
 
 엔드포인트는 `http://llm-mock.loadtest.local:9099`로 고정된다.
 
@@ -124,14 +126,108 @@ MOCK_SG=$(aws ec2 create-security-group --group-name newcodes-llm-mock-sg \
 
 # 운영 백엔드 SG에서만 9099 인바운드 허용
 aws ec2 authorize-security-group-ingress --group-id "$MOCK_SG" \
-  --protocol tcp --port 9099 --source-group <운영-백엔드-SG_ID>
+  --protocol tcp --port 9099 --source-group sg-002078560e9771f7c
 
 # 아웃바운드(ECR pull, CloudWatch Logs)는 기본 all-outbound로 충분 — 필요시 443만 허용하도록 좁혀도 됨
 ```
 
+**`<운영-백엔드-SG_ID>` 알아내는 법:**
+
+인스턴스 ID를 이미 안다면 바로 이걸로 조회 (가장 정확):
+```bash
+aws ec2 describe-instances --instance-ids i-0992927330c97f124 \
+  --query 'Reservations[].Instances[].{Id:InstanceId,Vpc:VpcId,Subnet:SubnetId,SG:SecurityGroups}'
+```
+`SG` 배열의 `GroupId`(`sg-xxxxxxxx`)가 그것이다.
+
+> **주의**: `--filters "Name=tag:Name,Values=<인스턴스 ID>"` 처럼 `tag:Name` 필터 값에 인스턴스 ID를 넣으면 빈 배열이 나온다 — 이 필터는 **Name 태그의 값**(예: `newcodes-backend-prod`)을 찾는 것이지 인스턴스 ID로 찾는 게 아니다. 인스턴스 ID를 알면 필터 없이 `--instance-ids`로 바로 조회한다.
+
+Name 태그 값을 안다면:
+```bash
+aws ec2 describe-instances --filters "Name=tag:Name,Values=<운영-백엔드-인스턴스-태그>" \
+  --query 'Reservations[].Instances[].{Id:InstanceId,SG:SecurityGroups}'
+```
+
+인스턴스 ID도 태그도 모르면, 운영 서버에 SSH로 접속해서 메타데이터로 확인하는 게 제일 확실:
+```bash
+curl -s http://169.254.169.254/latest/meta-data/security-groups
+```
+
+전체 목록에서 눈으로 찾는 경우:
+```bash
+aws ec2 describe-instances \
+  --query 'Reservations[].Instances[].{Id:InstanceId,Name:Tags[?Key==`Name`]|[0].Value,PublicIp:PublicIpAddress,SG:SecurityGroups}' \
+  --output table
+```
+`PublicIp`가 `newcodes.net`이 가리키는 IP와 일치하는 행을 찾는다.
+
+주의: EC2에 SG가 여러 개 붙어 있을 수 있는데, `--source-group`에는 **애플리케이션이 실제로 쓰는 SG**(보통 default 말고 별도 앱 전용 SG)를 써야 한다 — default SG를 쓰면 다른 리소스까지 의도치 않게 mock에 접근 가능해질 수 있다.
+
+**트러블슈팅 — `InvalidGroup.NotFound: ... two resources that belong to different networks`**
+
+`authorize-security-group-ingress --source-group`은 **같은 VPC 안에서만** 동작한다. `MOCK_SG`를 만들 때 쓴 `$VPC_ID`와 운영 백엔드 SG가 속한 VPC가 다르면 이 에러가 난다. 확인:
+
+```bash
+aws ec2 describe-security-groups --group-ids "$MOCK_SG" --query 'SecurityGroups[0].VpcId'
+aws ec2 describe-security-groups --group-ids sg-002078560e9771f7c --query 'SecurityGroups[0].VpcId'
+```
+
+두 값이 다르면 `$VPC_ID`가 잘못됐던 것 — 운영 백엔드 SG가 속한 VPC ID로 바로잡고 `MOCK_SG`를 그 VPC에 다시 생성한다:
+
+```bash
+aws ec2 delete-security-group --group-id "$MOCK_SG"   # 아직 ECS 서비스에 안 붙였다면 안전하게 삭제 가능
+
+VPC_ID=vpc-0ba62c17ad21f8f49
+MOCK_SG=$(aws ec2 create-security-group --group-name newcodes-llm-mock-sg \
+  --description "llm-mock inbound from prod backend only" --vpc-id "$VPC_ID" \
+  --query 'GroupId' --output text)
+
+aws ec2 authorize-security-group-ingress --group-id "$MOCK_SG" \
+  --protocol tcp --port 9099 --source-group sg-002078560e9771f7c
+```
+
+**후속 트러블슈팅 — `InvalidGroup.Duplicate` / `InvalidGroupId.Malformed`**
+
+위 재생성을 시도하다 `create-security-group`이 `InvalidGroup.Duplicate`("already exists for VPC ...")로 실패하면, 그 실패한 커맨드가 `$MOCK_SG`에 빈 문자열을 할당하고, 그 뒤 `authorize-security-group-ingress --group-id ""`가 `InvalidGroupId.Malformed`로 연쇄 실패한다 — 두 에러는 원인이 하나다.
+
+`newcodes-llm-mock-sg`가 그 VPC에 이미 있다는 건, 애초의 "different networks" 에러 원인이 `MOCK_SG` 쪽이 아니라 **source-group으로 넣은 SG ID 쪽이 다른 VPC**였을 가능성을 시사한다. 재생성 대신 기존 SG를 재사용하고, 프로덕션 인스턴스에서 직접 VPC/SG를 다시 대조한다:
+
+```bash
+# 기존 SG 재사용 (재생성 불필요)
+MOCK_SG=$(aws ec2 describe-security-groups \
+  --filters "Name=group-name,Values=newcodes-llm-mock-sg" "Name=vpc-id,Values=$VPC_ID" \
+  --query 'SecurityGroups[0].GroupId' --output text)
+echo "MOCK_SG=$MOCK_SG"
+
+# 프로덕션 인스턴스의 실제 VPC/SG 재확인
+aws ec2 describe-instances --instance-ids sg-002078560e9771f7c \
+  --query 'Reservations[].Instances[].{Vpc:VpcId,SG:SecurityGroups}'
+```
+
+- 여기 나온 `Vpc`가 `$VPC_ID`와 다르면 → `MOCK_SG`를 만든 VPC 자체가 틀린 것 (그 VPC로 재생성 필요)
+- `Vpc`는 같은데 `SG` 목록에 source-group으로 쓰려던 ID가 없다면 → 그 ID가 이 인스턴스 것이 아님 — 여기 나온 `SG` 목록에서 실제 ID를 다시 골라 사용한다
+
 ## 6. ECS 서비스 생성 (상시 desired-count 1)
 
 public 서브넷 + `assignPublicIp=ENABLED`로 띄운다 (NAT 없이 ECR pull/CloudWatch Logs 전송이 되려면 인터넷 경로가 필요 — 5번 보안그룹이 실제 접근 통제를 담당).
+
+`$SD_SERVICE_ARN`이 새 셸 세션이라 비어있다면(4번에서 만든 `$NS_ID`는 알고 있는 상태), 재생성 없이 다시 조회:
+
+```bash
+NS_ID=ns-ht26gby5u6wtmfqd
+REGION=ap-northeast-2
+
+SD_SERVICE_ARN=$(aws servicediscovery list-services --region "$REGION" \
+  --filters "Name=NAMESPACE_ID,Values=$NS_ID,Condition=EQ" \
+  --query "Services[?Name=='llm-mock'].Arn" --output text)
+echo "SD_SERVICE_ARN=$SD_SERVICE_ARN"
+```
+
+네임스페이스 ID 없이 서비스 이름만으로 바로 찾아도 된다:
+```bash
+aws servicediscovery list-services --region ap-northeast-2 \
+  --query "Services[?Name=='llm-mock'].{Id:Id,Arn:Arn}"
+```
 
 ```bash
 aws ecs create-service \
@@ -140,10 +236,12 @@ aws ecs create-service \
   --task-definition newcodes-llm-mock \
   --desired-count 1 \
   --launch-type FARGATE \
-  --network-configuration "awsvpcConfiguration={subnets=[<PUBLIC_SUBNET_ID>],securityGroups=[$MOCK_SG],assignPublicIp=ENABLED}" \
+  --network-configuration "awsvpcConfiguration={subnets=[subnet-09aae0b5172d9c43f],securityGroups=[$MOCK_SG],assignPublicIp=ENABLED}" \
   --service-registries "registryArn=$SD_SERVICE_ARN" \
-  --region "$REGION"
+  --region ap-northeast-2
 ```
+
+
 
 기동 확인:
 
@@ -190,8 +288,16 @@ docker compose up -d nginx   # 새 볼륨 마운트 반영 (재생성). loadtest
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}\n" https://newcodes.net/api/rag/answer/loadtest   # 토큰 없이 호출 시 403이면 정상
-curl -s -o /dev/null -w "%{http_code}\n" -H "X-LoadTest-Token: <TOKEN>" https://newcodes.net/api/rag/answer/loadtest
-# → RAG_CHAT_LOADTEST_ENABLED=true라면 404 대신 다른 응답(POST 바디 없어 400 등)이면 정상, 403만 아니면 됨
+```
+
+토큰이 있는 상태에서 실제 흐름을 확인하려면 반드시 **POST + JSON 바디**로 호출한다 (`GET`으로 테스트하면 `HttpRequestMethodNotSupportedException`이 `RestApiExceptionHandler`의 catch-all에 걸려 405 대신 500이 찍히는 기존 버그가 있음 — nginx bypass/토큰 자체는 정상이어도 500처럼 보이니 혼동하지 말 것):
+
+```bash
+curl -N -s -X POST https://newcodes.net/api/rag/answer/loadtest \
+  -H "X-LoadTest-Token: <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"question":"테스트 질문입니다"}'
+# → SSE 스트림으로 mock 응답이 흘러나오면 정상. 403만 아니면 게이트는 통과한 것.
 ```
 
 ## 10. `load-test/fargate/env` 채우기
@@ -211,3 +317,55 @@ docker build -t "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/newcodes-llm-mock:lat
 docker push "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/newcodes-llm-mock:latest"
 aws ecs update-service --cluster newcodes-loadtest --service llm-mock --force-new-deployment --region "$REGION"
 ```
+
+## 트러블슈팅 — `UnknownHostException: llm-mock.loadtest.local` (앱 로그, RAG 호출 시)
+
+ECS 태스크는 `HEALTHY`고 Cloud Map 네임스페이스/보안그룹도 다 맞는데 앱에서 이 호스트를 못 찾는다면, 백엔드가 **Docker 컨테이너 안**에서 돈다는 걸 봐야 한다 — Ubuntu 호스트는 보통 `/etc/resolv.conf`가 `systemd-resolved`(127.0.0.53, localhost)를 가리키는데, Docker는 이 주소가 컨테이너 네임스페이스에서 접근 불가능한 걸 감지하면 컨테이너에는 대신 공용 DNS(8.8.8.8 등)를 자동으로 넣어버린다. 그러면 EC2 호스트 자체는 VPC 프라이빗 DNS(`loadtest.local`)를 잘 풀어도, 그 안의 백엔드 컨테이너는 절대 못 푼다.
+
+운영 서버에서 확인 (파괴적이지 않음):
+
+```bash
+echo "--- 호스트의 resolv.conf ---"
+cat /etc/resolv.conf
+
+echo "--- 호스트에서는 풀리는지 ---"
+getent hosts llm-mock.loadtest.local
+
+echo "--- 컨테이너 안의 resolv.conf ---"
+docker exec newcodes-backend-green cat /etc/resolv.conf
+
+echo "--- 컨테이너 안에서는 풀리는지 ---"
+docker exec newcodes-backend-green getent hosts llm-mock.loadtest.local
+```
+
+호스트는 풀리는데 컨테이너 안은 안 풀리거나, 컨테이너 `resolv.conf`에 공용 DNS만 있으면 이 원인이 맞다. `docker-compose.yml`의 `newcodes-backend-blue`/`newcodes-backend-green` 서비스에 VPC가 어떤 VPC/서브넷에서든 공통으로 제공하는 Route53 Resolver 링크-로컬 주소를 명시적으로 지정해두면 해결된다:
+
+```yaml
+    dns:
+      - 169.254.169.253
+```
+
+새 `dns:` 키 추가는 컨테이너 재생성이 필요하다 — 배포 파이프라인을 타거나, 운영 서버에서 직접:
+
+```bash
+docker compose up -d newcodes-backend-green   # 우선 green만 재생성해 확인
+```
+
+### 후속 진단 — 호스트에서도 `getent hosts`가 안 풀리는 경우
+
+위 진단에서 **호스트조차** `llm-mock.loadtest.local`을 못 풀면(컨테이너만의 문제가 아니라면), `systemd-resolved`가 애초에 VPC DHCP가 내려준 리졸버를 안 쓰고 있는 것일 수 있다. 이 경우 `169.254.169.253`(VPC Route53 Resolver, 어떤 서브넷에서든 공통으로 접근 가능)에 직접 질의해서 원인을 좁힌다:
+
+```bash
+echo "--- systemd-resolved가 실제 쓰는 업스트림 DNS ---"
+resolvectl status | grep -A5 "Link.*eth0\|Current DNS"
+
+echo "--- VPC Route53 Resolver(169.254.169.253)에 직접 질의 ---"
+dig @169.254.169.253 llm-mock.loadtest.local +short || nslookup llm-mock.loadtest.local 169.254.169.253
+```
+
+(`dig`/`nslookup`이 없으면 `sudo apt-get install -y dnsutils`)
+
+- **`169.254.169.253`로 직접 질의했을 때 풀림** → `systemd-resolved`가 VPC 리졸버를 안 쓰고 있다는 뜻 확정. 위 `dns: [169.254.169.253]` 수정이 정확한 해결책 — 호스트 리졸버를 거치지 않고 컨테이너가 VPC 리졸버로 바로 질의하게 되므로 문제가 없어진다.
+- **`169.254.169.253`로도 안 풀림** → DNS 설정 문제가 아니라 Cloud Map 프라이빗 호스팅존이 이 VPC에 실제로 연결(associate)됐는지부터 다시 확인해야 한다 (`aws servicediscovery get-namespace`, Route53 콘솔에서 프라이빗 호스팅존의 VPC associations 확인).
+
+**실제 확인된 사례 (2026-08)**: `resolvectl status`는 `Current DNS Server: 10.0.0.2`(정상 VPC 리졸버)를 가리키고 있었는데도 호스트 `getent hosts`는 실패, `dig @169.254.169.253 llm-mock.loadtest.local`은 `10.0.11.232`로 정상 응답. 즉 VPC 리졸버·Cloud Map 프라이빗 DNS는 완전히 정상이고, `systemd-resolved`가 `loadtest.local` 도메인에 대한 라우팅 도메인을 갖고 있지 않아 해당 질의를 10.0.0.2로 포워딩하지 않는 것이 원인이었다(`ap-northeast-2.compute.internal` search domain 외의 프라이빗 존은 라우팅 대상에서 빠짐). `dns: [169.254.169.253]`로 systemd-resolved를 완전히 우회하는 것이 맞는 해결책 — 원인 확정.
