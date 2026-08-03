@@ -146,7 +146,8 @@ function createArticleCard(article) {
                     <a href="${article.link}"
                        target="_blank"
                        class="text-decoration-none title-link"
-                       style="color: inherit;">
+                       style="color: inherit;"
+                       onclick="recordArticleView(${article.id})">
                         <span>${escapeHtml(article.translatedTitle || article.title)}</span>
                     </a>
                 </h5>

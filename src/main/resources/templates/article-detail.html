@@ -918,24 +918,11 @@
             }
 
             // Increment view count
-            async function incrementViewCount() {
+            function incrementViewCount() {
                 const likeBtn = document.querySelector('.article-detail-like-btn');
                 if (!likeBtn) return;
 
-                const articleId = likeBtn.getAttribute('data-article-id');
-
-                try {
-                    await fetch(`/api/articles/${articleId}/view`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        credentials: 'same-origin',
-                        redirect: 'manual'
-                    });
-                } catch (error) {
-                    console.log('조회수 증가 요청 실패:', error);
-                }
+                recordArticleView(likeBtn.getAttribute('data-article-id'));
             }
 
             // Escape HTML to prevent XSS
@@ -991,7 +978,7 @@
                                                 <span class="blog-card-company-name">${escapeHtml(article.corporation.name)}</span>
                                             </a>
                                         </div>
-                                        <h3 class="blog-card-title"><a href="${escapeHtml(article.link)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="text-decoration:none;color:inherit;">${escapeHtml(article.translatedTitle || article.title)}</a></h3>
+                                        <h3 class="blog-card-title"><a href="${escapeHtml(article.link)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation(); recordArticleView(${article.id})" style="text-decoration:none;color:inherit;">${escapeHtml(article.translatedTitle || article.title)}</a></h3>
                                         <div class="blog-card-meta">
                                             <span class="blog-card-date">
                                                 <i class="far fa-clock"></i>

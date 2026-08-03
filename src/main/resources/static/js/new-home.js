@@ -136,7 +136,10 @@ function buildPopularCardElement(article, rank) {
     titleLink.target = '_blank';
     titleLink.rel = 'noopener noreferrer';
     titleLink.textContent = article.translatedTitle || article.title;
-    titleLink.addEventListener('click', (e) => e.stopPropagation());
+    titleLink.addEventListener('click', (e) => {
+        e.stopPropagation();
+        recordArticleView(article.id);
+    });
     titleH3.appendChild(titleLink);
     contentDiv.appendChild(titleH3);
 
@@ -284,7 +287,10 @@ function buildBlogCardElement(article) {
     titleLink.target = '_blank';
     titleLink.rel = 'noopener noreferrer';
     titleLink.textContent = article.translatedTitle || article.title;
-    titleLink.addEventListener('click', (e) => e.stopPropagation());
+    titleLink.addEventListener('click', (e) => {
+        e.stopPropagation();
+        recordArticleView(article.id);
+    });
     titleH3.appendChild(titleLink);
     contentDiv.appendChild(titleH3);
 
@@ -417,31 +423,6 @@ window.addEventListener('resize', function() {
 function goToArticleDetail(articleId) {
     if (articleId) {
         window.location.href = `/articles/${articleId}`;
-    }
-}
-
-// 아티클 링크 클릭 시 조회수 증가 후 외부 링크 열기 (레거시 호환용)
-function openArticleLink(element) {
-    const articleId = element.getAttribute('data-article-id');
-    const articleLink = element.getAttribute('data-article-link');
-
-    // 조회수 증가 API 호출 (비동기, 결과 대기 안 함)
-    if (articleId) {
-        fetch(`/api/articles/${articleId}/view`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            credentials: 'same-origin',
-            redirect: 'manual'
-        }).catch(error => {
-            console.log('조회수 증가 요청 실패:', error);
-        });
-    }
-
-    // 외부 링크 열기
-    if (articleLink) {
-        window.open(articleLink, '_blank');
     }
 }
 

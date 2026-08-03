@@ -180,7 +180,7 @@
                                        target="_blank"
                                        rel="noopener noreferrer"
                                        th:text="${article.translatedTitle != null ? article.translatedTitle : article.title}"
-                                       onclick="event.stopPropagation()">Article Title</a>
+                                       onclick="event.stopPropagation(); recordArticleView(this.closest('[data-article-id]').getAttribute('data-article-id'))">Article Title</a>
                                 </h3>
                                 <div class="popular-card-meta">
                                     <span class="popular-card-date">
@@ -258,7 +258,7 @@
                                    target="_blank"
                                    rel="noopener noreferrer"
                                    th:text="${article.translatedTitle != null ? article.translatedTitle : article.title}"
-                                   onclick="event.stopPropagation()">Article Title</a>
+                                   onclick="event.stopPropagation(); recordArticleView(this.closest('[data-article-id]').getAttribute('data-article-id'))">Article Title</a>
                             </h3>
                             <div class="blog-card-meta">
                                 <span class="blog-card-date">
@@ -360,7 +360,7 @@
 
     <div layout:fragment="scripts">
         <script th:src="@{/js/searchAutocomplete.js}"></script>
-        <script th:src="@{/js/new-home.js(v='1.0.2')}"></script>
+        <script th:src="@{/js/new-home.js(v='1.0.3')}"></script>
     </div>
 </body>
 </html>

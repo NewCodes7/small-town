@@ -286,7 +286,7 @@
                                target="_blank"
                                rel="noopener noreferrer"
                                th:text="${article.translatedTitle != null && !article.translatedTitle.isEmpty() ? article.translatedTitle : article.title}"
-                               onclick="event.stopPropagation()">Article Title</a>
+                               onclick="event.stopPropagation(); articleManager?.recordCardView(this.closest('.article-card'))">Article Title</a>
                         </h5>
                         
                         <!-- Company Info & Stats -->
@@ -404,7 +404,7 @@
                                    target="_blank"
                                    rel="noopener noreferrer"
                                    th:text="${firstArticle.translatedTitle != null && !firstArticle.translatedTitle.isEmpty() ? firstArticle.translatedTitle : firstArticle.title}"
-                                   onclick="event.stopPropagation()"></a>
+                                   onclick="event.stopPropagation(); articleManager?.recordCardView(this.closest('.article-card'))"></a>
                             </h5>
                             
                             <!-- Company Info & Stats -->
@@ -455,7 +455,7 @@
                                        target="_blank"
                                        rel="noopener noreferrer"
                                        th:text="${child.translatedTitle != null && !child.translatedTitle.isEmpty() ? child.translatedTitle : child.title}"
-                                       onclick="event.stopPropagation()"></a>
+                                       onclick="event.stopPropagation(); articleManager?.recordCardView(this.closest('.child'))"></a>
                                 </h6>
                                 <span class="child-date d-flex align-items-center flex-wrap">
                                     <span class="d-flex align-items-center gap-2">
@@ -1356,7 +1356,7 @@
     </div>
 
     <div layout:fragment="scripts">
-        <script th:src="@{/js/articleManager.js(v='1.0.1')}"></script>
+        <script th:src="@{/js/articleManager.js(v='1.0.3')}"></script>
         <script th:src="@{/js/home.js}"></script>
         <script th:src="@{/js/banner.js}"></script>
         <script th:src="@{/js/categoryFilter.js}"></script>
