@@ -123,7 +123,7 @@ BASE_URL=http://host.docker.internal ./scripts/run-local.sh rate-limit-check
 
 ### 실서버 스모크 테스트 (Fargate 세팅 없이, 저트래픽 확인용)
 
-Fargate 인프라(ECR push, task definition 등록, 보안그룹)가 아직 없어도 로컬 docker로 실서버에 저트래픽 스모크 테스트를 돌릴 수 있다. LLM 비용이 발생하지 않는 시나리오(`baseline`/`search-hybrid`/`autocomplete` 등, `rag-answer` 실경로 제외)로 한정하고, "실행 창 주의"(위 참고)에 걸리지 않는 시간대에 돌린다:
+Fargate 인프라(ECR push, task definition 등록, 보안그룹)가 아직 없어도 로컬 docker로 실서버에 저트래픽 스모크 테스트를 돌릴 수 있다. LLM 비용이 발생하지 않는 시나리오(`baseline`/`search-hybrid`/`autocomplete` 등, `rag-answer`/`search-journey` 실경로 제외)로 한정하고, "실행 창 주의"(위 참고)에 걸리지 않는 시간대에 돌린다:
 
 ```bash
 BASE_URL=https://newcodes.net ./scripts/run-local.sh baseline -e RATE=1 -e DURATION=30s
@@ -155,6 +155,7 @@ LOADTEST_BYPASS_TOKEN=localtest ./scripts/run-local.sh rag-answer -e VUS=5 -e DU
 | `search-hybrid.js` | 하이브리드 검색 **SLA 판정 메인** | constant-arrival-rate | `RATE=10`, `DURATION=5m`, `SEARCH_BASE_P95_MS` |
 | `autocomplete.js` | 짧은 요청 대량 처리 (iteration=타이핑 세션) | constant-arrival-rate | `RATE=20`, `DURATION=3m` |
 | `rag-answer.js` | **RAG SSE** — TTFB/첫 token/스트림완료 분리 측정 | constant-vus | `VUS=5`, `DURATION=10m`, `MODE=cache-miss\|cache-hit\|multi-turn`, `RAG_PATH`(mock 모드) |
+| `search-journey.js` | **실사용자 검색 흐름 재현** — 자동완성/추천검색어 진입 → 검색+RAG 동시 호출 → 카드 클릭까지 한 세션으로 | constant-vus | `VUS=5`, `DURATION=10m`, `SUGGESTED_RATIO=0.25`, `CLICK_THROUGH_RATE=0.4`, `RAG_PATH`(mock 모드) |
 | `ramp-limit-finder.js` | 동시성 10/20/50/100 단계별 한계점 곡선 | constant-vus ×4 (startTime 직렬) | `TARGET=search\|baseline` |
 | `spike.js` | 순간 폭증(2→50 RPS) + 회복 관찰 | ramping-arrival-rate | — |
 | `soak.js` | 장시간 혼합 부하 — 누수 탐지 | 혼합 (arrival ×2 + vus) | `SOAK_DURATION=1h` |
@@ -219,13 +220,16 @@ cp fargate/env.example fargate/env   # 값 채우기 (git 미추적)
 
 ### 실행
 
-RAG 시나리오(`rag-answer`)를 mock으로 돌릴 땐 **`run-prod-test.sh`를 기본 진입점으로 쓴다** — mock ECS 서비스가 떠 있는지 먼저 확인하고, `RAG_PATH`를 mock 엔드포인트로 자동 지정한 뒤 아래 `run-task.sh`를 그대로 호출하는 래퍼다(옵션 동일):
+RAG를 호출하는 시나리오(`rag-answer`, `search-journey`)를 mock으로 돌릴 땐 **`run-prod-test.sh`를 기본 진입점으로 쓴다** — mock ECS 서비스가 떠 있는지 먼저 확인하고, `RAG_PATH`를 mock 엔드포인트로 자동 지정한 뒤 아래 `run-task.sh`를 그대로 호출하는 래퍼다(옵션 동일):
 
 ```bash
 cd fargate
 
 # RAG: 2개 task가 각 VU 5, mock 헬스체크 후 실행
 ./run-prod-test.sh -s rag-answer -n 2 -v 10 -d 10m -e MODE=cache-miss
+
+# 검색 흐름 재현(자동완성/추천검색어 → 검색+RAG 동시 호출 → 카드 클릭)도 mock 헬스체크를 거쳐 실행됨
+./run-prod-test.sh -s search-journey -n 2 -v 10 -d 10m
 
 # 그 외 시나리오(mock 무관)도 동일하게 쓸 수 있음
 ./run-prod-test.sh -s search-hybrid -n 4 -r 40 -d 10m
@@ -280,3 +284,9 @@ LIMIT 100;
 ```
 
 결과를 인기순 배열로 넣고 `source` 필드를 갱신 날짜로 바꾼다 (배열 순서 = Zipfian rank).
+
+`data/suggested-keywords.json`은 `search-journey.js`의 "추천 검색어" 진입 경로(new-home.html chip)용 데이터다. chip 목록은 DB(`suggested_search_term` 테이블, 관리자 화면 `PUT /api/admin/suggested-search-terms`로 수정)에서 서버 렌더링되는 값이라 공개 API로는 가져올 수 없다 — 관리자가 목록을 바꾸면 아래 SQL로 이 파일도 함께 갱신할 것:
+
+```sql
+SELECT keyword FROM suggested_search_term WHERE is_active = true ORDER BY display_order ASC;
+```

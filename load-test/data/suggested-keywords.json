@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "source": "V1_22__create_suggested_search_terms.sql 시드값 (관리자 화면에서 바뀔 수 있음 — 아래 SQL로 재동기화)",
+  "comment": "갱신 SQL: SELECT keyword FROM suggested_search_term WHERE is_active = true ORDER BY display_order ASC;",
+  "keywords": ["대용량 트래픽 처리", "React 성능 최적화", "MSA 전환 경험", "Kafka 실시간 처리"]
+}
