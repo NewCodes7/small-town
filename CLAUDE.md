@@ -142,7 +142,7 @@ List<Article> crawl(WebDriver driver, Corporation corporation)
 - robots.txt 준수 (`crawlWithRobotsCheck()`)
 - 이력: `CrawlingSchedulerRun`, `CrawlingArticleProcessingLog`
 - **`driver.quit()`은 반드시 finally에서 호출** — `pkill`/`kill -9` 금지 (OOM Exit 137 원인)
-- `ContentAndTermExtractionScheduler`는 `@Scheduled`가 주석처리되어 비활성 (죽은 코드) — `CrawlingScheduler.scheduledContentCrawling()`(매시 30분, 본문 200자 이하 Article 대상)이 본문 백필 역할을 대체 수행
+- `ContentAndTermExtractionScheduler`는 `@Scheduled`가 주석처리되어 비활성 (죽은 코드) — `CrawlingScheduler.scheduledContentCrawling()`(매일 05:00, 본문 200자 이하 Article 대상)이 본문 백필 역할을 대체 수행
 
 ### 7. Term 추출
 
@@ -194,8 +194,8 @@ AdminNotification
 |----------|------|------|
 | `CrawlingScheduler.scheduledBlogCrawling()` | `0 0 4 * * ?` (04:00) | 블로그 크롤링 |
 | `CrawlingScheduler.scheduledYoutubeCrawling()` | `0 30 4 * * ?` (04:30) | YouTube 크롤링 |
-| `CrawlingScheduler.scheduledContentCrawling()` | `0 30 * * * ?` (매시 :30) | 본문 백필 크롤링 (200자 이하 Article 대상) |
-| `HackerNewsCrawlingScheduler` | `0 30 * * * ?` (매시 :30) | HN 크롤링 |
+| `CrawlingScheduler.scheduledContentCrawling()` | `0 0 5 * * ?` (05:00) | 본문 백필 크롤링 (200자 이하 Article 대상) |
+| `HackerNewsCrawlingScheduler` | `0 30 3 * * ?` (03:30) | HN 크롤링 |
 | `SearchPrewarmScheduler` | fixedDelay 300s + `0 30 * * * *` | 검색 사전 워밍 |
 
 > 프로퍼티 키(`crawler.schedule.*.cron`)로 오버라이드 가능. `crawler.enabled=true`일 때만 크롤러 스케줄러 활성화. `ContentAndTermExtractionScheduler`는 죽은 코드(위 6번 참고).
