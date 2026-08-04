@@ -119,7 +119,25 @@ BASE_URL=http://host.docker.internal ./scripts/run-local.sh rate-limit-check
 |---|---|
 | `http://host.docker.internal:8080` (기본) | 로컬 백엔드 직결 — nginx rate limit 없음 |
 | `http://host.docker.internal` | 로컬 nginx 경유 — rate limit 검증용 |
-| `https://newcodes.net` | 실서버 (Fargate에서 사용) |
+| `https://newcodes.net` | 실서버 — 본격적인 규모 테스트는 Fargate(`fargate/run-prod-test.sh`), Fargate 세팅 전 저트래픽 스모크는 아래처럼 로컬에서 직접 가능 |
+
+### 실서버 스모크 테스트 (Fargate 세팅 없이, 저트래픽 확인용)
+
+Fargate 인프라(ECR push, task definition 등록, 보안그룹)가 아직 없어도 로컬 docker로 실서버에 저트래픽 스모크 테스트를 돌릴 수 있다. LLM 비용이 발생하지 않는 시나리오(`baseline`/`search-hybrid`/`autocomplete` 등, `rag-answer` 실경로 제외)로 한정하고, "실행 창 주의"(위 참고)에 걸리지 않는 시간대에 돌린다:
+
+```bash
+BASE_URL=https://newcodes.net ./scripts/run-local.sh baseline -e RATE=1 -e DURATION=30s
+```
+
+> ⚠️ **devcontainer 비-TTY 환경 주의**: `run-local.sh`는 `[[ -t 1 ]]`일 때만 `docker run`에 `-t`를 붙인다. 비-TTY 셸(자동화 스크립트, Claude Code Bash 등)에서 TTY 없이 attach 실행하면 프로세스는 정상 실행되지만 시작 직후 stdout/stderr가 유실된다(devcontainer docker-outside-of-docker 특성). 이런 환경에서는 이미지 빌드 후 detach + `docker logs`로 직접 실행해 결과를 확인한다:
+> ```bash
+> docker build -t newcodes/k6-sse:local -f docker/Dockerfile .
+> CID=$(docker run -d --add-host=host.docker.internal:host-gateway \
+>   -e BASE_URL=https://newcodes.net -e RATE=1 -e DURATION=30s \
+>   newcodes/k6-sse:local run scenarios/baseline.js)
+> docker wait "$CID" && docker logs "$CID"
+> docker rm "$CID"
+> ```
 
 로컬에서 `rag-answer`(실경로 `/api/rag/answer`)를 반복 실행하려면 백엔드를 앱 레벨 rate limit 면제로 기동하고, k6에도 같은 토큰을 넘긴다:
 

@@ -19,8 +19,7 @@
         "options": {
           "awslogs-group": "/ecs/newcodes-loadtest",
           "awslogs-region": "<REGION>",
-          "awslogs-stream-prefix": "k6",
-          "awslogs-create-group": "true"
+          "awslogs-stream-prefix": "k6"
         }
       },
       "environment": [

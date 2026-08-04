@@ -270,7 +270,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**목적**: `load-test/scenarios/*.js` (k6) 실행 중 클라이언트 측 처리량/지연시간과, 백엔드(DB 풀·JVM·캐시·외부 API)의 병목 신호를 한 화면에서 같이 본다. 설계 근거: `docs/testing/LOAD_TEST_DESIGN.md`, Notion \"검색 부하테스트\" 페이지.\n\n- **k6 → Prometheus**: `--out experimental-prometheus-rw` (README 참고). 메트릭명은 `k6_` 접두사 + Trend는 `stat` 라벨(`p50`/`p95`/`p99`/`avg`/`min`/`max`), Counter는 `_total` 접미사가 붙는 것으로 가정했다 — **k6/Prometheus 버전에 따라 달라질 수 있으니, 처음 실행 후 Prometheus Explore에서 `{__name__=~\"k6_.*\"}`로 실제 이름을 먼저 확인할 것.**\n- **444/429는 장애가 아니다** — nginx가 설계대로 자른 것(README 참고). 아래 \"에러율\" 패널은 444/429를 제외한 5xx·timeout만 집계한다.\n- 상단 변수로 `testid`(실행 회차), `k6_instance`(Fargate task), `server`(blue/green)를 필터링할 수 있다.\n- DB(`postgres`/`db-node` job), 부하테스트 시크릿 토큰(`X-LoadTest-Token`) 관련 안내는 `load-test/README.md`의 \"Rate limit 예외 등록\" 절차 참고."
+        "content": "**목적**: `load-test/scenarios/*.js` (k6) 실행 중 클라이언트 측 처리량/지연시간과, 백엔드(DB 풀·JVM·캐시·외부 API)의 병목 신호를 한 화면에서 같이 본다. 설계 근거: `docs/testing/LOAD_TEST_DESIGN.md`, Notion \"검색 부하테스트\" 페이지.\n\n- **k6 → Prometheus**: `--out experimental-prometheus-rw` (README 참고). 메트릭명은 `k6_` 접두사 + Trend는 **percentile/통계량이 라벨이 아니라 메트릭명 접미사**로 붙는다(`k6_http_req_duration_p95`, `_avg`, `_min`, `_max` 등 — `stat` 라벨 아님, 2026-08-04 실측 확인). Counter는 `_total` 접미사가 붙는데, k6 스크립트 쪽 메트릭 이름이 이미 `_total`로 끝나면(`sse_terminal_total` 등) 접미사가 중복돼 `k6_sse_terminal_total_total`이 된다 — **k6/Prometheus 버전에 따라 달라질 수 있으니, 새 메트릭 추가 시 Prometheus Explore에서 `{__name__=~\"k6_.*\"}`로 실제 이름을 먼저 확인할 것.**\n- **444/429는 장애가 아니다** — nginx가 설계대로 자른 것(README 참고). 아래 \"에러율\" 패널은 444/429를 제외한 5xx·timeout만 집계한다.\n- 상단 변수로 `testid`(실행 회차), `k6_instance`(Fargate task), `server`(blue/green)를 필터링할 수 있다.\n- DB(`postgres`/`db-node` job), 부하테스트 시크릿 토큰(`X-LoadTest-Token`) 관련 안내는 `load-test/README.md`의 \"Rate limit 예외 등록\" 절차 참고."
       }
     },
     {
@@ -768,7 +768,7 @@
       "id": 11,
       "type": "timeseries",
       "title": "전체 HTTP 요청 지연시간 (p50/p95/p99)",
-      "description": "k6_http_req_duration Trend, stat 라벨로 percentile 구분 (K6_PROMETHEUS_RW_TREND_STATS 설정값 기준)",
+      "description": "k6_http_req_duration_{p50,p95,p99} — 실측 결과 percentile은 stat 라벨이 아니라 메트릭명 접미사로 분리됨 (2026-08-04 확인, K6_PROMETHEUS_RW_TREND_STATS 설정값 기준)",
       "gridPos": {
         "h": 9,
         "w": 12,
@@ -872,7 +872,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "avg(k6_http_req_duration{testid=~\"$testid\", instance=~\"$k6_instance\", stat=\"p50\"})",
+          "expr": "avg(k6_http_req_duration_p50{testid=~\"$testid\", instance=~\"$k6_instance\"})",
           "range": true,
           "legendFormat": "p50",
           "refId": "A"
@@ -882,7 +882,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "avg(k6_http_req_duration{testid=~\"$testid\", instance=~\"$k6_instance\", stat=\"p95\"})",
+          "expr": "avg(k6_http_req_duration_p95{testid=~\"$testid\", instance=~\"$k6_instance\"})",
           "range": true,
           "legendFormat": "p95",
           "refId": "B"
@@ -892,7 +892,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "avg(k6_http_req_duration{testid=~\"$testid\", instance=~\"$k6_instance\", stat=\"p99\"})",
+          "expr": "avg(k6_http_req_duration_p99{testid=~\"$testid\", instance=~\"$k6_instance\"})",
           "range": true,
           "legendFormat": "p99",
           "refId": "C"
@@ -961,7 +961,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "avg by (endpoint) (k6_http_req_duration{testid=~\"$testid\", instance=~\"$k6_instance\", stat=\"p95\"})",
+          "expr": "avg by (endpoint) (k6_http_req_duration_p95{testid=~\"$testid\", instance=~\"$k6_instance\"})",
           "range": true,
           "legendFormat": "{{endpoint}}",
           "refId": "A"
@@ -1043,7 +1043,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "avg(k6_sse_ttfb{testid=~\"$testid\", instance=~\"$k6_instance\", stat=\"p95\"})",
+          "expr": "avg(k6_sse_ttfb_p95{testid=~\"$testid\", instance=~\"$k6_instance\"})",
           "range": true,
           "legendFormat": "TTFB p95",
           "refId": "A"
@@ -1053,7 +1053,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "avg(k6_sse_first_token{testid=~\"$testid\", instance=~\"$k6_instance\", stat=\"p95\"})",
+          "expr": "avg(k6_sse_first_token_p95{testid=~\"$testid\", instance=~\"$k6_instance\"})",
           "range": true,
           "legendFormat": "첫 토큰 p95",
           "refId": "B"
@@ -1063,7 +1063,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "avg(k6_sse_stream_duration{testid=~\"$testid\", instance=~\"$k6_instance\", stat=\"p95\"})",
+          "expr": "avg(k6_sse_stream_duration_p95{testid=~\"$testid\", instance=~\"$k6_instance\"})",
           "range": true,
           "legendFormat": "스트림 완료 p95",
           "refId": "C"
@@ -1074,7 +1074,7 @@
       "id": 15,
       "type": "timeseries",
       "title": "SSE 종료 사유 분포",
-      "description": "done/notfound/error(정상 계열) vs aborted/transport_error/http_429(비정상) — sseTerminal 카운터",
+      "description": "done/notfound/error(정상 계열) vs aborted/transport_error/http_429(비정상) — sseTerminal 카운터. 원본 메트릭명이 이미 _total로 끝나(sse_terminal_total) exporter가 붙이는 접미사와 합쳐져 k6_sse_terminal_total_total이 됨 (2026-08-04 확인)",
       "gridPos": {
         "h": 9,
         "w": 12,
@@ -1193,7 +1193,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (terminal) (rate(k6_sse_terminal_total{testid=~\"$testid\", instance=~\"$k6_instance\"}[$__rate_interval]))",
+          "expr": "sum by (terminal) (rate(k6_sse_terminal_total_total{testid=~\"$testid\", instance=~\"$k6_instance\"}[$__rate_interval]))",
           "range": true,
           "legendFormat": "{{terminal}}",
           "refId": "A"
