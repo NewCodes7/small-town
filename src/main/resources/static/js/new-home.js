@@ -690,6 +690,9 @@ document.addEventListener('DOMContentLoaded', function() {
         autocomplete.init();
     }
 
+    // 검색창 placeholder 예시 질문 순환
+    initHeroPlaceholderRotation();
+
     // 테마 클릭 이벤트 리스너 추가
     document.querySelectorAll('.theme-collection').forEach(element => {
         element.addEventListener('click', function(e) {
@@ -700,6 +703,30 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+// ===== 검색 placeholder 예시 질문 순환 (AI 에이전트 느낌) =====
+function initHeroPlaceholderRotation() {
+    const input = document.getElementById('searchInput');
+    if (!input) return;
+
+    const originalPlaceholder = input.getAttribute('placeholder') || '';
+    const examples = [
+        originalPlaceholder,
+        'Redis 캐시 무효화 전략이 궁금해요',
+        '카카오는 MSA로 어떻게 전환했을까?',
+        '벡터 검색과 BM25, 뭐가 다를까?',
+        '토스 결제 시스템 아키텍처 알려줘',
+        '최근 LLM 관련 기술 블로그 모아줘'
+    ];
+
+    let index = 0;
+    setInterval(function () {
+        // 사용자가 포커스 중이거나 이미 입력값이 있으면 순환하지 않음
+        if (document.activeElement === input || input.value) return;
+        index = (index + 1) % examples.length;
+        input.setAttribute('placeholder', examples[index]);
+    }, 3200);
+}
 
 // ===== 검색 자동완성 기능 =====
 // searchAutocomplete.js 모듈로 이전됨 (SearchAutocomplete 클래스 사용)

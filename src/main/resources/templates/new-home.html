@@ -65,20 +65,22 @@
                 <h1 class="hero-main-title">기술 블로그 모음</h1>
                 <p class="hero-subtitle">국내외 IT 기업의 최신 기술 블로그를 한곳에서</p>
                 <form id="searchForm" action="/articles" method="get" class="hero-search-form">
-                    <div class="hero-search-container">
-                        <i class="fas fa-search hero-search-icon"></i>
-                        <input type="text"
-                               id="searchInput"
-                               name="keyword"
-                               class="hero-search-input"
-                               placeholder="궁금한 기술, 회사, 주제를 검색해보세요!"
-                               autocomplete="off">
-                        <button type="submit" class="hero-search-submit">
-                            검색
-                            <i class="fas fa-arrow-right"></i>
-                        </button>
-                        <!-- 자동완성 드롭다운 -->
-                        <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
+                    <div class="hero-search-glow">
+                        <div class="hero-search-container">
+                            <i class="fas fa-wand-magic-sparkles hero-search-icon" aria-hidden="true"></i>
+                            <input type="text"
+                                   id="searchInput"
+                                   name="keyword"
+                                   class="hero-search-input"
+                                   placeholder="궁금한 기술, 회사, 주제를 검색해보세요!"
+                                   autocomplete="off">
+                            <button type="submit" class="hero-search-submit">
+                                검색
+                                <i class="fas fa-arrow-right"></i>
+                            </button>
+                            <!-- 자동완성 드롭다운 -->
+                            <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
+                        </div>
                     </div>
                 </form>
                 <!-- 추천 검색어 -->
@@ -360,7 +362,7 @@
 
     <div layout:fragment="scripts">
         <script th:src="@{/js/searchAutocomplete.js}"></script>
-        <script th:src="@{/js/new-home.js(v='1.0.3')}"></script>
+        <script th:src="@{/js/new-home.js(v='1.0.4')}"></script>
     </div>
 </body>
 </html>
