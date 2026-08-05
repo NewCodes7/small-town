@@ -104,9 +104,10 @@ else
   echo "llm-mock 정상 (runningCount=$RUNNING)"
 fi
 
-# RAG를 호출하는 시나리오(rag-answer, search-journey)인데 사용자가 RAG_PATH를 직접
-# 지정하지 않았으면, mock 서버 전용 loadtest 엔드포인트를 기본값으로 추가한다
-if [[ ( "$SCENARIO" == "rag-answer" || "$SCENARIO" == "search-journey" ) && "$RAG_PATH_SET" == "0" ]]; then
+# RAG를 호출하는 시나리오(rag-answer, search-journey, ramp-limit-finder-rag)인데 사용자가
+# RAG_PATH를 직접 지정하지 않았으면, mock 서버 전용 loadtest 엔드포인트를 기본값으로 추가한다
+if [[ ( "$SCENARIO" == "rag-answer" || "$SCENARIO" == "search-journey" || "$SCENARIO" == "ramp-limit-finder-rag" ) \
+      && "$RAG_PATH_SET" == "0" ]]; then
   ARGS+=(-e "RAG_PATH=/api/rag/answer/loadtest")
 fi
 

@@ -2,6 +2,8 @@
 
 RAG 검색(SSE) 중심 부하테스트. 설계 배경은 [`docs/testing/LOAD_TEST_DESIGN.md`](../docs/testing/LOAD_TEST_DESIGN.md) 참고.
 
+> 시나리오별로 바로 복붙할 수 있는 실행 명령어만 모은 치트시트는 [`FARGATE_COMMANDS.md`](FARGATE_COMMANDS.md) 참고.
+
 - **목표**: 현 DB 사양(HikariCP pool 5) 기준 10 RPS, 레이턴시 무부하 대비 120% SLA
 - **도구**: k6 + [xk6-sse](https://github.com/phymbert/xk6-sse) 커스텀 빌드 (k6 v1.2.1 + xk6-sse v0.1.12 핀 고정)
 - **결과 저장**: `--out experimental-prometheus-rw` → 기존 Prometheus/Grafana
@@ -194,6 +196,22 @@ baseline 수치는 코드에 박지 않고 env로 주입한다:
 3. threshold `p(95) < 400×1.2` 위반 시 k6가 exit code ≠ 0으로 종료 → 자동 판정.
 
 baseline env 목록: `SEARCH_BASE_P95_MS`, `SEARCH_BASE_P50_MS`, `BASELINE_BASE_P95_MS`, `AUTOCOMPLETE_BASE_P95_MS`, `RAG_BASE_FIRST_TOKEN_MS`, `RAG_BASE_STREAM_MS`
+
+### 예시: RAG(Fargate + mock)에 적용
+
+`rag-answer`는 기본 baseline(3000ms/15000ms)이 코드에 하드코딩돼 있는데, 이건 실측값이 아니라 임시 placeholder라 실제 LLM 스트리밍 지연(수 초~수십 초)보다 훨씬 낮다 — baseline을 주입하지 않으면 항상 `exit 99`(threshold 실패)로 끝난다. 절차는 위와 동일하되 `run-prod-test.sh`/mock 경유로 돌린다:
+
+1. 저트래픽 스모크로 p95 실측 (VU 1개·1분, "실행 자체가 되는지"도 같이 확인):
+   ```bash
+   ./run-prod-test.sh -s rag-answer -n 1 -v 1 -d 1m -e MODE=cache-miss
+   ```
+   Grafana(`testid`로 필터) 또는 Prometheus에서 `k6_sse_first_token_p95`/`k6_sse_stream_duration_p95` 값을 읽는다.
+2. 실측값을 baseline으로 주입해 본 테스트 실행:
+   ```bash
+   ./run-prod-test.sh -s rag-answer -n 1 -v 1 -d 1m -e MODE=cache-miss \
+     -e RAG_BASE_FIRST_TOKEN_MS=9200 -e RAG_BASE_STREAM_MS=26700
+   ```
+   VU/task 수를 올려 본격적인 규모로 재실행할 땐 `-n`/`-v`/`-d`만 키우고 baseline env는 그대로 유지한다.
 
 ## Fargate 실행
 

@@ -100,6 +100,11 @@ for ((i = 1; i <= COUNT; i++)); do
     cmd_entries+=',"--out","experimental-prometheus-rw"'
   fi
   cmd_entries+=",\"--tag\",\"testid=$TEST_RUN_ID\""
+  # 스크립트 상단 options.tags(COMMON_TAGS.instance)는 k6_vus/http_reqs 같은 시스템 메트릭에는
+  # 반영되지 않아, 태스크를 여러 개(-n>1) 띄우면 모든 태스크가 동일한 시계열(testid만 라벨)로
+  # remote-write되어 서로의 샘플을 out-of-order로 밀어낸다. CLI --tag는 시스템 메트릭에도
+  # 강제로 붙으므로(testid와 동일 메커니즘) instance도 여기서 같이 태깅해 태스크별로 분리한다.
+  cmd_entries+=",\"--tag\",\"instance=$i\""
   cmd_entries+=",\"scenarios/$SCENARIO.js\""
 
   for kv in ${EXTRA_ENVS[@]+"${EXTRA_ENVS[@]}"}; do
@@ -138,7 +143,27 @@ if [[ "$DRY_RUN" == "0" && ${#TASK_ARNS[@]} -gt 0 ]]; then
 
   if [[ "$WAIT" == "1" ]]; then
     echo "task 종료 대기 중..."
-    aws ecs wait tasks-stopped --cluster "$LT_CLUSTER" --tasks "${TASK_ARNS[@]}"
+    # aws ecs wait tasks-stopped는 delay 6s * max-attempts 100 = 10분에 고정 타임아웃된다.
+    # rag-answer(기본 10m)/soak(1h)/ramp-limit-finder-rag(13m30s+) 등 10분 넘는 시나리오는
+    # waiter가 먼저 실패해 run-prod-test.sh의 set -e가 트리거되고, 태스크가 실행 중인 채로
+    # cleanup(mock desired-count 0)이 돌아버리는 사고가 실측됐다(2026-08-05, level_40 구간에서
+    # mock이 꺼져 8천여 건이 error terminal로 오염됨). 자체 폴링 루프로 대체 — 최대 2시간 대기.
+    max_attempts=480  # 15s * 480 = 2시간
+    all_stopped=0
+    for ((a = 1; a <= max_attempts; a++)); do
+      all_stopped=1
+      for t in "${TASK_ARNS[@]}"; do
+        status=$(aws ecs describe-tasks --cluster "$LT_CLUSTER" --tasks "$t" \
+          --query 'tasks[0].lastStatus' --output text 2>/dev/null || echo "UNKNOWN")
+        [[ "$status" == "STOPPED" ]] || all_stopped=0
+      done
+      [[ "$all_stopped" == "1" ]] && break
+      sleep 15
+    done
+    if [[ "$all_stopped" != "1" ]]; then
+      echo "경고: ${max_attempts}회(최대 2시간) 대기했지만 일부 태스크가 아직 STOPPED가 아닙니다 — 수동 확인 필요" >&2
+      exit 1
+    fi
     echo "task 전체 종료됨"
   fi
 fi
