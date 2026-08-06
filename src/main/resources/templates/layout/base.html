@@ -875,7 +875,64 @@
             setActiveNavigation();
             initLikedNewBadge();
             syncAdminMenu();
+            initSmartHeader();
         });
+
+        // Smart Sticky Header: 스크롤 내리면 nav 사라지고, 위로 올리면 바로 자연스럽게 표시
+        function initSmartHeader() {
+            const navbar = document.querySelector('.navbar');
+            if (!navbar) return;
+
+            let lastScrollY = window.scrollY;
+            let ticking = false;
+            const threshold = 6; // 스크롤 방향 감지 임계값 (px)
+
+            function updateNavbar() {
+                // 모바일 드로어나 모달이 열려있을 때는 nav를 숨기지 않음
+                const drawer = document.getElementById('mobileDrawer');
+                if ((drawer && drawer.classList.contains('active')) ||
+                    document.body.classList.contains('modal-open') ||
+                    document.body.style.overflow === 'hidden') {
+                    navbar.classList.remove('nav-hidden');
+                    ticking = false;
+                    return;
+                }
+
+                const currentScrollY = window.scrollY;
+                const diff = currentScrollY - lastScrollY;
+
+                if (currentScrollY <= 10) {
+                    // 최상단 근처
+                    navbar.classList.remove('nav-hidden');
+                    navbar.classList.remove('nav-scrolled');
+                } else {
+                    navbar.classList.add('nav-scrolled');
+
+                    if (diff > threshold) {
+                        // 스크롤 내림 -> nav 사라짐
+                        navbar.classList.add('nav-hidden');
+                    } else if (diff < -threshold) {
+                        // 스크롤 위로 -> nav 바로 자연스럽게 표시
+                        navbar.classList.remove('nav-hidden');
+                    }
+                }
+
+                lastScrollY = currentScrollY;
+                ticking = false;
+            }
+
+            window.addEventListener('scroll', function() {
+                if (!ticking) {
+                    window.requestAnimationFrame(updateNavbar);
+                    ticking = true;
+                }
+            }, { passive: true });
+
+            // 키보드 포커스가 nav 내부로 들어오면 바로 표시
+            navbar.addEventListener('focusin', function() {
+                navbar.classList.remove('nav-hidden');
+            });
+        }
 
         // 현재 페이지에 해당하는 네비게이션 아이템 활성화
         function setActiveNavigation() {
