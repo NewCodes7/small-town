@@ -15,6 +15,12 @@ on:
       - 'build.gradle'
       - 'gradle/**'
       - '.github/workflows/**'
+  workflow_dispatch:
+    inputs:
+      db_pool_size:
+        description: 'HikariCP maximum-pool-size 실험값 (비우면 운영 .env 기존값 사용, load-test/results 참고)'
+        required: false
+        type: string
 
 jobs:
   test:
@@ -61,7 +67,7 @@ jobs:
     if: |
       always() &&
       github.ref == 'refs/heads/main' &&
-      github.event_name == 'push' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       (needs.test.result == 'success' || needs.test.result == 'skipped')
 
     steps:
@@ -102,13 +108,21 @@ jobs:
       - name: Deploy to server via SSH
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          # workflow_dispatch로 db_pool_size를 넘기면 이번 배포 1회에 한해 운영 .env를 덮어쓰지 않고
+          # docker compose 프로세스 환경변수로만 주입(셸 env가 .env보다 우선순위 높음) — 풀 크기 실험용.
+          # push 트리거(코드 변경으로 인한 일반 배포)는 빈 문자열이라 기존 .env 값(=5) 그대로 사용.
+          DB_POOL_SIZE_OVERRIDE: ${{ github.event_name == 'workflow_dispatch' && inputs.db_pool_size || '' }}
         run: |
           echo "$SSH_KEY" > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
+          POOL_ENV_PREFIX=""
+          if [ -n "$DB_POOL_SIZE_OVERRIDE" ]; then
+            POOL_ENV_PREFIX="DB_POOL_SIZE=$DB_POOL_SIZE_OVERRIDE "
+          fi
           ssh -i /tmp/deploy_key \
               -o StrictHostKeyChecking=no \
               -o ConnectTimeout=30 \
               -o ServerAliveInterval=60 \
               ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-              'cd ~/small-town && sudo git restore nginx/default.conf && git pull origin main && ./deploy.sh deploy'
+              "cd ~/small-town && sudo git restore nginx/default.conf && git pull origin main && ${POOL_ENV_PREFIX}./deploy.sh deploy"
           rm -f /tmp/deploy_key
