@@ -48,7 +48,6 @@ public class SearchQueryEmbeddingService {
     }
 
     @Observed(name = "search.query-embedding", contextualName = "query-embedding")
-    @Transactional
     public CachedEmbeddingResult getEmbeddingWithCacheInfo(String keyword, SearchLog searchLog) {
         return getEmbeddingWithCacheInfo(keyword, searchLog, false);
     }
@@ -57,8 +56,16 @@ public class SearchQueryEmbeddingService {
      * useMockEmbedding=true(부하테스트 경로)면 실 Clova 대신 mock 엔드포인트로 호출하고,
      * mock 벡터가 실사용자 검색에 서빙되지 않도록 DB 캐시(search_query_embedding) 저장을 건너뛴다.
      * DB lookup은 그대로 수행해 실측과 동일한 조회 부하를 유지한다.
+     *
+     * 의도적으로 @Transactional 미사용: 이전에는 이 메서드 전체가 한 트랜잭션이라 캐시 미스 시
+     * findByNormalizedKeyword가 잡은 HikariCP 커넥션(5개뿐)을 그 아래 Clova 동기 HTTP 호출이 끝날
+     * 때까지 계속 붙잡고 있었다(2026-08-06 하이브리드 검색 ramp 부하테스트 병목 분석 참고,
+     * load-test/results/2026-08-06-search-ramp-limit-finder.md). @Transactional을 떼면
+     * findByNormalizedKeyword 호출은 Spring Data JPA(SimpleJpaRepository)가 자체적으로 여는
+     * 짧은 read-only 트랜잭션 안에서 커넥션을 즉시 반납하고, 그 뒤의 Clova 호출은 커넥션을
+     * 전혀 점유하지 않은 채 진행된다. OSIV(open-in-view, 기본 true)가 켜져 있어 캐시 히트 시
+     * cached.get().getSearchLog()의 지연로딩 접근도 세션이 살아있어 안전하다.
      */
-    @Transactional
     public CachedEmbeddingResult getEmbeddingWithCacheInfo(String keyword, SearchLog searchLog, boolean useMockEmbedding) {
         String normalized = normalizeKeyword(keyword);
         if (normalized.isEmpty()) {
