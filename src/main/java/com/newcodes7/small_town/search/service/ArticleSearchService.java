@@ -397,7 +397,7 @@ public class ArticleSearchService {
 
     /**
      * 하이브리드 코어 파이프라인: 쿼리 복잡도 분류 → BM25 쿼리 생성 → BM25/Vector 병렬 검색
-     * → cross-scoring 보충 → NSF/순위 계산 → deleted_at 유효성 검증.
+     * → cross-scoring 보충 + NSF/순위 계산 + deleted_at 유효성 검증(하나의 트랜잭션으로 통합).
      *
      * single-flight 첫 진입자의 호출 스레드에서 실행된다 (호출자 트랜잭션 컨텍스트 유지).
      * Vector 검색만 searchExecutor에서 병렬 수행.
@@ -502,12 +502,33 @@ public class ArticleSearchService {
         // 4-2. BM25 보충 대상 (Vector-only)
         Set<Long> needBm25Ids = new HashSet<>(vectorOnlyIds);
 
-        // Phase B: 순차 실행: Vector 보충 → BM25 보충 (Phase A와 별개의 짧은 트랜잭션으로 재진입 —
-        // 이미 열려있는 트랜잭션을 재사용하는 게 아니라, Vector future 대기가 끝난 뒤 새로
-        // 커넥션을 잠깐만 잡는다. 별도 스레드로 병렬화하면 커넥션을 2개 더 열게 되어
-        // HikariCP 풀(5개)을 요청 1건이 최대 3개까지 점유하게 됨 — 둘 다 필요한 경우는 드문
+        // Phase B+C: cross-scoring 보충 → NSF/순위 계산(인메모리) → deleted_at 유효성 검증을
+        // 하나의 짧은 트랜잭션으로 묶는다.
+        //
+        // Phase A와는 여전히 별개(재진입)로 연다 — 그 경계는 그대로 유지한다: 이 아래에서 열리는
+        // 트랜잭션은 이미 vectorFuture.get()(최대 5초 대기)이 끝난 *뒤*에 시작되므로, 그 대기
+        // 구간에는 여전히 커넥션을 물지 않는다.
+        //
+        // 반면 옛 Phase B(cross-scoring)와 옛 Phase C(유효성 검사) 사이에는 NSF 스코어링(인메모리,
+        // DB/외부 호출 없음)만 있을 뿐 async 대기나 외부 호출이 전혀 없다. 따라서 그 사이에서
+        // 트랜잭션을 닫았다 다시 여는 것은 커넥션 체크아웃만 한 번 더 늘릴 뿐 아무 이점이 없다 —
+        // 이 둘을 합쳐 요청당 커넥션 체크아웃을 3회에서 2회로 줄인다(SearchQueryEmbeddingService.
+        // getEmbeddingWithCacheInfo에서 @Transactional을 제거한 것과 같은 이유 —
+        // load-test/results/2026-08-06-search-ramp-limit-finder.md 참고).
+        //
+        // Vector 보충 → BM25 보충은 여전히 순차 실행: 별도 스레드로 병렬화하면 커넥션을 추가로
+        // 열게 되어 HikariCP 풀(5개)을 요청 1건이 더 많이 점유하게 됨 — 둘 다 필요한 경우는 드문
         // edge case이므로 그 지연시간보다 커넥션 풀 절약을 우선한다.
         final float[] cachedEmbedding = queryEmbedding;
+        final VectorSearchService.VectorSearchResult finalVectorSearchResult = vectorSearchResult;
+
+        Map<Long, Integer> bm25Ranks = new HashMap<>();
+        Map<Long, Integer> vectorRanks = new HashMap<>();
+        Map<Long, Double> nsfScores = new HashMap<>();
+        Map<Long, Double> normalizedBm25 = new HashMap<>();
+        Map<Long, Double> normalizedVector = new HashMap<>();
+        Map<Long, Double> weightSums = new HashMap<>();
+        Set<Long> validArticleIds = new HashSet<>();
 
         readOnlyTx.executeWithoutResult(status -> {
             if (!needVectorIds.isEmpty() && cachedEmbedding != null) {
@@ -535,41 +556,44 @@ public class ArticleSearchService {
                     log.warn("교차검색 BM25 보충 실패: {}", e.getMessage());
                 }
             }
-        });
 
-        // 5-6. Normalized Score Fusion (NSF) 계산 + 순위 계산 (한 번에 수행)
-        // NSF: 각 검색 방법의 점수를 min-max 정규화 후 가중 합산
-        // RRF 대비 장점: 원본 점수의 크기 정보를 보존하여, 높은 유사도 결과를 더 정확히 반영
-        long rerankStartTime = System.currentTimeMillis();
-        Map<Long, Integer> bm25Ranks = calculateRanks(bm25Results);
-        Map<Long, Integer> vectorRanks = calculateRanks(vectorResults);
-        HybridSearchScorer.NSFResult nsfResult = hybridSearchScorer.calculateNSFScores(
-                bm25Results, vectorResults, bm25NsfWeight, vectorNsfWeight);
-        Map<Long, Double> nsfScores = nsfResult.getNsfScores();
-        long rerankEndTime = System.currentTimeMillis();
+            // 5-6. Normalized Score Fusion (NSF) 계산 + 순위 계산 (한 번에 수행)
+            // NSF: 각 검색 방법의 점수를 min-max 정규화 후 가중 합산
+            // RRF 대비 장점: 원본 점수의 크기 정보를 보존하여, 높은 유사도 결과를 더 정확히 반영
+            // DB 접근이 없는 순수 인메모리 연산이므로 위 cross-scoring과 같은 트랜잭션 안에서
+            // 이어서 수행해도 커넥션을 불필요하게 더 오래 붙잡지 않는다.
+            long rerankStartTime = System.currentTimeMillis();
+            bm25Ranks.putAll(calculateRanks(bm25Results));
+            vectorRanks.putAll(calculateRanks(vectorResults));
+            HybridSearchScorer.NSFResult nsfResult = hybridSearchScorer.calculateNSFScores(
+                    bm25Results, vectorResults, bm25NsfWeight, vectorNsfWeight);
+            nsfScores.putAll(nsfResult.getNsfScores());
+            normalizedBm25.putAll(nsfResult.getNormalizedBm25());
+            normalizedVector.putAll(nsfResult.getNormalizedVector());
+            weightSums.putAll(nsfResult.getWeightSums());
+            long rerankEndTime = System.currentTimeMillis();
 
-        if (nsfScores.isEmpty()) {
-            log.warn("모든 검색 방법에서 결과가 없습니다: '{}'", keyword);
-            return HybridCoreResult.empty();
-        }
+            if (nsfScores.isEmpty()) {
+                log.warn("모든 검색 방법에서 결과가 없습니다: '{}'", keyword);
+                return;
+            }
 
-        long totalEndTime = System.currentTimeMillis();
-        String embeddingCacheInfo = vectorSearchResult.isCacheHit()
-                ? String.format("hit(%dms)", vectorSearchResult.getCacheLookupMs())
-                : String.format("miss(%dms, lookup %dms)", vectorSearchResult.getEmbeddingMs(), vectorSearchResult.getCacheLookupMs());
+            long totalEndTime = System.currentTimeMillis();
+            String embeddingCacheInfo = finalVectorSearchResult.isCacheHit()
+                    ? String.format("hit(%dms)", finalVectorSearchResult.getCacheLookupMs())
+                    : String.format("miss(%dms, lookup %dms)", finalVectorSearchResult.getEmbeddingMs(), finalVectorSearchResult.getCacheLookupMs());
 
-        log.info("[검색] keyword='{}' | BM25: {}ms ({}개), Vector: {}ms (embedding: {}, query: {}ms) ({}개), Rerank(NSF): {}ms ({}개) | 총: {}ms",
-            keyword,
-            bm25EndTime - bm25StartTime, originalBm25Count,
-            vectorElapsedMs.get(), embeddingCacheInfo, vectorSearchResult.getQueryMs(), originalVectorCount,
-            rerankEndTime - rerankStartTime, nsfScores.size(),
-            totalEndTime - totalStartTime);
+            log.info("[검색] keyword='{}' | BM25: {}ms ({}개), Vector: {}ms (embedding: {}, query: {}ms) ({}개), Rerank(NSF): {}ms ({}개) | 총: {}ms",
+                keyword,
+                bm25EndTime - bm25StartTime, originalBm25Count,
+                vectorElapsedMs.get(), embeddingCacheInfo, finalVectorSearchResult.getQueryMs(), originalVectorCount,
+                rerankEndTime - rerankStartTime, nsfScores.size(),
+                totalEndTime - totalStartTime);
 
-        // 8. 전체 NSF 결과에 대해 (id, publishedAt) 경량 조회 — Phase B와 이어지는 짧은 트랜잭션
-        // - deleted_at 검증 (동기화 지연으로 인한 stale 항목 제거)
-        // - vector-only 항목의 publishedAt 보충 (BM25 쿼리에서 수집되지 않은 날짜)
-        Set<Long> validArticleIds = new HashSet<>();
-        readOnlyTx.executeWithoutResult(status -> {
+            // 8. (구 Phase C) 전체 NSF 결과에 대해 (id, publishedAt) 경량 조회 — 위 cross-scoring과
+            // 이어지는 같은 트랜잭션 안에서 수행(사이에 async 대기·외부 호출 없음)
+            // - deleted_at 검증 (동기화 지연으로 인한 stale 항목 제거)
+            // - vector-only 항목의 publishedAt 보충 (BM25 쿼리에서 수집되지 않은 날짜)
             List<Object[]> idAndDateRows = articleRepository.findIdAndPublishedAtByIdIn(
                     new ArrayList<>(nsfScores.keySet()));
             for (Object[] row : idAndDateRows) {
@@ -582,11 +606,15 @@ public class ArticleSearchService {
             }
         });
 
+        if (nsfScores.isEmpty()) {
+            return HybridCoreResult.empty();
+        }
+
         log.debug("NSF 결과 {}개 중 유효한 article: {}개", nsfScores.size(), validArticleIds.size());
 
         return new HybridCoreResult(bm25Results, vectorResults, nsfScores,
                 bm25Ranks, vectorRanks,
-                nsfResult.getNormalizedBm25(), nsfResult.getNormalizedVector(), nsfResult.getWeightSums(),
+                normalizedBm25, normalizedVector, weightSums,
                 vectorOnlyIds, publishedAtMap, validArticleIds, cachedEmbedding);
     }
 
@@ -853,6 +881,7 @@ public class ArticleSearchService {
      * RAG용: 이중 쿼리(BM25 키워드 + 벡터 재작성 문장) 하이브리드 검색 상위 limit개 아티클 ID 반환
      * computeTopArticleIdsByHybrid와 동일한 NSF 병합·cross-scoring 구조에
      * corporationIds 프리필터와 요청별 벡터 임계값을 추가 적용. 캐시는 사용하지 않음 (파라미터 실험용)
+     * cross-scoring 보충 + NSF 계산 + deleted_at 유효성 검증은 하나의 트랜잭션으로 통합되어 있다.
      *
      * @param bm25Keywords    BM25 검색용 키워드 (전처리에서 추출)
      * @param vectorQuery     벡터 검색용 재작성 문장 (전처리에서 생성)
@@ -922,10 +951,19 @@ public class ArticleSearchService {
         Set<Long> vectorOnlyIds = new HashSet<>(vectorResults.keySet());
         vectorOnlyIds.removeAll(bm25Results.keySet());
 
-        // Phase B: cross-scoring — 대상 id들이 이미 corp 필터를 통과했으므로 필터 없는 보충 쿼리 재사용.
-        // computeHybridCore와 동일한 이유로 Vector 보충 → BM25 보충을 순차 실행하되, Phase A와는
-        // 별개의 짧은 트랜잭션으로 재진입한다(Vector future 대기 구간에는 커넥션을 물지 않기 위해).
+        // Phase B+C: cross-scoring — 대상 id들이 이미 corp 필터를 통과했으므로 필터 없는 보충 쿼리
+        // 재사용. computeHybridCore와 동일한 이유로 Vector 보충 → BM25 보충을 순차 실행하며, Phase A와는
+        // 별개(재진입)의 트랜잭션으로 연다(Vector future 대기 구간에는 커넥션을 물지 않기 위해 — 이 경계는
+        // 그대로 유지).
+        //
+        // 구 Phase B(cross-scoring)와 구 Phase C(유효성 검사) 사이에는 NSF 계산(인메모리, DB/외부 호출
+        // 없음)만 있고 async 대기·외부 호출이 없으므로 둘을 한 트랜잭션으로 합친다 — 요청당 커넥션
+        // 체크아웃 3회 → 2회 (computeHybridCore와 동일한 근거,
+        // load-test/results/2026-08-06-search-ramp-limit-finder.md 참고).
         final float[] cachedEmbedding = queryEmbedding;
+
+        Map<Long, Double> nsfScores = new HashMap<>();
+        Set<Long> validIds = new HashSet<>();
 
         readOnlyTx.executeWithoutResult(status -> {
             if (!bm25OnlyIds.isEmpty() && cachedEmbedding != null) {
@@ -948,19 +986,28 @@ public class ArticleSearchService {
                     log.warn("RAG 교차검색 BM25 보충 실패: {}", e.getMessage());
                 }
             }
-        });
 
-        HybridSearchScorer.NSFResult nsfResult = hybridSearchScorer.calculateNSFScores(
-                bm25Results, vectorResults, weights.bm25NsfWeight(), weights.vectorNsfWeight());
-        Map<Long, Double> nsfScores = nsfResult.getNsfScores();
-        if (nsfScores.isEmpty()) return new HybridTopArticles(List.of(), cachedEmbedding);
+            // NSF 계산 — DB 접근 없는 순수 인메모리 연산이므로 위 cross-scoring과 같은 트랜잭션 안에서
+            // 이어서 수행한다.
+            HybridSearchScorer.NSFResult nsfResult = hybridSearchScorer.calculateNSFScores(
+                    bm25Results, vectorResults, weights.bm25NsfWeight(), weights.vectorNsfWeight());
+            nsfScores.putAll(nsfResult.getNsfScores());
+            if (nsfScores.isEmpty()) {
+                return;
+            }
 
-        Set<Long> validIds = new HashSet<>();
-        readOnlyTx.executeWithoutResult(status -> {
+            // (구 Phase C) 유효성 검사 — 위 cross-scoring/NSF 계산과 이어지는 같은 트랜잭션 안에서 수행
+            // (사이에 async 대기·외부 호출 없음)
             for (Object[] row : articleRepository.findIdAndPublishedAtByIdIn(new ArrayList<>(nsfScores.keySet()))) {
                 validIds.add(((Number) row[0]).longValue());
             }
         });
+
+        if (nsfScores.isEmpty()) {
+            // nsfScores가 비어도 embedding은 보존한다 — computeHybridCore(HybridCoreResult.empty())와
+            // 달리 이 경로는 호출자가 이미 계산한 cachedEmbedding을 재사용할 수 있게 남겨둔다.
+            return new HybridTopArticles(List.of(), cachedEmbedding);
+        }
 
         List<Long> topIds = nsfScores.entrySet().stream()
                 .filter(e -> validIds.contains(e.getKey()))

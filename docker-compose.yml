@@ -15,6 +15,9 @@ services:
       # HikariCP 풀 크기 실험용 — 운영 .env에서 값 바꾸고 재기동만 하면 됨(코드 재배포 불필요).
       # 미지정 시 5(기존값)로 폴백 — application-prod.properties의 ${DB_POOL_SIZE:5}와 동일 기본값.
       - DB_POOL_SIZE=${DB_POOL_SIZE:-5}
+      # BM25 쿼리당 병렬 워커 수(EXPLAIN ANALYZE로 leader+worker 2개=프로세스 3개 확인됨,
+      # docs/operations/DB_LOAD_REDUCTION.md 참고) — 0=비활성화. DB_POOL_SIZE와 동일한 실험 패턴.
+      - DB_MAX_PARALLEL_WORKERS=${DB_MAX_PARALLEL_WORKERS:-0}
       - JWT_SECRET=${JWT_SECRET}
       - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
       - AWS_SECRET_KEY=${AWS_SECRET_KEY}
