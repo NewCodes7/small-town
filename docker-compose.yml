@@ -17,9 +17,9 @@ services:
       - DB_POOL_SIZE=${DB_POOL_SIZE:-5}
       # BM25 쿼리당 병렬 워커 수(EXPLAIN ANALYZE로 leader+worker 2개=프로세스 3개 확인됨,
       # docs/operations/DB_LOAD_REDUCTION.md 참고) — 0=비활성화. DB_POOL_SIZE와 동일한 실험 패턴.
-      # 임시로 2(옛 기본값)로 되돌려 Phase B/C 트랜잭션 병합 효과만 단독 격리 측정 중
-      # (load-test/results/2026-08-06-search-ramp-limit-finder.md 참고). 측정 후 0으로 원복 예정.
-      - DB_MAX_PARALLEL_WORKERS=${DB_MAX_PARALLEL_WORKERS:-2} # 재배포 트리거(직전 Action 취소됨)
+      # 변인 격리 실험(merge+workers=2, testid 20260807-233530) 완료 후 최적값 0으로 원복.
+      # (load-test/results/2026-08-06-search-ramp-limit-finder.md 참고)
+      - DB_MAX_PARALLEL_WORKERS=${DB_MAX_PARALLEL_WORKERS:-0}
       - JWT_SECRET=${JWT_SECRET}
       - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
       - AWS_SECRET_KEY=${AWS_SECRET_KEY}
