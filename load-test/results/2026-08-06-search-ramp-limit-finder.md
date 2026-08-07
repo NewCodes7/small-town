@@ -143,7 +143,7 @@ DB 호스트가 vCPU 2개뿐이라 HikariCP 공식 사이징 가이드(`connecti
 
 **8이 전 구간에서 가장 우수** — p95/p50 최저, 처리량 최고, 에러율 최저. **10부터 이미 5보다 나빠지고(특히 level_50 처리량이 131→152에서 44로 급락), 15는 더 심각**: level_50에서 요청이 약 120초간 거의 멈춰 있다가(2xx 카운트가 6639에서 스톨) 한꺼번에 몰려 처리되면서 **p95가 순간 53.2초, p50이 28.1초까지 치솟는** 정체-폭주 패턴이 관측됨 — 평균 처리량 수치로는 이 정체가 잘 안 보이므로 표의 "~92.5"는 참고용일 뿐 실제로는 사용자 체감상 완전한 장애 구간.
 
-DB 서버(`node_cpu`, db-node) 사용률은 8/10/15 모두 피크 80~96%대로 노이즈가 크고 어느 값에서도 깨끗하게 100% 고정되진 않았음 — CPU 완전 포화보다는 **커넥션이 늘어날수록 Postgres 내부 락/버퍼 경합이 비선형적으로 증가하는 것**으로 보임(HikariCP 사이징 가이드가 경고하는 정확히 그 현상 — 코어 수 대비 과도한 커넥션은 컨텍스트 스위칭/락 대기만 늘려 오히려 처리량을 깎아먹음).
+DB 서버(`node_cpu`, db-node) 사용률은 8/10/15 모두 피크 80~96%대로 관측됐음 — 최초 분석(양쪽 코어 평균 + 1분 윈도우)에서는 노이즈가 커서 완전 포화로 단정하지 못했으나, **후속 정밀 분석(아래 "10/15 회귀 원인 정밀 분석" 섹션)에서 코어별·30초 윈도우로 재확인한 결과 pool=15의 정체 구간(level_50)에선 두 코어 모두 98~99%가 75초 이상 지속되는 명백한 CPU 포화가 확인됨** — 아래 섹션 참고.
 
 풀 크기×앱 인스턴스(blue+green) 예산 체크: 15×2=30으로 `max_connections=100`에는 전혀 못 미쳐 — 즉 이번 회귀는 **Postgres 커넥션 한도 문제가 아니라 순수하게 동시성 자체가 이 DB 스펙(vCPU 2개)엔 과하다는 신호**.
 
@@ -163,3 +163,76 @@ DB 서버(`node_cpu`, db-node) 사용률은 8/10/15 모두 피크 80~96%대로 �
 - 앱 로그에 `embedding: miss(0ms, lookup 0ms)` 케이스가 다수 확인됨(`typescript`, `graphql`, `형태소 분석` 등) — 캐시 미스 시 벡터 결과가 0개로 나오는 경우까지 관찰되어, 고부하 시 캐시 미스 경로가 정상적으로 완료되지 못했을 가능성도 있음(응답 품질 저하 — 성능과는 별개 이슈, 후속 확인 필요).
 - baseline(무부하, 서로 다른 키워드 위주, 캐시 미스 다수) p95 906ms가 **ramp level_10(인기 키워드 반복, 캐시 워밍됨) p95 286ms보다 3배 이상 느림** — 동시성이 전혀 없는데도 baseline이 더 느린 건 캐시 상태 차이로만 설명 가능.
 - 실제 운영 트래픽은 이 테스트의 Zipfian 샘플(`data/keywords.json`, 인기어 반복)보다 키워드 다양성이 훨씬 커서, 캐시 미스 비율이 이 테스트보다 높을 가능성이 크다 — 즉 이 병목의 실제 영향은 테스트 결과보다 더 클 수 있음.
+
+## 10/15 회귀 원인 정밀 분석 — 2026-08-07 후속 조사
+
+`pool=8`이 여전히 커넥션 풀 자체에 병목이 있다는 건 실제 트레이스(Tempo)로 확정했다(아래 "pool=8 잔여 병목 — 분산 트레이싱 증거" 참고). 그와 별개로 **왜 10/15는 8보다 더 나빠지는가**를 Postgres 내부 모니터링 지표까지 동원해 파고든 결과.
+
+### pool=8 잔여 병목 — 분산 트레이싱(Tempo) 증거
+
+이미 배포돼 있던 Tempo(`docker-compose.yml`, OpenTelemetry JDBC 계측)로 pool=8의 6,377ms짜리 실제 요청 트레이스를 span 단위로 열어봤다:
+
+| 구간 | 소요 |
+|---|---|
+| 요청 시작 ~ 첫 SQL span 시작 | **6,307ms — SQL span 전무** |
+| `SELECT article+corporation join` | 3.6ms |
+| `SELECT like_log` | 21ms |
+| `SELECT category` ×4 | 각 10~16ms |
+| **실제 DB 쿼리 합계** | **~68ms (전체의 1.1%)** |
+
+전체 6.38초 중 6.3초(98.9%)가 SQL span이 하나도 안 찍히는 구간이었다. 이 구간은 하이브리드 검색 코어(BM25+Vector)가 도는 구간인데, `io.opentelemetry.jdbc` 계측은 `Statement.execute()`만 span으로 잡고 `DataSource.getConnection()`(HikariCP 체크아웃 대기)은 계측 범위 밖이다. 같은 시간대 에러 로그(`SQLTransientConnectionException ... waiting=169~190`)와 `hikaricp_connections_pending`(138~190 지속)까지 겹쳐 보면, **이 "빈 구간"이 곧 커넥션 대기 그 자체**임이 확정된다. pool=8에서도 100 VUs 앞에서는 여전히 풀이 병목이라는 뜻 — "다음 병목"은 아직 관측된 바 없다.
+
+### 10/15가 8보다 더 나빠지는 이유 — 원인은 DB CPU 포화(코어별로 봐야 보임)
+
+최초 확인(양쪽 코어 평균 + `rate(...[1m])` 스무딩)에서는 "CPU가 노이즈만 있고 안 뚜렷하다"고 판단했으나, **이는 잘못된 결론**이었다. 코어별·`rate(...[30s])`로 재확인:
+
+| | pool=8 | pool=10 (level_50 붕괴 구간) | pool=15 (53초 정체 구간) |
+|---|---|---|---|
+| DB CPU(코어별) | 간헐적 스파이크(96~99%)만, 짧게 | 55~96% 사이를 계속 오르내림 — 지속적으로 높음 | **두 코어 모두 98~99%가 75초 이상 지속** |
+
+pool=15의 정체 구간(1786100385~1786100445 UTC epoch, level_50 요청이 안 빠지고 쌓이던 구간)에 정확히 두 코어 다 98~99%로 고정돼 있었다 — 요청이 쌓였다가 한꺼번에 터지는 패턴과 시간이 정확히 일치한다.
+
+**배제한 원인들**(전부 지표로 직접 확인):
+- **락 경합**: `pg_locks_count`(postgres_exporter 기본 수집 지표, 이번에 처음 조회) — `accessexclusivelock`/`exclusivelock`/`sharerowexclusivelock`/`shareupdateexclusivelock` 전부 문제 구간 내내 0. `pg_stat_activity`의 `wait_event_type=Lock`도 전혀 안 잡힘 → **테이블/로우 락 경합 아님, 확정**.
+- **디스크 I/O**: `node_disk_io_time` 사용률 15~21%, 버퍼캐시 히트율 99%+(`pg_stat_database_blks_hit/read`) → 디스크 병목 아님.
+- **CPU steal(하이퍼바이저 스로틀링)**: `rate(node_cpu_seconds_total{mode="steal"}[30s])`가 문제 구간 내내 0.06~0.07% 수준(사실상 0) → burstable 인스턴스 CPU 크레딧 소진 같은 가상화 레벨 문제 아님.
+
+### 앱(Spring/JVM) 쪽 기여 — 부차적이지만 실재함
+
+DB뿐 아니라 앱이 병목일 가능성도 확인. 앱이 도는 호스트도 **DB와 마찬가지로 vCPU 2개**(`system_cpu_count=2`, Micrometer)였다.
+
+- `process_cpu_usage`(Micrometer): 문제 구간 내내 0~80%를 오르내림 — DB 코어처럼 98~99%로 깔끔하게 고정되진 않지만 상당히 높은 구간이 잦음.
+- **`jvm_gc_pause_seconds`**: 평시 30초당 0.01~0.15초였다가, 위기 구간(level_100 진입 시점) 진입과 함께 **30초당 0.44~0.62초로 10~20배 급증**(그래도 절대 비중은 wall time의 ~2% 수준 — 그 자체로 초 단위 지연을 설명하진 못함). 타이밍이 `SQLTransientConnectionException` 폭증 시점과 거의 일치 — 예외(+스택트레이스) 생성이 GC에 부담을 주는 전형적 패턴으로 보임.
+- `jvm_threads_live_threads`: 40~42로 완전히 안정 — `SearchExecutorConfig`가 가상 스레드(`Executors.newVirtualThreadPerTaskExecutor()`) 기반이라 스레드 폭증은 없음(설계 의도대로 동작 확인).
+
+즉 **앱 CPU/GC 압박은 독립적인 원인이라기보다 DB 쪽 문제가 만든 예외 폭풍의 부산물**에 가깝고, 다만 그 자체로 상황을 살짝 더 악화시키는 되먹임 요소로 작용한다.
+
+### 인과관계 정리
+
+```
+DB 2vCPU + BM25(ParadeDB/tantivy)·pgvector는 쿼리당 CPU 비용이 상당함
+        ↓
+동시 커넥션이 8→10→15로 늘수록, 진짜 동시에 CPU를 요구하는 백엔드 수도 늘어남
+        ↓
+2코어가 감당 못 하는 지점부터 커넥션 하나당 실제 쿼리 실행시간 자체가 늘어남
+        ↓
+HikariCP가 그 늘어난 실행시간만큼 커넥션을 더 오래 붙잡음 → 대기열이 더 빨리 참
+        ↓
+SQLTransientConnectionException 대량 발생 → 앱 JVM GC 압박 증가(부차적 악화)
+        ↓
+정체(요청이 큐에 쌓임) → DB가 순간적으로 여유 생기면 쌓인 요청이 한꺼번에 폭주 처리
+```
+
+**10/15 회귀의 근본 원인은 "DB 2코어가 감당하는 동시 CPU 작업량을 넘어서면서 커넥션 회전율 자체가 느려지고, 그게 다시 대기열을 눈덩이처럼 불리는 되먹임 구조"다.** 락도 디스크도 하이퍼바이저 스로틀링도 아니고, 순수하게 CPU 코어 수 대비 과도한 동시 쿼리 실행 요구가 원인 — HikariCP 사이징 공식(`cores×2+spindle`)이 경고하는 정확히 그 현상이 실측으로 재확인됐다.
+
+### 조사에 사용한 지표 (신규/기존 구분)
+
+| 지표 | 신규/기존 | 출처 |
+|---|---|---|
+| `pg_locks_count` | 신규 활용(이미 수집 중이었으나 미조회) | postgres_exporter 기본 컬렉터 |
+| `node_cpu_seconds_total{mode="steal"}` | 신규 활용 | node_exporter(db-node) 기본 지표 |
+| 코어별 `node_cpu_seconds_total`(집계 없이) | 재분석(기존 지표, 집계 방식 수정) | node_exporter(db-node) |
+| Tempo 분산 트레이스(span 단위) | 신규 활용(이미 배포돼 있었으나 MCP 도구로 미조회) | `docker-compose.yml`의 tempo 서비스, OpenTelemetry JDBC 계측 |
+| `process_cpu_usage`, `jvm_gc_pause_seconds`, `jvm_threads_live_threads` | 신규 활용 | Micrometer(`/actuator/prometheus`, backend job) |
+
+별도 배포·인프라 변경 없이 **이미 수집 중이던 지표를 제대로 조회/재집계하는 것만으로 원인을 특정**했다 — `pg_stat_statements`(DB 재시작 필요, 이 환경에선 실행 불가)까지 갈 필요는 없었다.
