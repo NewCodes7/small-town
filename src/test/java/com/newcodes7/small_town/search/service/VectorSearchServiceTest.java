@@ -145,7 +145,7 @@ class VectorSearchServiceTest {
     @Test
     @DisplayName("필터 없음 → findArticlesByTwoStageSearch 호출")
     void searchByKeywordWithEmbedding_필터없음() {
-        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull()))
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false)))
                 .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.hit(DUMMY_EMBEDDING, 5));
         when(chunkRepository.findArticlesByTwoStageSearch(
                 anyString(), anyString(), anyInt(), anyInt(), anyDouble(), anyInt()))
@@ -165,7 +165,7 @@ class VectorSearchServiceTest {
     @Test
     @DisplayName("국내 필터만 → findArticlesByTwoStageSearchWithDomesticFilter 호출")
     void searchByKeywordWithEmbedding_국내필터() {
-        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull()))
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false)))
                 .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.hit(DUMMY_EMBEDDING, 5));
         when(chunkRepository.findArticlesByTwoStageSearchWithDomesticFilter(
                 anyString(), anyString(), anyInt(), anyInt(), anyDouble(), anyInt(), anyList()))
@@ -184,7 +184,7 @@ class VectorSearchServiceTest {
     @Test
     @DisplayName("카테고리 필터만 → findArticlesByTwoStageSearchWithCategoryFilter 호출")
     void searchByKeywordWithEmbedding_카테고리필터() {
-        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull()))
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false)))
                 .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.hit(DUMMY_EMBEDDING, 5));
         when(chunkRepository.findArticlesByTwoStageSearchWithCategoryFilter(
                 anyString(), anyString(), anyInt(), anyInt(), anyDouble(), anyInt(), anyList()))
@@ -199,7 +199,7 @@ class VectorSearchServiceTest {
     @Test
     @DisplayName("국내+카테고리 복합 필터 → findArticlesByTwoStageSearchWithBothFilters 호출")
     void searchByKeywordWithEmbedding_복합필터() {
-        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull()))
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false)))
                 .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.hit(DUMMY_EMBEDDING, 5));
         when(chunkRepository.findArticlesByTwoStageSearchWithBothFilters(
                 anyString(), anyString(), anyInt(), anyInt(), anyDouble(), anyInt(), anyList(), anyList()))
@@ -214,7 +214,7 @@ class VectorSearchServiceTest {
     @Test
     @DisplayName("임베딩 생성 실패 → VectorSearchResult 스코어 빈 맵, 임베딩 null")
     void searchByKeywordWithEmbedding_임베딩생성실패() {
-        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull()))
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false)))
                 .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.miss(null, 5, 100));
 
         VectorSearchService.VectorSearchResult result =
@@ -228,7 +228,7 @@ class VectorSearchServiceTest {
     @Test
     @DisplayName("캐시 히트 시 cacheHit=true 반영")
     void searchByKeywordWithEmbedding_캐시히트() {
-        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull()))
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false)))
                 .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.hit(DUMMY_EMBEDDING, 3));
         when(chunkRepository.findArticlesByTwoStageSearch(
                 anyString(), anyString(), anyInt(), anyInt(), anyDouble(), anyInt()))
@@ -245,7 +245,7 @@ class VectorSearchServiceTest {
     void searchByKeywordWithEmbedding_결과캐시_중복실행방지() {
         when(cacheManager.getCache("vectorSearchResults"))
                 .thenReturn(new org.springframework.cache.concurrent.ConcurrentMapCache("vectorSearchResults"));
-        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull()))
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false)))
                 .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.hit(DUMMY_EMBEDDING, 5));
         when(chunkRepository.findArticlesByTwoStageSearch(
                 anyString(), anyString(), anyInt(), anyInt(), anyDouble(), anyInt()))
@@ -258,7 +258,7 @@ class VectorSearchServiceTest {
 
         assertThat(first.getScores()).containsKey(1L);
         assertThat(second.getScores()).isEqualTo(first.getScores());
-        verify(searchQueryEmbeddingService, times(1)).getEmbeddingWithCacheInfo(anyString(), isNull());
+        verify(searchQueryEmbeddingService, times(1)).getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false));
         verify(chunkRepository, times(1)).findArticlesByTwoStageSearch(
                 anyString(), anyString(), anyInt(), anyInt(), anyDouble(), anyInt());
     }
@@ -403,7 +403,7 @@ class VectorSearchServiceTest {
     @Test
     @DisplayName("검색 임베딩 조회 중 예외 발생 → 빈 VectorSearchResult 반환 (예외 전파 없음)")
     void searchByKeywordWithEmbedding_임베딩조회예외_빈결과반환() {
-        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull()))
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false)))
                 .thenThrow(new RuntimeException("embedding api error"));
 
         VectorSearchService.VectorSearchResult result =

@@ -222,6 +222,26 @@ public class ArticleSearchService {
             String sort,
             String ipAddress,
             String username) {
+        return searchArticlesHybrid(keyword, expandedTerms, regions, category, page, size, sort,
+                ipAddress, username, false);
+    }
+
+    /**
+     * useMockEmbedding=true(부하테스트 전용 경로)면 쿼리 임베딩을 mock 엔드포인트로 생성한다
+     * — 실 Clova 과금 없이, search_query_embedding DB 캐시를 오염시키지 않고 캐시 미스 경로를 측정하기 위함.
+     * 실사용자 경로는 이 값이 항상 false다 (ArticleSearchLoadTestController 참고).
+     */
+    public Page<ArticleSearchResultDto> searchArticlesHybrid(
+            String keyword,
+            Map<String, Double> expandedTerms,
+            List<String> regions,
+            List<String> category,
+            int page,
+            int size,
+            String sort,
+            String ipAddress,
+            String username,
+            boolean useMockEmbedding) {
 
         if (keyword == null || keyword.trim().isEmpty()) {
             return Page.empty();
@@ -232,8 +252,8 @@ public class ArticleSearchService {
         boolean unfiltered = (regions == null || regions.isEmpty())
                 && (category == null || category.isEmpty());
         HybridCoreResult core = unfiltered
-                ? getHybridCoreShared(keyword, expandedTerms)
-                : computeHybridCore(keyword, expandedTerms, regions, category);
+                ? getHybridCoreShared(keyword, expandedTerms, useMockEmbedding)
+                : computeHybridCore(keyword, expandedTerms, regions, category, useMockEmbedding);
 
         Map<Long, Double> nsfScores = core.nsfScores();
         if (nsfScores.isEmpty()) {
@@ -351,9 +371,18 @@ public class ArticleSearchService {
      *                      keyword로부터 결정적이므로 캐시 정합성에 영향 없음)
      */
     private HybridCoreResult getHybridCoreShared(String keyword, Map<String, Double> expandedTerms) {
+        return getHybridCoreShared(keyword, expandedTerms, false);
+    }
+
+    /**
+     * useMockEmbedding=true(부하테스트 경로)면 캐시 키를 분리해 mock 임베딩 기반 결과가
+     * 실사용자 검색에 서빙되지 않게 한다 (VectorSearchService의 "lt:mock:" 키 분리와 같은 이유).
+     */
+    private HybridCoreResult getHybridCoreShared(
+            String keyword, Map<String, Double> expandedTerms, boolean useMockEmbedding) {
         // 캐시 키만 정규화하고 계산에는 원본 키워드를 사용한다
         // (BM25/Vector 검색과 SearchQueryEmbedding 캐시가 원본 표기를 기준으로 동작)
-        String cacheKey = keyword.toLowerCase().trim();
+        String cacheKey = (useMockEmbedding ? "lt:mock:" : "") + keyword.toLowerCase().trim();
         CompletableFuture<HybridCoreResult> myFuture = new CompletableFuture<>();
         CompletableFuture<HybridCoreResult> existing =
                 hybridCoreCache.asMap().putIfAbsent(cacheKey, myFuture);
@@ -371,7 +400,7 @@ public class ArticleSearchService {
         // 첫 진입자는 호출자 스레드에서 직접 계산한다 — 별도 스레드로 옮기면 호출자
         // 트랜잭션의 미커밋 데이터가 보이지 않는다 (@Transactional 통합 테스트 포함)
         try {
-            HybridCoreResult result = computeHybridCore(keyword, expandedTerms, null, null);
+            HybridCoreResult result = computeHybridCore(keyword, expandedTerms, null, null, useMockEmbedding);
             if (result.nsfScores().isEmpty()) {
                 // 빈 결과는 캐시에 남기지 않는다 — 예외 완료된 future는 Caffeine이 자동 제거
                 myFuture.completeExceptionally(
@@ -407,6 +436,15 @@ public class ArticleSearchService {
             Map<String, Double> expandedTerms,
             List<String> regions,
             List<String> category) {
+        return computeHybridCore(keyword, expandedTerms, regions, category, false);
+    }
+
+    private HybridCoreResult computeHybridCore(
+            String keyword,
+            Map<String, Double> expandedTerms,
+            List<String> regions,
+            List<String> category,
+            boolean useMockEmbedding) {
 
         long totalStartTime = System.currentTimeMillis();
 
@@ -438,7 +476,7 @@ public class ArticleSearchService {
                 CompletableFuture.supplyAsync(() -> {
                     long start = System.currentTimeMillis();
                     try {
-                        VectorSearchService.VectorSearchResult result = vectorSearchService.searchByKeywordWithEmbedding(keyword, vectorDomesticTypes, vectorCategories);
+                        VectorSearchService.VectorSearchResult result = vectorSearchService.searchByKeywordWithEmbedding(keyword, vectorDomesticTypes, vectorCategories, useMockEmbedding);
                         vectorElapsedMs.set(System.currentTimeMillis() - start);
                         return result;
                     } catch (Exception e) {

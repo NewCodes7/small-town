@@ -15,9 +15,14 @@ import http from 'k6/http';
 import exec from 'k6/execution';
 import { CONFIG, COMMON_TAGS, bypassHeaders } from '../lib/config.js';
 import { classify } from '../lib/metrics.js';
-import { sampleKeyword, samplePage } from '../lib/keywords.js';
+import { sampleKeyword, uniqueKeyword, samplePage } from '../lib/keywords.js';
 
 const TARGET = CONFIG.target || 'search';
+
+// UNIQUE_KEYWORDS=0으로 끄면 기존(Zipfian 반복) 동작 — 과거 testid와 비교할 때 사용.
+// 기본은 캐시 미스 모드: 매 요청 고유 검색어 + 부하테스트 전용 엔드포인트(Clova mock 경유).
+const UNIQUE_KEYWORDS = __ENV.UNIQUE_KEYWORDS !== '0';
+const SEARCH_PATH = UNIQUE_KEYWORDS ? '/api/search/articles/loadtest' : '/api/search/articles';
 
 const LEVELS = [
   { level: 10, startTime: '0s' },
@@ -25,6 +30,12 @@ const LEVELS = [
   { level: 50, startTime: '7m' },
   { level: 100, startTime: '10m30s' },
 ];
+
+// uniqueKeyword의 레벨별 조합 구간 배정용 (겹치면 중복 검색어가 생겨 캐시 히트가 발생)
+const LEVEL_INDEX = {};
+LEVELS.forEach(({ level }, i) => {
+  LEVEL_INDEX[String(level)] = i;
+});
 
 const scenarios = {};
 for (const { level, startTime } of LEVELS) {
@@ -58,7 +69,13 @@ export function hit() {
       tags: { endpoint: 'articles', level },
     });
   } else {
-    const url = `${CONFIG.baseUrl}/api/search/articles?keyword=${encodeURIComponent(sampleKeyword())}&page=${samplePage()}&size=10&view=list`;
+    // 캐시 미스 모드에서는 하이브리드 코어 캐시(키워드 키, 5분 TTL)에 걸리지 않도록 매 요청 고유 검색어를 쓴다.
+    // view 파라미터는 loadtest 엔드포인트가 list 고정이라 붙이지 않는다.
+    const keyword = UNIQUE_KEYWORDS
+      ? uniqueKeyword(LEVEL_INDEX[level] || 0, exec.scenario.iterationInTest)
+      : sampleKeyword();
+    const viewParam = UNIQUE_KEYWORDS ? '' : '&view=list';
+    const url = `${CONFIG.baseUrl}${SEARCH_PATH}?keyword=${encodeURIComponent(keyword)}&page=${samplePage()}&size=10${viewParam}`;
     res = http.get(url, { headers: bypassHeaders(), tags: { endpoint: 'search', level } });
   }
   classify(res, { endpoint: TARGET, level });

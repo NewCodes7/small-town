@@ -48,7 +48,7 @@ public class ArticleSearchServiceHybridCoreTest extends IntegrationTestBase {
             vectorEntered.countDown();
             releaseVector.await(3, TimeUnit.SECONDS);
             return new VectorSearchService.VectorSearchResult(new HashMap<>(), null);
-        }).when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), isNull(), isNull());
+        }).when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), isNull(), isNull(), eq(false));
 
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
             // 1) 검색 API 경로 진입 → 코어 계산 시작
@@ -74,7 +74,7 @@ public class ArticleSearchServiceHybridCoreTest extends IntegrationTestBase {
 
         // 코어 파이프라인이 한 번만 실행됨: BM25 메인 쿼리 1회, Vector 검색 1회
         verify(articleRepository, times(1)).searchByBM25(contains(uniqueTerm), anyInt());
-        verify(vectorSearchService, times(1)).searchByKeywordWithEmbedding(eq(keyword), isNull(), isNull());
+        verify(vectorSearchService, times(1)).searchByKeywordWithEmbedding(eq(keyword), isNull(), isNull(), eq(false));
     }
 
     @Test
@@ -88,7 +88,7 @@ public class ArticleSearchServiceHybridCoreTest extends IntegrationTestBase {
             vectorEntered.countDown();
             releaseVector.await(3, TimeUnit.SECONDS);
             return new VectorSearchService.VectorSearchResult(new HashMap<>(), null);
-        }).when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), isNull(), isNull());
+        }).when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), isNull(), isNull(), eq(false));
 
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
             // 1) AI 요약 경로가 먼저 진입 (expandedTerms 없이 loader가 내부 확장)
@@ -110,7 +110,7 @@ public class ArticleSearchServiceHybridCoreTest extends IntegrationTestBase {
 
             if (reachedVector) {
                 // 요약이 시작한 계산에 검색이 합류 → Vector 검색은 1회
-                verify(vectorSearchService, times(1)).searchByKeywordWithEmbedding(eq(keyword), isNull(), isNull());
+                verify(vectorSearchService, times(1)).searchByKeywordWithEmbedding(eq(keyword), isNull(), isNull(), eq(false));
             }
         }
     }

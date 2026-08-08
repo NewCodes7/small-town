@@ -54,6 +54,9 @@ services:
       - RAG_CHAT_LOADTEST_ENABLED=${RAG_CHAT_LOADTEST_ENABLED:-false}
       - RAG_LOADTEST_BEDROCK_ENDPOINT=${RAG_LOADTEST_BEDROCK_ENDPOINT:-http://llm-mock:9099}
       - CLOVA_LOADTEST_ENDPOINT=${CLOVA_LOADTEST_ENDPOINT:-http://llm-mock:9099/v1/api-tools/embedding/v2}
+      # 검색 부하테스트 전용 엔드포인트(/api/search/articles/loadtest) — 캐시 미스 모드용.
+      # 임베딩은 위 CLOVA_LOADTEST_ENDPOINT(mock)로 나가고 search_query_embedding/search_log는 안 쓴다.
+      - SEARCH_LOADTEST_ENABLED=${SEARCH_LOADTEST_ENABLED:-false}
     expose:
       - "8080"
     healthcheck:

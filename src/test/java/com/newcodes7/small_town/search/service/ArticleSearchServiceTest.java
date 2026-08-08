@@ -161,7 +161,7 @@ class ArticleSearchServiceTest {
         float[] dummyEmbedding = new float[]{0.1f, 0.2f};
         VectorSearchService.VectorSearchResult vectorResult =
                 new VectorSearchService.VectorSearchResult(Map.of(1L, 0.9, 3L, 0.7), dummyEmbedding);
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any(), eq(false)))
                 .thenReturn(vectorResult);
 
         // 교차 점수 보충 (빈 결과)
@@ -303,7 +303,7 @@ class ArticleSearchServiceTest {
         );
         setupHybridSearchWithDomesticFilter(keyword, bm25RawResults);
 
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any(), eq(false)))
                 .thenThrow(new RuntimeException("vector down"));
 
         Map<Long, Double> nsfScores = Map.of(1L, 0.8, 2L, 0.5);
@@ -344,7 +344,7 @@ class ArticleSearchServiceTest {
         setupHybridSearchWithDomesticFilter(keyword, bm25RawResults);
 
         float[] dummyEmbedding = new float[]{0.1f, 0.2f};
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any(), eq(false)))
                 .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(3L, 0.7), dummyEmbedding));
         when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(eq(dummyEmbedding), anyList()))
                 .thenReturn(Map.of(1L, 0.4));
@@ -389,7 +389,7 @@ class ArticleSearchServiceTest {
         );
         setupHybridSearchWithDomesticFilter(keyword, bm25RawResults);
 
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any(), eq(false)))
                 .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), null));
 
         Map<Long, Double> nsfScores = Map.of(1L, 0.6);
@@ -426,7 +426,7 @@ class ArticleSearchServiceTest {
         String bm25Query = setupHybridSearchWithDomesticFilter(keyword, bm25RawResults);
 
         float[] dummyEmbedding = new float[]{0.1f, 0.2f};
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any(), eq(false)))
                 .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(2L, 0.9), dummyEmbedding));
         when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(eq(dummyEmbedding), anyList()))
                 .thenReturn(Map.of());
@@ -475,7 +475,7 @@ class ArticleSearchServiceTest {
         when(hybridSearchScorer.buildBM25Query(expandedTerms, 3.0)).thenReturn(bm25Query);
         when(articleRepository.searchByBM25WithBothFilters(eq(bm25Query), eq(List.of(1)), eq(List.of("공지")), eq(100)))
                 .thenReturn(Collections.emptyList());
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any(), eq(false)))
                 .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), null));
         when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
                 .thenReturn(new HybridSearchScorer.NSFResult(Map.of(), Map.of(), Map.of(), Map.of()));
@@ -497,7 +497,7 @@ class ArticleSearchServiceTest {
         // given
         String keyword = "redis";
         setupHybridSearchWithDomesticFilter(keyword, Collections.emptyList());
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any(), eq(false)))
                 .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), null));
         when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
                 .thenReturn(new HybridSearchScorer.NSFResult(Map.of(), Map.of(), Map.of(), Map.of()));
@@ -528,7 +528,7 @@ class ArticleSearchServiceTest {
         when(hybridSearchScorer.buildBM25Query(expandedTerms, 3.0)).thenReturn(bm25Query);
         when(articleRepository.searchByBM25WithCategory(eq(bm25Query), eq(List.of("공지")), eq(100)))
                 .thenReturn(Collections.emptyList());
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any(), eq(false)))
                 .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), null));
         when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
                 .thenReturn(new HybridSearchScorer.NSFResult(Map.of(), Map.of(), Map.of(), Map.of()));
@@ -550,7 +550,7 @@ class ArticleSearchServiceTest {
         // given
         String keyword = "redis";
         setupHybridSearchWithDomesticFilter(keyword, Collections.emptyList());
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any(), eq(false)))
                 .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), null));
         when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
                 .thenReturn(new HybridSearchScorer.NSFResult(Map.of(), Map.of(), Map.of(), Map.of()));
@@ -574,7 +574,7 @@ class ArticleSearchServiceTest {
                 new Object[]{2L, 5.0, LocalDateTime.of(2024, 2, 1, 0, 0)}
         );
         setupHybridSearchWithDomesticFilter(keyword, bm25RawResults);
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any(), eq(false)))
                 .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), null));
 
         Map<Long, Double> nsfScores = Map.of(1L, 0.8, 2L, 0.5);
@@ -1476,7 +1476,7 @@ class ArticleSearchServiceTest {
         when(articleRepository.searchByBM25(bm25Query, 100)).thenReturn(bm25RawResults);
 
         // Vector 결과 (빈 결과)
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any(), eq(false)))
                 .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), null));
     }
 
@@ -1543,7 +1543,7 @@ class ArticleSearchServiceTest {
                 new Object[]{2L, 5.0, LocalDateTime.of(2024, 6, 1, 0, 0)}
         ));
         float[] dummyEmbedding = new float[]{0.1f, 0.2f};
-        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any(), eq(false)))
                 .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(1L, 0.9, 3L, 0.7), dummyEmbedding));
 
         // cross-scoring이 실제로 점수를 채워 넣어도 후보 집합은 늘어나지 않아야 한다
@@ -1643,5 +1643,61 @@ class ArticleSearchServiceTest {
         InOrder inOrder = inOrder(articleRepository, hybridSearchScorer);
         inOrder.verify(articleRepository).findIdAndPublishedAtByIdIn(anyList());
         inOrder.verify(hybridSearchScorer).calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4));
+    }
+
+    @Test
+    @DisplayName("searchArticlesHybrid(useMockEmbedding=true): 벡터 검색에 mock 플래그를 전달한다 (실 Clova 미호출)")
+    void searchArticlesHybrid_mockEmbedding_propagatesFlagToVectorSearch() {
+        // given
+        String keyword = "kafka redis msa";
+        when(semanticExpansionService.classifyQueryComplexity(keyword))
+                .thenReturn(SemanticTermExpansionService.QueryComplexity.SIMPLE);
+        when(weightConfig.getWeights(SemanticTermExpansionService.QueryComplexity.SIMPLE))
+                .thenReturn(new SearchWeightConfigService.WeightEntry(3.0, 0.6, 0.4));
+
+        Map<String, Double> expandedTerms = Map.of("kafka", 1.0);
+        String bm25Query = "title_terms:kafka^6.0 OR content_terms:kafka^2.0";
+        when(hybridSearchScorer.buildBM25Query(expandedTerms, 3.0)).thenReturn(bm25Query);
+        when(articleRepository.searchByBM25(bm25Query, 100)).thenReturn(Collections.emptyList());
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any(), eq(true)))
+                .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), null));
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(new HybridSearchScorer.NSFResult(Map.of(), Map.of(), Map.of(), Map.of()));
+
+        // when
+        articleSearchService.searchArticlesHybrid(
+                keyword, expandedTerms, List.of(), List.of(), 0, 10, "relevance", "127.0.0.1", null, true);
+
+        // then: mock 플래그가 임베딩 생성 지점까지 내려간다 (3-arg 실사용자 오버로드는 호출되지 않음)
+        verify(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), any(), any(), eq(true));
+        verify(vectorSearchService, never()).searchByKeywordWithEmbedding(anyString(), any(), any());
+    }
+
+    @Test
+    @DisplayName("searchArticlesHybrid 기본 호출: useMockEmbedding=false로 위임한다 (실사용자 경로 무변경)")
+    void searchArticlesHybrid_default_usesRealEmbeddingPath() {
+        // given
+        String keyword = "redis";
+        when(semanticExpansionService.classifyQueryComplexity(keyword))
+                .thenReturn(SemanticTermExpansionService.QueryComplexity.SIMPLE);
+        when(weightConfig.getWeights(SemanticTermExpansionService.QueryComplexity.SIMPLE))
+                .thenReturn(new SearchWeightConfigService.WeightEntry(3.0, 0.6, 0.4));
+
+        Map<String, Double> expandedTerms = Map.of(keyword, 1.0);
+        when(semanticExpansionService.expandSearchTerms(keyword)).thenReturn(expandedTerms);
+        String bm25Query = "title_terms:redis^6.0 OR content_terms:redis^2.0";
+        when(hybridSearchScorer.buildBM25Query(expandedTerms, 3.0)).thenReturn(bm25Query);
+        when(articleRepository.searchByBM25(bm25Query, 100)).thenReturn(Collections.emptyList());
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any(), eq(false)))
+                .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), null));
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(new HybridSearchScorer.NSFResult(Map.of(), Map.of(), Map.of(), Map.of()));
+
+        // when
+        articleSearchService.searchArticlesHybrid(
+                keyword, List.of(), List.of(), 0, 10, "relevance", "127.0.0.1", null);
+
+        // then
+        verify(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), any(), any(), eq(false));
     }
 }

@@ -120,7 +120,7 @@ public class ArticleSearchIntegrationTest extends IntegrationTestBase {
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
         // vectorSearchService는 spy이므로 when() 대신 doReturn() (when은 실제 메서드를 실행함)
         doReturn(vectorResult)
-                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class));
+                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class), eq(false));
         doReturn(new HashMap<>())
                 .when(vectorSearchService).computeSimilarityForArticlesWithEmbedding(any(), anyList());
 
@@ -166,7 +166,7 @@ public class ArticleSearchIntegrationTest extends IntegrationTestBase {
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
         // vectorSearchService는 spy이므로 when() 대신 doReturn() (when은 실제 메서드를 실행함)
         doReturn(vectorResult)
-                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class));
+                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class), eq(false));
         doReturn(new HashMap<>())
                 .when(vectorSearchService).computeSimilarityForArticlesWithEmbedding(any(), anyList());
 
@@ -194,7 +194,7 @@ public class ArticleSearchIntegrationTest extends IntegrationTestBase {
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
         // vectorSearchService는 spy이므로 when() 대신 doReturn() (when은 실제 메서드를 실행함)
         doReturn(vectorResult)
-                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class));
+                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class), eq(false));
         doReturn(new HashMap<>())
                 .when(vectorSearchService).computeSimilarityForArticlesWithEmbedding(any(), anyList());
 
@@ -223,7 +223,7 @@ public class ArticleSearchIntegrationTest extends IntegrationTestBase {
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
         // vectorSearchService는 spy이므로 when() 대신 doReturn() (when은 실제 메서드를 실행함)
         doReturn(vectorResult)
-                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class));
+                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class), eq(false));
         doReturn(new HashMap<>())
                 .when(vectorSearchService).computeSimilarityForArticlesWithEmbedding(any(), anyList());
 
@@ -257,7 +257,7 @@ public class ArticleSearchIntegrationTest extends IntegrationTestBase {
 
         // Mock Vector search failure
         doThrow(new RuntimeException("Vector API failed"))
-                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class));
+                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class), eq(false));
 
         // when - BM25만으로 검색 (H2 테스트에서는 BM25도 미지원이므로 빈 결과 가능)
         Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
@@ -280,7 +280,7 @@ public class ArticleSearchIntegrationTest extends IntegrationTestBase {
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
         // vectorSearchService는 spy이므로 when() 대신 doReturn() (when은 실제 메서드를 실행함)
         doReturn(vectorResult)
-                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class));
+                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class), eq(false));
 
         // when
         Page<ArticleSearchResultDto> result = articleSearchService.searchArticlesHybrid(
@@ -305,7 +305,7 @@ public class ArticleSearchIntegrationTest extends IntegrationTestBase {
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
         // vectorSearchService는 spy이므로 when() 대신 doReturn() (when은 실제 메서드를 실행함)
         doReturn(vectorResult)
-                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class));
+                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class), eq(false));
         doReturn(new HashMap<>())
                 .when(vectorSearchService).computeSimilarityForArticlesWithEmbedding(any(), anyList());
 
@@ -332,7 +332,7 @@ public class ArticleSearchIntegrationTest extends IntegrationTestBase {
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
         // vectorSearchService는 spy이므로 when() 대신 doReturn() (when은 실제 메서드를 실행함)
         doReturn(vectorResult)
-                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class));
+                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class), eq(false));
         doReturn(new HashMap<>())
                 .when(vectorSearchService).computeSimilarityForArticlesWithEmbedding(any(), anyList());
 
@@ -359,7 +359,7 @@ public class ArticleSearchIntegrationTest extends IntegrationTestBase {
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
         // vectorSearchService는 spy이므로 when() 대신 doReturn() (when은 실제 메서드를 실행함)
         doReturn(vectorResult)
-                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class));
+                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class), eq(false));
         doReturn(new HashMap<>())
                 .when(vectorSearchService).computeSimilarityForArticlesWithEmbedding(any(), anyList());
 
@@ -391,7 +391,7 @@ public class ArticleSearchIntegrationTest extends IntegrationTestBase {
                 new VectorSearchService.VectorSearchResult(vectorScores, new float[1536]);
         // vectorSearchService는 spy이므로 when() 대신 doReturn() (when은 실제 메서드를 실행함)
         doReturn(vectorResult)
-                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class));
+                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), nullable(List.class), nullable(List.class), eq(false));
         doReturn(new HashMap<>())
                 .when(vectorSearchService).computeSimilarityForArticlesWithEmbedding(any(), anyList());
 

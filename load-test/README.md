@@ -100,6 +100,72 @@ mock 코드나 지연 캘리브레이션 값을 바꿨다면 이미지를 다시
 aws ecs update-service --cluster newcodes-loadtest --service llm-mock --force-new-deployment
 ```
 
+## 검색 캐시 미스 모드 (하이브리드 코어를 실제로 측정하기)
+
+`ramp-limit-finder.js TARGET=search`의 **기본 동작**이다(`UNIQUE_KEYWORDS=0`으로 끄면 예전 방식).
+
+### 왜 필요한가
+
+`ArticleSearchService.getHybridCoreShared`의 `hybridCoreCache`는 in-flight 합류용이 아니라
+**키워드를 키로 하는 5분 TTL 결과 캐시**(Caffeine, maximumSize=500)다. 예전 방식은
+`data/keywords.json`의 키워드 101개를 Zipfian으로 반복했기 때문에, 각 키워드가 5분에 한 번만
+`computeHybridCore`를 타고 나머지는 전부 캐시 히트였다 — 실측으로 14.5분 테스트에서 코어가
+**303회(전체 요청의 0.4~0.6%)**밖에 안 돌았다. 즉 BM25/Vector/cross-scoring/NSF를 바꿔도
+이 시나리오의 처리량에는 거의 안 잡히고, 실제로 측정되던 건 캐시 히트 후 페이지 조립
+경로였다(`load-test/results/2026-08-06-search-ramp-limit-finder.md` "재검증 시도" 절).
+
+### 어떻게 동작하나
+
+- **검색어**: `lib/keywords.js`의 `uniqueKeyword(levelIndex, iterationInTest)`가 실제 키워드 3개를
+  조합해 매 요청 고유 문자열을 만든다(예: `kafka 코루틴 성능 최적화`). 조합 수 101×100×99 = 999,900이고
+  레벨마다 겹치지 않는 구간(250k)을 배정하므로 **테스트 전체에서 중복이 없다**.
+  랜덤 문자열을 쓰지 않는 이유는 매칭 문서가 0건이면 `nsfScores`가 비어 `computeHybridCore`가
+  조기 반환해버려서 — cross-scoring/NSF/유효성 검사가 전부 skip되어 정작 재려던 구간이 안 돈다.
+- **엔드포인트**: 실사용자 경로가 아니라 **`GET /api/search/articles/loadtest`**를 때린다.
+  고유 키워드는 `search_query_embedding`(DB 영구 캐시)도 100% 미스로 만들기 때문에, 실사용자
+  경로로 돌리면 요청마다 **실 Clova 임베딩 과금 호출**이 나가고 그 결과가 DB에 쌓인다.
+  전용 엔드포인트는 임베딩을 `clova.loadtest-endpoint`(mock server)로 돌리고, DB 캐시 저장과
+  `search_log` 기록을 모두 건너뛴다. 캐시 키도 `lt:mock:` prefix로 분리해 mock 벡터 기반 결과가
+  실사용자에게 서빙되지 않는다.
+
+### 접근 통제 (RAG 부하테스트 엔드포인트와 동일한 3중 게이트)
+
+1. `search.loadtest.enabled`(기본 false) — 비활성 시 **404**로 존재 자체를 숨김
+2. nginx `location = /api/search/articles/loadtest`가 `X-LoadTest-Token` 검사 — 불일치 시 **403**
+3. `clova.loadtest-endpoint` 미설정이면 **503** — 실 Clova로 새는 오설정을 요청 처리 전에 차단
+
+### 실행 전 준비
+
+1. 운영 `.env`에 `SEARCH_LOADTEST_ENABLED=true` 추가 (`CLOVA_LOADTEST_ENDPOINT`는 RAG mock 세팅에서
+   이미 설정돼 있어야 한다 — 위 "지금 당장 설정해야 할 것" 7~8번)
+2. main에 push → 배포. nginx location 블록은 `deploy.sh`가 blue/green 전환 중 `docker restart newcodes-nginx`를
+   하므로 자동 반영된다(별도 조치 불필요).
+
+### 실행
+
+**반드시 `run-prod-test.sh`를 쓴다** — 이 모드는 Clova mock server가 필요하고, mock ECS 서비스는
+평시 desired-count 0이라 `run-task.sh`로 직접 돌리면 503이 난다. `run-prod-test.sh`가 테스트마다
+자동으로 기동/종료한다.
+
+```bash
+# 캐시 미스 모드 (기본)
+./load-test/fargate/run-prod-test.sh -s ramp-limit-finder -n 1 -e TARGET=search
+
+# 예전 방식(Zipfian 반복, 캐시 히트) — 과거 testid와 비교할 때만
+./load-test/fargate/run-task.sh -s ramp-limit-finder -n 1 -e TARGET=search -e UNIQUE_KEYWORDS=0
+```
+
+### 판정 지표
+
+이 모드에서는 gross RPS가 예전 방식보다 **훨씬 낮게 나오는 게 정상**이다(매 요청이 BM25+Vector+
+NSF 풀 경로를 타므로). 예전 testid와 절대값을 비교하지 말고, **같은 모드끼리** 비교할 것.
+코어 변경의 효과는 RPS보다 `[검색]` 로그의 단계별 소요시간(BM25/Vector/Rerank/총) 분포로 보는 게 정확하다.
+캐시 미스가 실제로 나고 있는지는 Loki에서 확인한다:
+
+```logql
+sum(count_over_time({job="small-town"} |= "총:" [3m]))   # 요청 수와 비슷해야 정상
+```
+
 ## 빠른 시작 (로컬)
 
 ```bash

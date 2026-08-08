@@ -125,6 +125,17 @@ public class VectorSearchService {
      */
     @Observed(name = "search.vector", contextualName = "vector-search-filtered")
     public VectorSearchResult searchByKeywordWithEmbedding(String keyword, List<Integer> domesticTypes, List<String> categories) {
+        return searchByKeywordWithEmbedding(keyword, domesticTypes, categories, false);
+    }
+
+    /**
+     * useMockEmbedding=true(부하테스트 경로)면 쿼리 임베딩을 mock 엔드포인트로 생성하고
+     * (search_query_embedding DB 캐시 저장도 건너뜀), 결과 캐시 키를 분리해 mock 벡터 기반 결과가
+     * 실사용자 검색에 서빙되지 않게 한다 — searchForRag의 "rag:mock:" 키 분리와 같은 이유.
+     */
+    @Observed(name = "search.vector", contextualName = "vector-search-filtered")
+    public VectorSearchResult searchByKeywordWithEmbedding(
+            String keyword, List<Integer> domesticTypes, List<String> categories, boolean useMockEmbedding) {
         if (keyword == null || keyword.trim().isEmpty()) {
             return new VectorSearchResult(Map.of(), null);
         }
@@ -134,11 +145,12 @@ public class VectorSearchService {
         if (unfiltered) {
             Cache cache = cacheManager.getCache(VECTOR_SEARCH_CACHE_NAME);
             if (cache != null) {
-                String cacheKey = keyword.toLowerCase().trim();
+                String cacheKey = (useMockEmbedding ? "lt:mock:" : "") + keyword.toLowerCase().trim();
                 try {
                     // sync 로딩: 같은 키워드의 동시 요청(메인 검색 + AI 요약)은 한쪽만 실제 실행
                     return cache.get(cacheKey, () -> {
-                        VectorSearchResult result = executeSearchByKeywordWithEmbedding(keyword, null, null);
+                        VectorSearchResult result =
+                                executeSearchByKeywordWithEmbedding(keyword, null, null, useMockEmbedding);
                         if (result.getQueryEmbedding() == null) {
                             // 임베딩 실패 결과는 캐시하지 않음
                             throw new IllegalStateException("벡터 검색 임베딩 생성 실패");
@@ -152,7 +164,7 @@ public class VectorSearchService {
             }
         }
 
-        return executeSearchByKeywordWithEmbedding(keyword, domesticTypes, categories);
+        return executeSearchByKeywordWithEmbedding(keyword, domesticTypes, categories, useMockEmbedding);
     }
 
     /**
@@ -213,9 +225,14 @@ public class VectorSearchService {
     }
 
     private VectorSearchResult executeSearchByKeywordWithEmbedding(String keyword, List<Integer> domesticTypes, List<String> categories) {
+        return executeSearchByKeywordWithEmbedding(keyword, domesticTypes, categories, false);
+    }
+
+    private VectorSearchResult executeSearchByKeywordWithEmbedding(
+            String keyword, List<Integer> domesticTypes, List<String> categories, boolean useMockEmbedding) {
         try {
             SearchQueryEmbeddingService.CachedEmbeddingResult cachedEmbedding =
-                    searchQueryEmbeddingService.getEmbeddingWithCacheInfo(keyword, null);
+                    searchQueryEmbeddingService.getEmbeddingWithCacheInfo(keyword, null, useMockEmbedding);
             float[] queryEmbedding = cachedEmbedding.getEmbedding();
             long embeddingMs = cachedEmbedding.getEmbeddingMs();
             boolean cacheHit = cachedEmbedding.isCacheHit();
