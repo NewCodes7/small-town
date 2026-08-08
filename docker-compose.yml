@@ -304,6 +304,7 @@ services:
 
   certbot:
     image: certbot/certbot
+    restart: unless-stopped  # 정책 누락 시 컨테이너가 한 번 멈추면(재부팅/OOM 등) 자동갱신 루프가 영영 안 돌아 인증서 만료로 이어짐(2026-08-08 장애)
     logging:
       driver: json-file
       options:
