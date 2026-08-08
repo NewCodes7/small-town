@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.HashMap;
 import java.util.Map;
-
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -456,5 +456,43 @@ public class HybridSearchScorerTest {
     @Test
     public void quoteTerm_띄어쓰기_포함_문자열() {
         assertEquals("\"machine learning\"", scorer.quoteTerm("machine learning"));
+    }
+
+    /**
+     * ArticleSearchService가 유효성 검증 쿼리를 NSF 계산 *앞*으로 끌어올려 cross-scoring과 같은
+     * 트랜잭션에 넣을 수 있는 근거가 되는 불변식 — NSF는 후보 id 집합을 바꾸지 않는다.
+     * 이게 깨지면 그쪽 최적화가 조용히 결과를 누락시키므로 여기서 고정한다.
+     */
+    @Test
+    public void calculateNSFScores_결과_키셋은_BM25와_Vector의_합집합이다() {
+        // given: BM25 전용(1), 양쪽 공통(2), Vector 전용(3)
+        Map<Long, Double> bm25Scores = new HashMap<>();
+        bm25Scores.put(1L, 8.0);
+        bm25Scores.put(2L, 5.0);
+
+        Map<Long, Double> vectorScores = new HashMap<>();
+        vectorScores.put(2L, 0.9);
+        vectorScores.put(3L, 0.7);
+
+        // when
+        HybridSearchScorer.NSFResult result = scorer.calculateNSFScores(bm25Scores, vectorScores);
+
+        // then: 어느 쪽도 누락되지 않고, 없던 id가 새로 생기지도 않는다
+        assertEquals(Set.of(1L, 2L, 3L), result.getNsfScores().keySet());
+        assertEquals(Set.of(1L, 2L, 3L), result.getWeightSums().keySet());
+    }
+
+    @Test
+    public void calculateNSFScores_한쪽이_비어도_키셋은_나머지_한쪽과_같다() {
+        // given
+        Map<Long, Double> bm25Scores = new HashMap<>();
+        bm25Scores.put(10L, 3.0);
+        bm25Scores.put(11L, 1.0);
+
+        // when
+        HybridSearchScorer.NSFResult result = scorer.calculateNSFScores(bm25Scores, new HashMap<>());
+
+        // then
+        assertEquals(Set.of(10L, 11L), result.getNsfScores().keySet());
     }
 }

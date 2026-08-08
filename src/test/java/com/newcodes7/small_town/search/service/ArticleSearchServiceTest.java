@@ -22,12 +22,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
@@ -1511,5 +1514,134 @@ class ArticleSearchServiceTest {
         String bm25Query = "title_terms:" + bm25Keywords + "^6.0 OR content_terms:" + bm25Keywords + "^2.0";
         when(hybridSearchScorer.buildBM25Query(expandedTerms, 3.0)).thenReturn(bm25Query);
         return bm25Query;
+    }
+
+    // ===== 커넥션 점유 구간 구조 검증 =====
+    // 유효성 검증 쿼리는 cross-scoring과 같은 트랜잭션 안에서(체크아웃 2회 유지) 수행하되,
+    // NSF 계산(순수 CPU)은 그 트랜잭션이 닫힌 뒤로 밀어낸다. 이게 가능한 이유는 후보 id 집합이
+    // NSF 결과가 아니라 bm25 ∪ vector이고 cross-scoring이 그 집합을 늘리지 않기 때문
+    // (HybridSearchScorerTest.calculateNSFScores_결과_키셋은_BM25와_Vector의_합집합이다 참고).
+
+    @Test
+    @DisplayName("searchArticlesHybrid: 유효성 검증 쿼리는 NSF 계산 전에 bm25∪vector 합집합으로 1회 실행")
+    void searchArticlesHybrid_validityQueryRunsBeforeNsfWithUnionIds() {
+        // given
+        String keyword = "redis";
+        when(semanticExpansionService.classifyQueryComplexity(keyword))
+                .thenReturn(SemanticTermExpansionService.QueryComplexity.SIMPLE);
+        when(weightConfig.getWeights(SemanticTermExpansionService.QueryComplexity.SIMPLE))
+                .thenReturn(new SearchWeightConfigService.WeightEntry(3.0, 0.6, 0.4));
+
+        Map<String, Double> expandedTerms = Map.of(keyword, 1.0);
+        when(semanticExpansionService.expandSearchTerms(keyword)).thenReturn(expandedTerms);
+        String bm25Query = "title_terms:redis^6.0 OR content_terms:redis^2.0";
+        when(hybridSearchScorer.buildBM25Query(expandedTerms, 3.0)).thenReturn(bm25Query);
+
+        // BM25 전용 2, 양쪽 공통 1, Vector 전용 3 → 합집합 {1, 2, 3}
+        when(articleRepository.searchByBM25(bm25Query, 100)).thenReturn(List.<Object[]>of(
+                new Object[]{1L, 10.0, LocalDateTime.of(2024, 1, 1, 0, 0)},
+                new Object[]{2L, 5.0, LocalDateTime.of(2024, 6, 1, 0, 0)}
+        ));
+        float[] dummyEmbedding = new float[]{0.1f, 0.2f};
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any()))
+                .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(1L, 0.9, 3L, 0.7), dummyEmbedding));
+
+        // cross-scoring이 실제로 점수를 채워 넣어도 후보 집합은 늘어나지 않아야 한다
+        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(float[].class), anyList()))
+                .thenReturn(Map.of(2L, 0.55));
+        when(articleRepository.computeBM25ScoreForArticleIds(eq(bm25Query), anyList()))
+                .thenReturn(List.<Object[]>of(new Object[]{3L, 4.0}));
+
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(new HybridSearchScorer.NSFResult(
+                        Map.of(1L, 0.95, 2L, 0.25, 3L, 0.35),
+                        Map.of(1L, 1.0, 2L, 0.0),
+                        Map.of(1L, 1.0, 3L, 0.0),
+                        Map.of(1L, 1.0, 2L, 1.0, 3L, 1.0)));
+
+        when(articleRepository.findIdAndPublishedAtByIdIn(anyList())).thenReturn(List.of(
+                new Object[]{1L, LocalDateTime.of(2024, 1, 1, 0, 0)},
+                new Object[]{2L, LocalDateTime.of(2024, 6, 1, 0, 0)},
+                new Object[]{3L, LocalDateTime.of(2024, 3, 1, 0, 0)}
+        ));
+
+        Corporation corp = Corporation.builder().name("Test Corp").build();
+        corp.setId(100L);
+        when(articleRepository.findByIdInWithCorporation(anyList())).thenReturn(List.of(
+                createArticle(1L, "Redis 입문", corp),
+                createArticle(2L, "캐시 전략", corp),
+                createArticle(3L, "메모리 DB", corp)
+        ));
+        when(userLikeService.getLikeStatusBatchByIp(anyList(), eq("127.0.0.1")))
+                .thenReturn(Map.of(1L, false, 2L, false, 3L, false));
+
+        // when
+        articleSearchService.searchArticlesHybrid(
+                keyword, List.of(), List.of(), 0, 10, "relevance", "127.0.0.1", null);
+
+        // then: 합집합 그대로, 1회만
+        ArgumentCaptor<List<Long>> idsCaptor = ArgumentCaptor.captor();
+        verify(articleRepository, times(1)).findIdAndPublishedAtByIdIn(idsCaptor.capture());
+        assertThat(Set.copyOf(idsCaptor.getValue())).isEqualTo(Set.of(1L, 2L, 3L));
+
+        // then: 유효성 쿼리(트랜잭션 안) → NSF 계산(트랜잭션 밖) 순서
+        InOrder inOrder = inOrder(articleRepository, hybridSearchScorer);
+        inOrder.verify(articleRepository).findIdAndPublishedAtByIdIn(anyList());
+        inOrder.verify(hybridSearchScorer).calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4));
+    }
+
+    @Test
+    @DisplayName("getTopArticleIdsForRag: 유효성 검증 쿼리는 NSF 계산 전에 bm25∪vector 합집합으로 1회 실행")
+    void getTopArticleIdsForRag_validityQueryRunsBeforeNsfWithUnionIds() {
+        // given
+        String bm25Keywords = "kafka";
+        String vectorQuery = "Kafka를 도입한 사례";
+
+        when(semanticExpansionService.classifyQueryComplexity(bm25Keywords))
+                .thenReturn(SemanticTermExpansionService.QueryComplexity.SIMPLE);
+        when(weightConfig.getWeights(SemanticTermExpansionService.QueryComplexity.SIMPLE))
+                .thenReturn(new SearchWeightConfigService.WeightEntry(3.0, 0.6, 0.4));
+
+        Map<String, Double> expandedTerms = Map.of(bm25Keywords, 1.0);
+        when(semanticExpansionService.expandSearchTerms(bm25Keywords)).thenReturn(expandedTerms);
+        String bm25Query = "title_terms:kafka^6.0 OR content_terms:kafka^2.0";
+        when(hybridSearchScorer.buildBM25Query(expandedTerms, 3.0)).thenReturn(bm25Query);
+
+        // BM25 전용 10, Vector 전용 20 → 합집합 {10, 20}
+        when(articleRepository.searchByBM25(bm25Query, 100))
+                .thenReturn(List.<Object[]>of(new Object[]{10L, 10.0, LocalDateTime.of(2024, 1, 1, 0, 0)}));
+        float[] dummyEmbedding = new float[]{0.1f, 0.2f};
+        when(vectorSearchService.searchForRag(vectorQuery, List.of(), 0.6, false))
+                .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(20L, 0.8), dummyEmbedding));
+
+        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(float[].class), anyList(), eq(0.6)))
+                .thenReturn(Map.of(10L, 0.65));
+        when(articleRepository.computeBM25ScoreForArticleIds(eq(bm25Query), anyList()))
+                .thenReturn(List.<Object[]>of(new Object[]{20L, 3.0}));
+
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(new HybridSearchScorer.NSFResult(
+                        Map.of(10L, 0.9, 20L, 0.5),
+                        Map.of(10L, 1.0), Map.of(20L, 1.0), Map.of(10L, 1.0, 20L, 1.0)));
+
+        when(articleRepository.findIdAndPublishedAtByIdIn(anyList())).thenReturn(List.of(
+                new Object[]{10L, LocalDateTime.of(2024, 1, 1, 0, 0)},
+                new Object[]{20L, LocalDateTime.of(2024, 2, 1, 0, 0)}
+        ));
+
+        // when
+        ArticleSearchService.HybridTopArticles result = articleSearchService.getTopArticleIdsForRag(
+                bm25Keywords, vectorQuery, List.of(), 5, 0.6);
+
+        // then
+        assertThat(result.articleIds()).containsExactly(10L, 20L);
+
+        ArgumentCaptor<List<Long>> idsCaptor = ArgumentCaptor.captor();
+        verify(articleRepository, times(1)).findIdAndPublishedAtByIdIn(idsCaptor.capture());
+        assertThat(Set.copyOf(idsCaptor.getValue())).isEqualTo(Set.of(10L, 20L));
+
+        InOrder inOrder = inOrder(articleRepository, hybridSearchScorer);
+        inOrder.verify(articleRepository).findIdAndPublishedAtByIdIn(anyList());
+        inOrder.verify(hybridSearchScorer).calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4));
     }
 }
