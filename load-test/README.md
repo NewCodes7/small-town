@@ -130,16 +130,27 @@ aws ecs update-service --cluster newcodes-loadtest --service llm-mock --force-ne
 
 ### 접근 통제 (RAG 부하테스트 엔드포인트와 동일한 3중 게이트)
 
-1. `search.loadtest.enabled`(기본 false) — 비활성 시 **404**로 존재 자체를 숨김
+1. `search.loadtest.enabled` — **운영 컨테이너는 상시 true**(`docker-compose.yml`의
+   `SEARCH_LOADTEST_ENABLED` 기본값). 반복 테스트마다 `.env` 수정 + 재배포를 하지 않기 위해
+   RAG 게이트(`rag.chat.loadtest.enabled`)와 같은 선택을 했다. `application.properties`의
+   기본값은 false라, compose 밖에서 앱을 직접 띄우면 404다.
 2. nginx `location = /api/search/articles/loadtest`가 `X-LoadTest-Token` 검사 — 불일치 시 **403**
 3. `clova.loadtest-endpoint` 미설정이면 **503** — 실 Clova로 새는 오설정을 요청 처리 전에 차단
 
+> ⚠️ 1번이 상시 true이므로 **실질 방어선은 2번(nginx 토큰) 하나**다. RAG 부하테스트 엔드포인트와
+> 동일한 트레이드오프이며(위 "접근 통제" 절), 토큰 유출 시 조치도 같다 —
+> `nginx/loadtest_token.conf` + `.env`의 `RAG_CHAT_LOADTEST_BYPASS_TOKEN` + `fargate/env`의
+> `LT_BYPASS_TOKEN`을 새 값으로 함께 교체할 것. 백엔드 컨테이너는 `expose`만 하고 포트를
+> 퍼블리시하지 않으므로 nginx를 거치지 않고서는 도달할 수 없다.
+
 ### 실행 전 준비
 
-1. 운영 `.env`에 `SEARCH_LOADTEST_ENABLED=true` 추가 (`CLOVA_LOADTEST_ENDPOINT`는 RAG mock 세팅에서
-   이미 설정돼 있어야 한다 — 위 "지금 당장 설정해야 할 것" 7~8번)
-2. main에 push → 배포. nginx location 블록은 `deploy.sh`가 blue/green 전환 중 `docker restart newcodes-nginx`를
-   하므로 자동 반영된다(별도 조치 불필요).
+`.env` 수정은 필요 없다. `CLOVA_LOADTEST_ENDPOINT`가 운영 mock 주소(Cloud Map)로 설정돼 있는지만
+확인하면 된다(RAG mock 세팅에서 이미 들어가 있어야 함 — 위 "지금 당장 설정해야 할 것" 7~8번).
+비어 있으면 이 엔드포인트는 503으로 안전하게 실패한다.
+
+main에 push → 배포하면 끝이다. nginx location 블록은 `deploy.sh`가 blue/green 전환 중
+`docker restart newcodes-nginx`를 하므로 자동 반영된다.
 
 ### 실행
 
