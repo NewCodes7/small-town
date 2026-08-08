@@ -70,6 +70,20 @@ public class VectorSearchService {
     @Value("${search.loadtest.vector-threshold:0.0}")
     private double loadTestVectorThreshold;
 
+    /**
+     * 부하테스트 경로 전용 벡터 결과 수 상한. 기본 30.
+     *
+     * 임계값을 0.0으로 풀면 벡터 결과가 항상 DEFAULT_MAX_RESULTS(100)를 꽉 채우는데, 운영은
+     * 임계값 0.52가 의미적으로 걸러 훨씬 적다 — 실측(2026-08-08, 벡터 성공 12건 표본) 중앙값 28건.
+     * 100건이 그대로 흘러가면 cross-scoring BM25 보충 대상(vectorOnlyIds)이 운영 중앙값 14건 대비
+     * 100건으로 부풀고 NSF 합집합도 200건이 되어(운영 127~173) 테스트가 실제보다 무거워진다.
+     *
+     * 30(운영 중앙값 28 기준)으로 제한하면 needBm25Ids와 합집합 크기가 운영 분포에 맞춰진다.
+     * 보충 리스트를 사후에 자르지 않고 벡터 결과 수 자체를 줄이므로 코드 경로가 왜곡되지 않는다.
+     */
+    @Value("${search.loadtest.max-vector-results:30}")
+    private int loadTestMaxVectorResults;
+
     // 최대 결과 수
     private static final int DEFAULT_MAX_RESULTS = 100;
 
@@ -266,7 +280,7 @@ public class VectorSearchService {
                     queryEmbedding.length, 0);
 
             long queryStart = System.currentTimeMillis();
-            Map<Long, Double> scores = searchTwoStage(queryEmbedding, vectorThresholdFor(useMockEmbedding), DEFAULT_TOP_K, DEFAULT_MAX_RESULTS, domesticTypes, categories);
+            Map<Long, Double> scores = searchTwoStage(queryEmbedding, vectorThresholdFor(useMockEmbedding), DEFAULT_TOP_K, maxVectorResultsFor(useMockEmbedding), domesticTypes, categories);
             long queryMs = System.currentTimeMillis() - queryStart;
 
             warmChunkCacheAsync(keyword, queryEmbedding);
@@ -788,6 +802,11 @@ public class VectorSearchService {
      */
     public double vectorThresholdFor(boolean useMockEmbedding) {
         return useMockEmbedding ? loadTestVectorThreshold : DEFAULT_SIMILARITY_THRESHOLD;
+    }
+
+    /** 요청 경로에 맞는 벡터 결과 수 상한. 부하테스트 경로만 축소된 값을 쓴다. */
+    private int maxVectorResultsFor(boolean useMockEmbedding) {
+        return useMockEmbedding ? loadTestMaxVectorResults : DEFAULT_MAX_RESULTS;
     }
 
     public Map<Long, Double> computeSimilarityForArticlesWithEmbedding(float[] queryEmbedding, List<Long> articleIds) {

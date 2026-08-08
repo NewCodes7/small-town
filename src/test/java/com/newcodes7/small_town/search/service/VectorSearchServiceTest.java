@@ -11,6 +11,7 @@ import java.util.concurrent.ExecutorService;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -702,5 +703,46 @@ class VectorSearchServiceTest {
 
         assertThat(chunks).isEmpty();
         verifyNoInteractions(chunkRepository);
+    }
+
+    // ===== 부하테스트 경로 전용 파라미터 (임계값/결과 수 상한) =====
+
+    @Test
+    @DisplayName("부하테스트 경로는 완화된 임계값과 축소된 결과 수 상한을 쓴다")
+    void loadTestPath_usesRelaxedThresholdAndCappedMaxResults() {
+        ReflectionTestUtils.setField(vectorSearchService, "loadTestVectorThreshold", 0.0);
+        ReflectionTestUtils.setField(vectorSearchService, "loadTestMaxVectorResults", 30);
+
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(true)))
+                .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.miss(
+                        new float[]{0.1f, 0.2f}, 1L, 1L));
+        when(chunkRepository.findArticlesByTwoStageSearch(
+                anyString(), anyString(), anyInt(), anyInt(), anyDouble(), anyInt()))
+                .thenReturn(List.of());
+
+        vectorSearchService.searchByKeywordWithEmbedding("kafka redis", null, null, true);
+
+        // threshold=0.0, maxResults=30으로 2단계 검색이 호출된다
+        verify(chunkRepository).findArticlesByTwoStageSearch(
+                anyString(), anyString(), anyInt(), anyInt(), eq(0.0), eq(30));
+    }
+
+    @Test
+    @DisplayName("실사용자 경로는 운영 임계값 0.52와 결과 수 100을 그대로 쓴다")
+    void productionPath_keepsDefaultThresholdAndMaxResults() {
+        ReflectionTestUtils.setField(vectorSearchService, "loadTestVectorThreshold", 0.0);
+        ReflectionTestUtils.setField(vectorSearchService, "loadTestMaxVectorResults", 30);
+
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false)))
+                .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.miss(
+                        new float[]{0.1f, 0.2f}, 1L, 1L));
+        when(chunkRepository.findArticlesByTwoStageSearch(
+                anyString(), anyString(), anyInt(), anyInt(), anyDouble(), anyInt()))
+                .thenReturn(List.of());
+
+        vectorSearchService.searchByKeywordWithEmbedding("kafka redis", null, null, false);
+
+        verify(chunkRepository).findArticlesByTwoStageSearch(
+                anyString(), anyString(), anyInt(), anyInt(), eq(0.52), eq(100));
     }
 }
