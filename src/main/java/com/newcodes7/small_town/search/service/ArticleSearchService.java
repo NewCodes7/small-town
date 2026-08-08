@@ -571,8 +571,6 @@ public class ArticleSearchService {
         candidateIds.addAll(vectorResults.keySet());
         Set<Long> validArticleIds = new HashSet<>();
 
-        // 임시(부하테스트용 checkout=3 재현): cross-scoring과 유효성 검사를 다시 별개 트랜잭션으로
-        // 분리 — 3a150d9(Phase B+C 병합) 이전 동작 재현. 요청당 커넥션 체크아웃 Phase A + 이 둘 = 3회.
         readOnlyTx.executeWithoutResult(status -> {
             if (!needVectorIds.isEmpty() && cachedEmbedding != null) {
                 try {
@@ -602,9 +600,7 @@ public class ArticleSearchService {
                     log.warn("교차검색 BM25 보충 실패: {}", e.getMessage());
                 }
             }
-        });
 
-        readOnlyTx.executeWithoutResult(status -> {
             // 8. 전체 후보에 대해 (id, publishedAt) 경량 조회
             // - deleted_at 검증 (동기화 지연으로 인한 stale 항목 제거)
             // - vector-only 항목의 publishedAt 보충 (BM25 쿼리에서 수집되지 않은 날짜)
@@ -1007,8 +1003,6 @@ public class ArticleSearchService {
         candidateIds.addAll(vectorResults.keySet());
         Set<Long> validIds = new HashSet<>();
 
-        // 임시(부하테스트용 checkout=3 재현): cross-scoring과 유효성 검사를 다시 별개 트랜잭션으로
-        // 분리 — 3a150d9(Phase B+C 병합) 이전 동작 재현. 요청당 커넥션 체크아웃 Phase A + 이 둘 = 3회.
         readOnlyTx.executeWithoutResult(status -> {
             if (!bm25OnlyIds.isEmpty() && cachedEmbedding != null) {
                 try {
@@ -1030,10 +1024,9 @@ public class ArticleSearchService {
                     log.warn("RAG 교차검색 BM25 보충 실패: {}", e.getMessage());
                 }
             }
-        });
 
-        readOnlyTx.executeWithoutResult(status -> {
-            // 유효성 검사
+            // 유효성 검사 — cross-scoring과 이어지는 같은 트랜잭션 안에서 수행(사이에 인메모리 연산·
+            // async 대기·외부 호출 없음)
             if (!candidateIds.isEmpty()) {
                 for (Object[] row : articleRepository.findIdAndPublishedAtByIdIn(new ArrayList<>(candidateIds))) {
                     validIds.add(((Number) row[0]).longValue());
