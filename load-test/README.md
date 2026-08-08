@@ -116,11 +116,16 @@ aws ecs update-service --cluster newcodes-loadtest --service llm-mock --force-ne
 
 ### 어떻게 동작하나
 
-- **검색어**: `lib/keywords.js`의 `uniqueKeyword(levelIndex, iterationInTest)`가 실제 키워드 3개를
-  조합해 매 요청 고유 문자열을 만든다(예: `kafka 코루틴 성능 최적화`). 조합 수 101×100×99 = 999,900이고
-  레벨마다 겹치지 않는 구간(250k)을 배정하므로 **테스트 전체에서 중복이 없다**.
+- **검색어**: `lib/keywords.js`의 `uniqueKeyword(levelIndex, iterationInTest, terms)`가 실제 키워드를
+  조합해 매 요청 고유 문자열을 만든다(기본 2-term, 예: `kafka 성능 최적화`). 조합 수는 101×100 = 10,100이고
+  레벨마다 겹치지 않는 구간(2,525)을 배정하므로 **테스트 전체에서 중복이 없다**.
   랜덤 문자열을 쓰지 않는 이유는 매칭 문서가 0건이면 `nsfScores`가 비어 `computeHybridCore`가
   조기 반환해버려서 — cross-scoring/NSF/유효성 검사가 전부 skip되어 정작 재려던 구간이 안 돈다.
+  term 수를 늘리면 `SemanticTermExpansionService`의 유의어 조회가 term마다 발생해 DB 부하를
+  과대평가하므로 2가 기본이다(`KEYWORD_TERMS=3`으로 조합 공간을 999,900까지 넓힐 수 있다).
+- **VU 사다리**: 캐시 미스 모드 기본값은 **1/2/5/10 VU**다(캐시 히트 모드는 기존 10/20/50/100).
+  매 요청이 풀 경로를 타 pool(5)을 훨씬 빨리 소진하기 때문 — 2026-08-08 실측에서 10 VU만으로
+  0.73 req/s / 에러 5.3%, 50 VU에서 에러 56%였다. `VU_LEVELS=1,2,5,10`으로 직접 지정 가능.
 - **엔드포인트**: 실사용자 경로가 아니라 **`GET /api/search/articles/loadtest`**를 때린다.
   고유 키워드는 `search_query_embedding`(DB 영구 캐시)도 100% 미스로 만들기 때문에, 실사용자
   경로로 돌리면 요청마다 **실 Clova 임베딩 과금 호출**이 나가고 그 결과가 DB에 쌓인다.
@@ -154,6 +159,21 @@ main에 push → 배포하면 끝이다. nginx location 블록은 `deploy.sh`가
 
 ### 실행
 
+> ⚠️ **시나리오/lib/data를 고쳤으면 k6 이미지를 먼저 다시 빌드해 push해야 한다.**
+> `docker/Dockerfile`이 `scenarios/`, `lib/`, `data/`를 이미지에 굽기 때문에, 로컬 파일만 고치고
+> 실행하면 Fargate는 **ECR의 옛 코드를 그대로 돌린다**(에러도 안 나서 알아채기 어렵다 — 실제로
+> 2026-08-08에 이 함정에 걸려 한 번 헛돌렸다. 판별법: Loki `총:` 카운트가 요청 수와 안 맞으면 의심).
+>
+> ```bash
+> ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+> REGION=ap-northeast-2
+> aws ecr get-login-password --region "$REGION" | \
+>   docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
+> docker build -t "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/newcodes-k6-sse:latest" \
+>   -f docker/Dockerfile load-test
+> docker push "$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/newcodes-k6-sse:latest"
+> ```
+
 **반드시 `run-prod-test.sh`를 쓴다** — 이 모드는 Clova mock server가 필요하고, mock ECS 서비스는
 평시 desired-count 0이라 `run-task.sh`로 직접 돌리면 503이 난다. `run-prod-test.sh`가 테스트마다
 자동으로 기동/종료한다.
@@ -168,8 +188,9 @@ main에 push → 배포하면 끝이다. nginx location 블록은 `deploy.sh`가
 
 ### 판정 지표
 
-이 모드에서는 gross RPS가 예전 방식보다 **훨씬 낮게 나오는 게 정상**이다(매 요청이 BM25+Vector+
-NSF 풀 경로를 타므로). 예전 testid와 절대값을 비교하지 말고, **같은 모드끼리** 비교할 것.
+이 모드에서는 gross RPS가 예전 방식보다 **훨씬 낮게 나오는 게 정상**이다 — 실측으로 약 100배
+차이(캐시 히트 62~158 req/s vs 캐시 미스 0.7~8 req/s). 예전 testid와 절대값을 비교하지 말고,
+**같은 모드끼리** 비교할 것.
 코어 변경의 효과는 RPS보다 `[검색]` 로그의 단계별 소요시간(BM25/Vector/Rerank/총) 분포로 보는 게 정확하다.
 캐시 미스가 실제로 나고 있는지는 Loki에서 확인한다:
 

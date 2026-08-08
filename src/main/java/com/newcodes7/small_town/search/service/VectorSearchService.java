@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
@@ -49,6 +50,25 @@ public class VectorSearchService {
 
     // 기본 유사도 임계값
     private static final double DEFAULT_SIMILARITY_THRESHOLD = 0.52;
+
+    /**
+     * 부하테스트 경로(useMockEmbedding=true) 전용 유사도 임계값. 기본 0.0.
+     *
+     * mock Clova(load-test/mock ClovaHandler)는 텍스트 시드 기반 의사난수 단위벡터를 반환하므로
+     * 실제 문서 임베딩과의 코사인 유사도가 N(0, 1/sqrt(1024)) ≈ N(0, 0.031)에 몰린다 —
+     * 코퍼스 전체 최대값도 0.1 남짓이라 운영 임계값 0.52로는 **항상 0건**이 나온다.
+     * 그러면 cross-scoring의 BM25 보충 분기(vectorOnlyIds)가 아예 실행되지 않고 NSF 입력도
+     * BM25 단독이 되어, 정작 측정하려는 코드 경로의 절반이 부하에서 안 돈다.
+     *
+     * 0.0으로 두면 필터가 사실상 해제돼 stage-1 후보와 DEFAULT_MAX_RESULTS가 개수를 결정하므로
+     * 실행 간 결과 수가 안정적이다. HNSW 순회·halfvec 재랭킹 비용은 임계값과 무관하게 이미
+     * 수행되므로 쿼리 비용 자체는 왜곡되지 않는다.
+     *
+     * 주의: 어떤 문서가 돌아오는지는 여전히 무작위다 — 커넥션 점유·쿼리 비용·처리량 측정에만
+     * 쓸 수 있고 검색 품질·랭킹·가중치 튜닝의 근거로는 쓸 수 없다.
+     */
+    @Value("${search.loadtest.vector-threshold:0.0}")
+    private double loadTestVectorThreshold;
 
     // 최대 결과 수
     private static final int DEFAULT_MAX_RESULTS = 100;
@@ -246,7 +266,7 @@ public class VectorSearchService {
                     queryEmbedding.length, 0);
 
             long queryStart = System.currentTimeMillis();
-            Map<Long, Double> scores = searchTwoStage(queryEmbedding, DEFAULT_SIMILARITY_THRESHOLD, DEFAULT_TOP_K, DEFAULT_MAX_RESULTS, domesticTypes, categories);
+            Map<Long, Double> scores = searchTwoStage(queryEmbedding, vectorThresholdFor(useMockEmbedding), DEFAULT_TOP_K, DEFAULT_MAX_RESULTS, domesticTypes, categories);
             long queryMs = System.currentTimeMillis() - queryStart;
 
             warmChunkCacheAsync(keyword, queryEmbedding);
@@ -762,6 +782,14 @@ public class VectorSearchService {
      * @param articleIds vector similarity를 계산할 Article ID 목록
      * @return Article ID -> 유사도 스코어 맵
      */
+    /**
+     * 요청 경로에 맞는 벡터 유사도 임계값. 부하테스트 경로만 loadTestVectorThreshold를 쓴다.
+     * cross-scoring 보충 호출자(ArticleSearchService)가 2단계 검색과 같은 값을 쓰도록 공개한다.
+     */
+    public double vectorThresholdFor(boolean useMockEmbedding) {
+        return useMockEmbedding ? loadTestVectorThreshold : DEFAULT_SIMILARITY_THRESHOLD;
+    }
+
     public Map<Long, Double> computeSimilarityForArticlesWithEmbedding(float[] queryEmbedding, List<Long> articleIds) {
         return computeSimilarityForArticlesWithEmbedding(queryEmbedding, articleIds, DEFAULT_SIMILARITY_THRESHOLD);
     }
