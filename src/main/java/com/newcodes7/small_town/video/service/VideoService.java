@@ -1,11 +1,28 @@
 package com.newcodes7.small_town.video.service;
 
+import com.newcodes7.small_town.corporation.dto.CorporationDto;
+import com.newcodes7.small_town.corporation.repository.CorporationRepository;
+import com.newcodes7.small_town.crawler.repository.CategoryRepository;
+import com.newcodes7.small_town.global.entity.Category;
+import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.global.entity.Term;
+import com.newcodes7.small_town.global.entity.Video;
+import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
+import com.newcodes7.small_town.term.repository.TermRepository;
+import com.newcodes7.small_town.term.service.TermSynonymService;
+import com.newcodes7.small_town.video.dto.GroupedVideosDto;
+import com.newcodes7.small_town.video.dto.VideoListResponseDto;
+import com.newcodes7.small_town.video.dto.VideoResponseDto;
+import com.newcodes7.small_town.video.repository.VideoRepository;
+import com.newcodes7.small_town.video.repository.VideoTermRepository;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
-
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
@@ -15,24 +32,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import com.newcodes7.small_town.corporation.dto.CorporationDto;
-import com.newcodes7.small_town.corporation.repository.CorporationRepository;
-import com.newcodes7.small_town.term.repository.TermRepository;
-import com.newcodes7.small_town.term.service.TermSynonymService;
-import com.newcodes7.small_town.crawler.repository.CategoryRepository;
-import com.newcodes7.small_town.global.entity.Category;
-import com.newcodes7.small_town.global.entity.Corporation;
-import com.newcodes7.small_town.global.entity.Term;
-import com.newcodes7.small_town.global.entity.Video;
-import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
-import com.newcodes7.small_town.video.dto.GroupedVideosDto;
-import com.newcodes7.small_town.video.dto.VideoListResponseDto;
-import com.newcodes7.small_town.video.dto.VideoResponseDto;
-import com.newcodes7.small_town.video.repository.VideoRepository;
-import com.newcodes7.small_town.video.repository.VideoTermRepository;
-
-import lombok.extern.slf4j.Slf4j;
 
 @Service
 @Slf4j
@@ -380,25 +379,22 @@ public class VideoService {
         }
 
         // 2. 추출된 Term들의 ID 조회 (termType 무관하게 모든 매칭되는 term 찾기)
-        List<Long> termIds = new ArrayList<>();
+        // term별로 쿼리를 날리는 대신 대소문자 변형까지 모아 IN 조회 1회로 처리한다.
+        // (ArticleSearchService.getArticleIdsByKeywordWithSynonyms와 동일한 처리)
+        Set<String> termCandidates = new LinkedHashSet<>();
         for (MorphemeAnalyzer.TermInfo termInfo : termMap.values()) {
-            // 원래 term으로 검색
-            List<Term> terms = termRepository.findByTerm(termInfo.getTerm());
+            String term = termInfo.getTerm();
+            termCandidates.add(term);
 
-            // 찾지 못했고 영어인 경우, 대소문자 변형도 시도
-            if (terms.isEmpty() && termInfo.getTermType().equals("SL")) {
-                String term = termInfo.getTerm();
-                // 소문자로 시도
-                terms = termRepository.findByTerm(term.toLowerCase());
-                // 대문자로 시도
-                if (terms.isEmpty()) {
-                    terms = termRepository.findByTerm(term.toUpperCase());
-                }
+            if (termInfo.getTermType().equals("SL")) {
+                termCandidates.add(term.toLowerCase());
+                termCandidates.add(term.toUpperCase());
             }
-
-            // 모든 매칭된 term의 ID 추가
-            terms.forEach(term -> termIds.add(term.getId()));
         }
+
+        List<Long> termIds = termRepository.findByTermIn(termCandidates).stream()
+                .map(Term::getId)
+                .toList();
 
         if (termIds.isEmpty()) {
             return null;

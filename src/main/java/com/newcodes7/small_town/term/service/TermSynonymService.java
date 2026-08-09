@@ -1,20 +1,24 @@
 package com.newcodes7.small_town.term.service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
-
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import com.newcodes7.small_town.term.repository.TermRepository;
-import com.newcodes7.small_town.term.repository.TermSynonymRepository;
 import com.newcodes7.small_town.global.entity.Term;
 import com.newcodes7.small_town.global.entity.TermSynonym;
-
+import com.newcodes7.small_town.term.repository.TermRepository;
+import com.newcodes7.small_town.term.repository.TermSynonymRepository;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * TermSynonym 서비스
@@ -38,6 +42,7 @@ public class TermSynonymService {
      * @return 생성된 TermSynonym
      * @throws IllegalArgumentException term이 존재하지 않거나 이미 유의어 관계가 있는 경우
      */
+    @CacheEvict(value = "searchTermExpansion", allEntries = true)
     @Transactional
     public TermSynonym addSynonym(Long termId1, Long termId2) {
         // 같은 term끼리는 유의어 불가
@@ -87,6 +92,7 @@ public class TermSynonymService {
      * @param termStr2 두 번째 term 문자열
      * @return 생성된 TermSynonym
      */
+    @CacheEvict(value = "searchTermExpansion", allEntries = true)
     @Transactional
     public TermSynonym addSynonymByTermString(String termStr1, String termStr2) {
         Term term1 = termRepository.findByTermAndTermType(termStr1.toLowerCase(), "NNG")
@@ -126,6 +132,7 @@ public class TermSynonymService {
      * @return 수정된 TermSynonym
      * @throws IllegalArgumentException 유의어가 존재하지 않거나 새로운 관계가 이미 존재하는 경우
      */
+    @CacheEvict(value = "searchTermExpansion", allEntries = true)
     @Transactional
     public TermSynonym updateSynonym(Long synonymId, Long newTermId1, Long newTermId2) {
         // 기존 유의어 관계 확인
@@ -167,6 +174,7 @@ public class TermSynonymService {
      * @param termStr2 두 번째 term 문자열
      * @return 수정된 TermSynonym
      */
+    @CacheEvict(value = "searchTermExpansion", allEntries = true)
     @Transactional
     public TermSynonym updateSynonymByTermString(Long synonymId, String termStr1, String termStr2) {
         // 기존 유의어 확인
@@ -199,6 +207,7 @@ public class TermSynonymService {
      * @param termStr2 두 번째 term 문자열 (nullable)
      * @return 수정된 TermSynonym
      */
+    @CacheEvict(value = "searchTermExpansion", allEntries = true)
     @Transactional
     public TermSynonym updateSynonymMixed(Long synonymId, Long termId1, String termStr1,
                                           Long termId2, String termStr2) {
@@ -244,6 +253,7 @@ public class TermSynonymService {
      *
      * @param synonymId TermSynonym ID
      */
+    @CacheEvict(value = "searchTermExpansion", allEntries = true)
     @Transactional
     public void deleteSynonym(Long synonymId) {
         TermSynonym synonym = termSynonymRepository.findById(synonymId)
@@ -261,6 +271,7 @@ public class TermSynonymService {
      * @param termId1 첫 번째 term ID
      * @param termId2 두 번째 term ID
      */
+    @CacheEvict(value = "searchTermExpansion", allEntries = true)
     @Transactional
     public void deleteSynonymByTermIds(Long termId1, Long termId2) {
         TermSynonym synonym = termSynonymRepository.findByTermIds(termId1, termId2)
@@ -339,13 +350,65 @@ public class TermSynonymService {
      * 여러 term의 유의어를 포함한 전체 term ID 목록 조회
      * 검색에서 여러 term 조합 시 사용
      *
+     * term ID마다 쿼리를 날리는 대신 IN 조회 1회로 처리한다.
+     *
      * @param termIds 원본 term ID 목록
-     * @return 유의어가 포함된 전체 term ID 목록 (중복 제거)
+     * @return 유의어가 포함된 전체 term ID 목록 (원본 포함, 중복 제거, 원본 순서 우선)
      */
     public List<Long> expandTermIdsWithSynonyms(List<Long> termIds) {
-        return termIds.stream()
-            .flatMap(termId -> getSynonymTermIds(termId).stream())
+        if (termIds == null || termIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> distinctTermIds = termIds.stream().distinct().collect(Collectors.toList());
+        List<Long> synonymIds = termSynonymRepository.findSynonymTermIdsByTermIds(distinctTermIds);
+
+        // 원본 → 유의어 순서로 합치고 중복 제거
+        return Stream.concat(distinctTermIds.stream(), synonymIds.stream())
             .distinct()
             .collect(Collectors.toList());
+    }
+
+    /**
+     * 여러 term 문자열의 유의어를 조인 쿼리 1회로 조회 (양방향)
+     * 검색어 확장에서 term별 반복 조회(N+1)를 대체
+     *
+     * @param terms 조회할 term 문자열 목록
+     * @return 원본 term → 유의어 term 목록 (자기 자신 제외, 유의어가 없는 term은 키에 없음)
+     */
+    public Map<String, List<String>> getSynonymsByTerms(Collection<String> terms) {
+        if (terms == null || terms.isEmpty()) {
+            return Map.of();
+        }
+
+        Set<String> requested = new LinkedHashSet<>(terms);
+        Map<String, List<String>> result = new LinkedHashMap<>();
+
+        for (Object[] row : termSynonymRepository.findSynonymPairsByTerms(requested)) {
+            String left = (String) row[0];
+            String right = (String) row[1];
+
+            // 양방향 관계이므로 요청 집합에 있는 쪽을 키로, 반대쪽을 유의어로 담는다
+            addSynonym(result, requested, left, right);
+            addSynonym(result, requested, right, left);
+        }
+
+        return result;
+    }
+
+    /**
+     * 유의어 맵에 (key → synonym) 추가
+     * key가 요청 집합에 없거나, 자기 자신이거나, 이미 담긴 유의어면 무시
+     */
+    private void addSynonym(Map<String, List<String>> result, Set<String> requested,
+                            String key, String synonym) {
+        if (!requested.contains(key) || key.equals(synonym)) {
+            return;
+        }
+
+        List<String> synonyms = result.computeIfAbsent(key, k -> new ArrayList<>());
+        if (!synonyms.contains(synonym)) {
+            synonyms.add(synonym);
+        }
     }
 }

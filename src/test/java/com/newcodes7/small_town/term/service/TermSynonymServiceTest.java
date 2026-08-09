@@ -8,6 +8,7 @@ import com.newcodes7.small_town.global.entity.TermSynonym;
 import com.newcodes7.small_town.term.repository.TermRepository;
 import com.newcodes7.small_town.term.repository.TermSynonymRepository;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -289,5 +290,81 @@ public class TermSynonymServiceTest extends IntegrationTestBase {
 
         // then - ID가 동일해야 함 (변경 없음)
         assertThat(result.getId()).isEqualTo(originalId);
+    }
+
+    @Test
+    @DisplayName("term 문자열로 유의어 일괄 조회 - 양방향 (term_id 쪽 입력)")
+    void getSynonymsByTerms_Bidirectional_FromTermSide() {
+        // given - term_id < synonym_term_id 규칙상 작은 ID가 term 쪽에 저장됨
+        termSynonymService.addSynonym(term1.getId(), term2.getId());
+
+        // when - 저장 시 term 쪽에 들어간 term1("자바")로 조회
+        Map<String, List<String>> result =
+                termSynonymService.getSynonymsByTerms(List.of(term1.getTerm()));
+
+        // then
+        assertThat(result).containsKey(term1.getTerm());
+        assertThat(result.get(term1.getTerm())).containsExactly(term2.getTerm());
+    }
+
+    @Test
+    @DisplayName("term 문자열로 유의어 일괄 조회 - 양방향 (synonym_term_id 쪽 입력)")
+    void getSynonymsByTerms_Bidirectional_FromSynonymSide() {
+        // given
+        termSynonymService.addSynonym(term1.getId(), term2.getId());
+
+        // when - 반대쪽인 term2("Java")로 조회해도 찾아야 한다
+        Map<String, List<String>> result =
+                termSynonymService.getSynonymsByTerms(List.of(term2.getTerm()));
+
+        // then
+        assertThat(result).containsKey(term2.getTerm());
+        assertThat(result.get(term2.getTerm())).containsExactly(term1.getTerm());
+    }
+
+    @Test
+    @DisplayName("term 문자열로 유의어 일괄 조회 - 여러 term 동시 조회, 유의어 없는 term은 키 없음")
+    void getSynonymsByTerms_MultipleTerms() {
+        // given - term3("파이썬")은 유의어 없음
+        termSynonymService.addSynonym(term1.getId(), term2.getId());
+
+        // when
+        Map<String, List<String>> result = termSynonymService.getSynonymsByTerms(
+                List.of(term1.getTerm(), term2.getTerm(), term3.getTerm()));
+
+        // then
+        assertThat(result).containsOnlyKeys(term1.getTerm(), term2.getTerm());
+        assertThat(result).doesNotContainKey(term3.getTerm());
+    }
+
+    @Test
+    @DisplayName("term 문자열로 유의어 일괄 조회 - 빈 입력은 빈 맵")
+    void getSynonymsByTerms_EmptyInput() {
+        assertThat(termSynonymService.getSynonymsByTerms(List.of())).isEmpty();
+        assertThat(termSynonymService.getSynonymsByTerms(null)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("term ID 유의어 확장 - 원본 포함, 중복 제거")
+    void expandTermIdsWithSynonyms_IncludesOriginalsAndDeduplicates() {
+        // given
+        termSynonymService.addSynonym(term1.getId(), term2.getId());
+
+        // when - 양쪽 ID를 모두 넣어도 중복 없이 두 개만 나와야 한다
+        List<Long> expanded = termSynonymService.expandTermIdsWithSynonyms(
+                List.of(term1.getId(), term2.getId()));
+
+        // then
+        assertThat(expanded).containsExactlyInAnyOrder(term1.getId(), term2.getId());
+    }
+
+    @Test
+    @DisplayName("term ID 유의어 확장 - 유의어 없으면 원본만 반환")
+    void expandTermIdsWithSynonyms_NoSynonyms_ReturnsOriginals() {
+        // when
+        List<Long> expanded = termSynonymService.expandTermIdsWithSynonyms(List.of(term3.getId()));
+
+        // then
+        assertThat(expanded).containsExactly(term3.getId());
     }
 }

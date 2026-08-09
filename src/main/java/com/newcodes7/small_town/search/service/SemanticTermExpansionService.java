@@ -1,22 +1,20 @@
 package com.newcodes7.small_town.search.service;
 
+import com.newcodes7.small_town.embedding.service.ArticleEmbeddingService;
+import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
+import com.newcodes7.small_town.term.repository.TermRepository;
+import com.newcodes7.small_town.term.service.TermSynonymService;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import org.springframework.stereotype.Service;
-
-import com.newcodes7.small_town.term.repository.TermRepository;
-import com.newcodes7.small_town.embedding.service.ArticleEmbeddingService;
-import com.newcodes7.small_town.term.service.TermSynonymService;
-import com.newcodes7.small_town.global.entity.Term;
-import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
+import org.springframework.stereotype.Service;
 
 /**
  * 의미적 검색어 확장 서비스
@@ -37,10 +35,17 @@ public class SemanticTermExpansionService {
         COMPLEX   // 단어 3개 이상 (예: "mysql 인덱스 설계", "검색 성능 개선")
     }
 
+    /**
+     * 확장 결과 캐시 이름
+     * 유의어 변경 시 TermSynonymService / ArticleTermService에서 전체 무효화된다.
+     */
+    private static final String EXPANSION_CACHE_NAME = "searchTermExpansion";
+
     private final TermRepository termRepository;
     private final ArticleEmbeddingService embeddingService;
     private final TermSynonymService termSynonymService;
     private final MorphemeAnalyzer morphemeAnalyzer;
+    private final CacheManager cacheManager;
 
     /**
      * 검색어를 의미적으로 확장
@@ -55,7 +60,13 @@ public class SemanticTermExpansionService {
      * @return Map<Term, Weight> - Term과 가중치
      */
     public Map<String, Double> expandSearchTerms(String keyword) {
-        // LinkedHashMap으로 순서 유지 (직접 매칭 → 유의어 → 임베딩 유사어)
+        Map<String, Double> cached = getCachedExpansion(keyword);
+        if (cached != null) {
+            log.debug("검색어 '{}' 확장 캐시 히트 ({}개 Term)", keyword, cached.size());
+            return cached;
+        }
+
+        // LinkedHashMap으로 순서 유지 (직접 매칭 → 유의어)
         Map<String, Double> expandedTerms = new LinkedHashMap<>();
 
         // 1. 원본 키워드에서 Term 추출
@@ -66,48 +77,69 @@ public class SemanticTermExpansionService {
             log.warn("검색어 '{}' 에서 Term을 추출하지 못했습니다.", keyword);
             // 키워드 전체를 그대로 사용
             expandedTerms.put(keyword, 1.0);
-            return expandedTerms;
+            return cacheExpansion(keyword, expandedTerms);
         }
 
+        // 2. 직접 매칭 Term (가중치 1.0) - 최우선
         for (MorphemeAnalyzer.TermInfo termInfo : termMap.values()) {
-            String term = termInfo.getTerm();
+            expandedTerms.put(termInfo.getTerm(), 1.0);
+            log.debug("직접 매칭 Term: '{}' (가중치: 1.0)", termInfo.getTerm());
+        }
 
-            // 2. 직접 매칭 Term (가중치 1.0) - 최우선
-            expandedTerms.put(term, 1.0);
-            log.debug("직접 매칭 Term: '{}' (가중치: 1.0)", term);
+        // 3. TermSynonym에서 유의어 조회 (가중치 0.8) - 조인 쿼리 1회
+        List<String> directTerms = List.copyOf(expandedTerms.keySet());
+        try {
+            Map<String, List<String>> synonymsByTerm = termSynonymService.getSynonymsByTerms(directTerms);
 
-            // 3. TermSynonym에서 유의어 조회 (가중치 0.8)
-            try {
-                // Term 문자열로 Term 엔티티 조회
-                List<Term> terms = termRepository.findByTerm(term);
-                for (Term foundTerm : terms) {
-                    // 유의어 ID 목록 조회 (복잡한 쿼리 회피)
-                    List<Long> synonymTermIds = termSynonymService.getSynonymTermIds(foundTerm.getId());
-
-                    // ID로 Term 엔티티 조회
-                    for (Long synonymId : synonymTermIds) {
-                        if (synonymId.equals(foundTerm.getId())) {
-                            continue; // 자기 자신 제외
-                        }
-
-                        termRepository.findById(synonymId).ifPresent(synonymTerm -> {
-                            String synonymStr = synonymTerm.getTerm();
-                            if (!expandedTerms.containsKey(synonymStr)) {
-                                expandedTerms.put(synonymStr, 0.8);
-                                log.debug("유의어 Term: '{}' (가중치: 0.8)", synonymStr);
-                            }
-                        });
+            // 조회 결과가 아닌 directTerms 순서로 순회해 확장 순서를 결정적으로 유지
+            for (String term : directTerms) {
+                for (String synonym : synonymsByTerm.getOrDefault(term, List.of())) {
+                    if (expandedTerms.putIfAbsent(synonym, 0.8) == null) {
+                        log.debug("유의어 Term: '{}' (가중치: 0.8)", synonym);
                     }
                 }
-            } catch (Exception e) {
-                log.warn("Term '{}' 유의어 조회 중 오류: {}", term, e.getMessage());
             }
+        } catch (Exception e) {
+            // 유의어 조회 실패 시 직접 매칭만으로 degrade — 이 결과는 캐시하지 않는다
+            log.warn("검색어 '{}' 유의어 조회 중 오류: {}", keyword, e.getMessage());
+            return expandedTerms;
         }
 
         log.info("검색어 '{}' 확장 완료 - 총 {}개 Term (직접: {}, 유의어: {})",
                 keyword, expandedTerms.size(), termMap.size(), expandedTerms.size() - termMap.size());
 
-        return expandedTerms;
+        return cacheExpansion(keyword, expandedTerms);
+    }
+
+    /**
+     * 확장 결과 캐시 조회
+     *
+     * @return 캐시된 결과, 없거나 캐시가 구성되지 않았으면 null
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Double> getCachedExpansion(String keyword) {
+        Cache cache = cacheManager.getCache(EXPANSION_CACHE_NAME);
+        if (cache == null) {
+            return null;
+        }
+
+        Cache.ValueWrapper wrapper = cache.get(keyword);
+        return wrapper == null ? null : (Map<String, Double>) wrapper.get();
+    }
+
+    /**
+     * 확장 결과를 캐시에 저장하고 불변 맵으로 반환
+     * 캐시 인스턴스가 여러 요청에 공유되므로 불변으로 감싼다.
+     */
+    private Map<String, Double> cacheExpansion(String keyword, Map<String, Double> expandedTerms) {
+        Map<String, Double> immutable = Collections.unmodifiableMap(expandedTerms);
+
+        Cache cache = cacheManager.getCache(EXPANSION_CACHE_NAME);
+        if (cache != null) {
+            cache.put(keyword, immutable);
+        }
+
+        return immutable;
     }
 
     /**

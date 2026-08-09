@@ -1080,12 +1080,10 @@ class ArticleSearchServiceTest {
         MorphemeAnalyzer.TermInfo termInfo = new MorphemeAnalyzer.TermInfo("Redis", "SL", 1);
         when(morphemeAnalyzer.extractTerms("Redis")).thenReturn(Map.of("Redis", termInfo));
 
-        // 원본 "Redis" 검색 실패
-        when(termRepository.findByTerm("Redis")).thenReturn(List.of());
-        // 소문자 "redis" 검색 성공
+        // SL 타입은 원본/소문자/대문자 변형을 한 번의 IN 조회로 넘긴다 (매칭되는 것은 소문자뿐)
         Term term = Term.builder().term("redis").termType("SL").build();
         ReflectionTestUtils.setField(term, "id", 1L);
-        when(termRepository.findByTerm("redis")).thenReturn(List.of(term));
+        when(termRepository.findByTermIn(Set.of("Redis", "redis", "REDIS"))).thenReturn(List.of(term));
 
         when(termSynonymService.expandTermIdsWithSynonyms(List.of(1L))).thenReturn(List.of(1L, 2L));
         when(articleTermRepository.findArticleIdsByTermIds(List.of(1L, 2L))).thenReturn(List.of(10L, 20L));
@@ -1095,8 +1093,9 @@ class ArticleSearchServiceTest {
 
         // then
         assertThat(result).containsExactly(10L, 20L);
-        verify(termRepository).findByTerm("Redis"); // 원본 먼저 시도
-        verify(termRepository).findByTerm("redis"); // 소문자 fallback
+        // term별 반복 조회(N+1)가 아니라 IN 조회 1회
+        verify(termRepository, times(1)).findByTermIn(anyCollection());
+        verify(termRepository, never()).findByTerm(anyString());
     }
 
     // ===== getTopArticleIdsForRag 테스트 =====

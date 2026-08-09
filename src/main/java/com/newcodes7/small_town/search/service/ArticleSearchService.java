@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -1141,25 +1142,24 @@ public class ArticleSearchService {
         }
 
         // 2. 추출된 Term들의 ID 조회 (termType 무관하게 모든 매칭되는 term 찾기)
-        List<Long> termIds = new ArrayList<>();
+        // term별로 쿼리를 날리는 대신 대소문자 변형까지 모아 IN 조회 1회로 처리한다.
+        // (기존은 정확 매칭이 비어야 lower → upper 순으로 fallback했으나, IN 조회는 매칭되는 변형을
+        //  모두 가져온다. term 테이블은 V1_16에서 전부 소문자화됐고 이후 삽입도 소문자이므로
+        //  실데이터에서는 동일 결과 — 대소문자가 섞인 행이 있으면 재현율이 넓어지는 방향이다.)
+        Set<String> termCandidates = new LinkedHashSet<>();
         for (MorphemeAnalyzer.TermInfo termInfo : termMap.values()) {
-            // 원래 term으로 검색
-            List<Term> terms = termRepository.findByTerm(termInfo.getTerm());
+            String term = termInfo.getTerm();
+            termCandidates.add(term);
 
-            // 찾지 못했고 영어인 경우, 대소문자 변형도 시도
-            if (terms.isEmpty() && termInfo.getTermType().equals("SL")) {
-                String term = termInfo.getTerm();
-                // 소문자로 시도
-                terms = termRepository.findByTerm(term.toLowerCase());
-                // 대문자로 시도
-                if (terms.isEmpty()) {
-                    terms = termRepository.findByTerm(term.toUpperCase());
-                }
+            if (termInfo.getTermType().equals("SL")) {
+                termCandidates.add(term.toLowerCase());
+                termCandidates.add(term.toUpperCase());
             }
-
-            // 모든 매칭된 term의 ID 추가
-            terms.forEach(term -> termIds.add(term.getId()));
         }
+
+        List<Long> termIds = termRepository.findByTermIn(termCandidates).stream()
+                .map(Term::getId)
+                .toList();
 
         if (termIds.isEmpty()) {
             return null;

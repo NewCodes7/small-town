@@ -1,15 +1,13 @@
 package com.newcodes7.small_town.term.repository;
 
+import com.newcodes7.small_town.global.entity.Term;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
-import java.util.Collection;
-
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-
-import com.newcodes7.small_town.global.entity.Term;
 
 /**
  * Term Repository
@@ -208,5 +206,10 @@ public interface TermRepository extends JpaRepository<Term, Long> {
         """, nativeQuery = true)
     int updateTermStatisticsByArticleIds(@Param("articleIds") List<Long> articleIds);
 
+    /**
+     * 여러 term 문자열로 Term 일괄 조회 (termType 무관)
+     * 키워드에서 추출한 term들을 한 번에 조회해 term별 반복 조회(N+1)를 대체
+     * uk_term_term_type(term, term_type) 인덱스의 선두 컬럼이라 인덱스를 탄다.
+     */
     List<Term> findByTermIn(Collection<String> terms);
 }

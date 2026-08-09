@@ -31,6 +31,7 @@ public class CacheConfig {
             buildTtlCache("chunkSearchResults", 5, TimeUnit.MINUTES),
             buildTtlCache("vectorSearchResults", 5, TimeUnit.MINUTES, 500),
             buildTtlCache("hybridTopArticles", 10, TimeUnit.MINUTES, 1000),
+            buildTtlCache("searchTermExpansion", 30, TimeUnit.MINUTES, 2000),
             buildTtlCache("homeLatestArticles", 10, TimeUnit.MINUTES),
             buildTtlCache("homeLatestVideos", 10, TimeUnit.MINUTES)
         ));

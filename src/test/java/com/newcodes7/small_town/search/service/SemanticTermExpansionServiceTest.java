@@ -3,24 +3,22 @@ package com.newcodes7.small_town.search.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import com.newcodes7.small_town.embedding.service.ArticleEmbeddingService;
+import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
+import com.newcodes7.small_town.search.service.SemanticTermExpansionService.QueryComplexity;
+import com.newcodes7.small_town.term.repository.TermRepository;
+import com.newcodes7.small_town.term.service.TermSynonymService;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import com.newcodes7.small_town.term.repository.TermRepository;
-import com.newcodes7.small_town.embedding.service.ArticleEmbeddingService;
-import com.newcodes7.small_town.term.service.TermSynonymService;
-import com.newcodes7.small_town.global.entity.Term;
-import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
-import com.newcodes7.small_town.search.service.SemanticTermExpansionService.QueryComplexity;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 
 @ExtendWith(MockitoExtension.class)
 public class SemanticTermExpansionServiceTest {
@@ -36,6 +34,13 @@ public class SemanticTermExpansionServiceTest {
 
     @Mock
     private MorphemeAnalyzer morphemeAnalyzer;
+
+    /**
+     * 기본 테스트에서는 getCache()가 null을 반환해 캐시 없이 동작한다.
+     * 캐시 동작 자체는 expandSearchTerms_CachesResult에서 실 CacheManager로 검증.
+     */
+    @Mock
+    private CacheManager cacheManager;
 
     @InjectMocks
     private SemanticTermExpansionService semanticTermExpansionService;
@@ -105,13 +110,14 @@ public class SemanticTermExpansionServiceTest {
         Map<String, MorphemeAnalyzer.TermInfo> termMap = new LinkedHashMap<>();
         termMap.put("spring", new MorphemeAnalyzer.TermInfo("spring", "SL", 1));
         when(morphemeAnalyzer.extractTermsFromMultipleTexts(List.of(keyword))).thenReturn(termMap);
-        when(termRepository.findByTerm("spring")).thenReturn(List.of());
+        when(termSynonymService.getSynonymsByTerms(List.of("spring"))).thenReturn(Map.of());
 
         // when
         Map<String, Double> result = semanticTermExpansionService.expandSearchTerms(keyword);
 
         // then
         assertThat(result).containsEntry("spring", 1.0);
+        assertThat(result).hasSize(1);
     }
 
     @Test
@@ -123,11 +129,8 @@ public class SemanticTermExpansionServiceTest {
         termMap.put("spring", new MorphemeAnalyzer.TermInfo("spring", "SL", 1));
         when(morphemeAnalyzer.extractTermsFromMultipleTexts(List.of(keyword))).thenReturn(termMap);
 
-        Term springTerm = Term.builder().id(1L).term("spring").termType("SL").build();
-        Term springBootTerm = Term.builder().id(2L).term("springboot").termType("SL").build();
-        when(termRepository.findByTerm("spring")).thenReturn(List.of(springTerm));
-        when(termSynonymService.getSynonymTermIds(1L)).thenReturn(List.of(1L, 2L));
-        when(termRepository.findById(2L)).thenReturn(Optional.of(springBootTerm));
+        when(termSynonymService.getSynonymsByTerms(List.of("spring")))
+            .thenReturn(Map.of("spring", List.of("springboot")));
 
         // when
         Map<String, Double> result = semanticTermExpansionService.expandSearchTerms(keyword);
@@ -145,7 +148,8 @@ public class SemanticTermExpansionServiceTest {
         Map<String, MorphemeAnalyzer.TermInfo> termMap = new LinkedHashMap<>();
         termMap.put("java", new MorphemeAnalyzer.TermInfo("java", "SL", 1));
         when(morphemeAnalyzer.extractTermsFromMultipleTexts(List.of(keyword))).thenReturn(termMap);
-        when(termRepository.findByTerm("java")).thenThrow(new RuntimeException("DB error"));
+        when(termSynonymService.getSynonymsByTerms(List.of("java")))
+            .thenThrow(new RuntimeException("DB error"));
 
         // when
         Map<String, Double> result = semanticTermExpansionService.expandSearchTerms(keyword);
@@ -156,18 +160,17 @@ public class SemanticTermExpansionServiceTest {
     }
 
     @Test
-    @DisplayName("검색어 확장 - 자기 자신 유의어 제외")
-    void expandSearchTerms_ExcludesSelfSynonym() {
+    @DisplayName("검색어 확장 - 직접 매칭과 같은 유의어는 가중치를 낮추지 않음")
+    void expandSearchTerms_KeepsDirectWeightForSelfSynonym() {
         // given
         String keyword = "docker";
         Map<String, MorphemeAnalyzer.TermInfo> termMap = new LinkedHashMap<>();
         termMap.put("docker", new MorphemeAnalyzer.TermInfo("docker", "SL", 1));
         when(morphemeAnalyzer.extractTermsFromMultipleTexts(List.of(keyword))).thenReturn(termMap);
 
-        Term dockerTerm = Term.builder().id(1L).term("docker").termType("SL").build();
-        when(termRepository.findByTerm("docker")).thenReturn(List.of(dockerTerm));
-        // synonym IDs include self
-        when(termSynonymService.getSynonymTermIds(1L)).thenReturn(List.of(1L));
+        // 유의어 조회가 직접 매칭과 동일한 term을 돌려줘도 1.0이 0.8로 덮이면 안 된다
+        when(termSynonymService.getSynonymsByTerms(List.of("docker")))
+            .thenReturn(Map.of("docker", List.of("docker")));
 
         // when
         Map<String, Double> result = semanticTermExpansionService.expandSearchTerms(keyword);
@@ -175,7 +178,6 @@ public class SemanticTermExpansionServiceTest {
         // then
         assertThat(result).containsEntry("docker", 1.0);
         assertThat(result).hasSize(1);
-        verify(termRepository, never()).findById(1L);
     }
 
     @Test
@@ -187,8 +189,7 @@ public class SemanticTermExpansionServiceTest {
         termMap.put("spring", new MorphemeAnalyzer.TermInfo("spring", "SL", 1));
         termMap.put("boot", new MorphemeAnalyzer.TermInfo("boot", "SL", 1));
         when(morphemeAnalyzer.extractTermsFromMultipleTexts(List.of(keyword))).thenReturn(termMap);
-        when(termRepository.findByTerm("spring")).thenReturn(List.of());
-        when(termRepository.findByTerm("boot")).thenReturn(List.of());
+        when(termSynonymService.getSynonymsByTerms(List.of("spring", "boot"))).thenReturn(Map.of());
 
         // when
         Map<String, Double> result = semanticTermExpansionService.expandSearchTerms(keyword);
@@ -197,6 +198,81 @@ public class SemanticTermExpansionServiceTest {
         assertThat(result).containsEntry("spring", 1.0);
         assertThat(result).containsEntry("boot", 1.0);
         assertThat(result).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("검색어 확장 - 유의어 조회는 term 수와 무관하게 1회만 호출 (N+1 회귀 방지)")
+    void expandSearchTerms_QueriesSynonymsOnce() {
+        // given
+        String keyword = "spring boot mysql";
+        Map<String, MorphemeAnalyzer.TermInfo> termMap = new LinkedHashMap<>();
+        termMap.put("spring", new MorphemeAnalyzer.TermInfo("spring", "SL", 1));
+        termMap.put("boot", new MorphemeAnalyzer.TermInfo("boot", "SL", 1));
+        termMap.put("mysql", new MorphemeAnalyzer.TermInfo("mysql", "SL", 1));
+        when(morphemeAnalyzer.extractTermsFromMultipleTexts(List.of(keyword))).thenReturn(termMap);
+        when(termSynonymService.getSynonymsByTerms(List.of("spring", "boot", "mysql")))
+            .thenReturn(Map.of("mysql", List.of("마이에스큐엘")));
+
+        // when
+        Map<String, Double> result = semanticTermExpansionService.expandSearchTerms(keyword);
+
+        // then
+        assertThat(result).containsEntry("spring", 1.0);
+        assertThat(result).containsEntry("mysql", 1.0);
+        assertThat(result).containsEntry("마이에스큐엘", 0.8);
+        verify(termSynonymService, times(1)).getSynonymsByTerms(anyCollection());
+        verifyNoInteractions(termRepository);
+    }
+
+    @Test
+    @DisplayName("검색어 확장 - 동일 키워드 재호출 시 캐시 히트로 DB 조회 없음")
+    void expandSearchTerms_CachesResult() {
+        // given - 실 CacheManager를 주입한 인스턴스로 검증
+        SemanticTermExpansionService service = new SemanticTermExpansionService(
+            termRepository, embeddingService, termSynonymService, morphemeAnalyzer,
+            new ConcurrentMapCacheManager("searchTermExpansion"));
+
+        String keyword = "kubernetes";
+        Map<String, MorphemeAnalyzer.TermInfo> termMap = new LinkedHashMap<>();
+        termMap.put("kubernetes", new MorphemeAnalyzer.TermInfo("kubernetes", "SL", 1));
+        when(morphemeAnalyzer.extractTermsFromMultipleTexts(List.of(keyword))).thenReturn(termMap);
+        when(termSynonymService.getSynonymsByTerms(List.of("kubernetes")))
+            .thenReturn(Map.of("kubernetes", List.of("k8s")));
+
+        // when
+        Map<String, Double> first = service.expandSearchTerms(keyword);
+        Map<String, Double> second = service.expandSearchTerms(keyword);
+
+        // then
+        assertThat(first).isEqualTo(second);
+        assertThat(second).containsEntry("k8s", 0.8);
+        verify(termSynonymService, times(1)).getSynonymsByTerms(anyCollection());
+        verify(morphemeAnalyzer, times(1)).extractTermsFromMultipleTexts(List.of(keyword));
+    }
+
+    @Test
+    @DisplayName("검색어 확장 - 유의어 조회 실패 결과는 캐시하지 않음")
+    void expandSearchTerms_DoesNotCacheDegradedResult() {
+        // given
+        SemanticTermExpansionService service = new SemanticTermExpansionService(
+            termRepository, embeddingService, termSynonymService, morphemeAnalyzer,
+            new ConcurrentMapCacheManager("searchTermExpansion"));
+
+        String keyword = "redis";
+        Map<String, MorphemeAnalyzer.TermInfo> termMap = new LinkedHashMap<>();
+        termMap.put("redis", new MorphemeAnalyzer.TermInfo("redis", "SL", 1));
+        when(morphemeAnalyzer.extractTermsFromMultipleTexts(List.of(keyword))).thenReturn(termMap);
+        when(termSynonymService.getSynonymsByTerms(List.of("redis")))
+            .thenThrow(new RuntimeException("DB error"))
+            .thenReturn(Map.of("redis", List.of("레디스")));
+
+        // when - 1회차는 degrade, 2회차는 정상 (캐시됐다면 2회차가 degrade 결과를 그대로 받는다)
+        Map<String, Double> degraded = service.expandSearchTerms(keyword);
+        Map<String, Double> recovered = service.expandSearchTerms(keyword);
+
+        // then
+        assertThat(degraded).hasSize(1).containsEntry("redis", 1.0);
+        assertThat(recovered).containsEntry("레디스", 0.8);
     }
 
     @Test

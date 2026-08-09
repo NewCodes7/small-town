@@ -1,29 +1,7 @@
 package com.newcodes7.small_town.term.service;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.Collection;
-
-import jakarta.persistence.EntityManager;
-
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionTemplate;
-
 import com.newcodes7.small_town.article.repository.ArticleRepository;
 import com.newcodes7.small_town.article.service.ArticleAnalyzedContentService;
-import com.newcodes7.small_town.term.repository.ArticleTermRepository;
-import com.newcodes7.small_town.term.repository.StopwordRepository;
-import com.newcodes7.small_town.term.repository.TermRepository;
-import com.newcodes7.small_town.term.repository.TermSynonymRepository;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.ArticleTerm;
 import com.newcodes7.small_town.global.entity.Stopword;
@@ -32,10 +10,28 @@ import com.newcodes7.small_town.global.entity.TermSource;
 import com.newcodes7.small_town.global.service.MorphemeAnalyzer;
 import com.newcodes7.small_town.global.service.UnifiedMorphemeAnalyzer;
 import com.newcodes7.small_town.global.util.KoreanCharacterUtil;
+import com.newcodes7.small_town.term.repository.ArticleTermRepository;
+import com.newcodes7.small_town.term.repository.StopwordRepository;
+import com.newcodes7.small_town.term.repository.TermRepository;
+import com.newcodes7.small_town.term.repository.TermSynonymRepository;
 import com.newcodes7.small_town.video.repository.VideoTermRepository;
-
+import jakarta.persistence.EntityManager;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 @RequiredArgsConstructor
@@ -294,7 +290,7 @@ public class ArticleTermService {
 
             // 4. 기존 Term 확인 및 업데이트 혹은 생성
             Term term = existingTermMap.get(termText);
-            
+
             if (term == null) {
                 // 신규 Term 객체 생성 (아직 save 안 함)
                 term = Term.builder()
@@ -305,7 +301,7 @@ public class ArticleTermService {
                         .build();
                 newTermsToSave.add(term);
                 // Map에 미리 넣어 중복 생성 방지
-                existingTermMap.put(termText, term); 
+                existingTermMap.put(termText, term);
             } else {
                 // 기존 Term 업데이트 로직 (필요 시 더티 체킹 활용 가능)
                 if ((term.getDecomposedTerm() == null && decomposed != null) || (term.getChosung() == null && chosung != null)) {
@@ -354,6 +350,7 @@ public class ArticleTermService {
      * @param reason 불용어 등록 사유 (선택사항)
      * @return 삭제된 ArticleTerm 및 VideoTerm 총 개수
      */
+    @CacheEvict(value = "searchTermExpansion", allEntries = true)
     @Transactional
     public int deleteTermAndAddToStopwords(Long termId, String reason) {
         // Term 조회
