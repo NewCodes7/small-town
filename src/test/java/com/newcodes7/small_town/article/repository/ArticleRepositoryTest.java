@@ -4,9 +4,15 @@ import static org.assertj.core.api.Assertions.*;
 
 import com.newcodes7.small_town.config.IntegrationTestBase;
 import com.newcodes7.small_town.corporation.repository.CorporationRepository;
+import com.newcodes7.small_town.crawler.repository.CategoryRepository;
 import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.Category;
 import com.newcodes7.small_town.global.entity.Corporation;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.time.LocalDateTime;
+import java.util.List;
+import org.hibernate.Hibernate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,6 +28,12 @@ public class ArticleRepositoryTest extends IntegrationTestBase {
 
     @Autowired
     private CorporationRepository corporationRepository;
+
+    @Autowired
+    private CategoryRepository categoryRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     private Corporation testCorporation;
 
@@ -167,6 +179,46 @@ public class ArticleRepositoryTest extends IntegrationTestBase {
         assertThat(page3.getContent()).hasSize(5);
         assertThat(page1.getTotalElements()).isEqualTo(25);
         assertThat(page1.getTotalPages()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("ID 목록 조회 - Category까지 fetch join되어 트랜잭션 밖에서도 접근 가능")
+    void findByIdInWithCorporation_FetchesCategory() {
+        // given: 카테고리가 있는 아티클과 없는 아티클
+        Category category = categoryRepository.save(Category.builder().name("백엔드").build());
+
+        Article withCategory = createArticle("카테고리있음", LocalDateTime.now());
+        withCategory.setCategory(category);
+        Article withoutCategory = createArticle("카테고리없음", LocalDateTime.now());
+        articleRepository.save(withCategory);
+        articleRepository.save(withoutCategory);
+
+        // 영속성 컨텍스트를 비워 fetch join 여부가 실제 쿼리로 판정되게 한다
+        entityManager.flush();
+        entityManager.clear();
+
+        // when
+        List<Article> result = articleRepository.findByIdInWithCorporation(
+                List.of(withCategory.getId(), withoutCategory.getId()));
+
+        // then: LEFT JOIN FETCH이므로 category가 없는 아티클도 누락되지 않는다
+        assertThat(result).hasSize(2);
+
+        Article foundWithCategory = result.stream()
+                .filter(a -> a.getId().equals(withCategory.getId()))
+                .findFirst()
+                .orElseThrow();
+
+        // 세션 밖 DTO 조립(SearchPrewarmScheduler 등 OSIV 없는 스레드)에서 lazy 초기화가
+        // 터지지 않으려면 조회 시점에 이미 초기화되어 있어야 한다
+        assertThat(Hibernate.isInitialized(foundWithCategory.getCategory())).isTrue();
+        assertThat(foundWithCategory.getCategory().getName()).isEqualTo("백엔드");
+
+        Article foundWithoutCategory = result.stream()
+                .filter(a -> a.getId().equals(withoutCategory.getId()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(foundWithoutCategory.getCategory()).isNull();
     }
 
     private Article createArticle(String title, LocalDateTime publishedAt) {

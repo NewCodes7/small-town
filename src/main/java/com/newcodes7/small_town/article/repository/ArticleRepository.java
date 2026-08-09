@@ -859,14 +859,19 @@ public interface ArticleRepository extends JpaRepository<Article, Long> {
     // ===== 관련 글 추천 관련 쿼리 =====
 
     /**
-     * ID 목록으로 Article 조회 (Corporation fetch join)
-     * 관련 글 추천에서 사용
+     * ID 목록으로 Article 조회 (Corporation + Category fetch join)
+     * 관련 글 추천, 하이브리드 검색 결과 DTO 조립에서 사용
+     *
+     * Category까지 fetch하는 이유: 호출부가 트랜잭션 밖에서 ArticleListResponseDto를 만들며
+     * category를 읽는다. OSIV가 없는 스레드(스케줄러 등)에서는 lazy 초기화가 실패하고,
+     * 웹 요청에서도 OSIV 덕에 살아있을 뿐 결과 건수만큼 Category N+1이 발생한다.
      *
      * @param ids Article ID 목록
-     * @return Article 리스트 (Corporation 포함)
+     * @return Article 리스트 (Corporation, Category 포함)
      */
     @Query("SELECT a FROM Article a " +
            "JOIN FETCH a.corporation c " +
+           "LEFT JOIN FETCH a.category " +
            "WHERE a.id IN :ids " +
            "AND a.deletedAt IS NULL")
     List<Article> findByIdInWithCorporation(@Param("ids") List<Long> ids);
