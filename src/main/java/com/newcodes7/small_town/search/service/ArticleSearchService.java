@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -34,6 +35,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.domain.Page;
@@ -71,6 +73,17 @@ public class ArticleSearchService {
      * REQUIRED 전파(기본값)이므로 테스트의 앰비언트 트랜잭션에는 그대로 합류한다.
      */
     private final TransactionTemplate readOnlyTx;
+
+    /**
+     * cross-scoring Vector 보충 시 2단계 검색의 Stage 1 후보 점수를 재활용할지 여부. 기본 true.
+     *
+     * 본검색이 threshold/limit로 버린 후보 점수를 그대로 쓰면 그만큼 cross-scoring DB 왕복
+     * (computeSimilarityForArticleIds, 검색 1건당 DB 예산의 33%)이 사라진다.
+     * false로 두면 종전처럼 전부 DB로 보충한다 — 같은 빌드에서 core-s/req A/B를 재기 위한 스위치다
+     * (docs/operations/PGSS_SEARCH_COST.md 항목 A).
+     */
+    @Value("${search.hybrid.reuse-stage1-candidates:true}")
+    private boolean reuseStage1Candidates;
 
     private static final String HYBRID_TOP_ARTICLES_CACHE_NAME = "hybridTopArticles";
     private static final String RAG_TOP_ARTICLES_CACHE_NAME = "ragTopArticles";
@@ -541,6 +554,43 @@ public class ArticleSearchService {
         // 4-2. BM25 보충 대상 (Vector-only)
         Set<Long> needBm25Ids = new HashSet<>(vectorOnlyIds);
 
+        // 4-3. Stage 1 후보 점수 재활용 — DB 왕복 없이 채울 수 있는 만큼 needVectorIds에서 뺀다.
+        //
+        // 2단계 벡터 검색은 Stage 1 후보(HNSW 200청크)에 등장한 *모든* 아티클의 점수를 이미
+        // 계산해놓고 threshold/limit로 잘린 것을 버린다. 그런데 바로 그 아티클들이 BM25-only로
+        // 다시 나타나 cross-scoring 대상이 된다 — 같은 값을 두 번째로 계산하려고 청크당 12블록
+        // (TOAST 간접 참조)을 읽는 것이다.
+        //
+        // 재활용은 한쪽 방향으로만 안전하다. 후보 점수는 "그 아티클의 후보 청크 중 상위 topK 평균"
+        // 이고 DB 보충값은 "전 청크 중 상위 topK 평균"이라, 후보가 전체의 부분집합인 이상
+        // 후보 점수 <= DB 보충값이 항상 성립한다 — 단, 후보 청크가 topK개 이상일 때만.
+        // topK 미만이면 AVG의 분모가 1~2로 줄어 오히려 더 높게 나오므로(약한 매칭이 부풀어 오른다)
+        // 그런 아티클은 아예 candidateScores에 담기지 않는다(ArticleChunkRepository의 CASE 참고).
+        //
+        // 그래서 임계값 미만인 후보는 탈락시키지 않고 DB 보충으로 넘긴다: 후보 점수가 과소평가일
+        // 수 있어 DB에서는 임계값을 넘길 수 있기 때문이다. 반대로 임계값 이상이면 DB 값은 그보다
+        // 크거나 같으므로 통과 여부가 바뀌지 않는다 — 점수만 살짝 보수적으로 잡힐 뿐이고,
+        // 그 방향은 본검색 결과(같은 후보 집합에서 계산)와 같아 NSF 정규화에서 일관적이다.
+        int reusedCandidateCount = 0;
+        if (reuseStage1Candidates && !needVectorIds.isEmpty()) {
+            Map<Long, Double> candidateScores = vectorSearchResult.getCandidateScores();
+            if (!candidateScores.isEmpty()) {
+                double vectorThreshold = vectorSearchService.vectorThresholdFor(useMockEmbedding);
+                Iterator<Long> it = needVectorIds.iterator();
+                while (it.hasNext()) {
+                    Long id = it.next();
+                    Double candidateScore = candidateScores.get(id);
+                    if (candidateScore == null || candidateScore < vectorThreshold) {
+                        continue;   // 후보 밖이거나 과소평가 가능 → DB 보충으로
+                    }
+                    it.remove();
+                    reusedCandidateCount++;
+                    vectorResults.put(id, candidateScore);
+                }
+            }
+        }
+        int crossScoreDbCount = needVectorIds.size();
+
         // cross-scoring 보충 → deleted_at 유효성 검증을 하나의 짧은 트랜잭션으로 묶는다
         // (요청당 커넥션 체크아웃은 Phase A + 여기, 총 2회).
         //
@@ -641,11 +691,12 @@ public class ArticleSearchService {
                 ? String.format("hit(%dms)", vectorSearchResult.getCacheLookupMs())
                 : String.format("miss(%dms, lookup %dms)", vectorSearchResult.getEmbeddingMs(), vectorSearchResult.getCacheLookupMs());
 
-        log.info("[검색] keyword='{}' | BM25: {}ms ({}개), Vector: {}ms (embedding: {}, query: {}ms) ({}개), Rerank(NSF): {}ms ({}개) | 총: {}ms",
+        log.info("[검색] keyword='{}' | BM25: {}ms ({}개), Vector: {}ms (embedding: {}, query: {}ms) ({}개), Rerank(NSF): {}ms ({}개), 후보재활용: {}/{}건 (DB보충 {}건) | 총: {}ms",
             keyword,
             bm25EndTime - bm25StartTime, originalBm25Count,
             vectorElapsedMs.get(), embeddingCacheInfo, vectorSearchResult.getQueryMs(), originalVectorCount,
             rerankEndTime - rerankStartTime, nsfScores.size(),
+            reusedCandidateCount, reusedCandidateCount + crossScoreDbCount, crossScoreDbCount,
             totalEndTime - totalStartTime);
 
         log.debug("NSF 결과 {}개 중 유효한 article: {}개", nsfScores.size(), validArticleIds.size());

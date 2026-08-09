@@ -59,6 +59,10 @@ services:
       # RAG 부하테스트 게이트와 같은 이유로 상시 true — 반복 테스트마다 .env 수정+재배포를 하지 않기 위함.
       # 실질 방어선은 nginx의 X-LoadTest-Token(loadtest_token.conf)이다 (load-test/README.md "접근 통제" 참고).
       - SEARCH_LOADTEST_ENABLED=${SEARCH_LOADTEST_ENABLED:-true}
+      # cross-scoring Vector 보충의 Stage 1 후보 재활용 (기본 true).
+      # false로 두면 종전처럼 전부 DB로 보충 — 같은 빌드에서 core-s/req A/B를 재기 위한 스위치다
+      # (docs/operations/PGSS_SEARCH_COST.md 항목 A). 여기 없으면 .env에 넣어도 컨테이너에 안 들어간다.
+      - SEARCH_HYBRID_REUSE_STAGE1_CANDIDATES=${SEARCH_HYBRID_REUSE_STAGE1_CANDIDATES:-true}
     expose:
       - "8080"
     healthcheck:

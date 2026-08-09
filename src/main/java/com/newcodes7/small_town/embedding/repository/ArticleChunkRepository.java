@@ -1,14 +1,12 @@
 package com.newcodes7.small_town.embedding.repository;
 
+import com.newcodes7.small_town.embedding.entity.ArticleChunk;
 import java.util.List;
-
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-
-import com.newcodes7.small_town.embedding.entity.ArticleChunk;
 
 /**
  * ArticleChunk 리포지토리
@@ -147,13 +145,28 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
      * CTE로 쿼리 벡터 정규화를 한 번만 수행하고,
      * candidates CTE에서 embedding_normalized를 미리 읽어 PK 재조회를 방지합니다.
      *
+     * <p>threshold/limit로 잘려나가는 후보의 점수도 함께 반환한다 — 그 아티클들은 곧이어
+     * cross-scoring(computeSimilarityForArticleIds)이 다시 계산하려는 대상과 겹치므로,
+     * 여기서 넘겨주면 DB 왕복을 통째로 없앨 수 있다(docs/operations/PGSS_SEARCH_COST.md 항목 A).
+     * Stage 1 후보 집합은 이미 메모리에 있으므로 추가 비용은 반환 행 수뿐이다.
+     *
+     * <p><b>candidate_similarity는 후보 청크가 topK개 이상인 아티클에만 채운다(그 외 NULL).</b>
+     * AVG의 분모가 후보에 걸린 청크 수라, 후보 청크가 topK 미만이면 상위 1~2개만 평균 내
+     * cross-scoring(전체 청크 중 상위 topK 평균)보다 <b>높게</b> 나온다 — 재활용하면 약한 매칭이
+     * 부풀어 오른다. topK개 이상이면 같은 깊이의 평균이고 후보는 전체 청크의 부분집합이므로
+     * candidate_similarity ≤ cross-scoring 값이 항상 성립한다(과대평가 불가).
+     *
      * @param queryEmbedding 검색 쿼리의 임베딩 벡터 (PostgreSQL 배열 포맷)
      * @param queryBinary 검색 쿼리의 binary vector (bit string)
      * @param candidateLimit Stage 1 후보 수 (예: 500)
      * @param topK 평균 계산에 사용할 상위 청크 수
      * @param threshold 최소 유사도 임계값
-     * @param limit 최종 결과 수
-     * @return Article ID와 평균 유사도
+     * @param limit 최종 결과 수 (is_main=true로 표시되는 행 수)
+     * @return (article_id, avg_similarity, candidate_similarity, is_main) 행 목록.
+     *         avg_similarity는 threshold를 통과한 청크만 평균 낸 값(통과 청크 없으면 NULL),
+     *         candidate_similarity는 후보 청크가 topK개 이상일 때만 채워지는 상위 topK 평균
+     *         (threshold 미적용, 미달 아티클은 NULL),
+     *         is_main은 기존 semantics(threshold 통과 + limit 이내) 해당 여부다.
      */
     @Query(value = """
             WITH query_vec AS (
@@ -170,23 +183,33 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
                   AND cac.embedding_binary IS NOT NULL
                 ORDER BY cac.embedding_binary <~> CAST(:queryBinary AS bit(1024))
                 LIMIT :candidateLimit
-            )
-            SELECT article_id, AVG(similarity) AS avg_similarity
-            FROM (
+            ),
+            agg AS (
                 SELECT
-                    c.article_id,
-                    -(c.embedding_normalized <#> q.vec) AS similarity,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY c.article_id
-                        ORDER BY c.embedding_normalized <#> q.vec
-                    ) AS rn
-                FROM candidates c, query_vec q
-            ) ranked
-            WHERE rn <= :topK
-              AND similarity >= :threshold
-            GROUP BY article_id
-            ORDER BY avg_similarity DESC
-            LIMIT :limit
+                    article_id,
+                    AVG(similarity) FILTER (WHERE similarity >= :threshold) AS avg_similarity,
+                    CASE WHEN COUNT(*) >= :topK THEN AVG(similarity) END AS candidate_similarity
+                FROM (
+                    SELECT
+                        c.article_id,
+                        -(c.embedding_normalized <#> q.vec) AS similarity,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY c.article_id
+                            ORDER BY c.embedding_normalized <#> q.vec
+                        ) AS rn
+                    FROM candidates c, query_vec q
+                ) ranked
+                WHERE rn <= :topK
+                GROUP BY article_id
+            )
+            SELECT
+                article_id,
+                avg_similarity,
+                candidate_similarity,
+                (avg_similarity IS NOT NULL
+                 AND ROW_NUMBER() OVER (ORDER BY avg_similarity DESC NULLS LAST) <= :limit) AS is_main
+            FROM agg
+            ORDER BY avg_similarity DESC NULLS LAST
             """, nativeQuery = true)
     List<Object[]> findArticlesByTwoStageSearch(
             @Param("queryEmbedding") String queryEmbedding,
@@ -219,23 +242,33 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
                   AND corp.is_domestic IN (:domesticTypes)
                 ORDER BY cac.embedding_binary <~> CAST(:queryBinary AS bit(1024))
                 LIMIT :candidateLimit
-            )
-            SELECT article_id, AVG(similarity) AS avg_similarity
-            FROM (
+            ),
+            agg AS (
                 SELECT
-                    c.article_id,
-                    -(c.embedding_normalized <#> q.vec) AS similarity,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY c.article_id
-                        ORDER BY c.embedding_normalized <#> q.vec
-                    ) AS rn
-                FROM candidates c, query_vec q
-            ) ranked
-            WHERE rn <= :topK
-              AND similarity >= :threshold
-            GROUP BY article_id
-            ORDER BY avg_similarity DESC
-            LIMIT :limit
+                    article_id,
+                    AVG(similarity) FILTER (WHERE similarity >= :threshold) AS avg_similarity,
+                    CASE WHEN COUNT(*) >= :topK THEN AVG(similarity) END AS candidate_similarity
+                FROM (
+                    SELECT
+                        c.article_id,
+                        -(c.embedding_normalized <#> q.vec) AS similarity,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY c.article_id
+                            ORDER BY c.embedding_normalized <#> q.vec
+                        ) AS rn
+                    FROM candidates c, query_vec q
+                ) ranked
+                WHERE rn <= :topK
+                GROUP BY article_id
+            )
+            SELECT
+                article_id,
+                avg_similarity,
+                candidate_similarity,
+                (avg_similarity IS NOT NULL
+                 AND ROW_NUMBER() OVER (ORDER BY avg_similarity DESC NULLS LAST) <= :limit) AS is_main
+            FROM agg
+            ORDER BY avg_similarity DESC NULLS LAST
             """, nativeQuery = true)
     List<Object[]> findArticlesByTwoStageSearchWithDomesticFilter(
             @Param("queryEmbedding") String queryEmbedding,
@@ -269,23 +302,33 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
                   AND cat.name IN (:categories)
                 ORDER BY cac.embedding_binary <~> CAST(:queryBinary AS bit(1024))
                 LIMIT :candidateLimit
-            )
-            SELECT article_id, AVG(similarity) AS avg_similarity
-            FROM (
+            ),
+            agg AS (
                 SELECT
-                    c.article_id,
-                    -(c.embedding_normalized <#> q.vec) AS similarity,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY c.article_id
-                        ORDER BY c.embedding_normalized <#> q.vec
-                    ) AS rn
-                FROM candidates c, query_vec q
-            ) ranked
-            WHERE rn <= :topK
-              AND similarity >= :threshold
-            GROUP BY article_id
-            ORDER BY avg_similarity DESC
-            LIMIT :limit
+                    article_id,
+                    AVG(similarity) FILTER (WHERE similarity >= :threshold) AS avg_similarity,
+                    CASE WHEN COUNT(*) >= :topK THEN AVG(similarity) END AS candidate_similarity
+                FROM (
+                    SELECT
+                        c.article_id,
+                        -(c.embedding_normalized <#> q.vec) AS similarity,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY c.article_id
+                            ORDER BY c.embedding_normalized <#> q.vec
+                        ) AS rn
+                    FROM candidates c, query_vec q
+                ) ranked
+                WHERE rn <= :topK
+                GROUP BY article_id
+            )
+            SELECT
+                article_id,
+                avg_similarity,
+                candidate_similarity,
+                (avg_similarity IS NOT NULL
+                 AND ROW_NUMBER() OVER (ORDER BY avg_similarity DESC NULLS LAST) <= :limit) AS is_main
+            FROM agg
+            ORDER BY avg_similarity DESC NULLS LAST
             """, nativeQuery = true)
     List<Object[]> findArticlesByTwoStageSearchWithCategoryFilter(
             @Param("queryEmbedding") String queryEmbedding,
@@ -319,23 +362,33 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
                   AND cat.name IN (:categories)
                 ORDER BY cac.embedding_binary <~> CAST(:queryBinary AS bit(1024))
                 LIMIT :candidateLimit
-            )
-            SELECT article_id, AVG(similarity) AS avg_similarity
-            FROM (
+            ),
+            agg AS (
                 SELECT
-                    c.article_id,
-                    -(c.embedding_normalized <#> q.vec) AS similarity,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY c.article_id
-                        ORDER BY c.embedding_normalized <#> q.vec
-                    ) AS rn
-                FROM candidates c, query_vec q
-            ) ranked
-            WHERE rn <= :topK
-              AND similarity >= :threshold
-            GROUP BY article_id
-            ORDER BY avg_similarity DESC
-            LIMIT :limit
+                    article_id,
+                    AVG(similarity) FILTER (WHERE similarity >= :threshold) AS avg_similarity,
+                    CASE WHEN COUNT(*) >= :topK THEN AVG(similarity) END AS candidate_similarity
+                FROM (
+                    SELECT
+                        c.article_id,
+                        -(c.embedding_normalized <#> q.vec) AS similarity,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY c.article_id
+                            ORDER BY c.embedding_normalized <#> q.vec
+                        ) AS rn
+                    FROM candidates c, query_vec q
+                ) ranked
+                WHERE rn <= :topK
+                GROUP BY article_id
+            )
+            SELECT
+                article_id,
+                avg_similarity,
+                candidate_similarity,
+                (avg_similarity IS NOT NULL
+                 AND ROW_NUMBER() OVER (ORDER BY avg_similarity DESC NULLS LAST) <= :limit) AS is_main
+            FROM agg
+            ORDER BY avg_similarity DESC NULLS LAST
             """, nativeQuery = true)
     List<Object[]> findArticlesByTwoStageSearchWithBothFilters(
             @Param("queryEmbedding") String queryEmbedding,
@@ -369,23 +422,33 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
                   AND a.corporation_id IN (:corporationIds)
                 ORDER BY cac.embedding_binary <~> CAST(:queryBinary AS bit(1024))
                 LIMIT :candidateLimit
-            )
-            SELECT article_id, AVG(similarity) AS avg_similarity
-            FROM (
+            ),
+            agg AS (
                 SELECT
-                    c.article_id,
-                    -(c.embedding_normalized <#> q.vec) AS similarity,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY c.article_id
-                        ORDER BY c.embedding_normalized <#> q.vec
-                    ) AS rn
-                FROM candidates c, query_vec q
-            ) ranked
-            WHERE rn <= :topK
-              AND similarity >= :threshold
-            GROUP BY article_id
-            ORDER BY avg_similarity DESC
-            LIMIT :limit
+                    article_id,
+                    AVG(similarity) FILTER (WHERE similarity >= :threshold) AS avg_similarity,
+                    CASE WHEN COUNT(*) >= :topK THEN AVG(similarity) END AS candidate_similarity
+                FROM (
+                    SELECT
+                        c.article_id,
+                        -(c.embedding_normalized <#> q.vec) AS similarity,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY c.article_id
+                            ORDER BY c.embedding_normalized <#> q.vec
+                        ) AS rn
+                    FROM candidates c, query_vec q
+                ) ranked
+                WHERE rn <= :topK
+                GROUP BY article_id
+            )
+            SELECT
+                article_id,
+                avg_similarity,
+                candidate_similarity,
+                (avg_similarity IS NOT NULL
+                 AND ROW_NUMBER() OVER (ORDER BY avg_similarity DESC NULLS LAST) <= :limit) AS is_main
+            FROM agg
+            ORDER BY avg_similarity DESC NULLS LAST
             """, nativeQuery = true)
     List<Object[]> findArticlesByTwoStageSearchWithCorporationFilter(
             @Param("queryEmbedding") String queryEmbedding,

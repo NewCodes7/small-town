@@ -11,12 +11,12 @@ import java.util.concurrent.ExecutorService;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.cache.CacheManager;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /**
  * VectorSearchService 단위 테스트
@@ -413,6 +413,49 @@ class VectorSearchServiceTest {
         assertThat(result.getScores()).isEmpty();
         assertThat(result.getQueryEmbedding()).isNull();
         verifyNoInteractions(chunkRepository);
+    }
+
+    // ==================== Stage 1 후보 점수 (cross-scoring 재활용용) ====================
+
+    @Test
+    @DisplayName("is_main=false 행은 본검색 결과에서 제외되고 후보 점수에만 남는다")
+    void searchByKeywordWithEmbedding_후보행은_본검색결과에서_제외() {
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false)))
+                .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.hit(DUMMY_EMBEDDING, 5));
+        when(chunkRepository.findArticlesByTwoStageSearch(
+                anyString(), anyString(), anyInt(), anyInt(), anyDouble(), anyInt()))
+                .thenReturn(List.<Object[]>of(
+                        new Object[]{10L, 0.85, 0.85, true},    // 본검색 결과
+                        new Object[]{20L, 0.60, 0.60, false},   // threshold는 통과했으나 limit 밖
+                        new Object[]{30L, null, 0.40, false},   // threshold 미만 후보
+                        new Object[]{40L, null, null, false}    // 후보 청크가 topK 미만 → 재활용 불가
+                ));
+
+        VectorSearchService.VectorSearchResult result =
+                vectorSearchService.searchByKeywordWithEmbedding("kubernetes");
+
+        assertThat(result.getScores()).containsOnlyKeys(10L).containsEntry(10L, 0.85);
+        assertThat(result.getCandidateScores())
+                .containsOnlyKeys(10L, 20L, 30L)
+                .containsEntry(10L, 0.85)
+                .containsEntry(20L, 0.60)
+                .containsEntry(30L, 0.40);
+    }
+
+    @Test
+    @DisplayName("2컬럼 행(구형 결과)도 그대로 처리 — 후보 점수는 본검색 점수와 동일")
+    void searchByKeywordWithEmbedding_2컬럼행_하위호환() {
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false)))
+                .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.hit(DUMMY_EMBEDDING, 5));
+        when(chunkRepository.findArticlesByTwoStageSearch(
+                anyString(), anyString(), anyInt(), anyInt(), anyDouble(), anyInt()))
+                .thenReturn(List.<Object[]>of(new Object[]{10L, 0.85}));
+
+        VectorSearchService.VectorSearchResult result =
+                vectorSearchService.searchByKeywordWithEmbedding("kubernetes");
+
+        assertThat(result.getScores()).containsEntry(10L, 0.85);
+        assertThat(result.getCandidateScores()).containsEntry(10L, 0.85);
     }
 
     // ==================== searchForRag ====================

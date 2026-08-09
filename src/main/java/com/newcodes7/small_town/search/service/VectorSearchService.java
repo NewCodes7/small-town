@@ -115,7 +115,7 @@ public class VectorSearchService {
             }
             log.debug("키워드 임베딩 생성 완료 - 차원: {}", queryEmbedding.length);
 
-            return searchTwoStage(queryEmbedding, threshold, topK, maxResults, null, null);
+            return searchTwoStage(queryEmbedding, threshold, topK, maxResults, null, null).scores();
 
         } catch (Exception e) {
             log.error("벡터 검색 실패: {}", e.getMessage(), e);
@@ -242,15 +242,9 @@ public class VectorSearchService {
                         threshold, DEFAULT_MAX_RESULTS);
             }
 
-            Map<Long, Double> scoreMap = new HashMap<>();
-            for (Object[] row : results) {
-                Long articleId = ((Number) row[0]).longValue();
-                Double similarity = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
-                if (similarity != null) {
-                    scoreMap.put(articleId, similarity);
-                }
-            }
-            return new VectorSearchResult(scoreMap, queryEmbedding);
+            TwoStageRows parsed = parseTwoStageRows(results);
+            return new VectorSearchResult(parsed.scores(), queryEmbedding,
+                    0, 0, false, 0, parsed.candidateScores());
 
         } catch (Exception e) {
             log.error("RAG 벡터 검색 실패: {}", e.getMessage(), e);
@@ -280,12 +274,13 @@ public class VectorSearchService {
                     queryEmbedding.length, 0);
 
             long queryStart = System.currentTimeMillis();
-            Map<Long, Double> scores = searchTwoStage(queryEmbedding, vectorThresholdFor(useMockEmbedding), DEFAULT_TOP_K, maxVectorResultsFor(useMockEmbedding), domesticTypes, categories);
+            TwoStageRows parsed = searchTwoStage(queryEmbedding, vectorThresholdFor(useMockEmbedding), DEFAULT_TOP_K, maxVectorResultsFor(useMockEmbedding), domesticTypes, categories);
             long queryMs = System.currentTimeMillis() - queryStart;
 
             warmChunkCacheAsync(keyword, queryEmbedding);
 
-            return new VectorSearchResult(scores, queryEmbedding, embeddingMs, queryMs, cacheHit, cacheLookupMs);
+            return new VectorSearchResult(parsed.scores(), queryEmbedding, embeddingMs, queryMs, cacheHit, cacheLookupMs,
+                    parsed.candidateScores());
 
         } catch (Exception e) {
             log.error("벡터 검색 실패: {}", e.getMessage(), e);
@@ -299,7 +294,7 @@ public class VectorSearchService {
      * @param domesticTypes 허용할 is_domestic 값 목록 (null이면 필터 없음)
      * @param categories    허용할 카테고리 이름 목록 (null이면 필터 없음)
      */
-    private Map<Long, Double> searchTwoStage(float[] queryEmbedding, double threshold, int topK, int maxResults,
+    private TwoStageRows searchTwoStage(float[] queryEmbedding, double threshold, int topK, int maxResults,
                                               List<Integer> domesticTypes, List<String> categories) {
         long startTime = System.currentTimeMillis();
 
@@ -326,18 +321,76 @@ public class VectorSearchService {
 
         long totalTime = System.currentTimeMillis() - startTime;
 
-        Map<Long, Double> scoreMap = new HashMap<>();
-        for (Object[] row : results) {
+        TwoStageRows parsed = parseTwoStageRows(results);
+
+        log.debug("2단계 벡터 검색 완료 - 총: {}ms, 결과: {}개 (후보: {}개)",
+                totalTime, parsed.scores().size(), parsed.candidateScores().size());
+
+        return parsed;
+    }
+
+    /**
+     * 2단계 검색 결과 행 파싱.
+     *
+     * 행 형식은 (article_id, avg_similarity, candidate_similarity, is_main)이며,
+     * 앞의 두 컬럼만 있는 구형 행(테스트 스텁 등)도 그대로 받아들인다 — 그 경우 후보 점수는
+     * 본검색 점수와 같고 모든 행이 본검색 결과로 취급된다.
+     */
+    private TwoStageRows parseTwoStageRows(List<Object[]> rows) {
+        Map<Long, Double> scores = new HashMap<>();
+        Map<Long, Double> candidateScores = new HashMap<>();
+
+        for (Object[] row : rows) {
             Long articleId = ((Number) row[0]).longValue();
-            Double similarity = row.length > 1 ? ((Number) row[1]).doubleValue() : null;
-            if (similarity != null) {
-                scoreMap.put(articleId, similarity);
+            // 두 분기 모두 Double로 맞춘다 — 한쪽이 primitive double이면 삼항 연산자가 반대쪽
+            // Double을 언박싱해서, 두 컬럼이 모두 NULL인 행(threshold 미달 + 후보 청크 topK 미만)
+            // 에서 NPE가 나고 벡터 검색 전체가 빈 결과로 떨어진다
+            Double similarity = row.length > 1 ? toNullableDouble(row[1]) : null;
+            Double candidateSimilarity = row.length > 2 ? toNullableDouble(row[2]) : similarity;
+            boolean isMain = (row.length > 3 && row[3] != null)
+                    ? toBoolean(row[3]) : similarity != null;
+
+            if (isMain && similarity != null) {
+                scores.put(articleId, similarity);
+            }
+            if (candidateSimilarity != null) {
+                candidateScores.put(articleId, candidateSimilarity);
             }
         }
 
-        log.debug("2단계 벡터 검색 완료 - 총: {}ms, 결과: {}개", totalTime, scoreMap.size());
+        return new TwoStageRows(scores, candidateScores);
+    }
 
-        return scoreMap;
+    private Double toNullableDouble(Object value) {
+        return value == null ? null : ((Number) value).doubleValue();
+    }
+
+    /**
+     * native 쿼리의 boolean 컬럼 변환.
+     *
+     * Boolean.TRUE.equals()로 바로 비교하면 드라이버/Hibernate가 다른 표현(1, 't')으로 돌려줬을 때
+     * 예외 없이 전부 false가 되어 <b>벡터 검색 결과가 조용히 0건</b>이 된다(검색이 BM25 단독으로
+     * 퇴화하고 로그에도 안 남는다). 알려진 표현을 모두 받고, 모르는 타입이면 예외를 던져
+     * 조용한 퇴화 대신 상위 catch의 에러 로그로 드러나게 한다.
+     */
+    private boolean toBoolean(Object value) {
+        return switch (value) {
+            case Boolean b -> b;
+            case Number n -> n.intValue() != 0;
+            case String str -> "t".equalsIgnoreCase(str) || "true".equalsIgnoreCase(str);
+            default -> throw new IllegalStateException(
+                    "2단계 검색 is_main 컬럼 타입을 해석할 수 없음: " + value.getClass().getName());
+        };
+    }
+
+    /**
+     * 2단계 검색의 본검색 점수와 Stage 1 후보 점수 묶음.
+     *
+     * candidateScores는 threshold/limit로 잘려나간 아티클까지 포함한다 —
+     * cross-scoring 보충 대상과 겹치는 만큼 DB 왕복을 없앨 수 있다
+     * (docs/operations/PGSS_SEARCH_COST.md 항목 A).
+     */
+    private record TwoStageRows(Map<Long, Double> scores, Map<Long, Double> candidateScores) {
     }
 
     /**
@@ -350,23 +403,45 @@ public class VectorSearchService {
         private final long queryMs;
         private final boolean cacheHit;
         private final long cacheLookupMs;
+        private final Map<Long, Double> candidateScores;
 
         public VectorSearchResult(Map<Long, Double> scores, float[] queryEmbedding,
-                                   long embeddingMs, long queryMs, boolean cacheHit, long cacheLookupMs) {
+                                   long embeddingMs, long queryMs, boolean cacheHit, long cacheLookupMs,
+                                   Map<Long, Double> candidateScores) {
             this.scores = scores;
             this.queryEmbedding = queryEmbedding;
             this.embeddingMs = embeddingMs;
             this.queryMs = queryMs;
             this.cacheHit = cacheHit;
             this.cacheLookupMs = cacheLookupMs;
+            // 결과 캐시(vectorSearchResults)에 담겨 스레드 간 공유되므로 불변으로 굳힌다
+            this.candidateScores = candidateScores != null ? Map.copyOf(candidateScores) : Map.of();
+        }
+
+        public VectorSearchResult(Map<Long, Double> scores, float[] queryEmbedding,
+                                   long embeddingMs, long queryMs, boolean cacheHit, long cacheLookupMs) {
+            this(scores, queryEmbedding, embeddingMs, queryMs, cacheHit, cacheLookupMs, Map.of());
         }
 
         public VectorSearchResult(Map<Long, Double> scores, float[] queryEmbedding) {
-            this(scores, queryEmbedding, 0, 0, false, 0);
+            this(scores, queryEmbedding, 0, 0, false, 0, Map.of());
         }
 
         public Map<Long, Double> getScores() {
             return scores;
+        }
+
+        /**
+         * Stage 1 후보에서 <b>cross-scoring과 같은 깊이(topK)로</b> 점수가 확정된 아티클들
+         * (threshold/limit 적용 전, 후보 청크가 topK 미만인 아티클은 제외).
+         *
+         * cross-scoring 보충 대상과 겹치는 만큼 DB 왕복 없이 채울 수 있다. 값에는 threshold가
+         * 적용돼 있지 않으므로 사용하는 쪽에서 걸러야 한다 — 그리고 이 값은 전체 청크 기준
+         * 계산값보다 크지 않으므로(부분집합의 상위 topK 평균), 임계값 미만이라고 해서 곧바로
+         * 탈락시키면 안 되고 DB 보충으로 넘겨야 한다.
+         */
+        public Map<Long, Double> getCandidateScores() {
+            return candidateScores;
         }
 
         public float[] getQueryEmbedding() {
