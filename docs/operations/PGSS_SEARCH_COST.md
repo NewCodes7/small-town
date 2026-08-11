@@ -497,14 +497,18 @@ Stage 2 폭주에 대한 값싼 안전망이다.
 `normVec = 0`이라 NSF 기여가 0이다. 게다가 본검색·보충 양쪽 모두 임계값 0.52에서 잘려 들어와
 **min이 0.52 근처에 고정**돼 있어, 하위를 떼어내도 다른 아티클의 정규화가 크게 흔들리지 않는다.
 
-**스위치** — `search.hybrid.cross-scoring-two-stage`(**기본 false**),
+**스위치** — `search.hybrid.cross-scoring-two-stage`(**기본 true**),
 `...-stage2-limit`(20), `...-stage1-floor-margin`(0.25). 셋 다 `docker-compose.yml`의
 `&backend-env`에 배선했다.
 
-> **항목 A와 달리 기본을 false로 뒀다.** A는 값이 불변이라 무료였지만 B'는 **랭킹을 바꾼다.**
-> 이번 작업에서 하이브리드 NDCG 하네스는 만들지 않기로 했으므로(아래 참고), 대신
-> ① 선행 커밋의 `보충통과` 로그로 컷을 정하고 ② env 하나로 켜는 순서를 취한다.
-> 켜는 데 코드 변경이 필요 없고 롤백도 env 되돌리기 + 재배포다.
+> **켜고 배포하기로 했다** — 컷 20은 위 표(예산 33% → 8~9%)에서 온 값이고, `보충통과` 로그로
+> 사후에 조정한다. **롤백은 `SEARCH_HYBRID_CROSS_SCORING_TWO_STAGE=false` + 재배포**로
+> 코드 변경 없이 된다.
+>
+> 대가 하나: 로깅과 퍼널이 **같은 릴리스에 들어가므로 `보충통과 P`의 "퍼널 off" 기준선이
+> 남지 않는다.** 켠 뒤의 P만 관측되므로 before/after 비교는 불가능하고, 판정은
+> "P가 붕괴하지 않는가"(절대값)와 `pg_stat_statements`의 B' 이전 비용 기준선 비교로만 한다.
+> 기준선이 꼭 필요하면 첫 배포만 `.env`에 `=false`를 두고 하루 뒤 지우면 된다.
 
 **적용 범위** — 검색 경로(`computeHybridCore`)만. `VectorSearchService`에 검색 전용 진입점
 `computeSimilarityForSearchCrossScoring`을 새로 파고 그쪽에서만 스위치를 본다.
@@ -518,15 +522,58 @@ RAG(`getTopArticleIdsForRag`)와 따옴표 검색(relevance 정렬용 벡터 점
 그 밖에 "해밍이 먼 최고 청크가 Stage 2 값에 반영되는가"(퍼널이 청크를 미리 자르지 않는다는
 증거), 컷 순서, 하한 배제, `deleted_at` 배제.
 
-**미검증** — 운영 계측(EXPLAIN 블록 수, core-s/req, `pg_stat_statements`, 랭킹 변화)은
-배포 후에 해야 한다. **랭킹 변화량은 하네스를 만들지 않는 한 끝까지 미측정으로 남는다** —
-`보충통과 P`가 켜기 전후로 유지되는지가 유일한 품질 신호다.
+**미검증** — 운영 계측(EXPLAIN 블록 수, core-s/req, `pg_stat_statements`)은 배포 후에 해야 한다.
+**랭킹 정확도는 측정하지 않고 켰다** — 아래 "남은 검증 부채"에 따로 적었다.
 
 > **부하테스트로 이 최적화는 측정된다 — 항목 A와 갈리는 지점이다.** A는 mock Clova의 의사난수
 > 벡터 때문에 `needVectorIds ∩ candidateScores`가 비어 재활용이 일어나지 않았다. B'의
 > `needVectorIds`는 벡터 품질과 무관하게 BM25-only ~100건으로 잡히고,
 > `search.loadtest.vector-threshold=0.0`이라 하한이 -0.25로 해제돼 **Stage 2가 정확히 컷 크기를
-> 받는다** — 즉 최악 비용을 그대로 잰다.
+> 받는다** — 즉 최악 비용을 그대로 잰다. 단 mock 벡터는 무작위라 **비용만** 재고 품질은 못 잰다.
+
+#### ⚠️ 남은 검증 부채 — 하이브리드 랭킹 정확도 (미측정 상태로 켰다)
+
+**이 절은 B'가 갚지 않고 남긴 빚을 기록해두는 곳이다.** 위 §"품질 측정이 선행돼야 한다"가
+착수 전제로 걸어둔 조건을 **충족하지 않은 채** 퍼널을 켰다. 나중에 이 절만 보고 이어받을 수
+있도록 무엇이 비어 있는지, 무엇을 만들어야 하는지, 이미 확인한 함정이 무엇인지 적는다.
+
+**무엇이 검증됐고 무엇이 안 됐나**
+
+| | 상태 |
+|---|---|
+| 퍼널이 반환하는 **값**이 단일 쿼리와 같은가 | ✅ `ArticleChunkCrossScoringTest` 동치성 테스트로 고정 |
+| Stage 2가 전 청크를 보는가(청크를 미리 안 자르는가) | ✅ 같은 테스트 |
+| 비용이 실제로 줄어드는가 | ⏳ 배포 후 EXPLAIN / pgss / 부하테스트 (측정 방법 확립돼 있음) |
+| **컷 20이 NSF 최종 랭킹을 얼마나 바꾸는가** | ❌ **미측정. 측정 수단 자체가 없다** |
+| 컷 20이 적정값인가 | ❌ 문서 표에서 고른 값이고 `보충통과` 분포로 확인한 적 없다 |
+
+**왜 못 쟀나** — `VectorSearchAccuracyService`(exact search 정답셋 → Recall@K / NDCG@K)와
+`AdminSearchTestController`가 이미 있지만 **벡터 검색만 잰다.** cross-scoring은 정의상
+BM25-only 아티클에만 작용하므로, 벡터 단독 지표로는 이 변경이 **원리적으로 관측되지 않는다.**
+
+**만들면 되는 것 (설계는 이미 서 있다)** — `HybridSearchScorer.calculateNSFScores(bm25, vector,
+wB, wV)`는 두 맵의 **순수 함수**이므로 하이브리드 랭킹 비교에 파이프라인 개조가 필요 없다:
+
+1. `search_logs` 상위 키워드 → `search_query_embedding`에 **이미 캐시된 임베딩** 재사용
+   (Clova API 호출 0회)
+2. 그 키워드의 BM25 상위 100 id = 실제 cross-scoring 대상 근사
+3. 같은 id 집합에 대해 `computeSimilarityForArticleIds`(정답) vs
+   `computeSimilarityForArticleIdsTwoStage`(컷 스윕) 실행
+4. **Stage 1 recall**(정답 중 임계값 통과분이 컷에서 몇 % 살아남나) + `calculateNSFScores`를
+   두 벡터 맵으로 각각 호출해 **top-10 NDCG/겹침**
+5. 컷을 10/20/30/50으로 스윕해 파레토 곡선 → 무릎점
+
+**착수 전에 반드시 고칠 것 (조사 중 발견한 함정 2개)**
+
+- `VectorSearchAccuracyService.resolveTestQueries`가 `FROM search_log`를 조회하는데 실제
+  테이블명은 **`search_logs`**(`SearchLog.java`의 `@Table`). 항상 실패하고 catch가 **debug**
+  레벨로만 삼킨 뒤 하드코딩 20개 키워드로 조용히 폴백한다 — 즉 지금 이 서비스는
+  **실트래픽 쿼리를 한 번도 쓴 적이 없다.**
+- 같은 서비스의 `Recall@K`는 "정답 상위 K개가 **결과 집합 전체**에 들어있나"라서 순위 손실을
+  못 잡는다. 컷 판정에는 맞지만(recall 필터 판정) **랭킹 판정에는 NDCG만 유효하다.**
+
+**그때까지의 대체 신호** — `[검색]` 로그의 `보충통과 P`. 이 값이 붕괴하면 컷이 너무 타이트하다는
+직접 증거다. 다만 위 "스위치" 항목대로 **퍼널 off 기준선이 없어** 절대값으로만 읽어야 한다.
 
 ---
 
@@ -585,6 +632,7 @@ RAG(`getTopArticleIdsForRag`)와 따옴표 검색(relevance 정렬용 벡터 점
 | 2 | `warmChunkCacheAsync` 제거 또는 게이트 (`VectorSearchService.java:543`) | 예산 10%, AI 요약을 안 쓰는 사용자에게도 항상 도는 투기적 작업. virtual thread 무제한 | RPS |
 | 3 | ~~cross-scoring `IN (:ids)` → `= ANY(:ids)`~~ **✅ 적용 (2026-08-12)** — BM25 보충 4종(`computeBM25ScoreForArticleIds` 계열)은 남음 | 통계 정규화 + 플랜 캐시 + Grafana 카디널리티 동시 해결 | 관측성 |
 | 4 | ~~`expandSearchTerms` N+1 → 조인~~ **✅ 적용 (2026-08-09)** — 아래 D 참고 | 검색당 5.7 쿼리 = 커넥션 체크아웃. CPU는 3ms | 지연·안정성 |
+| 4-1 | **하이브리드 랭킹 정확도 측정 하네스** | B'를 미측정으로 켰다 — 위 "남은 검증 부채" 참고. `search_log`→`search_logs` 오타 선수정 필요 | **품질 부채** |
 | 5 | 관련 글 추천 경로 검토 | 11%, 검색과 무관한 별개 경로인데 아무도 안 봄 | RPS(간접) |
 | 6 | `SET STORAGE PLAIN` 전환 검토 | tidx 64%가 근거. 단 **B' 적용 후엔 cross-scoring 기여분이 사라지므로**, 나머지 벡터 경로(본검색 stage-2, 워밍, 관련글 = 47%)에서 따로 측정해 다운타임을 정당화해야 함 | 큼, 리스크도 큼 |
 | 7 | postgres_exporter 스크랩 부하 검토 | 유휴 DB 시간의 26%, 버퍼 압박 | 인프라 |

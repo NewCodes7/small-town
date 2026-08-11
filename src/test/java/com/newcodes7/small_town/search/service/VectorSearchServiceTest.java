@@ -584,8 +584,9 @@ class VectorSearchServiceTest {
     // ==================== computeSimilarityForSearchCrossScoring — 퍼널 스위치 ====================
 
     @Test
-    @DisplayName("스위치 off(기본)면 종전 단일 쿼리를 탄다")
+    @DisplayName("스위치 off면 종전 단일 쿼리를 탄다 (롤백 경로)")
     void 검색_crossScoring_스위치_off면_단일쿼리() {
+        ReflectionTestUtils.setField(vectorSearchService, "crossScoringTwoStage", false);
         when(chunkRepository.computeSimilarityForArticleIds(anyString(), anyString(), anyInt()))
                 .thenReturn(List.<Object[]>of(new Object[]{1L, 0.70}));
 
