@@ -129,6 +129,96 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
     );
 
     /**
+     * cross-scoring 보충의 2단계(퍼널) 버전 — Stage 1은 binary, Stage 2만 halfvec.
+     *
+     * <p>단일 쿼리 버전(computeSimilarityForArticleIds)은 대상 아티클 100개의 <b>전 청크(평균
+     * 840개)</b>를 clova_chunk_vectors.embedding_normalized(halfvec 2,048B, EXTERNAL 저장)에서
+     * 꺼낸다. 실측 10,272블록(84MB)/93.3ms이고 블록 접근의 64%가 TOAST 인덱스 조회다 — 비용의
+     * 지배 변수는 FLOPs가 아니라 <b>꺼내는 벡터의 개수</b>다.
+     *
+     * <p>embedding_binary(bit(1024) = 128B)는 clova_article_chunk에 <b>인라인</b> 저장되므로
+     * TOAST 간접 참조가 통째로 없다. 그래서 본검색과 같은 binary → halfvec 퍼널을 이 경로에도
+     * 적용한다 (docs/operations/PGSS_SEARCH_COST.md 항목 B').
+     *
+     * <ul>
+     *   <li><b>Stage 1은 아티클을 고르고 청크를 고르지 않는다.</b> Stage 2가 생존 아티클의 전
+     *       청크를 다시 읽으므로 반환 <b>값</b>은 단일 쿼리 버전과 완전히 같다 — 달라지는 건
+     *       "누가 살아남았나"뿐이다. 대표 청크로 미리 하나만 남기는 방식과 다른 지점.</li>
+     *   <li><b>집계 모양을 Stage 2와 맞춘다.</b> 컷은 Stage 2 값을 예측해야 하므로 최고 청크
+     *       하나(MIN 해밍)가 아니라 상위 topK 평균이어야 한다.</li>
+     *   <li><b>해밍 → 코사인 환산은 청크 단위로 먼저 한다.</b> cos(π·h/d)가 비선형이라
+     *       cos(avg(h)) ≠ avg(cos(h)). 청크 선별 순서는 해밍 오름차순 = 추정 유사도 내림차순이라
+     *       ROW_NUMBER의 ORDER BY는 해밍 그대로 쓴다.</li>
+     *   <li><b>deleted_at 필터를 Stage 1로 옮겼다.</b> Stage 2는 Stage 1 생존분만 보므로 등가이고
+     *       halfvec 쪽 article 조인이 사라져 더 싸다.</li>
+     *   <li>stage1은 MATERIALIZED — 플래너가 LIMIT CTE를 인라인하려 드는 것을 막아 계획을
+     *       결정적으로 만든다.</li>
+     * </ul>
+     *
+     * @param queryEmbedding 검색 쿼리의 임베딩 벡터 (PostgreSQL 배열 포맷)
+     * @param queryBinary 검색 쿼리의 binary vector (bit string)
+     * @param articleIds 유사도를 계산할 Article ID 목록 (PostgreSQL 배열 리터럴)
+     * @param topK 평균 계산에 사용할 상위 청크 수
+     * @param stage1Floor Stage 1 추정 유사도 하한. 임계값에서 여유를 뺀 값 — 이진 양자화 추정치의
+     *                    분산(σ ≈ 15비트) 때문에 임계값을 그대로 쓰면 통과했을 아티클을 떨어뜨린다
+     * @param stage2Limit Stage 2로 넘길 아티클 수 상한. 실제 비용을 결정하는 값
+     * @return Article ID와 상위 K개 청크 평균 유사도 (단일 쿼리 버전과 같은 형식)
+     */
+    @Query(value = """
+            WITH query_vec AS (
+                SELECT l2_normalize(CAST(:queryEmbedding AS halfvec)) AS vec
+            ),
+            stage1 AS MATERIALIZED (
+                SELECT article_id
+                FROM (
+                    SELECT
+                        cac.article_id,
+                        cos(pi() * (cac.embedding_binary <~> CAST(:queryBinary AS bit(1024))) / 1024.0)
+                            AS estimated_similarity,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY cac.article_id
+                            ORDER BY cac.embedding_binary <~> CAST(:queryBinary AS bit(1024))
+                        ) AS rn
+                    FROM clova_article_chunk cac
+                    JOIN article a ON cac.article_id = a.id
+                    WHERE a.deleted_at IS NULL
+                      AND cac.embedding_binary IS NOT NULL
+                      AND cac.article_id = ANY(CAST(:articleIds AS bigint[]))
+                ) estimated
+                WHERE rn <= :topK
+                GROUP BY article_id
+                HAVING AVG(estimated_similarity) >= :stage1Floor
+                ORDER BY AVG(estimated_similarity) DESC
+                LIMIT :stage2Limit
+            )
+            SELECT article_id, AVG(similarity) AS avg_similarity
+            FROM (
+                SELECT
+                    cac.article_id,
+                    -(ccv.embedding_normalized <#> q.vec) AS similarity,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY cac.article_id
+                        ORDER BY ccv.embedding_normalized <#> q.vec
+                    ) AS rn
+                FROM clova_article_chunk cac
+                JOIN clova_chunk_vectors ccv ON ccv.id = cac.id
+                CROSS JOIN query_vec q
+                WHERE cac.article_id = ANY(ARRAY(SELECT article_id FROM stage1))
+            ) ranked
+            WHERE rn <= :topK
+            GROUP BY article_id
+            ORDER BY avg_similarity DESC
+            """, nativeQuery = true)
+    List<Object[]> computeSimilarityForArticleIdsTwoStage(
+            @Param("queryEmbedding") String queryEmbedding,
+            @Param("queryBinary") String queryBinary,
+            @Param("articleIds") String articleIds,
+            @Param("topK") int topK,
+            @Param("stage1Floor") double stage1Floor,
+            @Param("stage2Limit") int stage2Limit
+    );
+
+    /**
      * 임베딩이 없는 청크 조회
      */
     @Query("SELECT c FROM ArticleChunk c WHERE c.embeddingBinary IS NULL")

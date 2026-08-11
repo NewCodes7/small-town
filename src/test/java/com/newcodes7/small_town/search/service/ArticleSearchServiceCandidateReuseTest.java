@@ -68,7 +68,7 @@ public class ArticleSearchServiceCandidateReuseTest extends IntegrationTestBase 
 
         // 후보 점수는 전체 청크 기준값보다 작을 수 있으므로(부분집합의 상위 topK 평균),
         // 임계값 미만인 후보는 탈락시키지 않고 DB로 넘겨 다시 재봐야 한다.
-        verify(vectorSearchService).computeSimilarityForArticlesWithEmbedding(
+        verify(vectorSearchService).computeSimilarityForSearchCrossScoring(
                 any(float[].class),
                 argThat(ids -> ids.size() == 2
                         && ids.contains(BM25_ONLY_NOT_IN_CANDIDATES)
@@ -94,7 +94,7 @@ public class ArticleSearchServiceCandidateReuseTest extends IntegrationTestBase 
         articleSearchService.searchArticlesHybrid(
                 keyword, Map.of(keyword, 1.0), null, null, 0, 10, "relevance", null, null);
 
-        verify(vectorSearchService, never()).computeSimilarityForArticlesWithEmbedding(
+        verify(vectorSearchService, never()).computeSimilarityForSearchCrossScoring(
                 any(float[].class), any(), anyDouble());
     }
 }

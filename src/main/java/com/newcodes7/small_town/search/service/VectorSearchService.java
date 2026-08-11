@@ -85,6 +85,47 @@ public class VectorSearchService {
     @Value("${search.loadtest.max-vector-results:30}")
     private int loadTestMaxVectorResults;
 
+    /**
+     * cross-scoring 보충을 binary → halfvec 2단계로 수행할지 여부. 기본 false.
+     *
+     * 켜면 대상 아티클의 전 청크를 인라인 embedding_binary로 먼저 스코어링해 상위
+     * crossScoringStage2Limit개 아티클만 halfvec 정확 계산에 넣는다 — TOAST 간접 참조가
+     * 컷 크기에 비례해 줄어든다 (docs/operations/PGSS_SEARCH_COST.md 항목 B').
+     *
+     * 항목 A와 달리 이 변경은 <b>랭킹을 바꾼다</b>(컷 밖 아티클은 벡터 점수를 못 받는다).
+     * 그래서 기본을 false로 두고, [검색] 로그의 "보충통과" 분포로 컷을 확정한 뒤 env로 켠다.
+     * RAG 경로(getTopArticleIdsForRag)에는 적용되지 않는다 — 답변 품질 판정 기준이 따로 없어
+     * 검색 경로의 결과를 먼저 본 뒤 별건으로 다룬다.
+     */
+    @Value("${search.hybrid.cross-scoring-two-stage:false}")
+    private boolean crossScoringTwoStage;
+
+    /**
+     * cross-scoring Stage 2로 넘길 아티클 수 상한. 기본 20. <b>실제 비용을 결정하는 값이자
+     * 품질 리스크가 전부 몰려 있는 값이다.</b>
+     *
+     * Stage 1(인라인 binary)은 사실상 공짜지만 Stage 2는 여전히 halfvec을 TOAST에서 꺼내므로
+     * 이득은 컷 크기에 비례한다. 현재 10,272블록/93.3ms 기준 컷 20이면 Stage 1까지 합쳐
+     * 약 2,400~2,700블록으로 내려간다.
+     */
+    @Value("${search.hybrid.cross-scoring-stage2-limit:20}")
+    private int crossScoringStage2Limit;
+
+    /**
+     * Stage 1 추정 유사도 하한을 정할 때 임계값에서 뺄 여유. 기본 0.25.
+     *
+     * 부호 양자화에서 해밍 h와 각도는 cos θ ≈ cos(π·h/d)이고 h ~ Binomial(d, θ/π)이라
+     * d=1024에서 σ_h ≈ 15다. 참 유사도 0.52인 청크의 해밍 기대값이 334이므로 3σ(45비트)를
+     * 감안하면 추정치가 0.40까지 내려갈 수 있다 — 여유 없이 임계값을 그대로 하한으로 쓰면
+     * 통과했을 아티클을 떨어뜨린다.
+     *
+     * 다만 이 하한은 <b>레버가 아니다</b>: 무관한 문서쌍의 코사인도 0.3~0.4대에 있어 실제로
+     * 걸러지는 양은 적다. 비용을 줄이는 것은 crossScoringStage2Limit이고, 이 값은 병리적
+     * 케이스와 Stage 2 폭주에 대한 값싼 안전망이다.
+     */
+    @Value("${search.hybrid.cross-scoring-stage1-floor-margin:0.25}")
+    private double crossScoringStage1FloorMargin;
+
     // 최대 결과 수
     private static final int DEFAULT_MAX_RESULTS = 100;
 
@@ -919,6 +960,60 @@ public class VectorSearchService {
 
         } catch (Exception e) {
             log.error("특정 Article 유사도 계산 실패: {}", e.getMessage(), e);
+            return Map.of();
+        }
+    }
+
+    /**
+     * 검색(하이브리드) 경로 전용 cross-scoring 보충.
+     *
+     * <p>crossScoringTwoStage 스위치에 따라 binary → halfvec 퍼널 쿼리와 종전 단일 쿼리 중
+     * 하나를 고른다. 어느 쪽이든 <b>반환되는 아티클의 점수 값은 동일</b>하다 — 퍼널은 Stage 2에서
+     * 생존 아티클의 전 청크를 그대로 다시 읽기 때문이다. 달라지는 것은 컷에 걸린 아티클이
+     * 아예 반환되지 않는다는 점뿐이고, 그래서 임계값 필터도 종전처럼 아티클 평균에 그대로 건다.
+     *
+     * <p>RAG 경로는 이 메서드를 쓰지 않는다 — computeSimilarityForArticlesWithEmbedding을
+     * 그대로 호출해 종전 단일 쿼리를 탄다 (docs/operations/PGSS_SEARCH_COST.md 항목 B' 적용 범위).
+     *
+     * @param threshold 2단계 벡터 검색과 같은 임계값 (부하테스트 경로는 완화된 값)
+     */
+    public Map<Long, Double> computeSimilarityForSearchCrossScoring(
+            float[] queryEmbedding, List<Long> articleIds, double threshold) {
+        if (!crossScoringTwoStage) {
+            return computeSimilarityForArticlesWithEmbedding(queryEmbedding, articleIds, threshold);
+        }
+        if (queryEmbedding == null || articleIds == null || articleIds.isEmpty()) {
+            return Map.of();
+        }
+
+        try {
+            // 부하테스트 경로는 임계값이 0.0이라 하한이 음수로 내려가 사실상 해제된다 —
+            // Stage 2가 정확히 컷 크기를 받으므로 최악 비용이 그대로 측정된다.
+            double stage1Floor = Math.max(-1.0, threshold - crossScoringStage1FloorMargin);
+
+            List<Object[]> results = chunkRepository.computeSimilarityForArticleIdsTwoStage(
+                    formatVectorForPostgres(queryEmbedding),
+                    toBinaryString(queryEmbedding),
+                    formatIdArray(articleIds),
+                    DEFAULT_TOP_K,
+                    stage1Floor,
+                    crossScoringStage2Limit);
+
+            Map<Long, Double> scoreMap = new HashMap<>();
+            for (Object[] row : results) {
+                Long articleId = ((Number) row[0]).longValue();
+                Double similarity = row.length > 1 && row[1] != null ? ((Number) row[1]).doubleValue() : null;
+                if (similarity != null && similarity >= threshold) {
+                    scoreMap.put(articleId, similarity);
+                }
+            }
+
+            log.debug("cross-scoring 2단계 완료 - 대상: {}개, Stage 2 상한: {}, 하한: {}, 통과: {}개",
+                    articleIds.size(), crossScoringStage2Limit, stage1Floor, scoreMap.size());
+            return scoreMap;
+
+        } catch (Exception e) {
+            log.error("cross-scoring 2단계 계산 실패: {}", e.getMessage(), e);
             return Map.of();
         }
     }

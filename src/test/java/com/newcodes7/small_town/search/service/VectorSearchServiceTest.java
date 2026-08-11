@@ -581,6 +581,73 @@ class VectorSearchServiceTest {
         assertThat(result).hasSize(1).containsKey(2L).doesNotContainKey(1L);
     }
 
+    // ==================== computeSimilarityForSearchCrossScoring — 퍼널 스위치 ====================
+
+    @Test
+    @DisplayName("스위치 off(기본)면 종전 단일 쿼리를 탄다")
+    void 검색_crossScoring_스위치_off면_단일쿼리() {
+        when(chunkRepository.computeSimilarityForArticleIds(anyString(), anyString(), anyInt()))
+                .thenReturn(List.<Object[]>of(new Object[]{1L, 0.70}));
+
+        Map<Long, Double> result = vectorSearchService.computeSimilarityForSearchCrossScoring(
+                DUMMY_EMBEDDING, List.of(1L), 0.52);
+
+        assertThat(result).containsEntry(1L, 0.70);
+        verify(chunkRepository, never()).computeSimilarityForArticleIdsTwoStage(
+                anyString(), anyString(), anyString(), anyInt(), anyDouble(), anyInt());
+    }
+
+    @Test
+    @DisplayName("스위치 on이면 퍼널 쿼리를 타고, 하한은 임계값에서 여유를 뺀 값이다")
+    void 검색_crossScoring_스위치_on이면_퍼널쿼리() {
+        ReflectionTestUtils.setField(vectorSearchService, "crossScoringTwoStage", true);
+        ReflectionTestUtils.setField(vectorSearchService, "crossScoringStage2Limit", 20);
+        ReflectionTestUtils.setField(vectorSearchService, "crossScoringStage1FloorMargin", 0.25);
+        when(chunkRepository.computeSimilarityForArticleIdsTwoStage(
+                anyString(), anyString(), anyString(), anyInt(), anyDouble(), anyInt()))
+                .thenReturn(List.<Object[]>of(new Object[]{1L, 0.70}));
+
+        Map<Long, Double> result = vectorSearchService.computeSimilarityForSearchCrossScoring(
+                DUMMY_EMBEDDING, List.of(1L), 0.52);
+
+        assertThat(result).containsEntry(1L, 0.70);
+        verify(chunkRepository).computeSimilarityForArticleIdsTwoStage(
+                anyString(), anyString(), anyString(), eq(3), eq(0.27), eq(20));
+        verify(chunkRepository, never()).computeSimilarityForArticleIds(anyString(), anyString(), anyInt());
+    }
+
+    @Test
+    @DisplayName("퍼널 경로도 임계값 필터를 그대로 적용한다 (컷과 별개)")
+    void 검색_crossScoring_퍼널도_임계값_필터_유지() {
+        ReflectionTestUtils.setField(vectorSearchService, "crossScoringTwoStage", true);
+        when(chunkRepository.computeSimilarityForArticleIdsTwoStage(
+                anyString(), anyString(), anyString(), anyInt(), anyDouble(), anyInt()))
+                .thenReturn(List.of(
+                        new Object[]{1L, 0.45},   // Stage 2까지 왔지만 임계값 미만 → 제외
+                        new Object[]{2L, 0.65}
+                ));
+
+        Map<Long, Double> result = vectorSearchService.computeSimilarityForSearchCrossScoring(
+                DUMMY_EMBEDDING, List.of(1L, 2L), 0.52);
+
+        assertThat(result).containsOnlyKeys(2L);
+    }
+
+    @Test
+    @DisplayName("부하테스트 임계값 0.0이면 하한이 음수로 내려가 Stage 1 필터가 해제된다")
+    void 검색_crossScoring_부하테스트_임계값이면_하한_해제() {
+        ReflectionTestUtils.setField(vectorSearchService, "crossScoringTwoStage", true);
+        ReflectionTestUtils.setField(vectorSearchService, "crossScoringStage1FloorMargin", 0.25);
+        when(chunkRepository.computeSimilarityForArticleIdsTwoStage(
+                anyString(), anyString(), anyString(), anyInt(), anyDouble(), anyInt()))
+                .thenReturn(List.of());
+
+        vectorSearchService.computeSimilarityForSearchCrossScoring(DUMMY_EMBEDDING, List.of(1L), 0.0);
+
+        verify(chunkRepository).computeSimilarityForArticleIdsTwoStage(
+                anyString(), anyString(), anyString(), anyInt(), eq(-0.25), anyInt());
+    }
+
     // ==================== getChunksForRag / getChunksForRagCached ====================
 
     @Test

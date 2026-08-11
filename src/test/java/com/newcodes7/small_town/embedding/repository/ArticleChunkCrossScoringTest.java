@@ -47,6 +47,12 @@ public class ArticleChunkCrossScoringTest extends IntegrationTestBase {
     /** 질의 벡터 e1 = [1,0,0,...] — 정규화해도 e1이라 유사도가 청크 벡터의 첫 성분과 같아진다 */
     private static final String QUERY_EMBEDDING = queryEmbedding();
 
+    /** 질의 binary는 전부 1 — 청크의 0 비트 수가 곧 해밍 거리라 Stage 1 순위를 정확히 제어할 수 있다 */
+    private static final String QUERY_BINARY = "1".repeat(DIM);
+
+    /** Stage 1 하한을 사실상 해제하는 값 (코사인 최솟값) */
+    private static final double NO_FLOOR = -1.0;
+
     /** 해밍이 가깝지만 유사도는 낮은 청크 3개 + 해밍이 먼 최고 청크 1개 */
     private Article nearArticle;
     /** 해밍·유사도 모두 중간 */
@@ -113,11 +119,68 @@ public class ArticleChunkCrossScoringTest extends IntegrationTestBase {
         assertThat(scores).containsOnlyKeys(midArticle.getId());
     }
 
+    // ==================== 2단계(퍼널) 버전 — 항목 B' ====================
+
+    @Test
+    @DisplayName("퍼널은 생존 아티클의 점수를 단일 쿼리와 완전히 같은 값으로 반환한다")
+    void 퍼널_생존_아티클_점수는_단일쿼리와_동일하다() {
+        Map<Long, Double> single = crossScore(allIds());
+        Map<Long, Double> funnel = crossScoreTwoStage(allIds(), NO_FLOOR, 10);
+
+        // 컷도 하한도 걸리지 않으면 두 결과가 키·값 모두 같아야 한다.
+        // Stage 2가 생존 아티클의 전 청크를 그대로 다시 읽기 때문 — 이게 퍼널의 핵심 불변식이다.
+        assertThat(funnel).containsOnlyKeys(single.keySet().toArray(new Long[0]));
+        single.forEach((id, score) -> assertThat(funnel.get(id)).isCloseTo(score, within(1e-9)));
+    }
+
+    @Test
+    @DisplayName("Stage 2도 전 청크를 본다 — 해밍이 먼 최고 청크가 점수에 반영된다")
+    void 퍼널_Stage2는_전_청크를_본다() {
+        Map<Long, Double> funnel = crossScoreTwoStage(allIds(), NO_FLOOR, 10);
+
+        // near의 Stage 1 추정은 해밍 상위 3개(유사도 0.30)로 계산되지만,
+        // Stage 2 값은 해밍 500짜리 최고 청크(0.95)를 포함한 상위 3개 평균이어야 한다.
+        assertThat(funnel.get(nearArticle.getId())).isCloseTo(0.5167, within(0.01));
+    }
+
+    @Test
+    @DisplayName("stage2Limit은 Stage 1 추정 상위 아티클만 남긴다")
+    void 퍼널_stage2Limit이_상위_아티클만_남긴다() {
+        // 추정 유사도 순: near(≈1.00) > mid(≈0.82) > far(≈0.04)
+        assertThat(crossScoreTwoStage(allIds(), NO_FLOOR, 1))
+                .containsOnlyKeys(nearArticle.getId());
+        assertThat(crossScoreTwoStage(allIds(), NO_FLOOR, 2))
+                .containsOnlyKeys(nearArticle.getId(), midArticle.getId());
+    }
+
+    @Test
+    @DisplayName("Stage 1 하한 미달 아티클은 컷 안이어도 제외된다")
+    void 퍼널_하한_미달_아티클은_제외된다() {
+        Map<Long, Double> funnel = crossScoreTwoStage(allIds(), 0.5, 10);
+
+        // far는 실제 유사도가 0.95로 가장 높지만 해밍이 멀어(추정 0.04) 하한에 걸린다 —
+        // 이진 근사가 놓치는 케이스이고, 하한을 임계값보다 넉넉히 낮춰 잡는 이유다.
+        assertThat(funnel).containsOnlyKeys(nearArticle.getId(), midArticle.getId());
+    }
+
+    @Test
+    @DisplayName("deleted_at이 설정된 아티클은 퍼널의 Stage 1에서 걸러진다")
+    void 퍼널_deleted_아티클은_Stage1에서_제외된다() {
+        // deleted는 해밍 0짜리 청크만 가져 추정 1.0으로 1위인데도 컷 1에서 살아남으면 안 된다
+        assertThat(crossScoreTwoStage(allIds(), NO_FLOOR, 1))
+                .doesNotContainKey(deletedArticle.getId());
+    }
+
     // ==================== helpers ====================
 
     private Map<Long, Double> crossScore(List<Long> articleIds) {
         return toScoreMap(chunkRepository.computeSimilarityForArticleIds(
                 QUERY_EMBEDDING, idArray(articleIds), TOP_K));
+    }
+
+    private Map<Long, Double> crossScoreTwoStage(List<Long> articleIds, double stage1Floor, int stage2Limit) {
+        return toScoreMap(chunkRepository.computeSimilarityForArticleIdsTwoStage(
+                QUERY_EMBEDDING, QUERY_BINARY, idArray(articleIds), TOP_K, stage1Floor, stage2Limit));
     }
 
     private List<Long> allIds() {

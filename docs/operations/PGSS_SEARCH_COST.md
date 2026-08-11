@@ -405,6 +405,129 @@ Recall@K / NDCG@K)와 `AdminSearchTestController` 엔드포인트가 이미 있�
 판정 기준: Stage 2 컷(20개)을 바꿔가며 NDCG@10 손실 대비 core-s/req 절감의 파레토 곡선을 그리고
 무릎점을 택한다.
 
+#### 기대치 정정 — "33% → 약 3%"는 과대 표기다
+
+절 제목의 3%는 위 표의 **컷 10** 케이스이고, 그 표에는 **Stage 1 자신의 비용이 빠져 있다.**
+Stage 1은 `idx_clova_chunk_article_id`로 100개 아티클의 청크를 훑어 인라인 128B를 읽는다 —
+청크당 ≪1블록이지만 인덱스 + heap 페이지로 **300~600블록** 정도는 든다. 이를 포함한 정직한 기대치:
+
+| Stage 2 컷 | Stage 2 청크 | Stage 1 + Stage 2 블록 | 현재 대비 | 예산 33% → |
+|---|---|---|---|---|
+| 20개 | 168 | ~2,400~2,700 | 23~26% | **약 8~9%** |
+| 10개 | 84 | ~1,500~1,800 | 15~18% | **약 5%** |
+
+컷 20 기준 검색 1건당 904ms → 약 685ms → **이론 RPS 2.94 → 약 3.9**.
+
+#### 적용 내용 (2026-08-12)
+
+**선행 커밋 — `= ANY` 전환 + 보충통과 로그.** 알고리즘을 바꾸기 전에 계측부터 세웠다.
+
+- `computeSimilarityForArticleIds`의 `IN (:articleIds)` → `= ANY(CAST(:articleIds AS bigint[]))`.
+  파라미터는 앱에서 만든 PostgreSQL 배열 리터럴(`{1,2,3}`, `VectorSearchService.formatIdArray`).
+  이걸 먼저 해야 B' 전/후를 `pg_stat_statements` **한 행**으로 비교할 수 있다(그 외 3번).
+  겸사겸사 `l2_normalize` 2회 호출을 `query_vec` CTE 1회로 정리했다.
+- `[검색]` 로그에 **`보충통과 P건`** 추가 — DB 보충 대상 N건 중 실제로 임계값을 통과한 수.
+  **컷을 감이 아니라 이 분포로 정하기 위한 값이다.** 로그는 트랜잭션 밖에서 찍히므로
+  카운트만 `AtomicInteger`로 꺼냈다(커넥션 점유 구간 불변).
+- 실 DB에서 이 쿼리를 실행하는 `ArticleChunkCrossScoringTest` 추가. 예산 33%의 주인공인데
+  기존 검색 테스트는 Repository를 전부 스텁해 **한 번도 실행된 적이 없었다.**
+
+**퍼널 쿼리** — `computeSimilarityForArticleIdsTwoStage`. 같은 파일의
+`findRelatedArticlesByTwoStageSearch`가 이미 쓰던 `stage1`(아티클 선별) →
+`= ANY(ARRAY(SELECT article_id FROM stage1))` 구조를 그대로 따랐다.
+
+```sql
+stage1 AS MATERIALIZED (
+    SELECT article_id FROM (
+        SELECT cac.article_id,
+               cos(pi() * (cac.embedding_binary <~> CAST(:queryBinary AS bit(1024))) / 1024.0)
+                   AS estimated_similarity,
+               ROW_NUMBER() OVER (PARTITION BY cac.article_id
+                                  ORDER BY cac.embedding_binary <~> CAST(:queryBinary AS bit(1024))) AS rn
+        FROM clova_article_chunk cac JOIN article a ON cac.article_id = a.id
+        WHERE a.deleted_at IS NULL AND cac.embedding_binary IS NOT NULL
+          AND cac.article_id = ANY(CAST(:articleIds AS bigint[]))
+    ) estimated
+    WHERE rn <= :topK
+    GROUP BY article_id
+    HAVING AVG(estimated_similarity) >= :stage1Floor
+    ORDER BY AVG(estimated_similarity) DESC
+    LIMIT :stage2Limit
+)
+```
+
+- **Stage 1은 아티클을 고르고 청크를 고르지 않는다.** Stage 2가 생존 아티클의 **전 청크**를
+  그대로 다시 읽으므로 **반환 값은 단일 쿼리와 완전히 같다** — 달라지는 건 "누가 살아남았나"뿐.
+  대표 청크로 미리 하나를 남기는 방식과 갈리는 지점이 여기다.
+- **집계 모양을 Stage 2와 맞췄다** (최고 청크 하나가 아니라 상위 topK 평균). 컷은 Stage 2 값을
+  예측해야 하므로.
+- **해밍 → 코사인 환산을 청크 단위로 먼저 한다.** `cos(π·h/d)`가 비선형이라
+  `cos(avg(h)) ≠ avg(cos(h))`. 선별 순서는 해밍 오름차순 = 추정 유사도 내림차순이라 등가.
+- `deleted_at` 필터를 Stage 1로 옮겼다 — Stage 2는 생존분만 보므로 등가이고 halfvec 쪽
+  `article` 조인이 사라져 더 싸다.
+
+**컷과 하한 — 무엇이 실제 레버인가.** 부호 양자화에서 `h ~ Binomial(d, θ/π)`, d=1024에서
+**σ_h ≈ 15**다.
+
+| 참 유사도 | 해밍 h | 3σ 하한 추정치 |
+|---|---|---|
+| 0.60 | 302 | 0.49 |
+| **0.52** | **334** | **0.40** |
+| 0.45 | 360 | 0.32 |
+
+→ 하한은 `threshold − 0.25` (기본 `stage1-floor-margin=0.25`). **단 하한은 레버가 아니다** —
+무관한 문서쌍의 코사인도 0.3~0.4대에 있어 실제로 걸러지는 양이 적다. **비용을 줄이는 것도
+품질 리스크를 만드는 것도 전부 `stage2-limit`(top-N)이다.** 하한은 병리적 케이스와
+Stage 2 폭주에 대한 값싼 안전망이다.
+
+**top-N 컷의 지배 오차는 노이즈가 아니라 청크 수 편향이다** (시뮬레이션, 참 유사도 0.52 고정):
+
+| 아티클 청크 수 | 추정치 편향 | 추정치 σ |
+|---|---|---|
+| 3 | 0.000 | 0.023 |
+| 7 (p50) | +0.032 | 0.017 |
+| 20 (p95) | +0.056 | 0.014 |
+| 137 (max) | +0.088 | 0.010 |
+
+노이즈로 상위 topK를 고르는 데서 오는 상향 편향이 청크 수에 따라 0 ~ +0.09까지 벌어진다.
+방향은 **"긴 아티클이 부풀어 살아남고 짧은 아티클이 눌린다"** — 짧은 아티클이 컷에서 밀릴 수
+있다는 뜻이고, 그래서 **컷을 이론으로 정할 수 없다.** 선행 커밋의 `보충통과 P` 분포로 정한다.
+
+완화 요인: 컷에서 잘리는 쪽은 벡터 점수 하위 집단이고 `minMaxNormalize`에서 최솟값은
+`normVec = 0`이라 NSF 기여가 0이다. 게다가 본검색·보충 양쪽 모두 임계값 0.52에서 잘려 들어와
+**min이 0.52 근처에 고정**돼 있어, 하위를 떼어내도 다른 아티클의 정규화가 크게 흔들리지 않는다.
+
+**스위치** — `search.hybrid.cross-scoring-two-stage`(**기본 false**),
+`...-stage2-limit`(20), `...-stage1-floor-margin`(0.25). 셋 다 `docker-compose.yml`의
+`&backend-env`에 배선했다.
+
+> **항목 A와 달리 기본을 false로 뒀다.** A는 값이 불변이라 무료였지만 B'는 **랭킹을 바꾼다.**
+> 이번 작업에서 하이브리드 NDCG 하네스는 만들지 않기로 했으므로(아래 참고), 대신
+> ① 선행 커밋의 `보충통과` 로그로 컷을 정하고 ② env 하나로 켜는 순서를 취한다.
+> 켜는 데 코드 변경이 필요 없고 롤백도 env 되돌리기 + 재배포다.
+
+**적용 범위** — 검색 경로(`computeHybridCore`)만. `VectorSearchService`에 검색 전용 진입점
+`computeSimilarityForSearchCrossScoring`을 새로 파고 그쪽에서만 스위치를 본다.
+RAG(`getTopArticleIdsForRag`)와 따옴표 검색(relevance 정렬용 벡터 점수)은 종전 단일 쿼리를
+그대로 탄다 — 따옴표 검색은 결과가 20건을 넘을 수 있어 컷이 정렬 자체를 망가뜨린다.
+
+**테스트** — `ArticleChunkCrossScoringTest`가 실 DB에서 두 쿼리를 나란히 실행한다.
+`ArticleChunkTwoStageSearchTest`의 픽스처 트릭(질의 벡터 e1 → 유사도 = 청크 벡터 첫 성분,
+질의 binary all-1 → 해밍 = 0비트 수)을 재사용해 **유사도와 해밍을 독립적으로 지정**했다.
+핵심 검증은 **동치성** — 컷·하한이 걸리지 않으면 두 쿼리의 키·값이 정확히 일치해야 한다.
+그 밖에 "해밍이 먼 최고 청크가 Stage 2 값에 반영되는가"(퍼널이 청크를 미리 자르지 않는다는
+증거), 컷 순서, 하한 배제, `deleted_at` 배제.
+
+**미검증** — 운영 계측(EXPLAIN 블록 수, core-s/req, `pg_stat_statements`, 랭킹 변화)은
+배포 후에 해야 한다. **랭킹 변화량은 하네스를 만들지 않는 한 끝까지 미측정으로 남는다** —
+`보충통과 P`가 켜기 전후로 유지되는지가 유일한 품질 신호다.
+
+> **부하테스트로 이 최적화는 측정된다 — 항목 A와 갈리는 지점이다.** A는 mock Clova의 의사난수
+> 벡터 때문에 `needVectorIds ∩ candidateScores`가 비어 재활용이 일어나지 않았다. B'의
+> `needVectorIds`는 벡터 품질과 무관하게 BM25-only ~100건으로 잡히고,
+> `search.loadtest.vector-threshold=0.0`이라 하한이 -0.25로 해제돼 **Stage 2가 정확히 컷 크기를
+> 받는다** — 즉 최악 비용을 그대로 잰다.
+
 ---
 
 ### D. 유의어 확장 N+1 → 조인 1쿼리 + 캐시  ✅ 적용 (2026-08-09)
@@ -460,7 +583,7 @@ Recall@K / NDCG@K)와 `AdminSearchTestController` 엔드포인트가 이미 있�
 |---|---|---|---|
 | 1 | **프리웜 `LazyInitializationException` 수정** | 시간당 9~11회 실패, cold start 방지 무력화 | **지금 실사용자 영향** |
 | 2 | `warmChunkCacheAsync` 제거 또는 게이트 (`VectorSearchService.java:543`) | 예산 10%, AI 요약을 안 쓰는 사용자에게도 항상 도는 투기적 작업. virtual thread 무제한 | RPS |
-| 3 | `IN (:ids)` → `= ANY(:ids)` 배열 파라미터 | 통계 정규화 + 플랜 캐시 + Grafana 카디널리티 동시 해결. B'와 같이 처리 | 관측성 |
+| 3 | ~~cross-scoring `IN (:ids)` → `= ANY(:ids)`~~ **✅ 적용 (2026-08-12)** — BM25 보충 4종(`computeBM25ScoreForArticleIds` 계열)은 남음 | 통계 정규화 + 플랜 캐시 + Grafana 카디널리티 동시 해결 | 관측성 |
 | 4 | ~~`expandSearchTerms` N+1 → 조인~~ **✅ 적용 (2026-08-09)** — 아래 D 참고 | 검색당 5.7 쿼리 = 커넥션 체크아웃. CPU는 3ms | 지연·안정성 |
 | 5 | 관련 글 추천 경로 검토 | 11%, 검색과 무관한 별개 경로인데 아무도 안 봄 | RPS(간접) |
 | 6 | `SET STORAGE PLAIN` 전환 검토 | tidx 64%가 근거. 단 **B' 적용 후엔 cross-scoring 기여분이 사라지므로**, 나머지 벡터 경로(본검색 stage-2, 워밍, 관련글 = 47%)에서 따로 측정해 다운타임을 정당화해야 함 | 큼, 리스크도 큼 |

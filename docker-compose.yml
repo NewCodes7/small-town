@@ -63,6 +63,12 @@ services:
       # false로 두면 종전처럼 전부 DB로 보충 — 같은 빌드에서 core-s/req A/B를 재기 위한 스위치다
       # (docs/operations/PGSS_SEARCH_COST.md 항목 A). 여기 없으면 .env에 넣어도 컨테이너에 안 들어간다.
       - SEARCH_HYBRID_REUSE_STAGE1_CANDIDATES=${SEARCH_HYBRID_REUSE_STAGE1_CANDIDATES:-true}
+      # cross-scoring 보충의 binary -> halfvec 2단계화 (기본 false — 랭킹을 바꾸므로 로그로 컷을
+      # 확정한 뒤 켠다). 컷/하한도 같이 env로 뽑아둬야 재배포 없이 스윕할 수 있다
+      # (docs/operations/PGSS_SEARCH_COST.md 항목 B').
+      - SEARCH_HYBRID_CROSS_SCORING_TWO_STAGE=${SEARCH_HYBRID_CROSS_SCORING_TWO_STAGE:-false}
+      - SEARCH_HYBRID_CROSS_SCORING_STAGE2_LIMIT=${SEARCH_HYBRID_CROSS_SCORING_STAGE2_LIMIT:-20}
+      - SEARCH_HYBRID_CROSS_SCORING_STAGE1_FLOOR_MARGIN=${SEARCH_HYBRID_CROSS_SCORING_STAGE1_FLOOR_MARGIN:-0.25}
     expose:
       - "8080"
     healthcheck:

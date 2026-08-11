@@ -631,9 +631,10 @@ public class ArticleSearchService {
         readOnlyTx.executeWithoutResult(status -> {
             if (!needVectorIds.isEmpty() && cachedEmbedding != null) {
                 try {
-                    // 임계값은 2단계 벡터 검색과 동일하게 맞춘다 (부하테스트 경로는 완화된 값)
+                    // 임계값은 2단계 벡터 검색과 동일하게 맞춘다 (부하테스트 경로는 완화된 값).
+                    // 검색 전용 진입점 — 스위치에 따라 binary 퍼널을 타고, RAG 경로는 여기 안 온다.
                     Map<Long, Double> supplementVectorScores =
-                            vectorSearchService.computeSimilarityForArticlesWithEmbedding(
+                            vectorSearchService.computeSimilarityForSearchCrossScoring(
                                     cachedEmbedding, new ArrayList<>(needVectorIds),
                                     vectorSearchService.vectorThresholdFor(useMockEmbedding));
                     supplementPassedCount.set(supplementVectorScores.size());

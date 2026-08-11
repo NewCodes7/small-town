@@ -165,7 +165,7 @@ class ArticleSearchServiceTest {
                 .thenReturn(vectorResult);
 
         // 교차 점수 보충 (빈 결과)
-        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(float[].class), anyList(), anyDouble()))
+        when(vectorSearchService.computeSimilarityForSearchCrossScoring(any(float[].class), anyList(), anyDouble()))
                 .thenReturn(Map.of());
         when(articleRepository.computeBM25ScoreForArticleIds(eq(bm25Query), anyList()))
                 .thenReturn(Collections.emptyList());
@@ -329,7 +329,7 @@ class ArticleSearchServiceTest {
         // then: Vector 결과 없이도 BM25 단독으로 정상 반환
         assertThat(result.getContent()).hasSize(2);
         assertThat(result.getContent()).allSatisfy(dto -> assertThat(dto.getVectorScore()).isNull());
-        verify(vectorSearchService, never()).computeSimilarityForArticlesWithEmbedding(any(float[].class), anyList(), anyDouble());
+        verify(vectorSearchService, never()).computeSimilarityForSearchCrossScoring(any(float[].class), anyList(), anyDouble());
     }
 
     @Test
@@ -346,7 +346,7 @@ class ArticleSearchServiceTest {
         float[] dummyEmbedding = new float[]{0.1f, 0.2f};
         when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any(), eq(false)))
                 .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(3L, 0.7), dummyEmbedding));
-        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(eq(dummyEmbedding), anyList(), anyDouble()))
+        when(vectorSearchService.computeSimilarityForSearchCrossScoring(eq(dummyEmbedding), anyList(), anyDouble()))
                 .thenReturn(Map.of(1L, 0.4));
 
         Map<Long, Double> nsfScores = Map.of(1L, 0.8, 2L, 0.3, 3L, 0.5);
@@ -375,7 +375,7 @@ class ArticleSearchServiceTest {
                 .filteredOn(dto -> dto.getId().equals(1L))
                 .first()
                 .satisfies(dto -> assertThat(dto.getVectorScore()).isEqualTo(0.4));
-        verify(vectorSearchService).computeSimilarityForArticlesWithEmbedding(
+        verify(vectorSearchService).computeSimilarityForSearchCrossScoring(
                 eq(dummyEmbedding), argThat(ids -> ids.containsAll(List.of(1L, 2L))), anyDouble());
     }
 
@@ -412,7 +412,7 @@ class ArticleSearchServiceTest {
                 keyword, List.of("domestic"), List.of(), 0, 10, "relevance", "127.0.0.1", null);
 
         // then
-        verify(vectorSearchService, never()).computeSimilarityForArticlesWithEmbedding(any(float[].class), anyList(), anyDouble());
+        verify(vectorSearchService, never()).computeSimilarityForSearchCrossScoring(any(float[].class), anyList(), anyDouble());
     }
 
     @Test
@@ -428,7 +428,7 @@ class ArticleSearchServiceTest {
         float[] dummyEmbedding = new float[]{0.1f, 0.2f};
         when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any(), eq(false)))
                 .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(2L, 0.9), dummyEmbedding));
-        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(eq(dummyEmbedding), anyList(), anyDouble()))
+        when(vectorSearchService.computeSimilarityForSearchCrossScoring(eq(dummyEmbedding), anyList(), anyDouble()))
                 .thenReturn(Map.of());
         when(articleRepository.computeBM25ScoreForArticleIdsWithDomesticTypes(eq(bm25Query), eq(List.of(1)), anyList()))
                 .thenReturn(List.<Object[]>of(new Object[]{2L, 3.0, LocalDateTime.of(2024, 2, 1, 0, 0)}));
@@ -1546,7 +1546,7 @@ class ArticleSearchServiceTest {
                 .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(1L, 0.9, 3L, 0.7), dummyEmbedding));
 
         // cross-scoring이 실제로 점수를 채워 넣어도 후보 집합은 늘어나지 않아야 한다
-        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(float[].class), anyList(), anyDouble()))
+        when(vectorSearchService.computeSimilarityForSearchCrossScoring(any(float[].class), anyList(), anyDouble()))
                 .thenReturn(Map.of(2L, 0.55));
         when(articleRepository.computeBM25ScoreForArticleIds(eq(bm25Query), anyList()))
                 .thenReturn(List.<Object[]>of(new Object[]{3L, 4.0}));
@@ -1721,7 +1721,7 @@ class ArticleSearchServiceTest {
         when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any(), eq(true)))
                 .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(), dummyEmbedding));
         when(vectorSearchService.vectorThresholdFor(true)).thenReturn(0.0);
-        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(
+        when(vectorSearchService.computeSimilarityForSearchCrossScoring(
                 any(float[].class), anyList(), eq(0.0))).thenReturn(Map.of(1L, 0.05));
         when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
                 .thenReturn(new HybridSearchScorer.NSFResult(Map.of(), Map.of(), Map.of(), Map.of()));
@@ -1730,10 +1730,11 @@ class ArticleSearchServiceTest {
         articleSearchService.searchArticlesHybrid(
                 keyword, expandedTerms, List.of(), List.of(), 0, 10, "relevance", "127.0.0.1", null, true);
 
-        // then: 기본 임계값(0.52)을 쓰는 2-arg 오버로드가 아니라, 완화된 임계값이 명시적으로 전달된다
-        verify(vectorSearchService).computeSimilarityForArticlesWithEmbedding(
+        // then: 기본 임계값(0.52)이 아니라 완화된 임계값이 명시적으로 전달된다
+        verify(vectorSearchService).computeSimilarityForSearchCrossScoring(
                 any(float[].class), anyList(), eq(0.0));
+        // 검색 경로는 검색 전용 진입점만 쓴다 — RAG가 타는 메서드로 새면 퍼널 스위치가 무시된다
         verify(vectorSearchService, never()).computeSimilarityForArticlesWithEmbedding(
-                any(float[].class), anyList());
+                any(float[].class), anyList(), anyDouble());
     }
 }
