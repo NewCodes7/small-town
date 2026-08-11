@@ -316,7 +316,7 @@ class VectorSearchServiceTest {
     @DisplayName("정상 계산 → 스코어 맵 반환")
     void computeSimilarityForArticles_정상계산() {
         when(searchQueryEmbeddingService.getOrCreateEmbedding(anyString())).thenReturn(DUMMY_EMBEDDING);
-        when(chunkRepository.computeSimilarityForArticleIds(anyString(), anyList(), anyInt()))
+        when(chunkRepository.computeSimilarityForArticleIds(anyString(), anyString(), anyInt()))
                 .thenReturn(List.of(
                         new Object[]{5L, 0.75},
                         new Object[]{6L, 0.63}
@@ -346,7 +346,7 @@ class VectorSearchServiceTest {
     @Test
     @DisplayName("기본 threshold(0.52) 미만 → 필터링됨")
     void computeSimilarityForArticlesWithEmbedding_threshold미만_제외() {
-        when(chunkRepository.computeSimilarityForArticleIds(anyString(), anyList(), anyInt()))
+        when(chunkRepository.computeSimilarityForArticleIds(anyString(), anyString(), anyInt()))
                 .thenReturn(List.of(
                         new Object[]{1L, 0.51},   // 미만 → 제외
                         new Object[]{2L, 0.52}    // 경계값 → 포함
@@ -361,7 +361,7 @@ class VectorSearchServiceTest {
     @Test
     @DisplayName("기본 threshold(0.52) 이상 → 모두 포함")
     void computeSimilarityForArticlesWithEmbedding_threshold이상_포함() {
-        when(chunkRepository.computeSimilarityForArticleIds(anyString(), anyList(), anyInt()))
+        when(chunkRepository.computeSimilarityForArticleIds(anyString(), anyString(), anyInt()))
                 .thenReturn(List.of(
                         new Object[]{7L, 0.85},
                         new Object[]{8L, 0.60}
@@ -376,7 +376,7 @@ class VectorSearchServiceTest {
     @Test
     @DisplayName("예외 발생 → 빈 맵 반환 (예외 전파 없음)")
     void computeSimilarityForArticlesWithEmbedding_예외발생() {
-        when(chunkRepository.computeSimilarityForArticleIds(anyString(), anyList(), anyInt()))
+        when(chunkRepository.computeSimilarityForArticleIds(anyString(), anyString(), anyInt()))
                 .thenThrow(new RuntimeException("DB 오류"));
 
         assertThatNoException().isThrownBy(() ->
@@ -569,7 +569,7 @@ class VectorSearchServiceTest {
     @Test
     @DisplayName("커스텀 threshold(0.6) 미만 결과는 제외 (기본 threshold와 다르게 동작)")
     void computeSimilarityForArticlesWithEmbedding_커스텀threshold() {
-        when(chunkRepository.computeSimilarityForArticleIds(anyString(), anyList(), anyInt()))
+        when(chunkRepository.computeSimilarityForArticleIds(anyString(), anyString(), anyInt()))
                 .thenReturn(List.of(
                         new Object[]{1L, 0.55},   // 기본 threshold(0.52)는 넘지만 커스텀(0.6) 미만 → 제외
                         new Object[]{2L, 0.65}    // 커스텀 threshold 이상 → 포함

@@ -86,30 +86,45 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
      * 특정 Article ID들에 대한 벡터 유사도 계산 - 상위 K개 청크 평균 방식 (halfvec)
      * BM25로만 검색된 article들의 vector score를 계산하기 위해 사용
      *
+     * <p>id 목록은 {@code IN (:ids)}가 아니라 <b>배열 파라미터 하나</b>로 받는다. Hibernate가 IN
+     * 리스트를 {@code IN ($1..$n)}으로 펼치면 n마다 다른 쿼리가 되어 pg_stat_statements의 queryid가
+     * 호출마다 흩어지고(실측 13회 호출 → queryid 12개) 플랜 캐시도 재사용되지 않는다. PG16+의 IN
+     * 병합은 상수 리스트에만 적용돼 도움이 되지 않는다. 이 쿼리는 검색 1건당 DB 예산의 33%를
+     * 쓰는 최대 비용 지점이라 단일 queryid로 관측되는 것이 특히 중요하다
+     * (docs/operations/PGSS_SEARCH_COST.md 그 외 3번).
+     *
      * @param queryEmbedding 검색 쿼리의 임베딩 벡터 (PostgreSQL 배열 포맷)
-     * @param articleIds 유사도를 계산할 Article ID 목록
+     * @param articleIds 유사도를 계산할 Article ID 목록 (PostgreSQL 배열 리터럴, 예: {@code {1,2,3}})
      * @param topK 평균 계산에 사용할 상위 청크 수
      * @return Article ID와 상위 K개 청크 평균 유사도를 담은 결과
      */
-    @Query(value = "SELECT article_id, AVG(similarity) as avg_similarity " +
-           "FROM (" +
-           "  SELECT " +
-           "    cac.article_id, " +
-           "    -(ccv.embedding_normalized <#> l2_normalize(CAST(:queryEmbedding AS halfvec))) as similarity, " +
-           "    ROW_NUMBER() OVER (PARTITION BY cac.article_id ORDER BY ccv.embedding_normalized <#> l2_normalize(CAST(:queryEmbedding AS halfvec))) as rn " +
-           "  FROM clova_article_chunk cac " +
-           "  JOIN article a ON cac.article_id = a.id " +
-           "  JOIN clova_chunk_vectors ccv ON ccv.id = cac.id " +
-           "  WHERE a.deleted_at IS NULL " +
-           "  AND cac.article_id IN (:articleIds) " +
-           ") ranked " +
-           "WHERE rn <= :topK " +
-           "GROUP BY article_id " +
-           "ORDER BY avg_similarity DESC",
-           nativeQuery = true)
+    @Query(value = """
+            WITH query_vec AS (
+                SELECT l2_normalize(CAST(:queryEmbedding AS halfvec)) AS vec
+            )
+            SELECT article_id, AVG(similarity) AS avg_similarity
+            FROM (
+                SELECT
+                    cac.article_id,
+                    -(ccv.embedding_normalized <#> q.vec) AS similarity,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY cac.article_id
+                        ORDER BY ccv.embedding_normalized <#> q.vec
+                    ) AS rn
+                FROM clova_article_chunk cac
+                JOIN article a ON cac.article_id = a.id
+                JOIN clova_chunk_vectors ccv ON ccv.id = cac.id
+                CROSS JOIN query_vec q
+                WHERE a.deleted_at IS NULL
+                  AND cac.article_id = ANY(CAST(:articleIds AS bigint[]))
+            ) ranked
+            WHERE rn <= :topK
+            GROUP BY article_id
+            ORDER BY avg_similarity DESC
+            """, nativeQuery = true)
     List<Object[]> computeSimilarityForArticleIds(
             @Param("queryEmbedding") String queryEmbedding,
-            @Param("articleIds") List<Long> articleIds,
+            @Param("articleIds") String articleIds,
             @Param("topK") int topK
     );
 

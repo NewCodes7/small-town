@@ -4,6 +4,7 @@ import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
 import com.newcodes7.small_town.search.dto.AiSummaryChunkDto;
 import io.micrometer.observation.annotation.Observed;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -842,7 +843,7 @@ public class VectorSearchService {
             String vectorString = formatVectorForPostgres(queryEmbedding);
 
             List<Object[]> results = chunkRepository.computeSimilarityForArticleIds(
-                    vectorString, articleIds, DEFAULT_TOP_K);
+                    vectorString, formatIdArray(articleIds), DEFAULT_TOP_K);
 
             Map<Long, Double> scoreMap = new HashMap<>();
             for (Object[] row : results) {
@@ -901,7 +902,7 @@ public class VectorSearchService {
             String vectorString = formatVectorForPostgres(queryEmbedding);
 
             List<Object[]> results = chunkRepository.computeSimilarityForArticleIds(
-                    vectorString, articleIds, DEFAULT_TOP_K);
+                    vectorString, formatIdArray(articleIds), DEFAULT_TOP_K);
 
             Map<Long, Double> scoreMap = new HashMap<>();
             for (Object[] row : results) {
@@ -934,6 +935,25 @@ public class VectorSearchService {
         }
         sb.append("]");
         return sb.toString();
+    }
+
+    /**
+     * Long id 목록을 PostgreSQL 배열 리터럴({@code {1,2,3}})로 변환.
+     *
+     * <p>cross-scoring 쿼리가 {@code IN (:ids)} 대신 {@code = ANY(CAST(:ids AS bigint[]))}를 쓰는
+     * 이유는 ArticleChunkRepository.computeSimilarityForArticleIds 주석 참고 — id 개수와 무관하게
+     * 쿼리 텍스트가 하나로 고정돼야 pg_stat_statements에서 단일 queryid로 집계된다.
+     * 값은 DB에서 온 Long이라 문자열 조립이지만 주입 위험이 없다.
+     */
+    private String formatIdArray(Collection<Long> ids) {
+        StringBuilder sb = new StringBuilder("{");
+        boolean first = true;
+        for (Long id : ids) {
+            if (!first) sb.append(",");
+            sb.append(id.longValue());
+            first = false;
+        }
+        return sb.append("}").toString();
     }
 
     /**

@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -622,6 +623,11 @@ public class ArticleSearchService {
         candidateIds.addAll(vectorResults.keySet());
         Set<Long> validArticleIds = new HashSet<>();
 
+        // DB 보충 대상 중 실제로 임계값을 통과한 수. 로그는 트랜잭션 밖에서 찍어야 하므로 밖으로 꺼낸다.
+        // 이 값이 cross-scoring 2단계화(항목 B')의 Stage 2 컷을 정하는 근거다 — 보충 대상 N건 중
+        // P건만 임계값을 넘긴다면 컷은 P의 상위 분위수만 덮으면 충분하다.
+        AtomicInteger supplementPassedCount = new AtomicInteger();
+
         readOnlyTx.executeWithoutResult(status -> {
             if (!needVectorIds.isEmpty() && cachedEmbedding != null) {
                 try {
@@ -630,6 +636,7 @@ public class ArticleSearchService {
                             vectorSearchService.computeSimilarityForArticlesWithEmbedding(
                                     cachedEmbedding, new ArrayList<>(needVectorIds),
                                     vectorSearchService.vectorThresholdFor(useMockEmbedding));
+                    supplementPassedCount.set(supplementVectorScores.size());
                     vectorResults.putAll(supplementVectorScores);
                 } catch (Exception e) {
                     log.warn("교차검색 Vector 보충 실패: {}", e.getMessage());
@@ -691,12 +698,13 @@ public class ArticleSearchService {
                 ? String.format("hit(%dms)", vectorSearchResult.getCacheLookupMs())
                 : String.format("miss(%dms, lookup %dms)", vectorSearchResult.getEmbeddingMs(), vectorSearchResult.getCacheLookupMs());
 
-        log.info("[검색] keyword='{}' | BM25: {}ms ({}개), Vector: {}ms (embedding: {}, query: {}ms) ({}개), Rerank(NSF): {}ms ({}개), 후보재활용: {}/{}건 (DB보충 {}건) | 총: {}ms",
+        log.info("[검색] keyword='{}' | BM25: {}ms ({}개), Vector: {}ms (embedding: {}, query: {}ms) ({}개), Rerank(NSF): {}ms ({}개), 후보재활용: {}/{}건 (DB보충 {}건, 보충통과 {}건) | 총: {}ms",
             keyword,
             bm25EndTime - bm25StartTime, originalBm25Count,
             vectorElapsedMs.get(), embeddingCacheInfo, vectorSearchResult.getQueryMs(), originalVectorCount,
             rerankEndTime - rerankStartTime, nsfScores.size(),
             reusedCandidateCount, reusedCandidateCount + crossScoreDbCount, crossScoreDbCount,
+            supplementPassedCount.get(),
             totalEndTime - totalStartTime);
 
         log.debug("NSF 결과 {}개 중 유효한 article: {}개", nsfScores.size(), validArticleIds.size());
