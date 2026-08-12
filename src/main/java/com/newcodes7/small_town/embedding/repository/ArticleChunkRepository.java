@@ -14,6 +14,25 @@ import org.springframework.stereotype.Repository;
  * 2단계 검색 지원:
  * - Stage 1: Binary HNSW (빠른 후보 필터링)
  * - Stage 2: halfvec Reranking (정밀 유사도 계산)
+ *
+ * <h2>쿼리 벡터 파라미터는 반드시 {@code AS MATERIALIZED} CTE로 감싼다</h2>
+ *
+ * <p>{@code :queryEmbedding}은 1024차원을 텍스트로 편 <b>11.8KB 문자열</b>이다
+ * (VectorSearchService.formatVectorForPostgres). {@code CAST(... AS halfvec)}은 그 문자열에서
+ * 숫자 1024개를 파싱하는 작업이라 <b>행당 약 97µs</b>가 든다 — 정작 목적인 거리 연산
+ * {@code <#>}은 행당 2.5µs다.
+ *
+ * <p>PG 12부터 <b>한 번만 참조되는 CTE는 본문에 인라인</b>되고, pgjdbc가
+ * {@code prepareThreshold=5}로 서버측 prepared statement를 쓰기 때문에 커넥션마다 5회 실행 후
+ * generic plan으로 바뀌면 파라미터가 상수로 접히지 않는다. 두 조건이 겹치면 같은 문자열을
+ * <b>행마다 다시 파싱</b>한다. 실측으로 본검색이 2.5ms → 50.0ms가 됐다.
+ * {@code MATERIALIZED}는 인라인을 막아 파싱을 쿼리당 1회로 되돌린다
+ * (docs/operations/QUERY_PARAM_REPARSE.md).
+ *
+ * <p><b>단 binary 캐스트는 다르다.</b> {@code ORDER BY embedding_binary <~> CAST(:queryBinary AS
+ * bit(1024)) LIMIT}의 캐스트는 <b>HNSW 탐색키</b>라 CTE로 빼면 인덱스 스캔이 Seq Scan으로
+ * 떨어진다. 이 형태는 반드시 인라인으로 둔다. halfvec {@code <#>}은 전부 윈도우 ORDER BY나
+ * 조인 내부라 인덱스가 쓰이지 않으므로 끌어올려도 안전하다.
  */
 @Repository
 public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long> {
@@ -99,7 +118,7 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
      * @return Article ID와 상위 K개 청크 평균 유사도를 담은 결과
      */
     @Query(value = """
-            WITH query_vec AS (
+            WITH query_vec AS MATERIALIZED (
                 SELECT l2_normalize(CAST(:queryEmbedding AS halfvec)) AS vec
             )
             SELECT article_id, AVG(similarity) AS avg_similarity
@@ -153,6 +172,14 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
      *       halfvec 쪽 article 조인이 사라져 더 싸다.</li>
      *   <li>stage1은 MATERIALIZED — 플래너가 LIMIT CTE를 인라인하려 드는 것을 막아 계획을
      *       결정적으로 만든다.</li>
+     *   <li><b>쿼리 벡터 두 개를 {@code q} CTE 하나로 묶었다.</b> 이전에는 Stage 1이
+     *       {@code CAST(:queryBinary AS bit(1024))}를 타깃리스트와 윈도우 ORDER BY에 각각 적어
+     *       <b>행당 2회</b> 평가했고, Stage 2의 halfvec도 CTE가 인라인돼 행마다 재파싱됐다.
+     *       generic plan에서 19.2ms → <b>3.2ms</b> (클래스 javadoc 참고). Stage 1의 binary 캐스트는
+     *       {@code article_id = ANY(...)} 인덱스 스캔 위의 일반 표현식이지 HNSW 탐색키가 아니라
+     *       끌어올려도 안전하다.</li>
+     *   <li>해밍을 안쪽 서브쿼리에서 1회만 계산하고 {@code cos()} 환산을 집계 시점으로 옮겼다 —
+     *       {@code avg(cos(h))} 순서는 그대로다(위 세 번째 항목의 제약 유지).</li>
      * </ul>
      *
      * @param queryEmbedding 검색 쿼리의 임베딩 벡터 (PostgreSQL 배열 포맷)
@@ -165,30 +192,36 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
      * @return Article ID와 상위 K개 청크 평균 유사도 (단일 쿼리 버전과 같은 형식)
      */
     @Query(value = """
-            WITH query_vec AS (
-                SELECT l2_normalize(CAST(:queryEmbedding AS halfvec)) AS vec
+            WITH q AS MATERIALIZED (
+                SELECT l2_normalize(CAST(:queryEmbedding AS halfvec)) AS vec,
+                       CAST(:queryBinary AS bit(1024))                AS bvec
             ),
             stage1 AS MATERIALIZED (
                 SELECT article_id
                 FROM (
                     SELECT
-                        cac.article_id,
-                        cos(pi() * (cac.embedding_binary <~> CAST(:queryBinary AS bit(1024))) / 1024.0)
-                            AS estimated_similarity,
+                        article_id,
+                        hamming,
                         ROW_NUMBER() OVER (
-                            PARTITION BY cac.article_id
-                            ORDER BY cac.embedding_binary <~> CAST(:queryBinary AS bit(1024))
+                            PARTITION BY article_id
+                            ORDER BY hamming
                         ) AS rn
-                    FROM clova_article_chunk cac
-                    JOIN article a ON cac.article_id = a.id
-                    WHERE a.deleted_at IS NULL
-                      AND cac.embedding_binary IS NOT NULL
-                      AND cac.article_id = ANY(CAST(:articleIds AS bigint[]))
+                    FROM (
+                        SELECT
+                            cac.article_id,
+                            cac.embedding_binary <~> q.bvec AS hamming
+                        FROM clova_article_chunk cac
+                        JOIN article a ON cac.article_id = a.id
+                        CROSS JOIN q
+                        WHERE a.deleted_at IS NULL
+                          AND cac.embedding_binary IS NOT NULL
+                          AND cac.article_id = ANY(CAST(:articleIds AS bigint[]))
+                    ) h
                 ) estimated
                 WHERE rn <= :topK
                 GROUP BY article_id
-                HAVING AVG(estimated_similarity) >= :stage1Floor
-                ORDER BY AVG(estimated_similarity) DESC
+                HAVING AVG(cos(pi() * hamming / 1024.0)) >= :stage1Floor
+                ORDER BY AVG(cos(pi() * hamming / 1024.0)) DESC
                 LIMIT :stage2Limit
             )
             SELECT article_id, AVG(similarity) AS avg_similarity
@@ -202,7 +235,7 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
                     ) AS rn
                 FROM clova_article_chunk cac
                 JOIN clova_chunk_vectors ccv ON ccv.id = cac.id
-                CROSS JOIN query_vec q
+                CROSS JOIN q
                 WHERE cac.article_id = ANY(ARRAY(SELECT article_id FROM stage1))
             ) ranked
             WHERE rn <= :topK
@@ -274,7 +307,7 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
      *         is_main은 기존 semantics(threshold 통과 + limit 이내) 해당 여부다.
      */
     @Query(value = """
-            WITH query_vec AS (
+            WITH query_vec AS MATERIALIZED (
                 SELECT l2_normalize(CAST(:queryEmbedding AS halfvec)) AS vec
             ),
             candidates AS (
@@ -331,7 +364,7 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
      * @param domesticTypes 허용할 is_domestic 값 목록 (1=국내, 0=해외)
      */
     @Query(value = """
-            WITH query_vec AS (
+            WITH query_vec AS MATERIALIZED (
                 SELECT l2_normalize(CAST(:queryEmbedding AS halfvec)) AS vec
             ),
             candidates AS (
@@ -391,7 +424,7 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
      * @param categories 허용할 카테고리 이름 목록
      */
     @Query(value = """
-            WITH query_vec AS (
+            WITH query_vec AS MATERIALIZED (
                 SELECT l2_normalize(CAST(:queryEmbedding AS halfvec)) AS vec
             ),
             candidates AS (
@@ -449,7 +482,7 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
      * 2단계 통합 검색 (해외/국내 + category 필터 모두 적용): Binary HNSW 후보 필터링 → halfvec Reranking
      */
     @Query(value = """
-            WITH query_vec AS (
+            WITH query_vec AS MATERIALIZED (
                 SELECT l2_normalize(CAST(:queryEmbedding AS halfvec)) AS vec
             ),
             candidates AS (
@@ -512,7 +545,7 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
      * @param corporationIds 허용할 corporation_id 목록
      */
     @Query(value = """
-            WITH query_vec AS (
+            WITH query_vec AS MATERIALIZED (
                 SELECT l2_normalize(CAST(:queryEmbedding AS halfvec)) AS vec
             ),
             candidates AS (
@@ -571,7 +604,7 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
      * Article별 집계 없이 개별 chunk를 유사도 순으로 반환
      */
     @Query(value = """
-            WITH query_vec AS (
+            WITH query_vec AS MATERIALIZED (
                 SELECT l2_normalize(CAST(:queryEmbedding AS halfvec)) AS vec
             ),
             candidates AS (
@@ -634,7 +667,7 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
      * UNION으로 중복 chunk_id 제거 (첫 청크 = 최고 유사도 청크인 경우 1개만 반환)
      */
     @Query(value = """
-            WITH query_vec AS (
+            WITH query_vec AS MATERIALIZED (
                 SELECT l2_normalize(CAST(:queryEmbedding AS halfvec)) AS vec
             ),
             all_chunks AS (
@@ -691,7 +724,7 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
      * UNION으로 중복 chunk_id 제거 (첫 청크가 상위 K에 포함되면 1개만 반환)
      */
     @Query(value = """
-            WITH query_vec AS (
+            WITH query_vec AS MATERIALIZED (
                 SELECT l2_normalize(CAST(:queryEmbedding AS halfvec)) AS vec
             ),
             all_chunks AS (
@@ -812,7 +845,10 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
      * @return Article ID와 유사도
      */
     @Query(value = """
-            WITH stage1 AS (
+            WITH query_vec AS MATERIALIZED (
+                SELECT CAST(:queryEmbedding AS halfvec) AS vec
+            ),
+            stage1 AS (
                 SELECT cac.article_id
                 FROM clova_article_chunk cac
                 JOIN article a ON cac.article_id = a.id
@@ -825,13 +861,14 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
             ),
             all_chunks AS (
                 SELECT cac.article_id,
-                       -(ccv.embedding_normalized <#> CAST(:queryEmbedding AS halfvec)) AS similarity,
+                       -(ccv.embedding_normalized <#> q.vec) AS similarity,
                        ROW_NUMBER() OVER (
                            PARTITION BY cac.article_id
-                           ORDER BY ccv.embedding_normalized <#> CAST(:queryEmbedding AS halfvec)
+                           ORDER BY ccv.embedding_normalized <#> q.vec
                        ) AS rn
                 FROM clova_article_chunk cac
                 JOIN clova_chunk_vectors ccv ON ccv.id = cac.id
+                CROSS JOIN query_vec q
                 WHERE cac.article_id = ANY(ARRAY(SELECT article_id FROM stage1))
             )
             SELECT article_id, AVG(similarity) AS similarity
@@ -861,16 +898,20 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
      * @return Article ID와 유사도
      */
     @Query(value = """
+            WITH query_vec AS MATERIALIZED (
+                SELECT CAST(:queryEmbedding AS halfvec) AS vec
+            )
             SELECT article_id, AVG(similarity) AS similarity
             FROM (
                 SELECT cac.article_id,
-                       -(ccv.embedding_normalized <#> CAST(:queryEmbedding AS halfvec)) AS similarity,
+                       -(ccv.embedding_normalized <#> q.vec) AS similarity,
                        ROW_NUMBER() OVER (
                            PARTITION BY cac.article_id
-                           ORDER BY ccv.embedding_normalized <#> CAST(:queryEmbedding AS halfvec)
+                           ORDER BY ccv.embedding_normalized <#> q.vec
                        ) AS rn
                 FROM clova_article_chunk cac
                 JOIN clova_chunk_vectors ccv ON ccv.id = cac.id
+                CROSS JOIN query_vec q
                 WHERE cac.article_id != :articleId
                   AND cac.article_id IN (
                       SELECT id FROM article WHERE deleted_at IS NULL
