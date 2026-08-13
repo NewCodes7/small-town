@@ -1,31 +1,26 @@
 package com.newcodes7.small_town.search.controller;
 
+import com.newcodes7.small_town.article.dto.ArticleResponseDto;
+import com.newcodes7.small_town.article.service.ArticleService;
+import com.newcodes7.small_town.global.util.Client;
+import com.newcodes7.small_town.search.dto.SearchClickRequestDto;
+import com.newcodes7.small_town.search.entity.SearchLog;
+import com.newcodes7.small_town.search.service.ArticleSearchService;
+import com.newcodes7.small_town.search.service.SearchClickLogService;
+import com.newcodes7.small_town.search.service.SearchLogService;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
-
-import com.newcodes7.small_town.search.dto.SearchClickRequestDto;
-import com.newcodes7.small_town.search.service.SearchClickLogService;
-
-import com.newcodes7.small_town.article.dto.ArticleResponseDto;
-import com.newcodes7.small_town.article.service.ArticleService;
-import com.newcodes7.small_town.search.service.ArticleSearchService;
-import com.newcodes7.small_town.search.service.SemanticTermExpansionService;
-import com.newcodes7.small_town.search.entity.SearchLog;
-import com.newcodes7.small_town.search.service.SearchLogService;
-import com.newcodes7.small_town.global.util.Client;
-
-import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RestController
@@ -35,7 +30,6 @@ public class ArticleSearchController {
 
     private final ArticleService articleService;
     private final ArticleSearchService articleSearchService;
-    private final SemanticTermExpansionService semanticExpansionService;
     private final SearchLogService searchLogService;
     private final SearchClickLogService searchClickLogService;
 
@@ -87,11 +81,12 @@ public class ArticleSearchController {
                 ).map(dto -> (ArticleResponseDto) dto);
             } else {
                 // 일반 Hybrid 검색 (BM25 + Vector)
-                Map<String, Double> expandedTerms = semanticExpansionService.expandSearchTerms(trimmedKeyword.toLowerCase());
-
+                // 검색어 확장(유의어 조인 쿼리 실측 150~165ms)을 여기서 미리 부르지 않는다 —
+                // searchArticlesHybrid 내부에서 Clova 임베딩 호출이 뜬 *뒤에* 돌아야 임베딩 대기
+                // 구간에 겹쳐 숨는다. expandedTerms를 넘기면 그 순서가 깨진다.
+                // (docs/search/SEARCH_TRACE_ANALYSIS.md A-1)
                 articles = articleSearchService.searchArticlesHybrid(
                     trimmedKeyword.toLowerCase(),
-                    expandedTerms,
                     regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
                     category == null || category.isEmpty() ? null : category.stream().sorted().toList(),
                     page,

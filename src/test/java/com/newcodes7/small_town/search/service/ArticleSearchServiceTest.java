@@ -19,12 +19,16 @@ import com.newcodes7.small_town.term.service.TermSynonymService;
 import io.micrometer.observation.ObservationRegistry;
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -131,7 +135,47 @@ class ArticleSearchServiceTest {
                 "redis", List.of(), List.of(), 0, 10, "relevance", "127.0.0.1", null);
 
         // then
+        // Vector future는 확장보다 먼저 뜨므로 이 경로에서도 호출되지만(결과는 버려짐),
+        // 목이 null을 반환하고 람다 catch-all이 처리하므로 빈 페이지 반환에는 영향이 없다.
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("searchArticlesHybrid: 검색어 확장은 Vector future가 뜬 뒤에 실행된다 (Clova 대기에 겹침)")
+    void searchArticlesHybrid_expansionRunsAfterVectorFutureLaunched() {
+        // given
+        String keyword = "redis";
+        CountDownLatch vectorEntered = new CountDownLatch(1);
+        AtomicBoolean vectorWasInFlight = new AtomicBoolean(false);
+
+        when(semanticExpansionService.classifyQueryComplexity(keyword))
+                .thenReturn(SemanticTermExpansionService.QueryComplexity.SIMPLE);
+        when(weightConfig.getWeights(SemanticTermExpansionService.QueryComplexity.SIMPLE))
+                .thenReturn(new SearchWeightConfigService.WeightEntry(3.0, 0.6, 0.4));
+
+        when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), isNull(), isNull(), eq(false)))
+                .thenAnswer(inv -> {
+                    vectorEntered.countDown();
+                    return new VectorSearchService.VectorSearchResult(new HashMap<>(), null);
+                });
+
+        // 확장이 시작되는 시점에 Vector 검색은 이미 떠 있어야 한다.
+        // 직렬로 되돌아가면(컨트롤러 선호출 부활 또는 future를 아래로 이동) 여기서 타임아웃 → false.
+        when(semanticExpansionService.expandSearchTerms(keyword)).thenAnswer(inv -> {
+            vectorWasInFlight.set(vectorEntered.await(2, TimeUnit.SECONDS));
+            return Map.of(keyword, 1.0);
+        });
+        when(hybridSearchScorer.buildBM25Query(anyMap(), anyDouble())).thenReturn("redis");
+        when(articleRepository.searchByBM25(anyString(), anyInt())).thenReturn(List.of());
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), anyDouble(), anyDouble()))
+                .thenReturn(new HybridSearchScorer.NSFResult(Map.of(), Map.of(), Map.of(), Map.of()));
+
+        // when
+        articleSearchService.searchArticlesHybrid(
+                keyword, null, null, null, 0, 10, "relevance", "127.0.0.1", null);
+
+        // then
+        assertThat(vectorWasInFlight).isTrue();
     }
 
     @Test
@@ -289,7 +333,12 @@ class ArticleSearchServiceTest {
 
         // then
         assertThat(result).isEmpty();
-        verifyNoInteractions(vectorSearchService);
+        // BM25 쿼리 생성이 실패했으므로 BM25 검색은 돌지 않는다
+        verify(articleRepository, never()).searchByBM25WithDomesticTypes(anyString(), anyList(), anyInt());
+        // 반면 Vector future는 검색어 확장보다 먼저 뜨므로 호출은 되고, 결과만 버려진다.
+        // (취소하지 않는 이유는 computeHybridCore의 early return 주석 참고)
+        verify(vectorSearchService, timeout(1_000))
+                .searchByKeywordWithEmbedding(eq("redis"), eq(List.of(1)), isNull(), eq(false));
     }
 
     @Test

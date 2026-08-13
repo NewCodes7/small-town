@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -95,9 +96,10 @@ public class ArticleSearchServiceHybridCoreTest extends IntegrationTestBase {
             Future<ArticleSearchService.HybridTopArticles> summaryFuture = executor.submit(() ->
                     articleSearchService.getTopArticleIdsByHybrid(keyword, 3));
 
-            // 임의 키워드는 검색어 확장이 비어 코어가 Vector 단계 전에 종료될 수 있으므로,
-            // Vector 도달 여부와 무관하게 요약 완료 후 검색 경로가 재계산하지 않는지만 검증
-            boolean reachedVector = vectorEntered.await(2, TimeUnit.SECONDS);
+            // Vector future는 이제 검색어 확장보다 먼저 뜨므로 BM25 쿼리 생성 실패와 무관하게 항상 도달한다.
+            // 요약 경로의 코어가 빈 결과로 끝나면 Caffeine이 축출해 검색 경로가 새 승자가 될 수 있으니
+            // "Vector 호출 횟수"로는 단일 계산 여부를 판정할 수 없다 — 아래 BM25 메인 쿼리로 판정한다.
+            vectorEntered.await(2, TimeUnit.SECONDS);
 
             Future<Page<ArticleSearchResultDto>> searchFuture = executor.submit(() ->
                     articleSearchService.searchArticlesHybrid(
@@ -108,10 +110,8 @@ public class ArticleSearchServiceHybridCoreTest extends IntegrationTestBase {
             assertThat(summaryFuture.get(10, TimeUnit.SECONDS)).isNotNull();
             assertThat(searchFuture.get(10, TimeUnit.SECONDS)).isNotNull();
 
-            if (reachedVector) {
-                // 요약이 시작한 계산에 검색이 합류 → Vector 검색은 1회
-                verify(vectorSearchService, times(1)).searchByKeywordWithEmbedding(eq(keyword), isNull(), isNull(), eq(false));
-            }
+            // 요약이 시작한 계산에 검색이 합류 → 코어 파이프라인(BM25 메인 쿼리)은 최대 1회
+            verify(articleRepository, atMost(1)).searchByBM25(contains(uniqueTerm), anyInt());
         }
     }
 }

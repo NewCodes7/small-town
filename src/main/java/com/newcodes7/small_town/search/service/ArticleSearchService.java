@@ -214,6 +214,11 @@ public class ArticleSearchService {
      * @param sort 정렬 방식 (relevance: RRF 스코어순, latest: 최신순, oldest: 오래된순)
      * @param ipAddress 사용자 IP 주소 (좋아요 상태 조회용)
      * @return 검색 결과 (RRF 스코어 기반 정렬, 좋아요 상태 포함)
+     *
+     * 이 오버로드(expandedTerms 없음)가 핫 경로용 기본형이다 — 검색어 확장을 코어 안에서,
+     * Clova 임베딩 호출이 뜬 뒤에 실행해 임베딩 대기 구간에 겹친다.
+     * expandedTerms를 받는 오버로드는 호출자가 이미 확장 결과를 갖고 있을 때만 쓸 것
+     * (docs/search/SEARCH_TRACE_ANALYSIS.md A-1).
      */
     public Page<ArticleSearchResultDto> searchArticlesHybrid(
             String keyword,
@@ -463,27 +468,24 @@ public class ArticleSearchService {
 
         long totalStartTime = System.currentTimeMillis();
 
-        // 1. 쿼리 복잡도 감지 → 적응형 BM25 title 배수 및 NSF 가중치 결정
-        SemanticTermExpansionService.QueryComplexity complexity =
-                semanticExpansionService.classifyQueryComplexity(keyword);
-        SearchWeightConfigService.WeightEntry weights = weightConfig.getWeights(complexity);
-        double titleMultiplier = weights.titleMultiplier();
-        double bm25NsfWeight   = weights.bm25NsfWeight();
-        double vectorNsfWeight = weights.vectorNsfWeight();
-        log.info("[검색] keyword='{}' 쿼리 복잡도: {} (titleMultiplier={}, BM25={}, Vector={})",
-                keyword, complexity, titleMultiplier, bm25NsfWeight, vectorNsfWeight);
-
-        // 2. BM25 검색 쿼리 생성 (나중에 Vector-only article들의 BM25 점수 계산에 재사용)
-        String bm25SearchQuery = (expandedTerms != null && !expandedTerms.isEmpty())
-                ? buildBM25SearchQueryFromExpandedTerms(expandedTerms, titleMultiplier)
-                : buildBM25SearchQuery(keyword, titleMultiplier);
-        if (bm25SearchQuery == null || bm25SearchQuery.isEmpty()) {
-            log.warn("BM25 검색 쿼리 생성 실패: '{}'", keyword);
-            return HybridCoreResult.empty();
-        }
-
-        // 3. BM25와 Vector 검색을 병렬 실행
-        // Vector 검색을 별도 스레드에서 비동기 실행 (임베딩 API 호출이 대부분의 시간)
+        // 1. Vector 검색을 가장 먼저 띄운다 — 아래 검색어 확장 쿼리를 Clova 대기에 겹쳐 숨기기 위해.
+        //
+        // 이 람다가 캡처하는 값은 전부 메서드 파라미터에서 바로 나온다(keyword / regions / category /
+        // useMockEmbedding). 아래의 복잡도 분류·검색어 확장·BM25 쿼리 생성 결과에는 전혀 의존하지 않으므로
+        // 메서드 맨 앞으로 올릴 수 있다. convertRegionsToTypes도 순수 CPU라 함께 올린다.
+        //
+        // 이득의 근거: 벡터 경로의 지배 항목은 Clova 임베딩 HTTP 호출(실측 246~658ms)이고, 그 구간에는
+        // DB 커넥션을 잡지 않는다(SearchQueryEmbeddingService.getEmbeddingWithCacheInfo에 @Transactional을
+        // 일부러 붙이지 않은 이유 — 해당 Javadoc 참고). 그래서 그 뒤에서 도는 유의어 확장 DB 쿼리
+        // (실측 150~165ms)와는 DB작업 ∥ HTTP대기로 겹칠 뿐 자원을 다투지 않는다.
+        // 요청당 커넥션 체크아웃 횟수와 각 점유 시간은 그대로고 wall time만 줄어든다.
+        //
+        // 주의: 이 이득은 벡터 경로가 getEmbeddingWithCacheInfo(비트랜잭셔널)를 쓰는 동안에만 성립한다.
+        // @Transactional이 붙은 getOrCreateEmbedding으로 바꾸면 Clova 호출 내내 커넥션을 물게 되어
+        // 확장 쿼리와 5개짜리 풀을 두고 경합한다(connection-timeout 3초).
+        // 또한 vectorSearchService 호출은 반드시 searchExecutor(virtual thread)에 남겨야 한다 —
+        // 요청 스레드나 readOnlyTx 안으로 옮기면 앰비언트 트랜잭션에 합류해 같은 회귀가 난다.
+        // 트레이스 근거: docs/search/SEARCH_TRACE_ANALYSIS.md A-1.
         List<Integer> vectorDomesticTypes = convertRegionsToTypes(regions);
         List<String> vectorCategories = (category != null && !category.isEmpty()) ? category : null;
         AtomicLong vectorElapsedMs = new AtomicLong(0);
@@ -501,7 +503,33 @@ public class ArticleSearchService {
                     }
                 }, searchExecutor);
 
-        // BM25 검색은 현재 스레드에서 실행 (Vector가 별도 스레드에서 도는 동안 병렬 수행)
+        // 2. 쿼리 복잡도 감지 → 적응형 BM25 title 배수 및 NSF 가중치 결정 (순수 CPU)
+        SemanticTermExpansionService.QueryComplexity complexity =
+                semanticExpansionService.classifyQueryComplexity(keyword);
+        SearchWeightConfigService.WeightEntry weights = weightConfig.getWeights(complexity);
+        double titleMultiplier = weights.titleMultiplier();
+        double bm25NsfWeight   = weights.bm25NsfWeight();
+        double vectorNsfWeight = weights.vectorNsfWeight();
+        log.info("[검색] keyword='{}' 쿼리 복잡도: {} (titleMultiplier={}, BM25={}, Vector={})",
+                keyword, complexity, titleMultiplier, bm25NsfWeight, vectorNsfWeight);
+
+        // 3. BM25 검색 쿼리 생성 (나중에 Vector-only article들의 BM25 점수 계산에 재사용)
+        // expandedTerms가 null이면 여기 buildBM25SearchQuery 안에서 유의어 확장 DB 쿼리가 돈다 —
+        // 위 vectorFuture가 이미 Clova 호출 중이라 이 구간은 임베딩 대기에 겹쳐 숨는다.
+        String bm25SearchQuery = (expandedTerms != null && !expandedTerms.isEmpty())
+                ? buildBM25SearchQueryFromExpandedTerms(expandedTerms, titleMultiplier)
+                : buildBM25SearchQuery(keyword, titleMultiplier);
+        if (bm25SearchQuery == null || bm25SearchQuery.isEmpty()) {
+            // vectorFuture는 취소하지 않고 흘려보낸다. cancel(true)는 이미 실행 중인 supplyAsync 태스크를
+            // 중단시키지 못하고(virtual thread executor라 태스크가 즉시 시작한다) 이름만 그럴싸한 no-op이 된다.
+            // 게다가 낭비도 아니다 — 무필터 경로면 vectorSearchResults 캐시를, 어느 경로든
+            // search_query_embedding 행을 채워 다음 요청이 Clova를 건너뛴다.
+            // 람다에 catch-all이 있어 예외로 완료될 일도 없다(hybridCoreCache 시맨틱 영향 없음).
+            log.warn("BM25 검색 쿼리 생성 실패: '{}'", keyword);
+            return HybridCoreResult.empty();
+        }
+
+        // 4. BM25 검색은 현재 스레드에서 실행 (Vector가 별도 스레드에서 도는 동안 병렬 수행)
         // Phase A: BM25 쿼리만 짧게 트랜잭션으로 감싼다 — 뒤이은 vectorFuture.get() 대기 구간에는
         // 커넥션을 물고 있지 않도록 여기서 트랜잭션을 닫는다
         long bm25StartTime = System.currentTimeMillis();
@@ -526,7 +554,7 @@ public class ArticleSearchService {
         });
         long bm25EndTime = System.currentTimeMillis();
 
-        // 3. Vector 검색 결과 대기
+        // 5. Vector 검색 결과 대기
         Map<Long, Double> vectorResults = new HashMap<>();
         float[] queryEmbedding = null;
         VectorSearchService.VectorSearchResult vectorSearchResult = new VectorSearchService.VectorSearchResult(new HashMap<>(), null);
@@ -1276,7 +1304,11 @@ public class ArticleSearchService {
 
     /**
      * 이미 확장된 검색어로 BM25 검색 쿼리 문자열 생성 (기본 title 배수)
-     * Controller에서 expandSearchTerms를 이미 호출한 경우, 중복 호출을 방지하기 위해 사용
+     * 호출자가 다른 이유로 확장 결과를 이미 갖고 있는 경우(ArticlePageController의 관리자 디버그 패널,
+     * SearchPrewarmScheduler의 프리워밍 Step 2)에만 쓴다 — 중복 호출 방지용.
+     * 핫 API 경로(ArticleSearchController)는 일부러 null을 넘긴다: 확장을 컨트롤러에서 미리 부르면
+     * computeHybridCore의 Clova 임베딩 호출보다 먼저 돌아 직렬 구간이 되기 때문이다
+     * (docs/search/SEARCH_TRACE_ANALYSIS.md A-1).
      *
      * @param expandedTerms 확장된 검색어와 가중치 맵
      * @return BM25 쿼리 문자열
@@ -1287,7 +1319,11 @@ public class ArticleSearchService {
 
     /**
      * 이미 확장된 검색어로 BM25 검색 쿼리 문자열 생성 (적응형 title 배수)
-     * Controller에서 expandSearchTerms를 이미 호출한 경우, 중복 호출을 방지하기 위해 사용
+     * 호출자가 다른 이유로 확장 결과를 이미 갖고 있는 경우(ArticlePageController의 관리자 디버그 패널,
+     * SearchPrewarmScheduler의 프리워밍 Step 2)에만 쓴다 — 중복 호출 방지용.
+     * 핫 API 경로(ArticleSearchController)는 일부러 null을 넘긴다: 확장을 컨트롤러에서 미리 부르면
+     * computeHybridCore의 Clova 임베딩 호출보다 먼저 돌아 직렬 구간이 되기 때문이다
+     * (docs/search/SEARCH_TRACE_ANALYSIS.md A-1).
      *
      * @param expandedTerms   확장된 검색어와 가중치 맵
      * @param titleMultiplier title_terms 부스트 배수
