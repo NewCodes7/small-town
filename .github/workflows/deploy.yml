@@ -9,6 +9,7 @@ on:
       - 'gradle/**'
       - '.github/workflows/**'
       - 'docker-compose.yml'
+      - 'grafana/**'
   pull_request:
     branches: [main]
     paths:
@@ -17,6 +18,7 @@ on:
       - 'gradle/**'
       - '.github/workflows/**'
       - 'docker-compose.yml'
+      - 'grafana/**'
   workflow_dispatch:
     inputs:
       db_pool_size:
