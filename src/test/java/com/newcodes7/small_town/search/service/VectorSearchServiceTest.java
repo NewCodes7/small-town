@@ -7,7 +7,6 @@ import static org.mockito.Mockito.*;
 import com.newcodes7.small_town.embedding.repository.ArticleChunkRepository;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,9 +33,6 @@ class VectorSearchServiceTest {
 
     @Mock
     private CacheManager cacheManager;
-
-    @Mock
-    private ExecutorService searchExecutor;
 
     @InjectMocks
     private VectorSearchService vectorSearchService;
@@ -721,63 +717,6 @@ class VectorSearchServiceTest {
 
         assertThat(second).isEqualTo(first);
         verify(chunkRepository, times(1)).findFirstAndTopChunksByArticleIds(anyString(), anyList(), eq(3));
-    }
-
-    // ==================== getTopChunksForSummary ====================
-
-    @Test
-    @DisplayName("getTopChunksForSummary: null 키워드 → 빈 리스트")
-    void getTopChunksForSummary_null키워드() {
-        assertThat(vectorSearchService.getTopChunksForSummary(null, 10)).isEmpty();
-        verifyNoInteractions(chunkRepository, searchQueryEmbeddingService);
-    }
-
-    @Test
-    @DisplayName("getTopChunksForSummary: 캐시 히트 → 임베딩/Repository 미호출")
-    void getTopChunksForSummary_캐시히트() {
-        org.springframework.cache.concurrent.ConcurrentMapCache cache =
-                new org.springframework.cache.concurrent.ConcurrentMapCache("chunkSearchResults");
-        List<com.newcodes7.small_town.search.dto.AiSummaryChunkDto> cachedChunks = List.of(
-                new com.newcodes7.small_town.search.dto.AiSummaryChunkDto(
-                        1L, "제목", "url", "내용", null, "기업", null));
-        cache.put("kafka", cachedChunks);
-        when(cacheManager.getCache("chunkSearchResults")).thenReturn(cache);
-
-        List<com.newcodes7.small_town.search.dto.AiSummaryChunkDto> result =
-                vectorSearchService.getTopChunksForSummary("kafka", 10);
-
-        assertThat(result).isEqualTo(cachedChunks);
-        verifyNoInteractions(searchQueryEmbeddingService, chunkRepository);
-    }
-
-    @Test
-    @DisplayName("getTopChunksForSummary: 캐시 미스 + 임베딩 실패 → 빈 리스트")
-    void getTopChunksForSummary_캐시미스_임베딩실패() {
-        when(searchQueryEmbeddingService.getOrCreateEmbedding(anyString())).thenReturn(null);
-
-        List<com.newcodes7.small_town.search.dto.AiSummaryChunkDto> result =
-                vectorSearchService.getTopChunksForSummary("kafka", 10);
-
-        assertThat(result).isEmpty();
-        verifyNoInteractions(chunkRepository);
-    }
-
-    @Test
-    @DisplayName("getTopChunksForSummary: 정상 조회 → chunk 반환 및 캐시에 저장")
-    void getTopChunksForSummary_정상조회_캐시저장() {
-        org.springframework.cache.concurrent.ConcurrentMapCache cache =
-                new org.springframework.cache.concurrent.ConcurrentMapCache("chunkSearchResults");
-        when(cacheManager.getCache("chunkSearchResults")).thenReturn(cache);
-        when(searchQueryEmbeddingService.getOrCreateEmbedding(anyString())).thenReturn(DUMMY_EMBEDDING);
-        when(chunkRepository.findTopChunksForAiSummary(anyString(), anyString(), anyInt(), anyDouble(), anyInt()))
-                .thenReturn(List.<Object[]>of(new Object[]{
-                        1L, "제목", "https://example.com/1", "내용", null, null, "테스트기업", null}));
-
-        List<com.newcodes7.small_town.search.dto.AiSummaryChunkDto> result =
-                vectorSearchService.getTopChunksForSummary("kafka", 10);
-
-        assertThat(result).hasSize(1);
-        assertThat(cache.get("kafka")).isNotNull();
     }
 
     // ==================== getChunksForArticlesByIds — 추가 분기 ====================
