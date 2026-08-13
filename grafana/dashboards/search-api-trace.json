@@ -1,0 +1,981 @@
+{
+  "__requires": [
+    {
+      "type": "datasource",
+      "id": "tempo",
+      "name": "Tempo",
+      "version": "1.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "traces",
+      "name": "Traces",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "검색 API(/api/search/articles) 요청 1건을 end-to-end로 추적 — 루트 트레이스 선택 → 전체 워터폴 → 그 요청이 실행한 함수(span)/SQL/외부 API 목록 → 최근 트레이스 구간별 집계",
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Tracing (Tempo) 전체",
+      "tooltip": "서비스 전체 트레이싱 대시보드",
+      "type": "link",
+      "url": "/d/small-town-tempo-tracing"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "RAG Answer (/api/rag/answer)",
+      "tooltip": "RAG 답변 API 전용 대시보드",
+      "type": "link",
+      "url": "/d/small-town-rag-answer"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "All Log Monitor",
+      "tooltip": "전체 로그 대시보드",
+      "type": "link",
+      "url": "/d/small-town-all-logs"
+    }
+  ],
+  "panels": [
+    {
+      "id": 100,
+      "type": "row",
+      "title": "① 검색 API 트레이스 고르기 — Trace Name/Service 셀을 클릭하면 아래 ②③ 패널이 그 트레이스로 채워집니다",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "id": 1,
+      "type": "table",
+      "title": "최근 검색 API 트레이스 ($root)",
+      "description": "루트 span이 $root 인 트레이스 = 검색 API 요청 1건 전체. Duration은 요청 전체 응답시간이고, 그 안에 BM25/Vector/NSF/JDBC span이 모두 자식으로 들어있다 (searchExecutor가 ContextExecutorService로 감싸져 있어 비동기 Vector 검색도 같은 trace에 붙는다). Trace Name 셀을 클릭하면 아래 워터폴·구간·SQL 패널이 해당 트레이스로 전환된다.",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{resource.service.name=\"$service\" && trace:rootName=\"$root\"}",
+          "limit": 50,
+          "tableType": "traces",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "traceName"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "이 트레이스를 ②③ 패널에 로드",
+                    "url": "/d/small-town-search-api/?var-traceId=${__data.fields.traceIdHidden}&${service:queryparam}&${root:queryparam}&from=${__from}&to=${__to}",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "traceService"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "이 트레이스를 ②③ 패널에 로드",
+                    "url": "/d/small-town-search-api/?var-traceId=${__data.fields.traceIdHidden}&${service:queryparam}&${root:queryparam}&from=${__from}&to=${__to}",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "느린 트레이스 (전체 응답 > $slow_threshold)",
+      "description": "trace:duration 기준 — span 단위가 아니라 요청 전체 소요시간으로 거른다. 여기서 트레이스를 고른 뒤 ② 워터폴에서 어느 구간이 잡아먹었는지 확인하면 된다.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      },
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{resource.service.name=\"$service\" && trace:rootName=\"$root\" && trace:duration > $slow_threshold}",
+          "limit": 50,
+          "tableType": "traces",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "traceName"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "이 트레이스를 ②③ 패널에 로드",
+                    "url": "/d/small-town-search-api/?var-traceId=${__data.fields.traceIdHidden}&${service:queryparam}&${root:queryparam}&from=${__from}&to=${__to}",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "traceService"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "이 트레이스를 ②③ 패널에 로드",
+                    "url": "/d/small-town-search-api/?var-traceId=${__data.fields.traceIdHidden}&${service:queryparam}&${root:queryparam}&from=${__from}&to=${__to}",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "에러 트레이스",
+      "description": "status=error span이 하나라도 포함된 검색 API 트레이스. Vector 검색 실패는 코드에서 catch 후 스킵되므로 여기 안 잡힐 수 있다 — ③ 구간 목록에서 vector-search span 누락 여부로 판단.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      },
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{resource.service.name=\"$service\" && trace:rootName=\"$root\" && status=error}",
+          "limit": 50,
+          "tableType": "traces",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "traceName"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "이 트레이스를 ②③ 패널에 로드",
+                    "url": "/d/small-town-search-api/?var-traceId=${__data.fields.traceIdHidden}&${service:queryparam}&${root:queryparam}&from=${__from}&to=${__to}",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "traceService"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "이 트레이스를 ②③ 패널에 로드",
+                    "url": "/d/small-town-search-api/?var-traceId=${__data.fields.traceIdHidden}&${service:queryparam}&${root:queryparam}&from=${__from}&to=${__to}",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 200,
+      "type": "row",
+      "title": "② 선택한 트레이스 전체 워터폴 — 검색 API 한 건이 실행한 모든 구간",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "panels": []
+    },
+    {
+      "id": 4,
+      "type": "traces",
+      "title": "워터폴 — trace $traceId",
+      "description": "검색 API 요청 1건의 전체 span 트리. http get /api/search/articles → secured request → (bm25-search / bm25-supplement / vector-search-* / nsf-fusion-*) → 각 구간 아래 JDBC SELECT span과 Clova 임베딩 http post span까지 한 화면에 보인다. 위 목록에서 트레이스를 클릭하거나, 상단 Trace ID 입력란에 직접 붙여넣으면 채워진다. 대시보드 시간 범위가 해당 트레이스 시각을 포함해야 한다.",
+      "gridPos": {
+        "h": 16,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "options": {},
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "$traceId",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 300,
+      "type": "row",
+      "title": "③ 선택한 트레이스 상세 — 어떤 함수가 몇 번, 어떤 SQL이 몇 번 실행됐나",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 35
+      },
+      "panels": []
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "구간(span) 전체 — 함수별",
+      "description": "이 트레이스의 모든 span. class/method 컬럼은 @Observed가 붙은 실제 Java 클래스·메서드 (VectorSearchService.searchByKeywordWithEmbedding, HybridSearchScorer 등). 같은 이름 span이 여러 줄이면 그만큼 반복 호출된 것 (예: bm25-search + bm25-supplement).",
+      "gridPos": {
+        "h": 11,
+        "w": 8,
+        "x": 0,
+        "y": 36
+      },
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "Duration",
+            "desc": true
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{trace:id=\"$traceId\"} | select(name, span.class, span.method)",
+          "limit": 1,
+          "tableType": "spans",
+          "refId": "A",
+          "spss": 100
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ns"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "실행된 SQL 쿼리 전부",
+      "description": "이 트레이스에서 실제로 나간 JDBC 쿼리 (OTel opentelemetry-jdbc 계측). db.statement 원문 + 소요시간까지 보이므로 'BM25 ParadeDB 쿼리 1회 / Vector stage1+stage2 / N+1 여부'를 여기서 바로 판정한다. Duration 내림차순 정렬.",
+      "gridPos": {
+        "h": 11,
+        "w": 10,
+        "x": 8,
+        "y": 36
+      },
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "Duration",
+            "desc": true
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{trace:id=\"$traceId\" && span.db.system != \"\"} | select(name, span.db.sql.table, span.db.statement)",
+          "limit": 1,
+          "tableType": "spans",
+          "refId": "A",
+          "spss": 100
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ns"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "db.statement"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 420
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto",
+                  "wrapText": true
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "외부 API 호출",
+      "description": "이 트레이스가 부른 외부 HTTP 호출 — 검색 경로에서는 Clova 임베딩(v1/api-tools/embedding/v2)이 여기 잡힌다. kind=client 로 걸러 서버(루트) span은 제외했다. SearchQueryEmbedding 캐시 히트면 이 패널이 비어 있는 게 정상.",
+      "gridPos": {
+        "h": 11,
+        "w": 6,
+        "x": 18,
+        "y": 36
+      },
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "Duration",
+            "desc": true
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{trace:id=\"$traceId\" && span.http.url != \"\" && kind=client} | select(name, span.http.url, span.outcome, span.status)",
+          "limit": 1,
+          "tableType": "spans",
+          "refId": "A",
+          "spss": 100
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ns"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 400,
+      "type": "row",
+      "title": "④ 최근 검색 API 트레이스 집계 — 트레이스 하나가 아니라 구간별 누적으로 보기",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 47
+      },
+      "panels": []
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "파이프라인 구간별 실행 횟수 / 소요시간",
+      "description": "구조 연산자 >> 로 '루트가 $root 인 트레이스의 자손 span' 만 뽑아 구간 이름으로 group by 한 것. 검색 API 안에서만 집계되므로 SearchPrewarmScheduler·RAG 채팅이 만든 같은 이름 span은 섞이지 않는다. (Tempo metrics-generator 미설정이라 TraceQL metrics 대신 span 목록 + groupBy 변환으로 계산 — 최근 50개 트레이스 표본이라 절대량이 아니라 구간 간 비율로 읽을 것.)",
+      "gridPos": {
+        "h": 11,
+        "w": 13,
+        "x": 0,
+        "y": 48
+      },
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{resource.service.name=\"$service\" && trace:rootName=\"$root\"} >> {name=~\"bm25-search|bm25-supplement|vector-search.*|nsf-fusion.*|query-embedding\"} | select(name)",
+          "limit": 50,
+          "tableType": "spans",
+          "refId": "A",
+          "spss": 20
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ns"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "name"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "구간 / 쿼리"
+              },
+              {
+                "id": "custom.width",
+                "value": 320
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duration (count)"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "실행 횟수"
+              },
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duration (mean)"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "평균"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duration (max)"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "최대"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duration (sum)"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "합계"
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "name": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "duration": {
+                "aggregations": [
+                  "count",
+                  "mean",
+                  "max",
+                  "sum"
+                ],
+                "operation": "aggregate"
+              }
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "duration (sum)",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "SQL 쿼리별 실행 횟수 / 소요시간",
+      "description": "같은 방식으로 검색 API 트레이스 안의 JDBC span만 모아 쿼리(=span 이름: OPERATION db.table)별로 집계. '검색 한 번에 어떤 테이블을 몇 번 때리는가'를 바로 볼 수 있다 — article_analyzed_content(BM25) 2회, clova_article_chunk(Vector stage1/2) 등.",
+      "gridPos": {
+        "h": 11,
+        "w": 11,
+        "x": 13,
+        "y": 48
+      },
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{resource.service.name=\"$service\" && trace:rootName=\"$root\"} >> {span.db.system != \"\"} | select(name, span.db.sql.table)",
+          "limit": 50,
+          "tableType": "spans",
+          "refId": "A",
+          "spss": 20
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ns"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "name"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "구간 / 쿼리"
+              },
+              {
+                "id": "custom.width",
+                "value": 320
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duration (count)"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "실행 횟수"
+              },
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duration (mean)"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "평균"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duration (max)"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "최대"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duration (sum)"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "합계"
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "name": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "duration": {
+                "aggregations": [
+                  "count",
+                  "mean",
+                  "max",
+                  "sum"
+                ],
+                "operation": "aggregate"
+              }
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "duration (sum)",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 30,
+  "style": "dark",
+  "tags": [
+    "tempo",
+    "tracing",
+    "search",
+    "small-town"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "small-town",
+          "value": "small-town"
+        },
+        "hide": 0,
+        "label": "Service",
+        "name": "service",
+        "options": [
+          {
+            "selected": true,
+            "text": "small-town",
+            "value": "small-town"
+          }
+        ],
+        "query": "small-town",
+        "skipUrlSync": false,
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "http get /api/search/articles",
+          "value": "http get /api/search/articles"
+        },
+        "hide": 0,
+        "label": "루트 트레이스(엔드포인트)",
+        "name": "root",
+        "description": "Micrometer가 만드는 루트 span 이름 = 'http <method> <uri>' 형식",
+        "options": [
+          {
+            "selected": true,
+            "text": "http get /api/search/articles",
+            "value": "http get /api/search/articles"
+          },
+          {
+            "selected": false,
+            "text": "http get /api/search/articles/loadtest",
+            "value": "http get /api/search/articles/loadtest"
+          },
+          {
+            "selected": false,
+            "text": "http get /api/autocomplete",
+            "value": "http get /api/autocomplete"
+          }
+        ],
+        "query": "http get /api/search/articles,http get /api/search/articles/loadtest,http get /api/autocomplete",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "1s",
+          "value": "1s"
+        },
+        "hide": 0,
+        "label": "느린 트레이스 기준",
+        "name": "slow_threshold",
+        "options": [
+          {
+            "selected": false,
+            "text": "300ms",
+            "value": "300ms"
+          },
+          {
+            "selected": false,
+            "text": "500ms",
+            "value": "500ms"
+          },
+          {
+            "selected": true,
+            "text": "1s",
+            "value": "1s"
+          },
+          {
+            "selected": false,
+            "text": "2s",
+            "value": "2s"
+          },
+          {
+            "selected": false,
+            "text": "5s",
+            "value": "5s"
+          }
+        ],
+        "query": "300ms,500ms,1s,2s,5s",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "",
+          "value": ""
+        },
+        "hide": 0,
+        "label": "Trace ID (②③ 패널 대상)",
+        "name": "traceId",
+        "description": "①에서 트레이스를 클릭하면 자동으로 채워진다. 직접 붙여넣어도 된다.",
+        "options": [],
+        "query": "",
+        "skipUrlSync": false,
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "Asia/Seoul",
+  "title": "Small Town — 검색 API 트레이스 (/api/search/articles)",
+  "uid": "small-town-search-api",
+  "version": 1
+}

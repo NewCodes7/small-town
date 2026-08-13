@@ -50,6 +50,18 @@
       "keepTime": true,
       "tags": [],
       "targetBlank": false,
+      "title": "검색 API 트레이스 (/api/search/articles)",
+      "tooltip": "검색 API 요청 1건을 워터폴 + 구간/SQL 목록으로 end-to-end 추적",
+      "type": "link",
+      "url": "/d/small-town-search-api"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
       "title": "RAG Answer (/api/rag/answer)",
       "tooltip": "RAG 답변 API 전용 대시보드",
       "type": "link",
@@ -281,7 +293,7 @@
       "id": 5,
       "type": "table",
       "title": "벡터 검색 (search.vector)",
-      "description": "VectorSearchService — Clova 임베딩 기반 halfvec 검색 구간 (필터/비필터 모두 포함)",
+      "description": "VectorSearchService — Clova 임베딩 기반 halfvec 검색 구간 (필터/비필터 모두 포함) ※ 이 패널은 span 이름으로만 거른 것이라 검색 API·프리워밍 스케줄러·RAG 채팅이 섞인다. 검색 API 요청 1건 기준으로 묶어 보려면 상단 '검색 API 트레이스' 대시보드를 쓸 것.",
       "gridPos": {
         "h": 9,
         "w": 12,
@@ -314,7 +326,7 @@
       "id": 6,
       "type": "table",
       "title": "BM25 검색 (search.bm25)",
-      "description": "ArticleSearchService — article_analyzed_content 기반 BM25 검색 구간 (private 메서드, 수동 Observation)",
+      "description": "ArticleSearchService — article_analyzed_content 기반 BM25 검색 구간 (private 메서드, 수동 Observation) ※ 이 패널은 span 이름으로만 거른 것이라 검색 API·프리워밍 스케줄러·RAG 채팅이 섞인다. 검색 API 요청 1건 기준으로 묶어 보려면 상단 '검색 API 트레이스' 대시보드를 쓸 것.",
       "gridPos": {
         "h": 9,
         "w": 12,
@@ -347,7 +359,7 @@
       "id": 7,
       "type": "table",
       "title": "NSF 융합 (search.nsf)",
-      "description": "HybridSearchScorer.calculateNSFScores — BM25/Vector 정규화 가중합 구간",
+      "description": "HybridSearchScorer.calculateNSFScores — BM25/Vector 정규화 가중합 구간 ※ 이 패널은 span 이름으로만 거른 것이라 검색 API·프리워밍 스케줄러·RAG 채팅이 섞인다. 검색 API 요청 1건 기준으로 묶어 보려면 상단 '검색 API 트레이스' 대시보드를 쓸 것.",
       "gridPos": {
         "h": 9,
         "w": 12,
