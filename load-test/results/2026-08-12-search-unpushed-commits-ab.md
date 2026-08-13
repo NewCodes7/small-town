@@ -388,10 +388,12 @@ window sort + 집계 + 정렬 + LIMIT을 **완전히 끝낸 뒤에야** Stage 2�
 - [x] #4는 코드로 원인에서 배제 (퍼널 on일 때 레거시 쿼리 미호출)
 - [ ] **퍼널 off 1회** — 운영 `.env` + 재배포가 필요해 미실행 (아래 참고)
 - [x] **`query_vec AS MATERIALIZED` 적용 완료 (2026-08-12)** — `QUERY_PARAM_REPARSE.md` 5.1~5.3
-- [ ] **적용본으로 부하테스트 재측정 (새 1순위)**
+- [x] **적용본으로 부하테스트 재측정 (새 1순위)** — 2026-08-13 완료.
+      요청당 DB CPU −13.7%/지연 −10~17%로 개선 확인, 단 **level_5 처리량 천장은 안 올라감**.
+      → [`2026-08-13-query-param-reparse-ab.md`](2026-08-13-query-param-reparse-ab.md)
 - [ ] 또는 `DB_URL`에 `?prepareThreshold=0`으로 무배포 선판정 — 같은 문서 5.5
 - [ ] `pg_stat_statements` `mean_exec_time` W/Z 대조 — 커넥션 점유 +38%가 DB 안인지 밖인지
-- [ ] `DB_POOL_SIZE` 상향 재측정 (2순위로 내림)
+- [ ] `DB_POOL_SIZE` 상향 재측정 — **08-13 결과로 다시 1순위로 올라감** (DB CPU 여유 확인됨)
 - [ ] `stage2-limit` 10/30/50 비용 스윕
 - [ ] 하이브리드 랭킹 정확도 하네스 (기존 부채, 이번 범위 밖)
 
