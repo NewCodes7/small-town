@@ -12,9 +12,7 @@ import static org.mockito.Mockito.when;
 
 import com.newcodes7.small_town.search.dto.ArticleSearchResultDto;
 import com.newcodes7.small_town.search.service.ArticleSearchService;
-import com.newcodes7.small_town.search.service.SemanticTermExpansionService;
 import jakarta.servlet.http.HttpServletRequest;
-import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,16 +39,14 @@ import org.springframework.web.server.ResponseStatusException;
 class ArticleSearchLoadTestControllerTest {
 
     @Mock private ArticleSearchService articleSearchService;
-    @Mock private SemanticTermExpansionService semanticExpansionService;
 
     private ArticleSearchLoadTestController controller;
     private HttpServletRequest request;
 
     @BeforeEach
     void setUp() {
-        controller = new ArticleSearchLoadTestController(articleSearchService, semanticExpansionService);
+        controller = new ArticleSearchLoadTestController(articleSearchService);
         request = new MockHttpServletRequest();
-        when(semanticExpansionService.expandSearchTerms(anyString())).thenReturn(Map.of("kafka", 1.0));
         when(articleSearchService.searchArticlesHybrid(
                 anyString(), any(), any(), any(), anyInt(), anyInt(), anyString(), any(), any(), any(Boolean.class)))
                 .thenReturn(Page.<ArticleSearchResultDto>empty());

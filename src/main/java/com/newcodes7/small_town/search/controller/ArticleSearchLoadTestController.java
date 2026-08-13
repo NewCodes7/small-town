@@ -1,9 +1,14 @@
 package com.newcodes7.small_town.search.controller;
 
+import com.newcodes7.small_town.article.dto.ArticleResponseDto;
+import com.newcodes7.small_town.global.util.Client;
+import com.newcodes7.small_town.search.service.ArticleSearchService;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -12,15 +17,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
-
-import com.newcodes7.small_town.article.dto.ArticleResponseDto;
-import com.newcodes7.small_town.global.util.Client;
-import com.newcodes7.small_town.search.service.ArticleSearchService;
-import com.newcodes7.small_town.search.service.SemanticTermExpansionService;
-
-import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * 하이브리드 검색 부하테스트 전용 엔드포인트 (RagChatLoadTestController와 같은 패턴).
@@ -44,7 +40,6 @@ import lombok.extern.slf4j.Slf4j;
 public class ArticleSearchLoadTestController {
 
     private final ArticleSearchService articleSearchService;
-    private final SemanticTermExpansionService semanticExpansionService;
 
     @Value("${search.loadtest.enabled:false}")
     private boolean loadTestEnabled;
@@ -78,11 +73,12 @@ public class ArticleSearchLoadTestController {
         String effectiveSort = sort != null ? sort : "relevance";
         String clientIp = Client.getClientIpAddress(request);
 
-        Map<String, Double> expandedTerms = semanticExpansionService.expandSearchTerms(trimmedKeyword);
-
+        // 검색어 확장을 미리 부르지 않는다 — 실사용자 경로(ArticleSearchController)와 동일한 순서를
+        // 유지해야 k6 측정이 실제 경로를 재현한다. expandedTerms=null이면 코어 내부에서
+        // Clova 임베딩 호출이 뜬 뒤에 확장이 돌아 임베딩 대기에 겹친다.
         Page<ArticleResponseDto> articles = articleSearchService.searchArticlesHybrid(
                 trimmedKeyword,
-                expandedTerms,
+                null,
                 regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
                 category == null || category.isEmpty() ? null : category.stream().sorted().toList(),
                 page,
