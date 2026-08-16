@@ -1,10 +1,5 @@
 package com.newcodes7.small_town.global.entity;
 
-import java.time.LocalDateTime;
-
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
@@ -12,14 +7,18 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 /**
  * TermSynonym 엔티티 - Term 간의 유의어 관계를 저장
@@ -29,6 +28,10 @@ import lombok.NoArgsConstructor;
 @Table(name = "term_synonym",
     uniqueConstraints = {
         @UniqueConstraint(name = "uk_term_synonym", columnNames = {"term_id", "synonym_term_id"})
+    },
+    // uk_term_synonym은 선두 컬럼이 term_id라 synonym_term_id 단독 조회에 쓰이지 못한다 (V1_36과 동일)
+    indexes = {
+        @Index(name = "idx_term_synonym_synonym_term_id", columnList = "synonym_term_id")
     }
 )
 @Getter

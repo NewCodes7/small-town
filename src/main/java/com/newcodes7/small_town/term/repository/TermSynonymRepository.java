@@ -28,13 +28,29 @@ public interface TermSynonymRepository extends JpaRepository<TermSynonym, Long> 
      * 여러 term 문자열의 유의어 쌍을 한 번에 조회 (양방향)
      * 검색어 확장의 term별 반복 조회(N+1)를 대체
      *
+     * OR가 서로 다른 term 별칭(t1/t2)에 걸리면 Postgres는 어느 쪽으로도 인덱스 스캔을 몰 수 없어
+     * 조인을 전부 만든 뒤 Join Filter로 걸러낸다 — 비용이 검색어가 아니라 term 테이블 크기에 비례해
+     * 운영에서 150~200ms가 나왔다. 두 분기를 UNION ALL로 분리해 각각
+     * uk_term_term_type(term, term_type) 인덱스 스캔이 걸리게 한다.
+     * 컬럼 별칭을 붙이는 이유: 양쪽 다 컬럼명이 term이라 native ResultSetMetaData에서 충돌 소지가 있다.
+     *
      * @param terms 조회할 term 문자열 목록
-     * @return List<Object[]> - [term(String), 상대 term(String)] 쌍
+     * @return List<Object[]> - [term(String), 상대 term(String)] 쌍.
+     *         양쪽이 모두 terms에 있는 쌍은 2번 나오지만 TermSynonymService.addSynonym()이 중복 제거한다.
      */
-    @Query("SELECT t1.term, t2.term FROM TermSynonym ts " +
-           "JOIN ts.term t1 " +
-           "JOIN ts.synonymTerm t2 " +
-           "WHERE t1.term IN :terms OR t2.term IN :terms")
+    @Query(value = """
+        SELECT t1.term AS source_term, t2.term AS synonym_term
+        FROM term_synonym ts
+        JOIN term t1 ON t1.id = ts.term_id
+        JOIN term t2 ON t2.id = ts.synonym_term_id
+        WHERE t1.term IN (:terms)
+        UNION ALL
+        SELECT t1.term AS source_term, t2.term AS synonym_term
+        FROM term_synonym ts
+        JOIN term t1 ON t1.id = ts.term_id
+        JOIN term t2 ON t2.id = ts.synonym_term_id
+        WHERE t2.term IN (:terms)
+        """, nativeQuery = true)
     List<Object[]> findSynonymPairsByTerms(@Param("terms") Collection<String> terms);
 
     /**

@@ -332,9 +332,12 @@ public class TermSynonymServiceTest extends IntegrationTestBase {
         Map<String, List<String>> result = termSynonymService.getSynonymsByTerms(
                 List.of(term1.getTerm(), term2.getTerm(), term3.getTerm()));
 
-        // then
+        // then - term1/term2는 서로 유의어라 UNION ALL 재작성에서 쌍이 2번 나온다.
+        // 서비스가 중복을 제거해 각 키의 유의어가 정확히 1개인지까지 고정한다.
         assertThat(result).containsOnlyKeys(term1.getTerm(), term2.getTerm());
         assertThat(result).doesNotContainKey(term3.getTerm());
+        assertThat(result.get(term1.getTerm())).containsExactly(term2.getTerm());
+        assertThat(result.get(term2.getTerm())).containsExactly(term1.getTerm());
     }
 
     @Test
