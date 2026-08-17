@@ -3,6 +3,24 @@
 **2026-08-09 작성.** 검색 RPS 개선 조사 결과와 후속 작업 정리.
 측정 환경: DB 2 vCPU / 1GB (PG 17.8 + pg_search + pgvector), 앱 2 vCPU (blue/green + nginx).
 
+> ## 📌 현재 상태 (2026-08-17) — 이 문서의 수치 중 낡은 것
+>
+> 아래 본문은 **2026-08-09 시점 측정**이다. 그 뒤 실험으로 갱신된 항목:
+>
+> | 본문 서술 | 현재 |
+> |---|---|
+> | 검색 천장 **2.5 rps** | **11.35 rps** (2026-08-17, level_5) |
+> | 예산의 10% = **워밍 쿼리**(`warmChunkCacheAsync`) | **제거됨** (`b020104`) — 아무도 읽지 않는 캐시였고, 요청당 블록의 대부분이 이것이었다(22만 → 1.7만 blks/req) |
+> | `embedding_normalized`에 **HNSW 인덱스 없음** | **틀렸다 — 존재한다** (3장 정정 블록 참고) |
+> | 병목 = DB 유저스페이스 CPU | 한동안 **커넥션 유휴 점유(OSIV)** 였고, 그걸 걷어낸 뒤 다시 DB로 돌아왔다 |
+> | A + B'로 이론 RPS 2.94 → 4.0~4.3 | 그 예측의 전제(요청당 비용)가 바뀌었으므로 **재계산 필요** |
+>
+> **여전히 유효한 것**: cross-scoring의 TOAST 간접 참조가 비싸다는 진단, 청크당 12.2블록,
+> "꺼내는 벡터 개수를 줄여야 한다"는 결론. 2026-08-17 측정에서 요청당 논리 블록이 여전히
+> **16,903블록(132MB)** 이고 이것이 현재 1순위 병목으로 지목됐다.
+>
+> 최신 정산: [`load-test/results/2026-08-17-osiv-connection-hold-ab.md`](../../load-test/results/2026-08-17-osiv-connection-hold-ab.md) (특히 5장)
+
 ---
 
 ## 요약
@@ -86,12 +104,32 @@ user 모드가 압도한다 → **연산 병목**이지 디스크·메모리 압
 |---|---|
 | 규모 | 18,401 아티클 / 154,698 청크 |
 | 아티클당 청크 | avg **8.4**, p50 7, p95 20, max 137 |
-| `clova_chunk_vectors` | heap **9MB** / TOAST **410MB** / 인덱스 4.6MB |
+| `clova_chunk_vectors` | heap **9MB** / TOAST **410MB** / 인덱스 4.6MB (⚠️ 아래 정정) |
 | `embedding_normalized` 저장 | `attstorage = e` (EXTERNAL, **압축 없음**) |
 | 대표 청크 | 18,401개 = 아티클당 정확히 1개, **커버리지 100%** |
 
-- **`embedding_normalized`에 HNSW 인덱스가 없다.** 인덱스 총합 4.6MB는 PK뿐이다
-  (154k개 halfvec에 HNSW면 수백 MB). stage-2 재랭킹과 cross-scoring은 인덱스 없는 경로다.
+- ~~**`embedding_normalized`에 HNSW 인덱스가 없다.** 인덱스 총합 4.6MB는 PK뿐이다
+  (154k개 halfvec에 HNSW면 수백 MB).~~ stage-2 재랭킹과 cross-scoring은 인덱스 없는 경로다.
+
+> ⚠️ **2026-08-17 정정 — "인덱스가 없다"는 틀렸다. 결론은 그대로 유효하다.**
+>
+> 두 HNSW 인덱스가 **실제로 존재한다** (2026-08-17 `pg_indexes` 확인):
+>
+> - `idx_clova_chunk_vectors_halfvec_hnsw` — `clova_chunk_vectors(embedding_normalized halfvec_ip_ops)`, `m=24, ef_construction=1000`
+> - `idx_clova_chunk_embedding_binary_hnsw` — `clova_article_chunk(embedding_binary bit_hamming_ops)`, 동일 옵션
+>
+> 둘 다 **Flyway 마이그레이션이 아니라 `VectorIndexInitializer`가** `ApplicationReadyEvent`에서
+> `CREATE INDEX CONCURRENTLY IF NOT EXISTS`로 보장한다 — 코드 관리이며 재구축 시 유실 위험은 없다.
+> `db/migration/`을 grep해도 HNSW가 안 나오는 이유가 이것이다. 위 "인덱스 4.6MB"는 인덱스 크기에서
+> 존재 여부를 추론한 것인데, 그 추론이 틀렸다(측정 시점에 아직 안 만들어져 있었는지는 소급 확인 불가).
+>
+> **다만 "stage-2 재랭킹과 cross-scoring은 인덱스 없는 경로"라는 판단은 그대로 맞다.** 이유가 다르다 —
+> 인덱스가 없어서가 아니라 **쿼리 형태가 인덱스를 쓸 수 없어서**다. HNSW는
+> `ORDER BY embedding <#> $1 LIMIT k`(전체 대상 top-k)를 서빙하는데, 이 경로들은
+> `cac.article_id = ANY(CAST(:articleIds AS bigint[]))`로 후보를 고정한 **필터 스캔**이라
+> 후보 전 청크의 halfvec을 TOAST에서 꺼내야 한다(`ArticleChunkRepository`).
+> 따라서 아래 "꺼내는 벡터 개수를 줄여야 한다"는 결론과 청크당 12.2블록이라는 실측은 **손상되지 않는다.**
+> → [`load-test/results/2026-08-17-osiv-connection-hold-ab.md`](../../load-test/results/2026-08-17-osiv-connection-hold-ab.md) 5.5~5.6
 - **압축 해제 비용은 없다.** `attstorage='e'`이므로 "TOAST 압축을 끄자"는 카드는 존재하지 않는다.
 
 ### TOAST 간접 참조가 진짜 비용 (`clova_chunk_vectors` 누적)
