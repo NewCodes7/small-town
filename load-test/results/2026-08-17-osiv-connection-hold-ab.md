@@ -251,15 +251,98 @@ DB active/req 188ms의 **23%**가 디스크 대기다.
 
 ---
 
+## 6. 16,903블록의 소유자 귀속 (2026-08-17 추가)
+
+5.5의 미결 항목("어느 쿼리가 132MB를 갖고 있는지")을 정산한다.
+
+> **방법**: `pg_stat_statements`는 Prometheus에 노출돼 있지 않다(`pg_settings_pg_stat_statements_*`
+> 설정값만 있다). 그래서 **쿼리 단위가 아니라 관계 단위**로 귀속했다 —
+> `pg_statio_user_tables_{heap,idx,toast,tidx}_blocks_{hit,read}` + `pg_stat_user_tables_idx_scan`.
+> 결과적으로 쿼리 단위보다 **메커니즘이 더 선명하게** 나왔다(인덱스 스캔 횟수가 같이 잡혀서).
+> 쿼리별 확인이 필요하면 `2026-08-12-PROD-COMMANDS.md`의 pgss 스냅샷이 여전히 유효하다.
+
+### 6.1 관계별 블록 (P 실행 VU5, 11.35 RPS)
+
+| 관계 | heap | idx | toast | tidx | **blocks/req** | MB/req | 비중 |
+|---|---|---|---|---|---|---|---|
+| `clova_article_chunk` | 526 | **7,302** | – | – | **7,829** | 61.2 | **47%** |
+| `clova_chunk_vectors` | 465 | 1,392 | 462 | **1,386** | **3,706** | 29.0 | **22%** |
+| `article` | 1,190 | **2,229** | 19 | 19 | **3,457** | 27.0 | **21%** |
+| `article_analyzed_content` | 908 | 864 | – | – | **1,772** | 13.8 | **11%** |
+| `term` / `term_synonym` / `corporation` / `category` / 그 외 | | | | | ~70 | 0.5 | <1% |
+| **합계** | | | | | **16,834** | **131.5** | 100% |
+
+합계 16,834가 `pg_stat_database` 기반 16,903과 일치한다(수집 경로가 다른데 맞았으므로 귀속이 건전하다).
+
+### 6.2 인덱스 스캔 횟수가 메커니즘을 가른다
+
+| 관계 | idx_scan / req | idx_tup_fetch / req | 해석 |
+|---|---|---|---|
+| **`article`** | **1,113.4** | 1,200.5 | **요청당 1,113번의 PK 조회** — 한 번의 스캔이 아니라 행마다 반복 |
+| `clova_chunk_vectors` | 464.1 | 463.1 | 464개 청크의 halfvec을 PK로 하나씩 인출 → 디토스트(tidx 1,386 + toast 462) |
+| `clova_article_chunk` | 84.4 | 1,378.0 | 스캔은 적고 블록은 7,302 → **HNSW 그래프 순회**가 블록을 먹는다 |
+| `corporation` | (seq 1.0) | – | 작은 테이블 seq scan, 74.7행 — 무해 |
+
+### 6.3 가장 큰 두 항목의 정체
+
+**(1) `article` 유효성 조인 — 요청당 1,113회 PK 조회 (블록의 21%)**
+
+벡터 쿼리들이 후보 CTE 안에서 `JOIN article a ON cac.article_id = a.id ... WHERE a.deleted_at IS NULL`을
+수행한다(`ArticleChunkRepository`, 본검색 `candidates` CTE와 cross-scoring 퍼널 `stage1` 양쪽).
+퍼널은 BM25 상위 100개 아티클의 **전 청크(~840개)** 를 훑으므로 청크 행마다 article PK를 찍고,
+본검색이 여기에 200~270회를 더한다 — **합계가 실측 1,113과 맞는다.**
+
+그런데 **파이프라인은 뒤에서 같은 검증을 다시 한다** — Phase B의
+"cross-scoring 보충 → `deleted_at` 유효성 검증"(`ArticleSearchService:623`, `:1117`)이 그것이다.
+즉 이 조인은 **중복**이며, 아티클 단위(100개)로 하면 될 일을 청크 행 단위(840+)로 하고 있다.
+
+**(2) `clova_article_chunk` 인덱스 순회 7,302블록 = 57MB (블록의 43%)**
+
+binary HNSW(`idx_clova_chunk_embedding_binary_hnsw`) 순회다. 설정은
+`hnsw.ef_search=250`(`application-prod.properties:38`)과 `DEFAULT_CANDIDATE_LIMIT=200`
+(`VectorSearchService:124`)으로 맞물려 있다 — 후보 200개를 채우려면 ef_search가 그보다 커야 한다.
+
+여기에 (1)이 **비용을 증폭시킨다.** 본검색의 `JOIN article`은 HNSW의
+`ORDER BY embedding_binary <~> ... LIMIT 200` **안쪽**에 있어 필터 있는 HNSW가 된다 —
+필터에 걸러진 행만큼 그래프를 더 걸어야 LIMIT을 채우므로 순회량이 부풀려진다.
+(`DB_LOAD_REDUCTION.md`가 "LIMIT 200을 요청했는데 rows=40만 반환"으로 관측한 현상과 같은 계열이다.)
+
+### 6.4 우선순위 — 조인 제거가 1순위
+
+| 순위 | 조치 | 기대 효과 | 리스크 |
+|---|---|---|---|
+| **1** | 벡터 쿼리의 `JOIN article ... deleted_at IS NULL` 제거 (뒤의 유효성 검증에 위임) | 직접 **21%** + HNSW 과다 순회 완화 → 합쳐서 **20~40%** | **낮음.** 삭제 아티클이 후보 슬롯을 차지할 수 있어 유효 후보가 미세하게 줄 수 있다 → `VectorSearchAccuracyService`로 recall 측정 가능 |
+| 2 | `ef_search` / `candidateLimit`(250/200) 하향 스윕 | 최대 **43%** | **중간.** recall 직결. 1번을 먼저 해서 필터 증폭을 없앤 뒤 재측정해야 순수 효과가 보인다 |
+| 3 | 퍼널 `stage2-limit` 스윕(10/30/50) | `clova_chunk_vectors` 디토스트(22%) 축소 | 중간 (랭킹 영향) |
+
+**1번은 랭킹 로직을 바꾸지 않고 중복 작업을 지우는 것**이라 이 목록에서 유일하게 리스크가 낮다.
+2번은 1번 이후에 측정해야 한다 — 지금 수치에는 필터 증폭분이 섞여 있어 순수한 ef_search 효과를
+분리할 수 없다.
+
+### 6.5 PGSS 문서의 "TOAST가 진짜 비용" 진단은 이제 유효하지 않다
+
+`PGSS_SEARCH_COST.md`는 "블록 접근의 64%가 TOAST 인덱스 조회"라고 했다(2026-08-09).
+지금은 `clova_chunk_vectors`의 toast+tidx가 **1,848블록/요청 = 전체의 11%**다.
+퍼널(`2d66ea2`)과 워밍 제거(`b020104`)가 그 항목을 실제로 깎았고,
+**지배 항목은 HNSW 순회(43%)와 중복 article 조인(21%)으로 바뀌었다.**
+해당 문서 상단 배너에 이 사실을 반영했다.
+
+---
+
 ## 미기록 / 다음
 
 - [x] 커넥션 유휴 점유 제거 (선행 문서 1순위) — 이 문서
 - [ ] **P 반복 실행 1회** — after 밴드 확정용
 - [ ] **VU 5~20 사이 사다리로 새 정점 탐색** — 정점이 VU2에서 VU5로 옮겨갔고 VU10도 8.81을
       낸다. 기존 1/2/5/10 사다리는 이제 해상도가 맞지 않는다
-- [ ] **요청당 블록 접근량 줄이기 — 다시 1순위** (5장). 정점 DB CPU 70%, 그중 iowait 38%.
-      먼저 `pg_stat_statements`로 16,903블록/요청의 소유 쿼리를 귀속시킬 것
-- [ ] **`stage2-limit` 스윕(10/30/50)** — 위 가설의 값싼 선행 검증으로 승격 (기존 백로그)
+- [x] **16,903블록/요청의 소유자 귀속** — `pg_statio_user_tables`로 관계 단위 완료 (6장)
+- [ ] **벡터 쿼리의 중복 `JOIN article ... deleted_at IS NULL` 제거 — 새 1순위** (6.4).
+      요청당 PK 조회 1,113회 = 블록의 21%이고, Phase B가 같은 검증을 이미 한다
+- [ ] `ef_search`/`candidateLimit`(250/200) 하향 스윕 — 2순위. **위 항목 이후에** 측정할 것
+      (지금 수치에는 필터 있는 HNSW의 과다 순회분이 섞여 있다)
+- [ ] `stage2-limit` 스윕(10/30/50) — 3순위, `clova_chunk_vectors` 디토스트(22%) 대상
+- [ ] (선택) `pg_stat_statements` 스냅샷으로 쿼리 단위 교차 확인 — 관계 단위로 메커니즘이
+      이미 갈렸으므로 필수는 아니다
 - [ ] 관측 스택 오버헤드 확인 — 앱 호스트 1.2코어 중 백엔드는 0.18코어뿐 (5.1)
 - [ ] `DB_POOL_SIZE` 상향 — **여전히 보류.** 정점에서 획득대기가 0.001s라 늘릴 근거가 없다
 - [ ] DB RAM 증설(0.9GB → 2GB+) — 2순위. iowait 절반만 회수하므로 1순위 뒤에 재평가 (5.4)
