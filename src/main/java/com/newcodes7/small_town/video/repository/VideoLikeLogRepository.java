@@ -1,12 +1,11 @@
 package com.newcodes7.small_town.video.repository;
 
 import com.newcodes7.small_town.video.entity.VideoLikeLog;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-
-import java.util.Optional;
 
 @Repository
 public interface VideoLikeLogRepository extends JpaRepository<VideoLikeLog, Long> {
@@ -35,7 +34,9 @@ public interface VideoLikeLogRepository extends JpaRepository<VideoLikeLog, Long
     org.springframework.data.domain.Page<com.newcodes7.small_town.global.entity.Video> findLikedVideosByUserId(@Param("userId") Long userId, org.springframework.data.domain.Pageable pageable);
 
     // 사용자가 좋아요한 비디오와 좋아요 시간 조회
-    @Query("SELECT vll FROM VideoLikeLog vll JOIN FETCH vll.video v JOIN FETCH v.corporation WHERE vll.user.id = :userId AND vll.deletedAt IS NULL ORDER BY vll.createdAt DESC")
+    // category까지 fetch join하는 이유: 호출부(ArticleEngagementController)가 트랜잭션 밖에서
+    // LikedItemDto를 만들고, 그 생성자가 video.getCategory()를 만진다 (/api/**는 OSIV 미적용)
+    @Query("SELECT vll FROM VideoLikeLog vll JOIN FETCH vll.video v JOIN FETCH v.corporation LEFT JOIN FETCH v.category WHERE vll.user.id = :userId AND vll.deletedAt IS NULL ORDER BY vll.createdAt DESC")
     java.util.List<VideoLikeLog> findLikedVideosWithTimestampByUserId(@Param("userId") Long userId);
 
     // 사용자가 좋아요한 video ID 목록 조회 (배치)

@@ -1,12 +1,11 @@
 package com.newcodes7.small_town.like.repository;
 
 import com.newcodes7.small_town.like.entity.LikeLog;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-
-import java.util.Optional;
 
 @Repository
 public interface LikeLogRepository extends JpaRepository<LikeLog, Long> {
@@ -35,7 +34,9 @@ public interface LikeLogRepository extends JpaRepository<LikeLog, Long> {
     org.springframework.data.domain.Page<com.newcodes7.small_town.global.entity.Article> findLikedArticlesByUserId(@Param("userId") Long userId, org.springframework.data.domain.Pageable pageable);
 
     // 사용자가 좋아요한 아티클과 좋아요 시간 조회
-    @Query("SELECT ll FROM LikeLog ll JOIN FETCH ll.article a JOIN FETCH a.corporation WHERE ll.user.id = :userId AND ll.deletedAt IS NULL ORDER BY ll.createdAt DESC")
+    // category까지 fetch join하는 이유: 호출부(ArticleEngagementController)가 트랜잭션 밖에서
+    // LikedItemDto를 만들고, 그 생성자가 article.getCategory()를 만진다 (/api/**는 OSIV 미적용)
+    @Query("SELECT ll FROM LikeLog ll JOIN FETCH ll.article a JOIN FETCH a.corporation LEFT JOIN FETCH a.category WHERE ll.user.id = :userId AND ll.deletedAt IS NULL ORDER BY ll.createdAt DESC")
     java.util.List<LikeLog> findLikedArticlesWithTimestampByUserId(@Param("userId") Long userId);
 
     // Admin: 모든 좋아요 로그 조회 (페이징)
