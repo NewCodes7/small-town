@@ -106,9 +106,16 @@ public class ArticleChunkCrossScoringTest extends IntegrationTestBase {
     }
 
     @Test
-    @DisplayName("deleted_at이 설정된 아티클은 보충 대상에 있어도 제외된다")
-    void deleted_아티클은_제외된다() {
-        assertThat(crossScore(allIds())).doesNotContainKey(deletedArticle.getId());
+    @DisplayName("deleted_at 아티클도 이 쿼리들은 반환한다 — 제외는 서비스의 유효성 게이트가 담당")
+    void deleted_아티클은_레포지토리에서_걸러지지_않는다() {
+        // 2026-08-17: 두 cross-scoring 쿼리에서 article 조인을 제거했다. 그 조인은 청크 행마다
+        // article PK를 찍어 요청당 1,113회(블록의 21%, 27MB)를 썼고, HNSW의 ORDER BY ... LIMIT
+        // 위에 놓여 후보 수(recall)까지 깎았다.
+        // 최종 노출은 ArticleSearchService Phase B의 validArticleIds가 막는다 —
+        // ArticleSearchServiceTest의 "필터 있음 + stale article(삭제됨) → 최종 결과에서 제외" 참고.
+        // 근거: load-test/results/2026-08-17-osiv-connection-hold-ab.md 6장
+        assertThat(crossScore(allIds())).containsKey(deletedArticle.getId());
+        assertThat(crossScoreTwoStage(allIds(), NO_FLOOR, 10)).containsKey(deletedArticle.getId());
     }
 
     @Test
@@ -147,16 +154,16 @@ public class ArticleChunkCrossScoringTest extends IntegrationTestBase {
     @DisplayName("stage2Limit은 Stage 1 추정 상위 아티클만 남긴다")
     void 퍼널_stage2Limit이_상위_아티클만_남긴다() {
         // 추정 유사도 순: near(≈1.00) > mid(≈0.82) > far(≈0.04)
-        assertThat(crossScoreTwoStage(allIds(), NO_FLOOR, 1))
+        assertThat(crossScoreTwoStage(survivingIds(), NO_FLOOR, 1))
                 .containsOnlyKeys(nearArticle.getId());
-        assertThat(crossScoreTwoStage(allIds(), NO_FLOOR, 2))
+        assertThat(crossScoreTwoStage(survivingIds(), NO_FLOOR, 2))
                 .containsOnlyKeys(nearArticle.getId(), midArticle.getId());
     }
 
     @Test
     @DisplayName("Stage 1 하한 미달 아티클은 컷 안이어도 제외된다")
     void 퍼널_하한_미달_아티클은_제외된다() {
-        Map<Long, Double> funnel = crossScoreTwoStage(allIds(), 0.5, 10);
+        Map<Long, Double> funnel = crossScoreTwoStage(survivingIds(), 0.5, 10);
 
         // far는 실제 유사도가 0.95로 가장 높지만 해밍이 멀어(추정 0.04) 하한에 걸린다 —
         // 이진 근사가 놓치는 케이스이고, 하한을 임계값보다 넉넉히 낮춰 잡는 이유다.
@@ -164,11 +171,16 @@ public class ArticleChunkCrossScoringTest extends IntegrationTestBase {
     }
 
     @Test
-    @DisplayName("deleted_at이 설정된 아티클은 퍼널의 Stage 1에서 걸러진다")
-    void 퍼널_deleted_아티클은_Stage1에서_제외된다() {
-        // deleted는 해밍 0짜리 청크만 가져 추정 1.0으로 1위인데도 컷 1에서 살아남으면 안 된다
+    @DisplayName("deleted_at 아티클은 퍼널 Stage 1 슬롯을 차지한다 — 조인 제거의 대가")
+    void 퍼널_deleted_아티클은_Stage1_슬롯을_차지한다() {
+        // 2026-08-17 이전에는 stage1의 article 조인이 걸러냈다. 그 조인을 제거해 요청당 PK 조회
+        // 1,113회(블록의 21%)를 없앤 대가로, 삭제 아티클이 stage2Limit 슬롯을 하나 쓸 수 있다.
+        // deleted는 해밍 0짜리 청크만 가져 추정 1.0으로 1위이므로 컷 1에서 유일한 생존자가 된다.
+        // 최종 노출은 ArticleSearchService Phase B의 validArticleIds가 막으므로 결과 정합성에는
+        // 영향이 없고, 손해는 "후보 슬롯 하나"로 한정된다.
+        // 근거: load-test/results/2026-08-17-osiv-connection-hold-ab.md 6장
         assertThat(crossScoreTwoStage(allIds(), NO_FLOOR, 1))
-                .doesNotContainKey(deletedArticle.getId());
+                .containsOnlyKeys(deletedArticle.getId());
     }
 
     // ==================== helpers ====================
@@ -185,6 +197,15 @@ public class ArticleChunkCrossScoringTest extends IntegrationTestBase {
 
     private List<Long> allIds() {
         return List.of(nearArticle.getId(), midArticle.getId(), farArticle.getId(), deletedArticle.getId());
+    }
+
+    /**
+     * 삭제되지 않은 아티클만. 컷·하한 메커니즘 테스트는 이 목록을 쓴다 —
+     * 2026-08-17부터 쿼리가 deleted_at을 걸러내지 않으므로(서비스 게이트가 담당),
+     * allIds()를 쓰면 삭제 아티클이 컷 슬롯을 차지해 메커니즘 검증이 흐려진다.
+     */
+    private List<Long> survivingIds() {
+        return List.of(nearArticle.getId(), midArticle.getId(), farArticle.getId());
     }
 
     private Map<Long, Double> toScoreMap(List<Object[]> rows) {

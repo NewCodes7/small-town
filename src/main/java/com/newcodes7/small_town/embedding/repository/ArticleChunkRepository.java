@@ -114,6 +114,11 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
      *
      * @param queryEmbedding 검색 쿼리의 임베딩 벡터 (PostgreSQL 배열 포맷)
      * @param articleIds 유사도를 계산할 Article ID 목록 (PostgreSQL 배열 리터럴, 예: {@code {1,2,3}})
+     *
+     * <p><b>{@code article} 조인을 하지 않는다</b> — 퍼널 버전
+     * ({@code computeSimilarityForArticleIdsTwoStage})과 같은 이유이며, 두 경로가 같은 결과를
+     * 내야 하므로(동등성 테스트 존재) 함께 제거했다. {@code deleted_at} 유효성은
+     * {@code ArticleSearchService} Phase B의 {@code validArticleIds}가 담당한다.
      * @param topK 평균 계산에 사용할 상위 청크 수
      * @return Article ID와 상위 K개 청크 평균 유사도를 담은 결과
      */
@@ -131,11 +136,9 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
                         ORDER BY ccv.embedding_normalized <#> q.vec
                     ) AS rn
                 FROM clova_article_chunk cac
-                JOIN article a ON cac.article_id = a.id
                 JOIN clova_chunk_vectors ccv ON ccv.id = cac.id
                 CROSS JOIN query_vec q
-                WHERE a.deleted_at IS NULL
-                  AND cac.article_id = ANY(CAST(:articleIds AS bigint[]))
+                WHERE cac.article_id = ANY(CAST(:articleIds AS bigint[]))
             ) ranked
             WHERE rn <= :topK
             GROUP BY article_id
@@ -190,6 +193,16 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
      *                    분산(σ ≈ 15비트) 때문에 임계값을 그대로 쓰면 통과했을 아티클을 떨어뜨린다
      * @param stage2Limit Stage 2로 넘길 아티클 수 상한. 실제 비용을 결정하는 값
      * @return Article ID와 상위 K개 청크 평균 유사도 (단일 쿼리 버전과 같은 형식)
+     *
+     * <p><b>{@code article} 조인을 일부러 하지 않는다</b> — {@code deleted_at} 유효성은
+     * {@code ArticleSearchService}의 Phase B가 후보 전체에 대해 집합 쿼리 1회
+     * ({@code findIdAndPublishedAtByIdIn})로 검증하고, 최종 노출은 {@code validArticleIds}가 막는다.
+     * 여기서 다시 조인하면 <b>청크 행마다</b> article PK를 찍어 요청당 1,113회(블록의 21%,
+     * 27MB)를 쓰게 된다 — 확인할 대상은 아티클 100~300개인데 청크 1,113행 기준으로 묻는 셈이다.
+     * 게다가 이 조인은 HNSW의 {@code ORDER BY ... LIMIT} 위에 놓여 걸러진 만큼 후보를 못 채우므로
+     * (LIMIT 200 요청에 40행 반환 관측) recall까지 깎았다.
+     * 근거: load-test/results/2026-08-17-osiv-connection-hold-ab.md 6장.
+     * <p>필터 변형(domestic/category/corporation)은 필터 컬럼 때문에 조인이 필요해 그대로 둔다.
      */
     @Query(value = """
             WITH q AS MATERIALIZED (
@@ -211,10 +224,8 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
                             cac.article_id,
                             cac.embedding_binary <~> q.bvec AS hamming
                         FROM clova_article_chunk cac
-                        JOIN article a ON cac.article_id = a.id
                         CROSS JOIN q
-                        WHERE a.deleted_at IS NULL
-                          AND cac.embedding_binary IS NOT NULL
+                        WHERE cac.embedding_binary IS NOT NULL
                           AND cac.article_id = ANY(CAST(:articleIds AS bigint[]))
                     ) h
                 ) estimated
@@ -305,6 +316,16 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
      *         candidate_similarity는 후보 청크가 topK개 이상일 때만 채워지는 상위 topK 평균
      *         (threshold 미적용, 미달 아티클은 NULL),
      *         is_main은 기존 semantics(threshold 통과 + limit 이내) 해당 여부다.
+     *
+     * <p><b>{@code article} 조인을 일부러 하지 않는다</b> — {@code deleted_at} 유효성은
+     * {@code ArticleSearchService}의 Phase B가 후보 전체에 대해 집합 쿼리 1회
+     * ({@code findIdAndPublishedAtByIdIn})로 검증하고, 최종 노출은 {@code validArticleIds}가 막는다.
+     * 여기서 다시 조인하면 <b>청크 행마다</b> article PK를 찍어 요청당 1,113회(블록의 21%,
+     * 27MB)를 쓰게 된다 — 확인할 대상은 아티클 100~300개인데 청크 1,113행 기준으로 묻는 셈이다.
+     * 게다가 이 조인은 HNSW의 {@code ORDER BY ... LIMIT} 위에 놓여 걸러진 만큼 후보를 못 채우므로
+     * (LIMIT 200 요청에 40행 반환 관측) recall까지 깎았다.
+     * 근거: load-test/results/2026-08-17-osiv-connection-hold-ab.md 6장.
+     * <p>필터 변형(domestic/category/corporation)은 필터 컬럼 때문에 조인이 필요해 그대로 둔다.
      */
     @Query(value = """
             WITH query_vec AS MATERIALIZED (
@@ -315,10 +336,8 @@ public interface ArticleChunkRepository extends JpaRepository<ArticleChunk, Long
                     cac.article_id,
                     ccv.embedding_normalized
                 FROM clova_article_chunk cac
-                JOIN article a ON cac.article_id = a.id
                 JOIN clova_chunk_vectors ccv ON ccv.id = cac.id
-                WHERE a.deleted_at IS NULL
-                  AND cac.embedding_binary IS NOT NULL
+                WHERE cac.embedding_binary IS NOT NULL
                 ORDER BY cac.embedding_binary <~> CAST(:queryBinary AS bit(1024))
                 LIMIT :candidateLimit
             ),
