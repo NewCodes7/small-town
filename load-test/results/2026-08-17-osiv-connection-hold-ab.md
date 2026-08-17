@@ -482,12 +482,17 @@ Tempo에서 `SELECT small_town.article` 스팬으로 식별된다 — BM25 보�
 - [x] **16,903블록/요청의 소유자 귀속** — `pg_statio_user_tables`로 관계 단위 완료 (6장)
 - [x] **벡터 쿼리의 중복 `JOIN article ... deleted_at IS NULL` 제거** — `838ae89` 적용,
       7장에서 정산. 블록 −18%, level_10 처리량 +72%
-- [ ] **사다리를 VU 10/15/20으로 확장 — 새 1순위.** 정점이 범위 밖으로 나갔다(VU10이 최고값, DB CPU 80%)
+- [x] **사다리를 VU 10/15/20으로 확장** — `2060df6`으로 5/10/15/20 상향, 2026-08-17 실행 완료.
+      **정점 VU10 = 14.3 RPS 확정**(사다리가 다른 두 실행이 14.30 / 14.33로 일치), VU15에서 꺾임,
+      VU20은 앱 호스트 붕괴로 측정 불가.
+      → [`2026-08-17-search-ladder-5-10-15-20.md`](2026-08-17-search-ladder-5-10-15-20.md)
 - [ ] **Q 반복 실행 1회** — level_10 +72% 확정용
 - [ ] **C안: 소프트 삭제 시 청크 정리** — 조인 제거의 대가(삭제 아티클이 stage2 슬롯 점유)를 없애고
       DB 크기(2GB)·캐시 압력까지 줄인다. `clova_chunk_vectors`가 `ON DELETE CASCADE`라 청크만 지우면 된다
 - [ ] recall 측정 — `VectorSearchAccuracyService`로 조인 제거 전후 비교 (미측정 부채)
-- [ ] **앱 호스트 스왑 스래싱 — 미기록 조사분.** Q 실행 level_10의 5xx 2건을 추적한 결과
+- [ ] **앱 호스트 스왑 스래싱 — 1순위로 승격.** 2026-08-17 사다리 상향 실행에서 VU20 진입과 함께
+      관측 스택(Prometheus·Grafana·Loki·Tempo)이 응답 불가가 되고 프로덕션이 20분 이상 degrade돼
+      **호스트 재부팅**까지 갔다. 아래는 그 전(Q 실행)의 조사 내용: Q 실행 level_10의 5xx 2건을 추적한 결과
       원인이 DB나 풀이 아니라 **앱 호스트 메모리**였다: MemAvailable 104MB/1,906MB,
       swap in·out 각 ~3,000 pages/s(부하와 상관), JVM young GC 정지 **4,152ms**,
       그 결과 `idle in transaction` 6.02초 → 풀 고갈 → 커넥션 획득 타임아웃(8.4초, 설정 3초).
