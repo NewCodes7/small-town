@@ -1,4 +1,4 @@
-// 한계점 탐색 — 동시성 10/20/50/100 단계별 p50/p95/p99 곡선.
+// 한계점 탐색 — VU 사다리(캐시 미스 기본 5/10/15/20, 캐시 히트 10/20/50/100) 단계별 p50/p95/p99 곡선.
 // ramping-vus 하나 대신 startTime 오프셋을 둔 constant-vus 4개를 쓴다:
 // 레벨을 tag로 박아야 Grafana에서 level별 percentile을 깨끗하게 뽑을 수 있다.
 // 기대 관측: HikariCP pool(5) 포화 → 커넥션 대기 3s → statement_timeout 5s → 5xx 전환 지점.
@@ -30,11 +30,13 @@ const KEYWORD_TERMS = parseInt(__ENV.KEYWORD_TERMS, 10) === 3 ? 3 : 2;
 // VU 사다리는 모드별로 크게 다르다.
 // - 캐시 히트 모드(기존): 요청 하나가 Caffeine 히트 + 페이지 조립뿐이라 수십~수백 req/s를 견딘다.
 // - 캐시 미스 모드: 매 요청이 BM25 + 임베딩 + 2단계 벡터 + cross-scoring + 유효성 검사를 전부
-//   수행해 pool(5)을 훨씬 빨리 소진한다. 2026-08-08 실측(testid 20260808-080051)에서 10 VU만으로도
-//   0.73 req/s / 에러 5.3%, 50 VU에서 에러 56%로 완전 붕괴 — 기존 10/20/50/100 사다리로는
-//   전 구간이 포화라 변경 간 비교가 불가능하다. 그래서 1/2/5/10으로 낮춘다.
-// VU_LEVELS=1,2,5,10 처럼 직접 지정할 수도 있다.
-const DEFAULT_LEVELS = UNIQUE_KEYWORDS ? [1, 2, 5, 10] : [10, 20, 50, 100];
+//   수행해 pool(5)을 훨씬 빨리 소진한다. 2026-08-08 실측(testid 20260808-080051)에서는 10 VU만으로도
+//   0.73 req/s / 에러 5.3%, 50 VU에서 에러 56%로 붕괴해 1/2/5/10까지 낮춰 썼다.
+//   이후 OSIV 커넥션 홀드 제거·중복 article 조인 제거 등으로 천장이 올라가면서 1/2/5/10은 전 구간이
+//   선형 구간에 들어가 해상도가 맞지 않게 됐다(2026-08-17 osiv-connection-hold-ab 참고).
+//   그래서 5/10/15/20으로 올린다.
+// VU_LEVELS=5,10,15,20 처럼 직접 지정할 수도 있다.
+const DEFAULT_LEVELS = UNIQUE_KEYWORDS ? [5, 10, 15, 20] : [10, 20, 50, 100];
 const LEVEL_VALUES = (__ENV.VU_LEVELS || '')
   .split(',')
   .map((v) => parseInt(v.trim(), 10))

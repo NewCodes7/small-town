@@ -3,6 +3,8 @@
 import json, subprocess, sys, time
 # Prometheus 보존기간(8일)까지 과거 실행을 찾을 수 있게 — 기본 48h면 3일 전 testid를 놓친다
 LOOKBACK = int(__import__("os").environ.get("LOOKBACK_SEC", 8*86400))
+# VU 사다리 — scenarios/ramp-limit-finder.js의 기본값과 맞춰야 한다(VU_LEVELS로 오버라이드).
+LEVELS = [int(x) for x in __import__("os").environ.get("VU_LEVELS", "5,10,15,20").split(",")]
 PROM="https://newcodes.net/loadtest-prom/api/v1"
 DB='instance="db-node-exporter:9100"'
 def tok():
@@ -19,7 +21,7 @@ def v(e,at):
     return float(r[0]["value"][1]) if r else None
 def t0(t):
     def first(s,e,st):
-        r=call("query_range",{"query":f'k6_http_status_class_total{{testid="{t}",level="1"}}',
+        r=call("query_range",{"query":f'k6_http_status_class_total{{testid="{t}",level="{LEVELS[0]}"}}',
                               "start":int(s),"end":int(e),"step":st})["data"]["result"]
         pts=[x[0] for ser in r for x in ser["values"]]
         return min(pts) if pts else None
@@ -31,7 +33,7 @@ print("-"*70)
 for t in sys.argv[1:]:
     b=t0(t)
     if not b: print(f"{NAMES.get(t,t)} 데이터없음"); continue
-    for i,lv in enumerate([1,2,5,10]):
+    for i,lv in enumerate(LEVELS):
         at=b+i*210+180
         c=v(f'sum(rate(node_cpu_seconds_total{{{DB},mode!="idle"}}[180s]))',at)
         u=v(f'sum(rate(node_cpu_seconds_total{{{DB},mode=~"user|system"}}[180s]))',at)

@@ -123,9 +123,13 @@ aws ecs update-service --cluster newcodes-loadtest --service llm-mock --force-ne
   조기 반환해버려서 — cross-scoring/NSF/유효성 검사가 전부 skip되어 정작 재려던 구간이 안 돈다.
   term 수를 늘리면 `SemanticTermExpansionService`의 유의어 조회가 term마다 발생해 DB 부하를
   과대평가하므로 2가 기본이다(`KEYWORD_TERMS=3`으로 조합 공간을 999,900까지 넓힐 수 있다).
-- **VU 사다리**: 캐시 미스 모드 기본값은 **1/2/5/10 VU**다(캐시 히트 모드는 기존 10/20/50/100).
-  매 요청이 풀 경로를 타 pool(5)을 훨씬 빨리 소진하기 때문 — 2026-08-08 실측에서 10 VU만으로
-  0.73 req/s / 에러 5.3%, 50 VU에서 에러 56%였다. `VU_LEVELS=1,2,5,10`으로 직접 지정 가능.
+- **VU 사다리**: 캐시 미스 모드 기본값은 **5/10/15/20 VU**다(캐시 히트 모드는 기존 10/20/50/100).
+  원래는 1/2/5/10이었다 — 매 요청이 풀 경로를 타 pool(5)을 훨씬 빨리 소진했기 때문(2026-08-08
+  실측에서 10 VU만으로 0.73 req/s / 에러 5.3%, 50 VU에서 에러 56%). 이후 OSIV 커넥션 홀드 제거·
+  중복 article 조인 제거로 천장이 올라가면서 1/2/5/10은 전 구간이 선형 구간에 들어가 변경 간
+  해상도가 나오지 않아 올렸다(2026-08-17-osiv-connection-hold-ab.md 참고).
+  `VU_LEVELS=1,2,5,10`으로 과거 사다리를 그대로 재현할 수 있다 — 이 값은 결과 분석 스크립트
+  (`collect-results.py`, `bottleneck-curve.py`, `steady-state-rps.py`)도 같은 이름의 환경변수로 받는다.
 - **엔드포인트**: 실사용자 경로가 아니라 **`GET /api/search/articles/loadtest`**를 때린다.
   고유 키워드는 `search_query_embedding`(DB 영구 캐시)도 100% 미스로 만들기 때문에, 실사용자
   경로로 돌리면 요청마다 **실 Clova 임베딩 과금 호출**이 나가고 그 결과가 DB에 쌓인다.

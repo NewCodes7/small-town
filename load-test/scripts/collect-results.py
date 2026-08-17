@@ -12,12 +12,12 @@ LT_BYPASS_TOKEN을 쓴다. level 창은 ramp-limit-finder 사다리 스케줄(�
 RPS 1.36/2.51/2.68/1.54)를 재현하는 것을 확인했다.
 """
 
-import json, subprocess, sys, time, datetime
+import json, os, subprocess, sys, time, datetime
 
 # Prometheus 보존기간(8일)까지 과거 실행을 찾을 수 있게 — 기본 48h면 3일 전 testid를 놓친다
 LOOKBACK = int(__import__("os").environ.get("LOOKBACK_SEC", 8*86400))
 PROM = "https://newcodes.net/loadtest-prom/api/v1"
-LEVELS = [1, 2, 5, 10]
+LEVELS = [int(x) for x in os.environ.get("VU_LEVELS", "5,10,15,20").split(",")]
 DB = 'instance="db-node-exporter:9100"'
 
 def token():
@@ -51,11 +51,11 @@ def series_vals(res):
             for s in res.get("data", {}).get("result", [])}
 
 def find_t0(testid):
-    """level_1 시계열의 첫 샘플 시각 = k6 시작 시각(근사).
+    """첫 레벨(LEVELS[0]) 시계열의 첫 샘플 시각 = k6 시작 시각(근사).
     과거 실행도 잡으려고 48시간을 거칠게 훑은 뒤 그 근처를 5초 간격으로 다시 본다."""
     def first(start, end, step):
         r = curl(f"{PROM}/query_range", {
-            "query": f'k6_http_status_class_total{{testid="{testid}",level="1"}}',
+            "query": f'k6_http_status_class_total{{testid="{testid}",level="{LEVELS[0]}"}}',
             "start": int(start), "end": int(end), "step": step})
         pts = [v[0] for s in r.get("data", {}).get("result", []) for v in s["values"]]
         return min(pts) if pts else None
