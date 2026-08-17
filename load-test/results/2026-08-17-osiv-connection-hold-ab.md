@@ -302,16 +302,22 @@ binary HNSW(`idx_clova_chunk_embedding_binary_hnsw`) 순회다. 설정은
 `hnsw.ef_search=250`(`application-prod.properties:38`)과 `DEFAULT_CANDIDATE_LIMIT=200`
 (`VectorSearchService:124`)으로 맞물려 있다 — 후보 200개를 채우려면 ef_search가 그보다 커야 한다.
 
-여기에 (1)이 **비용을 증폭시킨다.** 본검색의 `JOIN article`은 HNSW의
-`ORDER BY embedding_binary <~> ... LIMIT 200` **안쪽**에 있어 필터 있는 HNSW가 된다 —
-필터에 걸러진 행만큼 그래프를 더 걸어야 LIMIT을 채우므로 순회량이 부풀려진다.
-(`DB_LOAD_REDUCTION.md`가 "LIMIT 200을 요청했는데 rows=40만 반환"으로 관측한 현상과 같은 계열이다.)
+> ⚠️ **정정 (같은 날)**: 처음엔 "(1)의 조인이 HNSW 순회량을 증폭시킨다"고 썼는데 **과대 추정이다.**
+> 플랜은 `Limit → Nested Loop(article 조인) → Index Scan(HNSW, 거리순)` 형태이고, HNSW는
+> `ef_search=250` 크기의 후보 리스트를 **먼저 만든 뒤** 순서대로 흘려보낸다. 조인이 몇 행을
+> 걸러내도 그 리스트를 다시 만들지는 않으므로 **순회 블록은 거의 그대로다.**
+> 따라서 (1)을 제거하면 **PK 조회 3,419블록(21%)이 사라지는 것**이 확정 효과이고,
+> 43%(HNSW 순회)는 `ef_search`/`candidateLimit`이 정하는 별개 항목이다.
+>
+> 다만 (1)에는 **블록과 무관한 두 번째 손해**가 있다 — 필터가 HNSW 스캔 *위*에 있어
+> `LIMIT 200`을 채우지 못할 수 있다(`DB_LOAD_REDUCTION.md`의 "LIMIT 200 요청에 rows=40 반환" 관측).
+> 즉 조인은 비용을 쓰면서 **후보 수(recall)까지 깎는다.**
 
 ### 6.4 우선순위 — 조인 제거가 1순위
 
 | 순위 | 조치 | 기대 효과 | 리스크 |
 |---|---|---|---|
-| **1** | 벡터 쿼리의 `JOIN article ... deleted_at IS NULL` 제거 (뒤의 유효성 검증에 위임) | 직접 **21%** + HNSW 과다 순회 완화 → 합쳐서 **20~40%** | **낮음.** 삭제 아티클이 후보 슬롯을 차지할 수 있어 유효 후보가 미세하게 줄 수 있다 → `VectorSearchAccuracyService`로 recall 측정 가능 |
+| **1** | 벡터 쿼리의 `JOIN article ... deleted_at IS NULL` 제거 (뒤의 유효성 검증에 위임) | 블록 **−21%** (확정) + **recall 개선** (필터로 LIMIT을 못 채우는 현상 해소) | **낮음.** 최종 결과는 Phase B의 `validArticleIds` 게이트가 막으므로 삭제 아티클이 노출될 수 없다. 다만 삭제 아티클의 청크가 후보 슬롯을 차지할 수는 있다 → `VectorSearchAccuracyService`로 측정 |
 | 2 | `ef_search` / `candidateLimit`(250/200) 하향 스윕 | 최대 **43%** | **중간.** recall 직결. 1번을 먼저 해서 필터 증폭을 없앤 뒤 재측정해야 순수 효과가 보인다 |
 | 3 | 퍼널 `stage2-limit` 스윕(10/30/50) | `clova_chunk_vectors` 디토스트(22%) 축소 | 중간 (랭킹 영향) |
 
@@ -337,7 +343,9 @@ binary HNSW(`idx_clova_chunk_embedding_binary_hnsw`) 순회다. 설정은
       낸다. 기존 1/2/5/10 사다리는 이제 해상도가 맞지 않는다
 - [x] **16,903블록/요청의 소유자 귀속** — `pg_statio_user_tables`로 관계 단위 완료 (6장)
 - [ ] **벡터 쿼리의 중복 `JOIN article ... deleted_at IS NULL` 제거 — 새 1순위** (6.4).
-      요청당 PK 조회 1,113회 = 블록의 21%이고, Phase B가 같은 검증을 이미 한다
+      요청당 PK 조회 1,113회 = 블록의 21%이고, Phase B의 `validArticleIds`가 같은 검증을 이미 한다
+      (`ArticleSearchService:695`, 최종 필터는 `:301`/`:311`). 블록 −21%는 확정, HNSW 순회 43%는
+      별개 항목(`ef_search`)이므로 이 조치로 줄지 않는다
 - [ ] `ef_search`/`candidateLimit`(250/200) 하향 스윕 — 2순위. **위 항목 이후에** 측정할 것
       (지금 수치에는 필터 있는 HNSW의 과다 순회분이 섞여 있다)
 - [ ] `stage2-limit` 스윕(10/30/50) — 3순위, `clova_chunk_vectors` 디토스트(22%) 대상
