@@ -14,6 +14,8 @@ RPS 1.36/2.51/2.68/1.54)를 재현하는 것을 확인했다.
 
 import json, subprocess, sys, time, datetime
 
+# Prometheus 보존기간(8일)까지 과거 실행을 찾을 수 있게 — 기본 48h면 3일 전 testid를 놓친다
+LOOKBACK = int(__import__("os").environ.get("LOOKBACK_SEC", 8*86400))
 PROM = "https://newcodes.net/loadtest-prom/api/v1"
 LEVELS = [1, 2, 5, 10]
 DB = 'instance="db-node-exporter:9100"'
@@ -58,7 +60,7 @@ def find_t0(testid):
         pts = [v[0] for s in r.get("data", {}).get("result", []) for v in s["values"]]
         return min(pts) if pts else None
     now = int(time.time())
-    coarse = first(now - 172800, now, "120s")
+    coarse = first(now - LOOKBACK, now, "120s")
     if coarse is None:
         return None
     return first(coarse - 300, coarse + 300, "5s") or coarse

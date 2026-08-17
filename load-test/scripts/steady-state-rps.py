@@ -10,6 +10,8 @@ RPS 편차 최대 +-10%를 만든다. 레벨 간 드레인 30초로는 흡수되
 판정은 이 스크립트의 정상상태 120초로 한다. 근거: 2026-08-13-query-param-reparse-ab.md 3장.
 """
 import json, subprocess, sys, time
+# Prometheus 보존기간(8일)까지 과거 실행을 찾을 수 있게 — 기본 48h면 3일 전 testid를 놓친다
+LOOKBACK = int(__import__("os").environ.get("LOOKBACK_SEC", 8*86400))
 PROM = "https://newcodes.net/loadtest-prom/api/v1"
 def token():
     for l in open("/workspaces/small-town/load-test/fargate/env"):
@@ -29,7 +31,7 @@ def t0(t):
                                  "start":int(s),"end":int(e),"step":st})["data"]["result"]
         pts=[x[0] for ser in r for x in ser["values"]]
         return min(pts) if pts else None
-    now=int(time.time()); c=first(now-172800,now,"120s")
+    now=int(time.time()); c=first(now-LOOKBACK,now,"120s")
     return first(c-300,c+300,"5s") or c if c else None
 
 NAMES = {"20260812-042815":"Z (before)","20260812-045908":"Z' (before)",

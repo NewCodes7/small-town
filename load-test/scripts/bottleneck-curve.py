@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """VU 사다리별 처리량 vs DB CPU vs 커넥션 대기 — 병목이 어디인지 가리는 곡선."""
 import json, subprocess, sys, time
+# Prometheus 보존기간(8일)까지 과거 실행을 찾을 수 있게 — 기본 48h면 3일 전 testid를 놓친다
+LOOKBACK = int(__import__("os").environ.get("LOOKBACK_SEC", 8*86400))
 PROM="https://newcodes.net/loadtest-prom/api/v1"
 DB='instance="db-node-exporter:9100"'
 def tok():
@@ -21,7 +23,7 @@ def t0(t):
                               "start":int(s),"end":int(e),"step":st})["data"]["result"]
         pts=[x[0] for ser in r for x in ser["values"]]
         return min(pts) if pts else None
-    now=int(time.time()); c=first(now-172800,now,"120s")
+    now=int(time.time()); c=first(now-LOOKBACK,now,"120s")
     return (first(c-300,c+300,"5s") or c) if c else None
 NAMES={"20260812-235516":"Z3(before)","20260813-002922":"M(after)","20260813-010659":"M'(after)"}
 print(f"{'실행 / VU':<18}{'RPS':>7}{'DBcpu%':>8}{'usr+sys%':>10}{'평균활성':>9}{'획득대기s':>10}{'pending':>8}")
