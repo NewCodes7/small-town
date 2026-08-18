@@ -135,6 +135,7 @@ psql ... -c "DELETE FROM rag_query_log WHERE model LIKE 'mock.%';"
 ```
 
 Grafana에서는 `testid` 라벨(자동 생성, `date +%Y%m%d-%H%M%S`)로 실행 회차를 필터링하고 `instance`로
-Fargate task를 구분한다. mock 지연/장애 주입 파라미터(`MOCK_TTFT_MEDIAN_MS`, `MOCK_ERROR_RATE` 등)는
+Fargate task를 구분한다. `url`/`name` 라벨은 2026-08-18부터 붙지 않으므로(카디널리티 —
+`README.md`의 "Prometheus remote-write" 참고) 엔드포인트 구분은 `endpoint` 태그로 한다. mock 지연/장애 주입 파라미터(`MOCK_TTFT_MEDIAN_MS`, `MOCK_ERROR_RATE` 등)는
 k6 명령어가 아니라 **mock ECS 서비스(task definition) 쪽 env**라 여기 명령어들과 별개로 조정한다 —
 자세한 내용은 [`README.md`의 "지연·장애 주입 env"](README.md#지연장애-주입-env-compose의-llm-mock-서비스에-추가) 참고.

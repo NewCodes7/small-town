@@ -130,6 +130,7 @@ aws ecs update-service --cluster newcodes-loadtest --service llm-mock --force-ne
   해상도가 나오지 않아 올렸다(2026-08-17-osiv-connection-hold-ab.md 참고).
   `VU_LEVELS=1,2,5,10`으로 과거 사다리를 그대로 재현할 수 있다 — 이 값은 결과 분석 스크립트
   (`collect-results.py`, `bottleneck-curve.py`, `steady-state-rps.py`)도 같은 이름의 환경변수로 받는다.
+  `collect-results.py`는 추가로 `PCTL_MODE`(auto|legacy|native)를 받는다 — 아래 "결과 해석" 참고.
 - **엔드포인트**: 실사용자 경로가 아니라 **`GET /api/search/articles/loadtest`**를 때린다.
   고유 키워드는 `search_query_embedding`(DB 영구 캐시)도 100% 미스로 만들기 때문에, 실사용자
   경로로 돌리면 요청마다 **실 Clova 임베딩 과금 호출**이 나가고 그 결과가 DB에 쌓인다.
@@ -381,6 +382,15 @@ mock과 무관한 시나리오이거나 `run-prod-test.sh`의 헬스체크를 �
 
 Prometheus v2.37은 native histogram 미지원이므로 `K6_PROMETHEUS_RW_TREND_STATS` 방식(스크립트가 자동 설정)을 쓴다. Prometheus를 v2.40+로 올리면 `K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM=true` 전환 가능.
 
+**라벨 축소 (2026-08-18)**: k6 기본 system tag의 `url`/`name`은 **쿼리스트링까지 포함한 전체 URL**이라, 검색어가 매 요청 고유한 캐시미스 모드에서는 **요청 수 = 시계열 수**가 된다. 실측으로 실행 1회가 Prometheus에 시계열 **19만 개**를 남겼고, head 메모리 700MB~1.1GB를 먹어 앱 호스트(RAM 1,906MB)가 스왑 스래싱으로 **관측 스택째 죽었다**(`results/2026-08-17-search-ladder-5-10-15-20.md` 5장). 그래서 `run-task.sh`/`run-local.sh`가 `--system-tags`로 화이트리스트를 강제한다:
+
+- 기본값 `status,method,error_code,check,group,scenario,expected_response,proto` (env `LT_SYSTEM_TAGS`로 오버라이드)
+- 제외: `url`, `name`(카디널리티 폭발원), `error`(자유 문자열 — `error_code`로 충분), `tls_version`, `subproto`, `service`
+- **`expected_response`는 반드시 남긴다** — `autocomplete`/`baseline`/`search-hybrid`/`search-journey`의 threshold 셀렉터가 의존하므로, 빼면 threshold가 "0 표본 → 통과"로 **조용히 무력화**된다
+- `testid`/`instance`/`endpoint`/`level` 등 커스텀 태그는 system tag가 아니라 영향 없다
+- 되돌리기: `LT_SYSTEM_TAGS=` (빈 값)으로 실행하면 플래그를 아예 생략해 k6 기본값으로 복귀한다. `LT_TREND_STATS`도 같은 방식이며 기본값은 `p(50),p(95),p(99)`다(`avg,min,max`는 소비자가 없어 제외, `p(99)`는 대시보드가 쓴다)
+- **URL 그룹핑이 필요해지면** `name`을 화이트리스트에 되살리되, 반드시 `tags:{name:'search'}`처럼 **저카디널리티 값으로 직접 지정**할 것 — 화이트리스트에 없으면 명시 태그라도 버려진다
+
 ## 결과 해석
 
 - Grafana에서 `testid` 라벨로 실행 회차 필터, `instance`로 Fargate task 구분.
@@ -389,6 +399,10 @@ Prometheus v2.37은 native histogram 미지원이므로 `K6_PROMETHEUS_RW_TREND_
 - SSE 메트릭: `sse_ttfb`(첫 이벤트) / `sse_first_token`(LLM 첫 토큰 — 서로 다른 병목) / `sse_stream_duration`(전체 완료) / `sse_terminal_total`(done/notfound/error/aborted 분포)
 - soak 판정은 k6 지표만으로 안 된다 — 백엔드 Grafana에서 병행 관찰: HikariCP active/pending, leak-detection 로그(30s), heap, FD 수(SSE 커넥션 정리).
 - 한계점 해석 기준: pool(5) 포화 → 커넥션 대기 최대 3s → `statement_timeout` 5s → 5xx. `ramp-limit-finder`의 `level` 태그별 percentile로 꺾이는 지점을 찾는다.
+- **p50/p95 산출 (`collect-results.py`)**: k6 PRW의 trend sink는 flush 창별이 아니라 **시계열별로 누적**이라(실측: level_10의 p95가 0.76→1.02→0.9497로 수렴 후 고정), 레벨 종료 시점 값이 곧 그 레벨 전체의 분위수다 — `last_over_time`을 쓴다. `avg_over_time`은 수렴 전 구간을 섞어 과소(−3%), `max_over_time`은 과도구간 피크를 집어 과대(+7%, 고부하일수록 악화)다.
+  - **2026-08-18 이전 testid**는 URL별 시계열에 `quantile()`을 걸어 요청 단위로 재구성한다. `PCTL_MODE=auto`(기본)가 `url` 라벨 유무로 알아서 가르므로 옛/새 testid를 한 번에 넘겨도 된다. 강제하려면 `PCTL_MODE=legacy|native`.
+  - 두 방식의 차이는 같은 실행(`20260817-111839`) 안에서 **≤1.8%**로 측정됐다(VU5 499→490, VU10 959→950, VU15 1,536→1,536). 시계열 불연속은 사실상 없다.
+  - 표의 창 표시 줄에 `(p50/p95: legacy|native)`가 찍히고, `p50==p95`면 산출식 붕괴 경고가 뜬다.
 
 ## 검색어 데이터 갱신
 

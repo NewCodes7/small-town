@@ -2,6 +2,7 @@
 """부하테스트 결과 수집 — testid별 level 지표를 한 표로 뽑는다.
 
 사용법: python3 load-test/scripts/collect-results.py <testid> [<testid2> ...]
+        PCTL_MODE=legacy|native|auto (기본 auto) — p50/p95 산출 방식, 아래 PCTL_MODE 주석 참고
 
 Prometheus는 nginx의 /loadtest-prom/ 프록시를 거쳐 읽고, 토큰은 load-test/fargate/env의
 LT_BYPASS_TOKEN을 쓴다. level 창은 ramp-limit-finder 사다리 스케줄(레벨당 3분 + 30초 드레인)로
@@ -19,6 +20,11 @@ LOOKBACK = int(__import__("os").environ.get("LOOKBACK_SEC", 8*86400))
 PROM = "https://newcodes.net/loadtest-prom/api/v1"
 LEVELS = [int(x) for x in os.environ.get("VU_LEVELS", "5,10,15,20").split(",")]
 DB = 'instance="db-node-exporter:9100"'
+# p50/p95 산출 방식. auto(기본)는 실행별로 자동 판별하므로 옛/새 testid를 한 번에 넘겨도 된다.
+#   legacy — URL별 시계열에 quantile()을 걸어 요청 단위 분위수를 재구성 (2026-08-18 이전 실행)
+#   native — k6가 누적 계산해 보낸 분위수의 레벨 종료 시점 값 (last_over_time)
+# 라벨 축소(--system-tags에서 url/name 제외) 이후 실행은 URL별 시계열이 없어 legacy가 조용히 틀린다.
+PCTL_MODE = os.environ.get("PCTL_MODE", "auto")
 
 def token():
     with open("/workspaces/small-town/load-test/fargate/env") as f:
@@ -83,10 +89,32 @@ def collect(testid):
         c4 = sum(v for k, v in cls.items() if k.startswith(("4xx", "429", "444")))
         c5 = sum(v for k, v in cls.items() if not k.startswith(("2xx", "4xx", "429", "444")))
 
-        # 요청당 duration(초) 시계열 → 분위수 재구성 (URL별 계열 = 요청 1건 근사)
-        q = lambda p: val(instant(
-            f"quantile({p}, max_over_time(k6_http_req_duration_p50{sel}[2h]))*1000", run_end))
-        p50, p95 = q(0.5), q(0.95)
+        # 산출 모드 판별 — 시계열 개수가 아니라 url 라벨 유무로 가른다.
+        # 개수 기준은 관측 스택이 죽어 데이터가 희박한 구간(예: 20260817-111839 VU20)에서 오판한다.
+        dur = instant(f"max_over_time(k6_http_req_duration_p50{sel}[2h])", run_end)
+        has_url = any(("url" in s.get("metric", {}) or "name" in s.get("metric", {}))
+                      for s in dur.get("data", {}).get("result", []))
+        pmode = PCTL_MODE if PCTL_MODE != "auto" else ("legacy" if has_url else "native")
+        if pmode == "legacy":
+            # 요청당 duration(초) 시계열 → 분위수 재구성 (URL별 계열 = 요청 1건 근사)
+            q = lambda p: val(instant(
+                f"quantile({p}, max_over_time(k6_http_req_duration_p50{sel}[2h]))*1000", run_end))
+            p50, p95 = q(0.5), q(0.95)
+        else:
+            # k6 PRW의 trend sink는 flush 창별이 아니라 시계열별로 "레벨 시작부터 누적"이다
+            # (실측: 20260817-111839 level_10의 p95가 0.76→1.02→0.9497로 수렴 후 고정).
+            # 레벨 시나리오는 자기 창에서만 도는 별도 시계열이라 종료 시점 값 = 레벨 전체 분위수다.
+            # avg_over_time은 수렴 전 저평가 구간까지 섞어 과소(-3%), max_over_time은 과도구간
+            # 피크를 집어 과대(+7%, 고부하 레벨일수록 악화)라 둘 다 쓰지 않는다.
+            # end+40s: gracefulStop(30s) + PRW flush(5s) 이후의 마지막 샘플까지 포함하려고.
+            nsel = f'{{testid="{testid}",level="{lv}",expected_response="true"}}'
+            # 과거 실행에 native를 강제하면(캘리브레이션 목적) http_req_duration이 URL별로
+            # 쪼개져 못 쓴다 → url 라벨이 없는 iteration_duration으로 폴백. ramp-limit-finder는
+            # iteration당 요청 1회라 차이는 JS 오버헤드뿐이다(레거시 대비 오차 ≤1.7% 실측).
+            nmet, nx = ("k6_iteration_duration", sel) if has_url else ("k6_http_req_duration", nsel)
+            # max(): task 여러 개(-n>1) 실행이면 가장 느린 task를 고른다 — 분위수는 합산 불가.
+            q = lambda s: val(instant(f"max(last_over_time({nmet}_{s}{nx}[300s]))*1000", end + 40))
+            p50, p95 = q("p50"), q("p95")
 
         at = end
         g = lambda e: val(instant(e, at))
@@ -111,7 +139,7 @@ def collect(testid):
                          hold=hold, ckout=ckout, acq=acq, pend=pend, active=act,
                          dbact_req=(dbact * 180 / c2 if dbact and c2 else None),
                          blks_req=(blks * 180 / c2 if blks and c2 else None),
-                         start=start, end=end))
+                         start=start, end=end, pmode=pmode))
     return rows
 
 def f(x, n=3):
@@ -133,4 +161,6 @@ for testid in sys.argv[1:]:
                          f(r["dbact_req"]), f(r["blks_req"], 0),
                          f(r["hold"]), f(r["acq"], 4), f(r["ckout"], 2),
                          f(r["pend"], 0), f(r["active"], 0)))
-        print(f"      창 {utc(r['start'])}~{utc(r['end'])} UTC")
+        print(f"      창 {utc(r['start'])}~{utc(r['end'])} UTC  (p50/p95: {r['pmode']})")
+        if r["p50"] is not None and r["p50"] == r["p95"]:
+            print("      ⚠ p50==p95 — 분위수 산출식 붕괴 의심 (PCTL_MODE 확인)")

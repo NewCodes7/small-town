@@ -768,7 +768,7 @@
       "id": 11,
       "type": "timeseries",
       "title": "전체 HTTP 요청 지연시간 (p50/p95/p99)",
-      "description": "k6_http_req_duration_{p50,p95,p99} — 실측 결과 percentile은 stat 라벨이 아니라 메트릭명 접미사로 분리됨 (2026-08-04 확인, K6_PROMETHEUS_RW_TREND_STATS 설정값 기준)",
+      "description": "k6_http_req_duration_{p50,p95,p99} — 실측 결과 percentile은 stat 라벨이 아니라 메트릭명 접미사로 분리됨 (2026-08-04 확인, K6_PROMETHEUS_RW_TREND_STATS 설정값 기준)\n\n2026-08-18 라벨 축소(--system-tags에서 url/name 제외) 이후: (1) 성공 응답만 본다(expected_response=true) — 시계열이 status별 소수로 줄어 필터가 없으면 5xx 몇 건이 2xx 수천 건과 1:1로 평균된다. (2) k6 trend sink는 시계열별 누적이라 이 곡선은 '테스트 시작부터의 누적 분위수'로 수렴한다 — 실시간 열화는 서버측 히스토그램 패널로 볼 것. (3) 그 이전 실행은 URL별 시계열의 평균이라(사실상 평균 지연) 값이 불연속이다. 동일 실행 내 비교에서 산출식 차이는 ≤1.8%로 측정됐다.",
       "gridPos": {
         "h": 9,
         "w": 12,
@@ -872,7 +872,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "avg(k6_http_req_duration_p50{testid=~\"$testid\", instance=~\"$k6_instance\"})",
+          "expr": "avg(k6_http_req_duration_p50{testid=~\"$testid\", instance=~\"$k6_instance\", expected_response=\"true\"})",
           "range": true,
           "legendFormat": "p50",
           "refId": "A"
@@ -882,7 +882,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "avg(k6_http_req_duration_p95{testid=~\"$testid\", instance=~\"$k6_instance\"})",
+          "expr": "avg(k6_http_req_duration_p95{testid=~\"$testid\", instance=~\"$k6_instance\", expected_response=\"true\"})",
           "range": true,
           "legendFormat": "p95",
           "refId": "B"
@@ -892,7 +892,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "avg(k6_http_req_duration_p99{testid=~\"$testid\", instance=~\"$k6_instance\"})",
+          "expr": "avg(k6_http_req_duration_p99{testid=~\"$testid\", instance=~\"$k6_instance\", expected_response=\"true\"})",
           "range": true,
           "legendFormat": "p99",
           "refId": "C"
@@ -961,7 +961,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "avg by (endpoint) (k6_http_req_duration_p95{testid=~\"$testid\", instance=~\"$k6_instance\"})",
+          "expr": "avg by (endpoint) (k6_http_req_duration_p95{testid=~\"$testid\", instance=~\"$k6_instance\", expected_response=\"true\"})",
           "range": true,
           "legendFormat": "{{endpoint}}",
           "refId": "A"
@@ -3463,7 +3463,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "avg by (level) (k6_http_req_duration_p95{testid=~\"$testid\", instance=~\"$k6_instance\", endpoint=\"search\"})",
+          "expr": "avg by (level) (k6_http_req_duration_p95{testid=~\"$testid\", instance=~\"$k6_instance\", endpoint=\"search\", expected_response=\"true\"})",
           "range": true,
           "legendFormat": "level={{level}} VU",
           "refId": "A"

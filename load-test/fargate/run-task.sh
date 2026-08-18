@@ -29,6 +29,17 @@ if [[ -f env ]]; then
   set +a
 fi
 
+# remote-write 라벨/메트릭 축소 — env로 오버라이드 가능(롤백 경로).
+# systemTags에서 url/name을 빼는 게 핵심이다: k6 기본값은 쿼리스트링까지 포함한 전체 URL이라
+# 검색어가 매 요청 고유한 캐시미스 모드에서 요청 수 = 카디널리티가 되고, 실행 1회가 Prometheus에
+# 시계열 19만 개를 남겨 앱 호스트 메모리를 무너뜨렸다
+# (load-test/results/2026-08-17-search-ladder-5-10-15-20.md 5장).
+# expected_response는 반드시 남길 것 — autocomplete/baseline/search-hybrid/search-journey의
+# threshold 셀렉터가 이 태그에 의존한다(빼면 threshold가 조용히 무력화된다).
+LT_SYSTEM_TAGS="${LT_SYSTEM_TAGS-status,method,error_code,check,group,scenario,expected_response,proto}"
+# trend 통계 6종 → 3종. p(99)는 Grafana load-test-monitor 패널이 쓰므로 유지한다.
+LT_TREND_STATS="${LT_TREND_STATS-p(50),p(95),p(99)}"
+
 SCENARIO=""
 COUNT=1
 TOTAL_RATE=""
@@ -68,6 +79,7 @@ TEST_RUN_ID="$(date +%Y%m%d-%H%M%S)"
 TASK_ARNS=()
 
 echo "TEST_RUN_ID=$TEST_RUN_ID scenario=$SCENARIO tasks=$COUNT"
+echo "  system-tags=${LT_SYSTEM_TAGS:-<k6 기본값>} trend-stats=${LT_TREND_STATS:-<k6 기본값>}"
 
 for ((i = 1; i <= COUNT; i++)); do
   env_entries="{\"name\":\"BASE_URL\",\"value\":\"$LT_BASE_URL\"}"
@@ -92,7 +104,9 @@ for ((i = 1; i <= COUNT; i++)); do
   cmd_entries='"run"'
   if [[ -n "${LT_PROM_RW_URL:-}" ]]; then
     env_entries+=",{\"name\":\"K6_PROMETHEUS_RW_SERVER_URL\",\"value\":\"$LT_PROM_RW_URL\"}"
-    env_entries+=",{\"name\":\"K6_PROMETHEUS_RW_TREND_STATS\",\"value\":\"p(50),p(95),p(99),avg,min,max\"}"
+    if [[ -n "$LT_TREND_STATS" ]]; then
+      env_entries+=",{\"name\":\"K6_PROMETHEUS_RW_TREND_STATS\",\"value\":\"$LT_TREND_STATS\"}"
+    fi
     # nginx /loadtest-prom/ 프록시가 같은 토큰으로 게이트함 (LT_PROM_RW_URL이 그 경로를 가리킬 때만 의미 있음)
     if [[ -n "${LT_BYPASS_TOKEN:-}" ]]; then
       env_entries+=",{\"name\":\"K6_PROMETHEUS_RW_HTTP_HEADERS\",\"value\":\"X-LoadTest-Token:$LT_BYPASS_TOKEN\"}"
@@ -105,6 +119,13 @@ for ((i = 1; i <= COUNT; i++)); do
   # remote-write되어 서로의 샘플을 out-of-order로 밀어낸다. CLI --tag는 시스템 메트릭에도
   # 강제로 붙으므로(testid와 동일 메커니즘) instance도 여기서 같이 태깅해 태스크별로 분리한다.
   cmd_entries+=",\"--tag\",\"instance=$i\""
+  # systemTags도 같은 이유로 CLI에 둔다 — 시나리오 11개의 options에 흩어 넣으면 신규 시나리오마다
+  # 누락 위험이 있고, 시나리오 파일을 고치면 ECR 이미지 재빌드·재푸시가 필요해진다(docker/Dockerfile이
+  # scenarios/lib/data를 COPY). CLI/env는 스크립트 options보다 우선한다.
+  # LT_SYSTEM_TAGS="" 는 k6 기본 태그로 되돌리는 롤백 스위치다(set -e 때문에 if로 쓴다).
+  if [[ -n "$LT_SYSTEM_TAGS" ]]; then
+    cmd_entries+=",\"--system-tags\",\"$LT_SYSTEM_TAGS\""
+  fi
   cmd_entries+=",\"scenarios/$SCENARIO.js\""
 
   for kv in ${EXTRA_ENVS[@]+"${EXTRA_ENVS[@]}"}; do
