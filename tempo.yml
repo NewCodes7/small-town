@@ -1,5 +1,11 @@
 # Grafana Tempo — 분산 트레이스 저장소
 # 앱(OTLP HTTP 4318) → Tempo → Grafana(query 3200) 로 연결된다.
+#
+# 메모리 튜닝 (2026-08-18) — 앱 호스트 RAM 1,906 MiB를 Tempo가 544 MiB(피크 RSS 625) 잡아먹던 문제.
+# 정상 상태 live heap은 85 MB뿐이고, 나머지는 전부 (a) 블록 완성/컴팩션의 순간 버스트와
+# (b) GOGC=100이 그 버스트 기준으로 힙 목표를 2배로 잡아버린 결과였다.
+# 분석 근거는 load-test/results/2026-08-17-search-ladder-5-10-15-20.md 5.8 참고.
+# GOMEMLIMIT / mem_limit은 docker-compose.yml의 tempo 서비스에 있다.
 server:
   http_listen_port: 3200
 
@@ -20,6 +26,52 @@ storage:
     wal:
       path: /var/tempo/wal
 
+    # 블록 읽기 워커 풀. 기본 400/20000은 다중 노드 + 오브젝트 스토리지 전제다.
+    # 2 vCPU 단일 노드에서는 goroutine만 1,000개 넘게 뜨고(실측) 동시 리더가 늘어
+    # 아래 read_buffer와 곱해져 메모리 상한이 사라진다.
+    pool:
+      max_workers: 20
+      queue_depth: 2000
+
+    block:
+      # 기본 100 MB. 실제 블록은 평균 1.2 MB(54 MB / 45 blocks)라 100배 과대 설정이었고,
+      # 힙 프로파일 inuse 1위(parquet-go.newRowGroupRows 41 MiB)·alloc 1위(1,749 MiB)가
+      # 여기서 나왔다. 블록 크기에 맞춰 줄인다. 기존 블록은 footer에 자기 로우그룹
+      # 크기를 갖고 있어 읽기 호환은 깨지지 않는다 — 새로 쓰는 블록에만 적용된다.
+      parquet_row_group_size_bytes: 10000000
+
+    search:
+      # 블록 리더 1개당 32 × 1 MiB = 32 MiB를 잡는다. 위 max_workers와 곱해지므로
+      # 7일치 TraceQL 검색 한 번이 호스트를 넘길 수 있었다 (400 × 32 MiB).
+      read_buffer_count: 8
+
+querier:
+  # 2 vCPU에 동시 쿼리 20은 과하다
+  max_concurrent_queries: 4
+
+query_frontend:
+  search:
+    # 블록 하나당 잡 1개가 생기는데 기본 1000이면 사실상 전 블록을 동시 조회한다
+    concurrent_jobs: 8
+    target_bytes_per_job: 10485760
+
+ingester:
+  # 동시 블록 완성 개수. 완성 1건이 수십 MB를 순간적으로 잡으므로 직렬화한다.
+  concurrent_flushes: 1
+  # 완성된 블록을 인제스터가 들고 있는 시간 (기본 15m)
+  complete_block_timeout: 5m
+
+overrides:
+  defaults:
+    global:
+      # 단일 트레이스가 5 MB까지 커질 수 있던 기본값. 폭주 트레이스 1건이
+      # 인제스터 힙을 밀어올리는 걸 막는 안전장치.
+      max_bytes_per_trace: 1000000
+
 compactor:
   compaction:
     block_retention: 168h  # 트레이스 보관 7일
+
+# 셀프호스트 단일 노드 — Grafana로 익명 사용 통계를 보낼 이유가 없다
+usage_report:
+  reporting_enabled: false

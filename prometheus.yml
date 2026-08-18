@@ -23,3 +23,10 @@ scrape_configs:
   - job_name: 'db-node'
     static_configs:
       - targets: ['db-node-exporter:9100']  # 서버 /etc/hosts 또는 DNS에 db-node-exporter 등록 필요
+
+  # Tempo 자기 지표 (:3200/metrics) — go_memstats_*, tempo_ingester_*, tempodb_*.
+  # 2026-08-18 추가: 스크레이프 대상이 없어서 Tempo 메모리 진단에 pprof를 떠야 했다.
+  # 시계열 약 1,000개로 저렴하고, GOMEMLIMIT 튜닝 효과를 이걸로 검증한다.
+  - job_name: 'tempo'
+    static_configs:
+      - targets: ['tempo:3200']

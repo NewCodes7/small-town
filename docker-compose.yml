@@ -176,6 +176,16 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    environment:
+      # Go 1.19+ 소프트 메모리 상한. 이게 없으면 GC 목표가 live heap의 2배로 잡혀
+      # 블록 완성 버스트 한 번에 RSS가 눌러앉는다 (실측: live 85 MB인데 NextGC 738 MB,
+      # MaxRSS 625 MiB). GC CPU는 0.06%밖에 안 써서 바꿔 쓸 여유가 충분하다.
+      # tempo.yml 튜닝 반영 후 실측해서 200MiB까지 조일 수 있다.
+      - GOMEMLIMIT=300MiB
+    # 하드 상한 — GOMEMLIMIT은 소프트라 초과가 가능하다. 초과 시 호스트 전체가
+    # 스왑 스래싱하는 대신 tempo 컨테이너만 OOM-kill되고 restart: always로 복구된다.
+    # (WAL은 볼륨에 있어 재기동 시 replay된다.)
+    mem_limit: 400m
     command: ["-config.file=/etc/tempo.yml"]
     volumes:
       - ./tempo.yml:/etc/tempo.yml:ro

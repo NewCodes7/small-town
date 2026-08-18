@@ -266,7 +266,23 @@ LOADTEST_BYPASS_TOKEN=localtest ./scripts/run-local.sh rag-answer -e VUS=5 -e DU
 | `soak.js` | 장시간 혼합 부하 — 누수 탐지 | 혼합 (arrival ×2 + vus) | `SOAK_DURATION=1h` |
 | `rate-limit-check.js` | 429/444 검증 + k6 관측 형태 보정 | 순차 4단계 | **bypass 토큰 없이 실행** |
 
-공통 env: `BASE_URL`, `ZIPF_S`(검색어 편중도, 기본 1.1), `TEST_RUN_ID`, `INSTANCE_ID`
+공통 env: `BASE_URL`, `ZIPF_S`(검색어 편중도, 기본 1.1), `TEST_RUN_ID`, `INSTANCE_ID`, `LT_TRACE_RATIO`
+
+### 트레이싱 억제 — `LT_TRACE_RATIO` (기본 0.02)
+
+부하테스트 요청은 백엔드에서 요청당 수십 개의 span(`opentelemetry-jdbc`가 JDBC 쿼리마다 붙는다)을
+만들어 Tempo 메모리를 밀어올린다. 백엔드가 Boot 기본 `ParentBased` 샘플러를 쓰므로,
+`bypassHeaders()`가 **sampled=0인 W3C `traceparent`를 붙여 span 생성 자체를 막는다**.
+`LT_TRACE_RATIO` 비율만큼은 헤더를 안 붙여 정상 트레이스로 남긴다 — 워터폴 진단은 살리고 양은 1/50로 줄인다.
+
+- `-e LT_TRACE_RATIO=1` — 전부 트레이싱 (종전 동작, 트레이스 워터폴이 필요한 진단 실행)
+- `-e LT_TRACE_RATIO=0` — 완전히 끔
+- 운영 트래픽의 샘플링(`management.tracing.sampling.probability=1.0`)은 건드리지 않는다.
+  평시 트래픽이 약 0.15 RPS뿐이라 `TRACING_SAMPLING`을 전역으로 내리면 관측성만 죽는다
+  (분석: `results/2026-08-17-search-ladder-5-10-15-20.md` 5.8)
+- 억제된 요청도 로그의 traceId는 남으므로, **Loki에서 그 traceId를 클릭하면 트레이스가 없다**
+- `rate-limit-check.js`는 `bypassHeaders()`를 안 쓰므로 이 억제가 적용되지 않는다 (요청 수가 적어 무해)
+- ⚠️ `lib/`에 있는 변경이라 Fargate 실행에 반영하려면 **ECR 이미지 재빌드가 필요하다**
 
 검색어는 `data/keywords.json`의 인기 rank 기반 **Zipfian 분포**로 샘플링한다 (균등 랜덤이면 캐시 히트율이 비현실적으로 낮아짐). 같은 검색어 다른 페이지 케이스는 페이지 독립 샘플링(70%/20%/10%)으로 자연 발생.
 
