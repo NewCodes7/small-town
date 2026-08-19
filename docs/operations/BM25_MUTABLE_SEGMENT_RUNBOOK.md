@@ -331,7 +331,7 @@ REINDEX 로 1.5ms 가 됐지만 **다음 크롤링(04:00)이 mutable 을 다시 
       → 세그먼트가 수십~수백으로 튀거나 `merge_info` 가 계속 차 있으면
         1~2 vCPU 가 머지를 못 따라가는 것. `=1` 폐기하고 50 으로.
 
-- [ ] **⚠️ `= 50` 으로 내리기 (필수).** ← **2026-08-19 현재 미실행. 운영은 `= 1`에 머물러 있었다.** 최악 지연이 50 × 0.23 ≈ 12ms 로 묶이고
+- [x] **⚠️ `= 50` 으로 내리기 (필수).** ← **2026-08-19 완료.** `pg_settings` 별도 세션 확인: `setting=50`, `source=configuration file`, `sourcefile=postgresql.auto.conf` 최악 지연이 50 × 0.23 ≈ 12ms 로 묶이고
       세그먼트 생성 빈도는 `=1` 대비 1/50.
 
       ALTER SYSTEM SET paradedb.global_mutable_segment_rows = 50;
@@ -374,8 +374,15 @@ REINDEX 로 1.5ms 가 됐지만 **다음 크롤링(04:00)이 mutable 을 다시 
       Postgres는 확장 네임스페이스의 미정의 이름을 **placeholder로 받아 저장까지 하고**,
       `SHOW`로 조회하면 `50`을 정상 반환한다. `pg_settings`에는 안 나온다.
       **→ GUC 적용 판정은 `SHOW`가 아니라 `pg_settings`의 `source`/`sourcefile`로 할 것.**
-- [ ] **🔴 `= 50` 설정 (여전히 필요).** 08-19에 `ALTER SYSTEM RESET`으로 되돌렸는데 이는
-      **기본값(1000)으로 가는 것이라 임계치 산정 표에서 ❌인 값**이다. `50`으로 명시 설정해야 한다.
+- [x] **`= 50` 설정 완료 (2026-08-19).** 중간에 `ALTER SYSTEM RESET`으로 기본값(1000)까지 갔다가
+      — 이는 임계치 산정 표에서 ❌인 값이다 — `50`으로 명시 설정했다. 별도 세션 검증 결과:
+
+      ```
+      paradedb.global_mutable_segment_rows | 50 | configuration file | .../postgresql.auto.conf
+      ```
+
+      오타 이름(`global_mutuable_segment_rows`)은 `pg_settings`에서 **0행**으로 확인 —
+      실재하지 않는 GUC였고 `SHOW`에만 응답하던 placeholder였음이 확증됐다.
 - [ ] **P2의 "세그먼트 수 모니터링 상시화" 구현됨(배포 대기).**
       `Bm25SegmentMetricsScheduler`가 5분 간격으로 `bm25_index_segments`,
       `bm25_index_segments_mutable`, `bm25_index_docs`, `bm25_index_bytes` 게이지를 올리고,

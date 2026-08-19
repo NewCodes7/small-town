@@ -243,9 +243,7 @@ LINE 3: ORDER BY embedding_binary <~> '<쿼리벡터>'::bit(1024)
 small_town=# ^C
 small_town=# ^C
 small_town=# exit
-ubuntu@ip-10-0-32-222:~$ ^[[200~free -h
-
-^Cubuntu@ip-10-0-32-222:~free -h-h
+free -h
 cat /proc/meminfo | grep -i huge   # Transparent Huge Pages 설정도 pgvector 성능에 영향 가능
                total        used        free      shared  buff/cache   available
 Mem:           918Mi       822Mi        80Mi       278Mi       449Mi        95Mi

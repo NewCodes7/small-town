@@ -32,12 +32,24 @@
 운영이 `= 1`에 머물러 있던 건 런북 P0의 **`⚠️ = 50으로 내리기 (필수)` 항목이 체크되지 않은 채로
 남아 있었기** 때문이다. 즉 "실험 잔재"라는 내 진단은 맞았지만, **되돌릴 목적지를 잘못 짚었다.**
 
-### 즉시 조치
+### 즉시 조치 — ✅ 완료 (2026-08-19)
 
 ```sql
 ALTER SYSTEM SET paradedb.global_mutable_segment_rows = 50;
 SELECT pg_reload_conf();
 ```
+
+별도 세션 검증 결과:
+
+```
+paradedb.global_mutable_segment_rows | 50 | configuration file | .../postgresql.auto.conf
+```
+
+경과: `= 1`(실험 잔재) → `RESET`으로 기본값 1000(❌ 230ms) → **`= 50`**(런북 채택값).
+중간의 RESET은 내 오판이었고 문서에 그대로 남긴다.
+
+**오타 이름은 `pg_settings`에서 0행으로 확인됐다** — 실재하지 않는 GUC였고 `SHOW`에만
+응답하던 placeholder였음이 확증됐다. 런북 §5의 복귀가 조용히 무효였던 이유가 이것이다.
 
 ```sql
 -- 반드시 별도 세션에서 (아래 주의 참고)
@@ -136,7 +148,7 @@ GUC 변경  ──▶  (쓰기 발생)  ──▶  세그먼트 생성 패턴 �
 
 **배포 후에는 자동이다.** `Bm25SegmentMetricsScheduler`가 5분 간격으로 게이지를 올리고,
 `collect-results.py`가 레벨별 `segs`/`mut` 열로 찍는다(아래 「세그먼트 지표 자동화」 참고).
-**배포 전이거나 상세 분포가 필요하면** DB 호스트(`10-0-32-222`)에서 직접 뜬다:
+**배포 전이거나 상세 분포가 필요하면** DB 호스트(운영 Postgres 서버)에서 직접 뜬다:
 
 ```sql
 SELECT count(*) segs, sum(num_docs) docs, count(*) FILTER (WHERE mutable) mut,

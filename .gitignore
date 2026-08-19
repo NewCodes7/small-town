@@ -31,3 +31,6 @@ load-test/fargate/env
 
 # 부하테스트 nginx bypass 시크릿 토큰 (커밋 금지 — nginx/loadtest_token.conf.example 참고)
 nginx/loadtest_token.conf
+
+# JVM attach 산물 (jcmd/jstack 등이 남김)
+.attach_pid*
