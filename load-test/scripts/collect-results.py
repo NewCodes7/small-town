@@ -132,8 +132,13 @@ def collect(testid):
         dbact = g(f"rate(pg_stat_database_active_time_seconds_total{{{DBN}}}[{win}])")
         blks  = g(f"rate(pg_stat_database_blks_hit{{{DBN}}}[{win}])"
                   f"+rate(pg_stat_database_blks_read{{{DBN}}}[{win}])")
+        # BM25 세그먼트 수 — 검색은 모든 세그먼트를 방문하므로 blks/req의 상수항을 좌우한다.
+        # Bm25SegmentMetricsScheduler가 5분 간격으로 올리는 게이지라 레벨 창(3분)에 샘플이
+        # 없을 수 있어 last_over_time으로 직전 값을 끌어온다. 배포 전 실행에는 지표가 없어 "-".
+        segs  = g("max(last_over_time(bm25_index_segments[30m]))")
+        segmut = g("max(last_over_time(bm25_index_segments_mutable[30m]))")
 
-        rows.append(dict(level=lv, c2=c2, c4=c4, c5=c5, rps=c2 / 180,
+        rows.append(dict(level=lv, c2=c2, c4=c4, c5=c5, rps=c2 / 180, segs=segs, segmut=segmut,
                          p50=p50, p95=p95, dbcpu=dbcpu, dbus=dbus, iowait=iow,
                          csr=(dbcpu * 180 / c2 if dbcpu and c2 else None),
                          hold=hold, ckout=ckout, acq=acq, pend=pend, active=act,
@@ -151,14 +156,17 @@ def utc(ts):
 for testid in sys.argv[1:]:
     print(f"\n===== testid = {testid} =====")
     hdr = ("lvl", "2xx", "RPS", "4xx", "5xx", "p50ms", "p95ms", "DBcpu", "usr+sys",
-           "iowait", "core-s/req", "dbact/req", "blks/req", "hold_s", "acq_s", "ckout/s", "pend", "act")
-    fmt = "{:<4}{:>6}{:>7}{:>5}{:>5}{:>8}{:>8}{:>8}{:>9}{:>8}{:>12}{:>11}{:>10}{:>8}{:>8}{:>9}{:>6}{:>5}"
+           "iowait", "core-s/req", "dbact/req", "blks/req", "segs", "mut", "hold_s", "acq_s",
+           "ckout/s", "pend", "act")
+    fmt = ("{:<4}{:>6}{:>7}{:>5}{:>5}{:>8}{:>8}{:>8}{:>9}{:>8}{:>12}{:>11}{:>10}"
+           "{:>6}{:>5}{:>8}{:>8}{:>9}{:>6}{:>5}")
     print(fmt.format(*hdr))
     for r in collect(testid):
         print(fmt.format(r["level"], f"{r['c2']:.0f}", f"{r['rps']:.2f}",
                          f"{r['c4']:.0f}", f"{r['c5']:.0f}", f(r["p50"], 0), f(r["p95"], 0),
                          f(r["dbcpu"]), f(r["dbus"]), f(r["iowait"]), f(r["csr"]),
                          f(r["dbact_req"]), f(r["blks_req"], 0),
+                         f(r["segs"], 0), f(r["segmut"], 0),
                          f(r["hold"]), f(r["acq"], 4), f(r["ckout"], 2),
                          f(r["pend"], 0), f(r["active"], 0)))
         print(f"      창 {utc(r['start'])}~{utc(r['end'])} UTC  (p50/p95: {r['pmode']})")

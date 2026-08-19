@@ -1,0 +1,283 @@
+# `global_mutable_segment_rows` 1 → 기본값 A/B — 2026-08-19
+
+**목적**: 운영에 걸려 있던 전역 오버라이드 `paradedb.global_mutable_segment_rows = 1`을 해제하고,
+검색 읽기 비용(`blks/req`)과 처리량이 움직이는지 본다.
+**선행 문서**: [`2026-08-17-search-ladder-5-10-15-20.md`](2026-08-17-search-ladder-5-10-15-20.md) 7.4 —
+런 R·S(13,500 blks/req)와 T·U(2,100)를 가른 변수가 아직 미확정이고, BM25 세그먼트 레이아웃이 유력 후보다.
+
+| 구성 | `mutable_segment_rows` | 사다리 | testid |
+|---|---|---|---|
+| **U** (before) | `1` | 1/2/3/5 | `20260819-113259` |
+| **V** (after) | GUC `-1`(오버라이드 해제) → 실효 `1000` | 1/2/3/5 | (실행 후 기재) |
+
+> ⚠️ **U와 V 사이에는 GUC 변경만이 아니라 "쓰기"가 반드시 끼어야 한다.** 이 노브는 새로 쓰는 행에만
+> 작용하므로, 값만 바꾸고 바로 V를 돌리면 측정되는 게 없다. 1절·Step 2.5 참고.
+
+**결정 (2026-08-19)**: 쓰기 확보는 **A안(야간 크롤링)**, 세그먼트 기록은 **사다리 수집 스크립트에 통합**.
+
+---
+
+## 0. 왜 이 값이 문제인가 — 그리고 "기본값"은 2단 구조다
+
+**설정이 두 층으로 되어 있다** (2026-08-19 실측으로 정정. 처음엔 GUC 기본값을 1000으로 적었는데 틀렸다):
+
+| 층 | 이름 | 기본값 | 역할 |
+|---|---|---|---|
+| 인덱스 옵션 | `mutable_segment_rows` (`CREATE INDEX ... WITH`) | **1000** (최대 10000) | 인덱스별 실제 임계값 |
+| 전역 GUC | `paradedb.global_mutable_segment_rows` | **`-1`** | **오버라이드**. `-1` = 오버라이드 안 함 |
+
+`article_analyzed_content_bm25_idx`는 `key_field`/`text_fields`만 지정하고 `mutable_segment_rows`는
+안 걸었다(`V1_27__create_article_analyzed_content_bm25_index.sql`). 따라서 GUC가 `-1`이면
+**인덱스 기본값 1000이 적용**되고, GUC에 값이 들어가면 그게 전역으로 덮는다.
+
+운영에는 GUC가 **`1`**로 박혀 있었다 — 즉 인덱스 기본값 1000을 1로 덮어쓰고 있었다.
+`docs/operations/BM25_MUTABLE_SEGMENT_RUNBOOK.md` §2의 실험 설정이 §5의 정리 단계(`= 50`)를 거치지
+않고 그대로 남은 것으로 보인다. `postgresql.auto.conf` mtime은 **2026-08-15 13:47**이다.
+
+`= 1`은 **행 1개마다 mutable 세그먼트를 봉인**한다. ParadeDB의 LayeredMergePolicy는 mutable→immutable
+전환분을 "단일 세그먼트여도 공격적으로 병합"하므로, 쓰기마다 세그먼트 생성 + 병합 큐 적재가 반복된다.
+실제로 `index_info`에 **2 docs짜리 조각이 19개** 남아 있다.
+
+**쓰기 경로 노브인데 비용은 읽기 경로에 떨어진다** — 검색은 모든 세그먼트를 방문해야 하기 때문이다.
+
+## 1. 설계 — 이 A/B는 **쓰기가 쌓인 뒤에만** 의미가 있다
+
+이 노브는 **새로 쓰는 행이 어떻게 쪼개지는지**만 정한다. 이미 만들어진 세그먼트(큰 것 4 + 조각 19)는
+병합이 일어나기 전까지 그대로다. **따라서 값을 되돌린 직후에 사다리를 돌리면 아무것도 측정되지 않는다.**
+
+```
+GUC 변경  ──▶  (쓰기 발생)  ──▶  세그먼트 생성 패턴 변화  ──▶  세그먼트 수 변화  ──▶  blks/req 변화
+             ↑ 여기가 없으면 오른쪽은 전부 안 움직인다
+```
+
+값별로 기대되는 세그먼트 증가율:
+
+| 설정 | 실효 임계값 | 새 행 N개당 생성되는 세그먼트 |
+|---|---|---|
+| GUC `= 1` (변경 전) | 1 | **약 N개** |
+| GUC `= -1` (기본, 오버라이드 해제) | 인덱스 기본 **1000** | 약 N/1000개 |
+
+즉 **N이 충분히 커야 차이가 보인다.** 하루 크롤링 분량이 수십~수백 행이라면 `= 1`에서는 그만큼
+조각이 생기고 `= 1000`에서는 사실상 0개다 — 이 차이가 다음 사다리의 `blks/req`에 나타나야 한다.
+
+### 두 질문을 분리한다
+
+지금까지 두 가지가 섞여 있었다:
+
+| | 질문 | 답할 수 있나 |
+|---|---|---|
+| **Q1** | 왜 R·S(13,500) → T·U(2,100)로 떨어졌나 | ❌ **과거는 못 푼다.** 그 시점 `index_info` 기록이 없다. 앞으로 시계열을 쌓아 상관을 보는 수밖에 없다 |
+| **Q2** | `= 1`을 기본값으로 되돌리면 앞으로 어떻게 되나 | ✅ 이 문서의 A/B. 단 **쓰기가 쌓인 뒤** |
+
+**이 A/B는 Q2만 답한다.** Q1은 별도로 `index_info` 시계열을 쌓아야 한다.
+
+---
+
+## 2. 절차
+
+### Step 0 — 실행 전 스냅샷
+
+**배포 후에는 자동이다.** `Bm25SegmentMetricsScheduler`가 5분 간격으로 게이지를 올리고,
+`collect-results.py`가 레벨별 `segs`/`mut` 열로 찍는다(아래 「세그먼트 지표 자동화」 참고).
+**배포 전이거나 상세 분포가 필요하면** DB 호스트(`10-0-32-222`)에서 직접 뜬다:
+
+```sql
+SELECT count(*) segs, sum(num_docs) docs, count(*) FILTER (WHERE mutable) mut,
+       pg_size_pretty(sum(byte_size)::bigint) sz
+FROM paradedb.index_info('article_analyzed_content_bm25_idx');
+
+SELECT segno, mutable, num_docs, pg_size_pretty(byte_size::bigint) sz
+FROM paradedb.index_info('article_analyzed_content_bm25_idx')
+ORDER BY mutable DESC, num_docs DESC;
+```
+
+### Step 1 — 기본값으로 복귀
+
+```sql
+ALTER SYSTEM RESET paradedb.global_mutable_segment_rows;
+ALTER SYSTEM RESET paradedb.global_mutuable_segment_rows;   -- 오타 placeholder 잔재 정리
+SELECT pg_reload_conf();
+```
+
+`SET 1000`이 아니라 **`RESET`**을 쓴다 — `postgresql.auto.conf`에서 줄 자체를 지워 기본값으로
+되돌리기 때문이다. 오타 이름(`mutuable`)도 같은 파일에 남아 있으므로 함께 정리한다.
+
+### Step 2 — 적용 확인 (**`SHOW` 금지**)
+
+```sql
+SELECT name, setting, source, sourcefile FROM pg_settings
+WHERE name IN ('paradedb.global_mutable_segment_rows',
+               'paradedb.global_target_segment_count',
+               'paradedb.global_enable_background_merging');
+```
+
+기대값: `global_mutable_segment_rows` = **`-1`**, `source` = **`default`** (오버라이드 해제).
+
+**✅ 실행 결과 (2026-08-19):**
+
+```
+paradedb.global_enable_background_merging | on  | default
+paradedb.global_mutable_segment_rows      | -1  | default
+paradedb.global_target_segment_count      |  0  | default
+```
+
+`postgresql.auto.conf`의 두 줄(정상 이름 `= 1`, 오타 이름 `= 50`)이 모두 제거됐고 GUC 3종이 전부
+기본값으로 돌아왔다. 실효 임계값은 이제 인덱스 옵션 기본인 **1000**이다.
+
+> 남은 확인: 인덱스에 per-index 오버라이드가 없는지 —
+> `SELECT reloptions FROM pg_class WHERE relname='article_analyzed_content_bm25_idx';`
+> 마이그레이션 기준으로는 `key_field`/`text_fields`뿐이라 없어야 한다.
+
+> ⚠️ **`SHOW`로 판정하지 않는다.** Postgres는 확장 네임스페이스의 **미정의 이름도 placeholder로
+> 받아 값을 돌려준다.** 실제로 `SHOW paradedb.global_mutuable_segment_rows`(오타)가 `50`을 반환해
+> 한 번 속았다. `pg_settings`에 나오는 이름만 실재하는 GUC다.
+
+### Step 2.5 — **쓰기를 쌓는다** (이 단계가 실험의 본체다)
+
+Step 1 직후에 사다리를 돌리면 안 된다. 쓰기가 없으면 세그먼트 패턴이 안 변한다.
+쓰기를 확보하는 방법은 셋이고, 트레이드오프가 다르다:
+
+| 안 | 방법 | 소요 | 리스크 | 비고 |
+|---|---|---|---|---|
+| **A ✅ 채택** | **야간 크롤링을 기다린다** (`CrawlingScheduler` 04:00 / 04:30 / 05:00, HN 03:30) | 하루 | **없음** | 자연스러운 실제 쓰기 패턴. 가장 깨끗하다 |
+| B | 인위적 쓰기로 압축 — `UPDATE article_analyzed_content SET updated_at = updated_at WHERE id IN (...)` 로 N행 터치 | 수분 | 운영 테이블에 행 버전·WAL·블로트 발생 | 런북 §3이 1행에 쓰는 기법을 N행으로 확대한 것. **N을 명시하고 기록할 것** |
+| C | `REINDEX INDEX CONCURRENTLY` | 수분~ | **프로덕션 인덱스 재구축** | 이건 쓰기 A/B가 아니라 **레이아웃 A/B**다 — 6절 참고. 별도 판단 |
+
+A와 B는 같은 질문(Q2)에 답하고, C는 다른 질문(읽기 경로)에 답한다.
+
+**어느 안을 썼는지와 쓰기 행 수를 반드시 기록한다** — 안 적으면 다음 실행과 비교가 안 된다.
+
+### Step 3 — 사다리 런 V
+
+```bash
+./load-test/fargate/run-task.sh -s ramp-limit-finder -e VU_LEVELS=1,2,3,5
+```
+
+- 사다리는 U와 동일한 **1/2/3/5** (7.1.1 — 정점이 VU5 아래에 있다)
+- 매시 **:30 스케줄러 창을 피한다**. 4레벨 ≈ 15분
+- `LT_SYSTEM_TAGS`/`LT_TREND_STATS`는 `run-task.sh` 기본값이라 라벨 축소가 자동 적용된다
+
+```bash
+VU_LEVELS=1,2,3,5 python3 load-test/scripts/collect-results.py <testid>
+```
+
+### Step 4 — 사후 스냅샷 + Tempo
+
+Step 0과 같은 쿼리를 다시 뜬다(병합 발생 여부 확인). Tempo는 **부하 종료 +40분** 뒤에 본다 —
+부하 창 안에서만 재면 과소평가된다(선행 문서 7.2에서 실제로 385를 88.7로 잘못 보고했다).
+
+```promql
+max_over_time(process_resident_memory_bytes{job="tempo"}[50m])/1024/1024
+```
+
+### 세그먼트 지표 자동화 (2026-08-19 구현, **배포 필요**)
+
+Q1이 막힌 이유는 R·S 시점의 세그먼트 상태 기록이 없어서다. 앞으로는 자동으로 쌓인다.
+
+**왜 앱을 경유하나**: 부하테스트 스크립트가 도는 환경(devcontainer)에서 **운영 DB로 붙을 경로가
+없다**(`.env`의 `DB_URL`은 로컬 postgres를 가리킨다). 운영 DB에 붙을 수 있는 건 백엔드뿐이라,
+앱이 지표로 내보내고 수집 스크립트는 Prometheus에서 읽는 구조가 유일하게 성립한다.
+
+| 구성 | 내용 |
+|---|---|
+| `search/scheduler/Bm25SegmentMetricsScheduler.java` | 5분 간격으로 `paradedb.index_info()`를 조회해 게이지 갱신 |
+| 지표 | `bm25_index_segments`, `bm25_index_segments_mutable`, `bm25_index_docs`, `bm25_index_docs_deleted`, `bm25_index_bytes` (라벨 `index`) |
+| `collect-results.py` | 레벨별 **`segs` / `mut` 열**로 출력 |
+| 간격 근거 | 세그먼트는 쓰기 시점에만 움직이므로 5분이면 충분하고, HikariCP 풀이 5개뿐이라 부하 중 커넥션 점유를 늘리지 않는다 |
+| 안전장치 | 조회 실패는 `warn` 로그만 남기고 직전 값 유지 — 지표 수집이 서비스에 영향을 주지 않는다 |
+| 테스트 | `search.bm25-metrics.enabled=false` (테스트는 `spring.flyway.enabled=false`라 bm25 인덱스가 없다) |
+
+게이지는 `@PostConstruct`에서 **즉시 등록**한다 — 첫 수집 전에도 시계열이 존재해야 "지표 없음"과
+"값이 0"을 구분할 수 있다.
+
+⚠️ **배포 전 실행에서는 `segs`/`mut`이 `-`로 나온다.** 런 U까지가 그렇다.
+
+---
+
+## 3. 기록 표 (실행 후 채운다)
+
+### 세그먼트 상태
+
+**이 표가 실험의 핵심이다.** `blks/req`보다 먼저 봐야 한다 — 세그먼트가 안 변했다면 사다리 결과는
+해석할 게 없다.
+
+| 시점 | segs | docs | mutable | 총 크기 | 비고 |
+|---|---|---|---|---|---|
+| 08-19 06:44 (런 T) | **23** | ~18,623 | 2 | ~16.8 MB | 큰 것 4 + 2docs 조각 19 |
+| U 직전 (11:33) | (미기록) | | | | |
+| V 직전 = GUC 변경 직후 | | | | | Step 0. **여기서 변화 없어야 정상** |
+| **쓰기 후 (Step 2.5)** | | | | | **쓴 행 수 = ___ , 방법 = A/B/C** |
+| V 직후 | | | | | |
+
+### 사다리
+
+| VU | U: RPS / p95 / blks_req | V: RPS / p95 / blks_req | Δ |
+|---|---|---|---|
+| 1 | 12.34 / 125 / 2,327 | | |
+| 2 | 21.96 / 145 / 2,098 | | |
+| 3 | 23.44 / 212 / 2,166 | | |
+| 5 | 23.64 / 354 / 2,122 | | |
+
+### 유효성 검증 (키워드 소진 판별)
+
+레벨당 완료가 2-term 풀(2,525)을 넘으므로 매번 확인한다. U는 0.95~0.96이었다.
+
+```logql
+sum(count_over_time({job="small-town"} |= "총:" [3m]))
+```
+
+| 레벨 | 완료 2xx | Loki `총:` | 비율 |
+|---|---|---|---|
+| 2 | | | |
+| 5 | | | |
+
+---
+
+## 4. 판정 기준
+
+**먼저 세그먼트 표를 본다. 세그먼트가 안 움직였으면 사다리는 해석하지 않는다.**
+
+| 관측 | 판정 |
+|---|---|
+| 쓰기 후에도 세그먼트 수 거의 그대로 | ⚠️ **쓰기가 부족했다.** 실험 미성립 — N을 늘려 다시. 사다리 결과는 버린다 |
+| 세그먼트 증가율이 `= 1` 대비 뚜렷이 낮음 | ✅ GUC가 의도대로 작동. 여기서부터 `blks/req`를 읽는다 |
+| 세그먼트 ↓ **그리고** `blks/req` ↓ | ✅ **세그먼트 수 → 읽기 비용 인과의 첫 직접 증거** (7.4 가설 지지) |
+| 세그먼트 ↓ 인데 `blks/req` 그대로 | ❌ 가설 반증. 읽기 비용은 세그먼트 *수*가 아니라 다른 축(크기·레이어 배치)이 정한다 |
+| 세그먼트 수가 V 직후 급감 | 백그라운드 병합이 겹친 것 — GUC 효과와 병합 효과가 섞여 **단독 해석 불가**. 재실행 |
+
+> **주의: GUC 변경 직후(쓰기 전) 사다리는 대조군이 아니라 무의미한 실행이다.** 변화가 없는 게
+> 당연하므로 "영향 없음"으로 결론 내면 안 된다.
+
+## 5. 롤백
+
+```sql
+ALTER SYSTEM SET paradedb.global_mutable_segment_rows = 1;
+SELECT pg_reload_conf();
+```
+
+되돌릴 이유는 사실상 없다 — `= 1`은 인덱스 기본값(1000)을 1로 덮는 실험용 전역 오버라이드였고,
+해제는 성능 조정이 아니라 **정상화**다. 다만 U의 22~24 RPS가 `= 1` 덕이었다면 V에서 처리량이 내려갈 수 있으므로,
+그 경우 원인을 분해하기 전까지는 판단을 보류한다.
+
+---
+
+## 6. 후속 — REINDEX A/B (별도 승인 필요)
+
+이 실험은 **쓰기 경로** A/B다. 읽기 경로의 진짜 A/B는 세그먼트 레이아웃을 실제로 바꾸는 것이고,
+그 수단은 `REINDEX INDEX CONCURRENTLY article_analyzed_content_bm25_idx`다.
+
+**프로덕션 인덱스 재구축이므로 별도 판단이 필요하다.** 위 결과를 보고 결정한다.
+
+## 7. 미결 — ParadeDB 병합 정책에서 확인 못 한 것
+
+- **`paradedb.global_target_segment_count = 0`의 정확한 의미** (자동/비활성/CPU 수 유도). 공식 docs
+  페이지가 fetch 단계에서 404라 확인 실패. 소스 기준 설명으로는 `IndexLayerSizes::from()`에서
+  **레이어 크기 계산에 반영**된다 — 개수를 직접 세는 게 아니라 레이어 경계를 움직여 간접 조정한다
+- 기본 레이어: **foreground** 1KB/10KB/100KB/1MB, **background** 10MB/100MB/1GB/10GB/100GB/1TB.
+  현재 큰 세그먼트 4개가 각 **~4 MB**로 1MB와 10MB 사이 구간에 앉아 있다
+- 병합 촉발: 레이어보다 작은 세그먼트를 큰 것부터 모아 합계가 **레이어 크기의 ~133%**에 도달하면
+  후보가 되고, `min_merge_count` 미만이면 제외(mutable 전환분은 예외)
+
+출처: [DeepWiki — Segment Management and Merging](https://deepwiki.com/paradedb/paradedb/5.4-segment-management-and-merging),
+[DeepWiki — Index Creation and Configuration](https://deepwiki.com/paradedb/paradedb/2.2-index-creation-and-configuration),
+[ParadeDB Docs — Segment Size](https://docs.paradedb.com/documentation/configuration/segment_size)
