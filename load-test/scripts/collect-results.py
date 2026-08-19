@@ -136,7 +136,10 @@ def collect(testid):
         # Bm25SegmentMetricsScheduler가 5분 간격으로 올리는 게이지라 레벨 창(3분)에 샘플이
         # 없을 수 있어 last_over_time으로 직전 값을 끌어온다. 배포 전 실행에는 지표가 없어 "-".
         segs  = g("max(last_over_time(bm25_index_segments[30m]))")
-        segmut = g("max(last_over_time(bm25_index_segments_mutable[30m]))")
+        # mut = mutable 세그먼트의 "문서 수". 세그먼트 개수(보통 1)가 아니라 이 값이
+        # BM25 지연의 지배 변수다 — mutable은 term dictionary가 없어 매 쿼리마다 전 문서를
+        # 선형 스캔한다(실측 0.23 ms/doc). docs/operations/BM25_MUTABLE_SEGMENT_RUNBOOK.md 참고.
+        segmut = g("max(last_over_time(bm25_index_docs_mutable[30m]))")
 
         rows.append(dict(level=lv, c2=c2, c4=c4, c5=c5, rps=c2 / 180, segs=segs, segmut=segmut,
                          p50=p50, p95=p95, dbcpu=dbcpu, dbus=dbus, iowait=iow,
