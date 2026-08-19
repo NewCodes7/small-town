@@ -34,3 +34,6 @@ nginx/loadtest_token.conf
 
 # JVM attach 산물 (jcmd/jstack 등이 남김)
 .attach_pid*
+
+# 개인 이력서용 요약 — 저장소에 올리지 않음 (로컬 보관)
+load-test/results/RESUME-*.md
