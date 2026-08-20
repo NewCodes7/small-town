@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -85,6 +86,16 @@ public class ArticleSearchService {
      */
     @Value("${search.hybrid.reuse-stage1-candidates:true}")
     private boolean reuseStage1Candidates;
+
+    /**
+     * single-flight 조인자가 리더의 결과를 기다리는 상한.
+     *
+     * 리더의 worst case는 Phase A 트랜잭션(커넥션 획득 3s + statement_timeout 5s)
+     * + vectorFuture.get(5s) + cross-scoring 트랜잭션(3s + 5s) ≈ 21s이므로 정상 동작에서는
+     * 걸리지 않는다. 반대쪽 상한인 nginx proxy_read_timeout(60s, `^~ /api/`)보다는 낮게 둬,
+     * 리더가 끝내 응답하지 못해도 조인자가 504 대신 실제 응답을 받게 한다.
+     */
+    private static final long HYBRID_CORE_JOIN_TIMEOUT_SECONDS = 30;
 
     private static final String HYBRID_TOP_ARTICLES_CACHE_NAME = "hybridTopArticles";
     private static final String RAG_TOP_ARTICLES_CACHE_NAME = "ragTopArticles";
@@ -409,7 +420,20 @@ public class ArticleSearchService {
         if (existing != null) {
             log.debug("[검색] 하이브리드 코어 합류 - keyword='{}' (in-flight 또는 캐시 히트)", cacheKey);
             try {
-                return existing.join();
+                return existing.get(HYBRID_CORE_JOIN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            } catch (TimeoutException e) {
+                // 리더가 future를 완료시키지 못한 상태다. 그대로 두면 TTL(5분)이 끝날 때까지
+                // 이 키워드의 모든 요청이 같은 대기를 반복하므로 캐시에서 걷어내 다음 요청이
+                // 새 리더가 되게 한다. remove(key, value)는 원자적이라, 그사이 정상 완료한
+                // 리더의 결과를 잘못 지우지 않는다(다른 future면 no-op).
+                hybridCoreCache.asMap().remove(cacheKey, existing);
+                log.warn("하이브리드 코어 결과 대기 타임아웃({}초) - keyword='{}': 캐시에서 축출",
+                        HYBRID_CORE_JOIN_TIMEOUT_SECONDS, cacheKey);
+                return HybridCoreResult.empty();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("하이브리드 코어 결과 대기 인터럽트 - keyword='{}'", cacheKey);
+                return HybridCoreResult.empty();
             } catch (Exception e) {
                 String cause = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
                 log.warn("하이브리드 코어 결과 대기 실패 - keyword='{}': {}", cacheKey, cause);
@@ -432,6 +456,15 @@ public class ArticleSearchService {
         } catch (RuntimeException e) {
             myFuture.completeExceptionally(e);
             throw e;
+        } finally {
+            // 위 catch가 놓치는 Throwable(OutOfMemoryError, StackOverflowError 등)로 빠져나가도
+            // future를 반드시 종료시킨다. 미완료 future가 캐시에 남으면 같은 키워드로 들어오는
+            // 후속 요청이 위 조인 경로에서 무한정 대기한다 — 힙 상한이 512m이고 앱 호스트가
+            // 상시 스왑 중이라 OOME는 가정이 아니다.
+            if (!myFuture.isDone()) {
+                myFuture.completeExceptionally(
+                        new IllegalStateException("하이브리드 코어 계산 비정상 종료: " + cacheKey));
+            }
         }
     }
 

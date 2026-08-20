@@ -1,6 +1,7 @@
 package com.newcodes7.small_town.search.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -13,12 +14,14 @@ import static org.mockito.Mockito.verify;
 import com.newcodes7.small_town.config.IntegrationTestBase;
 import com.newcodes7.small_town.search.dto.ArticleSearchResultDto;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -113,5 +116,72 @@ public class ArticleSearchServiceHybridCoreTest extends IntegrationTestBase {
             // 요약이 시작한 계산에 검색이 합류 → 코어 파이프라인(BM25 메인 쿼리)은 최대 1회
             verify(articleRepository, atMost(1)).searchByBM25(contains(uniqueTerm), anyInt());
         }
+    }
+
+    /**
+     * 리더가 catch(RuntimeException)에 걸리지 않는 Throwable(Error)로 죽어도,
+     * 이미 그 결과를 기다리던 조인자는 대기에서 풀려나야 한다.
+     *
+     * 수정 전에는 미완료 future가 캐시에 그대로 남아 조인자가 join()에서 영원히 대기했다 —
+     * 인기 키워드 하나로 이후 모든 요청이 Tomcat 커넥션을 문 채 정지하고, 재시작 외에는
+     * 복구 경로가 없는 상태가 됐다.
+     */
+    @Test
+    public void 리더가_Error로_죽어도_조인자는_대기에서_풀려난다() throws Exception {
+        String uniqueTerm = "sfkw" + System.nanoTime();
+        String keyword = uniqueTerm;
+
+        // 벡터 단계는 즉시 반환시켜 이 테스트를 BM25 리더 경로에만 집중시킨다 (외부 I/O 차단)
+        doAnswer(invocation -> new VectorSearchService.VectorSearchResult(new HashMap<>(), null))
+                .when(vectorSearchService).searchByKeywordWithEmbedding(eq(keyword), isNull(), isNull(), eq(false));
+
+        CountDownLatch bm25Entered = new CountDownLatch(1);
+        CountDownLatch releaseBm25 = new CountDownLatch(1);
+        // Error를 던지는 것은 첫 호출뿐이다. 조인자가 get()에 진입하기 전에 리더가 죽는
+        // 반대쪽 인터리빙에서는 조인자가 새 리더가 되는데, 그때 또 Error가 나면 "조인자가
+        // 정상 복귀한다"는 이 테스트의 판정이 인터리빙에 따라 흔들린다.
+        AtomicBoolean firstCall = new AtomicBoolean(true);
+        doAnswer(invocation -> {
+            if (!firstCall.compareAndSet(true, false)) {
+                return List.of();
+            }
+            bm25Entered.countDown();
+            releaseBm25.await(5, TimeUnit.SECONDS);
+            throw new LeaderCrash();
+        }).when(articleRepository).searchByBM25(contains(uniqueTerm), anyInt());
+
+        // try-with-resources를 쓰지 않는다: 회귀 시 조인자가 영원히 매달려 close()가
+        // 스위트 전체를 멈춰 세운다. 아래 get(timeout)으로 '실패'하게 두는 편이 낫다.
+        ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+        try {
+            Future<Page<ArticleSearchResultDto>> leaderFuture = executor.submit(() ->
+                    articleSearchService.searchArticlesHybrid(
+                            keyword, Map.of(uniqueTerm, 1.0), null, null, 0, 10, "relevance", null, null));
+
+            // 리더가 코어 계산에 진입 = future가 이미 캐시에 등록된 시점
+            assertThat(bm25Entered.await(5, TimeUnit.SECONDS)).isTrue();
+
+            Future<ArticleSearchService.HybridTopArticles> joinerFuture = executor.submit(() ->
+                    articleSearchService.getTopArticleIdsByHybrid(keyword, 3));
+            // 조인자가 확실히 대기 상태로 들어간 뒤에 리더를 죽인다 (관측 가능한 훅이 없어 짧은 대기로 재현)
+            Thread.sleep(300);
+
+            releaseBm25.countDown();
+
+            // 리더는 Error를 그대로 호출자에게 올려보낸다 (삼키지 않는다)
+            assertThatThrownBy(() -> leaderFuture.get(10, TimeUnit.SECONDS))
+                    .hasRootCauseInstanceOf(LeaderCrash.class);
+
+            // 핵심: 조인자가 무한 대기하지 않고 복귀한다.
+            // 조인 상한(30초)이 아니라 finally의 예외 완료로 즉시 풀리므로 10초면 충분하다.
+            assertThat(joinerFuture.get(10, TimeUnit.SECONDS)).isNotNull();
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /** 리더 스레드가 RuntimeException이 아닌 Throwable로 죽는 상황을 만드는 테스트 전용 마커 */
+    private static final class LeaderCrash extends Error {
+        private static final long serialVersionUID = 1L;
     }
 }
