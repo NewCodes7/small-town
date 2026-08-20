@@ -38,6 +38,19 @@ public class RestTemplateConfig {
         HttpComponentsClientHttpRequestFactory factory =
                 new HttpComponentsClientHttpRequestFactory(httpClient);
         factory.setReadTimeout(Duration.ofSeconds(15));
+        // 풀에서 커넥션을 빌리기까지의 대기 상한. 반드시 명시해야 한다 —
+        // 미설정 시 HttpClient5의 RequestConfig.DEFAULT_CONNECTION_REQUEST_TIMEOUT(=3분)이 적용된다
+        // (Spring의 mergeRequestConfig는 이 값이 -1이면 DEFAULT를 그대로 통과시킨다).
+        //
+        // 3분은 이 풀의 사용처와 전혀 맞지 않는다: Clova 임베딩이 이 템플릿을 쓰는데,
+        // 호출자는 vectorFuture.get(5초, ArticleSearchService)에서 이미 포기한다. 즉 커넥션
+        // 10개(maxConnPerRoute)가 모두 물린 순간부터 뒤따르는 임베딩 호출은 "아무도 기다리지 않는
+        // 응답"을 위해 최대 3분간 가상 스레드를 붙잡고, 그동안 새 요청은 계속 들어온다.
+        // 취소도 안 된다 — supplyAsync 태스크는 cancel(true)로 중단되지 않는다(해당 Javadoc 참고).
+        //
+        // 2초: 순간적인 버스트(커넥션 반납 대기)는 흡수하되, 풀이 실제로 고갈된 상황에서는
+        // 빠르게 실패시켜 벡터 검색을 건너뛰고 BM25-only로 degrade 되게 한다.
+        factory.setConnectionRequestTimeout(Duration.ofSeconds(2));
 
         RestTemplate restTemplate = new RestTemplate(factory);
         // 외부 API(Clova/DeepL 등) 호출을 trace span으로 기록
