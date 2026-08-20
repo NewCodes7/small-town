@@ -20,6 +20,14 @@ services:
       # 변인 격리 실험(merge+workers=2, testid 20260807-233530) 완료 후 최적값 0으로 원복.
       # (load-test/results/2026-08-06-search-ramp-limit-finder.md 참고)
       - DB_MAX_PARALLEL_WORKERS=${DB_MAX_PARALLEL_WORKERS:-0}
+      # JVM 메모리 상한 — Dockerfile:16의 ENV를 덮는다(ENTRYPOINT가 shell form이라 가능, 이미지 재빌드 없음).
+      # DB_POOL_SIZE와 동일한 실험 패턴이라 운영 .env에서 값만 바꾸고 재기동하면 A/B가 된다.
+      # Xmx 512 산정 근거(하한 p99x2=506 / 상한 예산 549)와 검증 쿼리는
+      # load-test/results/2026-08-17-search-ladder-5-10-15-20.md 5.11 참고.
+      # -Xms를 같이 안 내리면 512 고정 힙이 되어 유휴 절감이 0이다(5.9). Free-ratio + PeriodicGC가
+      # 유휴 시 힙을 OS로 반납하는 실제 레버다. 롤백은 .env에 아래 한 줄:
+      #   JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200
+      - JAVA_OPTS=${JAVA_OPTS:--Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:MaxMetaspaceSize=384m -XX:MinHeapFreeRatio=10 -XX:MaxHeapFreeRatio=30 -XX:G1PeriodicGCInterval=60000 -XX:+ExitOnOutOfMemoryError}
       - JWT_SECRET=${JWT_SECRET}
       - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
       - AWS_SECRET_KEY=${AWS_SECRET_KEY}
