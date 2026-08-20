@@ -180,7 +180,17 @@ main에 push → 배포하면 끝이다. nginx location 블록은 `deploy.sh`가
 > ```
 
 **반드시 `run-prod-test.sh`를 쓴다** — 이 모드는 Clova mock server가 필요하고, mock ECS 서비스는
-평시 desired-count 0이라 `run-task.sh`로 직접 돌리면 503이 난다. `run-prod-test.sh`가 테스트마다
+평시 desired-count 0이라 `run-task.sh`로 직접 돌리면 503이 난다.
+
+> ⚠️ **503이 안 날 수도 있다 (2026-08-20 실측).** 컨트롤러 가드는 `clova.loadtest-endpoint`
+> **프로퍼티가 비었을 때만** 503을 낸다. 프로퍼티는 설정돼 있고 **mock ECS 서비스만 죽어 있으면**
+> 가드를 통과하고, 임베딩이 조용히 실패해 **벡터 검색이 0건을 반환한 채 200으로 응답한다.**
+> 실제로 이 상태에서 사다리 5회를 돌려 BM25 전용 수치를 하이브리드 수치로 착각했다
+> (`results/2026-08-17-search-ladder-5-10-15-20.md` 9장).
+>
+> **판별법**: `[검색]` 로그의 `Vector: {}ms (embedding: {}, query: {}ms) ({}개)`를 볼 것.
+> `embedding: miss(0ms)` · `query: 0ms` · `(0개)`면 벡터가 안 돈 것이다.
+> `blks/req`도 하이브리드는 13,000대, BM25 전용은 2,000대로 자릿수가 다르다. `run-prod-test.sh`가 테스트마다
 자동으로 기동/종료한다.
 
 ```bash
