@@ -2,6 +2,7 @@ package com.newcodes7.small_town.embedding.service;
 
 import com.newcodes7.small_town.embedding.dto.ModelEmbeddingResult;
 import com.newcodes7.small_town.embedding.util.TokenCounter;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +49,7 @@ public class EmbeddingApiService implements EmbeddingService {
     private final RestTemplate restTemplate;
     private final TokenCounter tokenCounter;
     private final ObjectMapper objectMapper;
+    private final EmbeddingCircuitBreaker circuitBreaker;
 
     @Override
     public ModelEmbeddingResult generateEmbedding(String text, String wholeDocument) {
@@ -61,81 +63,104 @@ public class EmbeddingApiService implements EmbeddingService {
     public ModelEmbeddingResult generateEmbedding(String text, String wholeDocument, boolean useMockEndpoint) {
         long startTime = System.currentTimeMillis();
 
+        // 오설정은 차단기 밖에서 처리한다 — 실패로 집계하면 설정 실수가 차단기를 열어 원인을 가린다
+        if (useMockEndpoint && (loadTestEndpoint == null || loadTestEndpoint.isBlank())) {
+            String message = "부하테스트 mock 임베딩 요청인데 clova.loadtest-endpoint가 비어 있습니다 (CLOVA_LOADTEST_ENDPOINT 확인)";
+            log.error("임베딩 생성 실패: {}", message);
+            return failureResult(startTime, message);
+        }
+
         try {
-            if (useMockEndpoint && (loadTestEndpoint == null || loadTestEndpoint.isBlank())) {
-                throw new IllegalStateException(
-                        "부하테스트 mock 임베딩 요청인데 clova.loadtest-endpoint가 비어 있습니다 (CLOVA_LOADTEST_ENDPOINT 확인)");
-            }
-            // 토큰 수 계산
-            int tokenUsage = tokenCounter.countTokens(text);
-
-            // API 요청 구성
-            HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", "Bearer " + apiKey);
-            headers.set("Content-Type", "application/json");
-            headers.set("X-NCP-CLOVASTUDIO-REQUEST-ID", REQUEST_ID);
-
-            Map<String, Object> requestBody = Map.of(
-                "text", text
-            );
-
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-
-            // API 호출
-            ResponseEntity<String> response = restTemplate.exchange(
-                    useMockEndpoint ? loadTestEndpoint : EMBEDDING_API_URL,
-                    HttpMethod.POST,
-                    entity,
-                    String.class
-            );
-
-            long responseTime = System.currentTimeMillis() - startTime;
-
-            // 응답 파싱
-            JsonNode rootNode = objectMapper.readTree(response.getBody());
-
-            JsonNode result = rootNode.get("result");
-            if (result == null) {
-                result = rootNode;  // fallback: root에 바로 embedding이 있을 수 있음
-            }
-
-            JsonNode embeddingNode = result.get("embedding");
-
-            if (embeddingNode == null) {
-                throw new RuntimeException("Embedding API 응답에 embedding이 없습니다: " + response.getBody());
-            }
-
-            float[] embeddingVector = parseEmbeddingVector(embeddingNode);
-
-            // 비용 계산
-            double cost = calculateCost(tokenUsage);
-
-            log.info("임베딩 생성 완료: {} tokens, {}ms, ${}",
-                     tokenUsage, responseTime, String.format("%.6f", cost));
-
-            return ModelEmbeddingResult.builder()
-                    .modelName(getModelName())
-                    .dimension(embeddingVector.length)  // 실제 차원 수 사용
-                    .responseTimeMs(responseTime)
-                    .tokenUsage(tokenUsage)
-                    .estimatedCost(cost)
-                    .promptCachingUsed(false)
-                    .success(true)
-                    .embedding(embeddingVector)
-                    .build();
-
+            return circuitBreaker.execute(() -> callEmbeddingApi(text, useMockEndpoint, startTime));
+        } catch (CallNotPermittedException e) {
+            // 차단기 OPEN — Clova를 호출하지 않았다. 호출부는 기존 실패 경로를 그대로 타
+            // 벡터 검색을 건너뛰고 BM25-only로 degrade 된다. 건너뛴 호출마다 로그를 남기지 않는 이유는
+            // EmbeddingCircuitBreaker Javadoc 참고(상태 전이에서만 남긴다).
+            return failureResult(startTime, "임베딩 서킷 브레이커 OPEN — Clova 호출을 건너뜁니다");
         } catch (Exception e) {
             long responseTime = System.currentTimeMillis() - startTime;
             log.error("임베딩 생성 실패: {}", e.getMessage(), e);
-
-            return ModelEmbeddingResult.builder()
-                    .modelName(getModelName())
-                    .dimension(DIMENSION)
-                    .responseTimeMs(responseTime)
-                    .success(false)
-                    .errorMessage(e.getMessage())
-                    .build();
+            return failureResult(e.getMessage(), responseTime);
         }
+    }
+
+    /** 실패 결과 DTO. 차단기가 실패를 집계할 수 있도록 예외는 이 메서드 밖으로 던진다. */
+    private ModelEmbeddingResult failureResult(long startTime, String errorMessage) {
+        return failureResult(errorMessage, System.currentTimeMillis() - startTime);
+    }
+
+    private ModelEmbeddingResult failureResult(String errorMessage, long responseTimeMs) {
+        return ModelEmbeddingResult.builder()
+                .modelName(getModelName())
+                .dimension(DIMENSION)
+                .responseTimeMs(responseTimeMs)
+                .success(false)
+                .errorMessage(errorMessage)
+                .build();
+    }
+
+    /**
+     * 실제 Clova 호출. 서킷 브레이커가 성공/실패를 집계할 수 있도록 <b>예외를 삼키지 않는다</b>.
+     * 예외 분류(무엇을 실패로 셀지)는 EmbeddingCircuitBreaker.isIgnored 참고.
+     */
+    private ModelEmbeddingResult callEmbeddingApi(String text, boolean useMockEndpoint, long startTime) {
+        // 토큰 수 계산
+        int tokenUsage = tokenCounter.countTokens(text);
+
+        // API 요청 구성
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + apiKey);
+        headers.set("Content-Type", "application/json");
+        headers.set("X-NCP-CLOVASTUDIO-REQUEST-ID", REQUEST_ID);
+
+        Map<String, Object> requestBody = Map.of(
+            "text", text
+        );
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+
+        // API 호출
+        ResponseEntity<String> response = restTemplate.exchange(
+                useMockEndpoint ? loadTestEndpoint : EMBEDDING_API_URL,
+                HttpMethod.POST,
+                entity,
+                String.class
+        );
+
+        long responseTime = System.currentTimeMillis() - startTime;
+
+        // 응답 파싱
+        JsonNode rootNode = objectMapper.readTree(response.getBody());
+
+        JsonNode result = rootNode.get("result");
+        if (result == null) {
+            result = rootNode;  // fallback: root에 바로 embedding이 있을 수 있음
+        }
+
+        JsonNode embeddingNode = result.get("embedding");
+
+        if (embeddingNode == null) {
+            throw new RuntimeException("Embedding API 응답에 embedding이 없습니다: " + response.getBody());
+        }
+
+        float[] embeddingVector = parseEmbeddingVector(embeddingNode);
+
+        // 비용 계산
+        double cost = calculateCost(tokenUsage);
+
+        log.info("임베딩 생성 완료: {} tokens, {}ms, ${}",
+                 tokenUsage, responseTime, String.format("%.6f", cost));
+
+        return ModelEmbeddingResult.builder()
+                .modelName(getModelName())
+                .dimension(embeddingVector.length)  // 실제 차원 수 사용
+                .responseTimeMs(responseTime)
+                .tokenUsage(tokenUsage)
+                .estimatedCost(cost)
+                .promptCachingUsed(false)
+                .success(true)
+                .embedding(embeddingVector)
+                .build();
     }
 
     @Override

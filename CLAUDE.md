@@ -69,7 +69,7 @@ com.newcodes7.small_town/
 
 - **운영**: PostgreSQL + pgvector + ParadeDB(pg_search)
 - **테스트**: PostgreSQL `small_town_test` (H2 미사용, `create-drop`)
-- **마이그레이션**: Flyway (`src/main/resources/db/migration/`), 현재 최신 버전 V1_37
+- **마이그레이션**: Flyway (`src/main/resources/db/migration/`), 현재 최신 버전 V1_38
 
 > **V1_13 주의**: `V1_13__create_hacker_news_tables.sql`과 `V1_13_1__drop_article_legacy_embedding_columns.sql` — Flyway가 어느 쪽을 적용했는지 확인 필요할 때는 DB `flyway_schema_history` 조회.
 > `article_search_view` Materialized View는 V1_15에서 삭제됨 — 구 코드에서 참조하면 오류, `article_analyzed_content` 테이블로 교체.
@@ -182,6 +182,20 @@ EmbeddingFailure     (실패 로그)
 
 서비스: `EmbeddingService` (단일), `ChunkEmbeddingBatchService` (배치), `EmbeddingApiService` (Clova API), `RelatedArticleService` (추천), `RepresentativeChunkService` (대표 청크)
 
+**서킷 브레이커** (`EmbeddingCircuitBreaker`, resilience4j core): Clova 장애 시 호출 자체를 건너뛴다.
+
+- 적용: `EmbeddingApiService.callEmbeddingApi` — **애노테이션이 아니라 메서드 본문에서 감싼다.**
+  2-arg → 3-arg self-invocation 구조라 프록시 AOP는 어느 쪽에 달아도 한쪽 경로가 뚫린다
+- 폴백은 새로 만들지 않았다 — 임베딩 실패는 이미 `VectorSearchService` 빈 결과 → BM25-only로 흐른다
+- **실패 분류**: 4xx(키 만료·잘못된 요청)는 `ignoreException`으로 집계에서 제외.
+  ⚠️ `recordException`이 false를 돌려주면 resilience4j는 그 예외를 **성공으로** 집계하므로
+  반드시 ignore 쪽으로 빼야 한다. 408/429는 백오프 신호라 실패로 집계
+- 느린 호출 비율도 본다 — Clova 장애는 에러보다 느려짐으로 오는 경우가 많다
+- 설정: `embedding_circuit_config` 테이블 (V1_38), admin `/admin/search/weights` 하단 섹션에서 변경·수동 리셋
+- 로그는 **상태 전이에만** 남긴다(호출마다 X). 메트릭: `embedding_circuit_state`(0=CLOSED/1=OPEN/2=HALF_OPEN),
+  `embedding_circuit_failure_rate`, `embedding_circuit_slow_call_rate`, `embedding_circuit_calls_total{result="not_permitted"}`
+- 의존성은 `resilience4j-circuitbreaker` core만 쓴다 (starter 미사용, 이유는 build.gradle 주석)
+
 ### 9. 주요 엔티티 관계
 
 ```
@@ -224,7 +238,7 @@ AdminNotification
 
 | API | 용도 | 설정 키 |
 |-----|------|---------|
-| **Naver Clova** | 임베딩 v2 (1024차원) | `clova.api-key` (`nv-` prefix 자동) |
+| **Naver Clova** | 임베딩 v2 (1024차원) | `clova.api-key` (`nv-` prefix 자동). 서킷 브레이커 적용 — 위 8번 참고 |
 | **Google Gemini** | AI 요약(레거시) SSE, RAG 채팅 LLM 옵션 | `gemini.api-key`, `gemini.model` |
 | **OpenAI** | 아티클 요약/분석 (Responses API), RAG 채팅 LLM 옵션 | `openai.api-key` |
 | **AWS Bedrock** | RAG 채팅 기본 LLM (Claude, Bedrock mantle 경유) | `BEDROCK_API_KEY` |
@@ -345,5 +359,6 @@ GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_REDIRECT_URI
 | Gemini AI 요약 실패 | `gemini.api-key` 확인, SSE emitter timeout 확인 |
 | RAG 채팅 실패 | 모델 ID가 `rag.models`에 등록됐는지, `BEDROCK_API_KEY`/`rag.chat.preprocess-model-id` 확인, SSE 타임아웃(150s) 확인 |
 | pgvector 오류 | `CREATE EXTENSION IF NOT EXISTS vector;` 실행 |
+| 임베딩이 계속 실패 | 차단기가 OPEN인지 먼저 확인 (`embedding_circuit_state`=1 또는 admin 화면). 복구 확인 후 "즉시 닫기"로 수동 리셋 가능. 4xx(키 만료)는 차단기를 열지 않으므로 로그의 실제 상태 코드를 볼 것 |
 | 검색이 429를 반환 | 정상 동작(동시 실행 상한 도달). 한도는 admin `/admin/search/weights` 하단에서 조정 — `search_concurrency_requests_total{result="rejected"}` 확인 |
 | 외부 API 호출이 오래 매달림 | `RestTemplate`에 `connectionRequestTimeout`을 반드시 명시할 것 — 미설정 시 HttpClient5 기본값이 **3분**이다 (`setReadTimeout`만으로는 적용 안 됨) |

@@ -46,6 +46,14 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-cache'
 	implementation 'com.github.ben-manes.caffeine:caffeine'
 
+	// 서킷 브레이커 (Clova 임베딩 호출 보호). core 모듈만 프로그래밍 방식으로 쓴다:
+	//  - Boot 4 지원은 2.4.0부터인데 BOM에 resilience4j-spring-boot4가 누락돼 있다(PR #2420 머지, 미릴리스)
+	//    → BOM을 경유하지 않고 버전을 명시한다
+	//  - starter의 @CircuitBreaker(프록시 AOP)는 이 코드에서 무력하다: EmbeddingApiService의
+	//    2-arg → 3-arg self-invocation을 프록시가 가로채지 못해 어느 쪽에 달아도 한쪽 경로가 뚫린다
+	//  - Framework 7의 내장 resilience(@Retryable/@ConcurrencyLimit)에는 서킷 브레이커가 없다
+	implementation 'io.github.resilience4j:resilience4j-circuitbreaker:2.4.0'
+
 	// 모니터링
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'io.micrometer:micrometer-registry-prometheus'
