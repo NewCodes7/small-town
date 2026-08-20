@@ -25,9 +25,13 @@ services:
       # Xmx 512 산정 근거(하한 p99x2=506 / 상한 예산 549)와 검증 쿼리는
       # load-test/results/2026-08-17-search-ladder-5-10-15-20.md 5.11 참고.
       # -Xms를 같이 안 내리면 512 고정 힙이 되어 유휴 절감이 0이다(5.9). Free-ratio + PeriodicGC가
-      # 유휴 시 힙을 OS로 반납하는 실제 레버다. 롤백은 .env에 아래 한 줄:
+      # 유휴 시 힙을 OS로 반납하는 실제 레버다(유휴 커밋 543 -> 276 실측).
+      # SystemLoadThreshold=1: 주기 GC는 "GC가 60초간 없었던 = 페이지가 가장 차가운" 시점에 돌아서,
+      # 크롤링 창(load1 1.56~17.98)에 걸리면 스왑 폴트인으로 15.877초 정지가 났다(5.12).
+      # load1 > 1이면 그 회차를 취소한다 — 유휴(중앙값 0.04)에서는 그대로 돌아 반납은 유지된다.
+      # 롤백은 .env에 아래 한 줄:
       #   JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200
-      - JAVA_OPTS=${JAVA_OPTS:--Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:MaxMetaspaceSize=384m -XX:MinHeapFreeRatio=10 -XX:MaxHeapFreeRatio=30 -XX:G1PeriodicGCInterval=60000 -XX:+ExitOnOutOfMemoryError}
+      - JAVA_OPTS=${JAVA_OPTS:--Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:MaxMetaspaceSize=384m -XX:MinHeapFreeRatio=10 -XX:MaxHeapFreeRatio=30 -XX:G1PeriodicGCInterval=60000 -XX:G1PeriodicGCSystemLoadThreshold=1 -XX:+ExitOnOutOfMemoryError}
       - JWT_SECRET=${JWT_SECRET}
       - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
       - AWS_SECRET_KEY=${AWS_SECRET_KEY}
