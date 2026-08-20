@@ -354,6 +354,13 @@ class ArticleManager {
 
             // CSR: fetch API로 JSON 데이터 로드
             const response = await fetch(`/api/search/articles?${params.toString()}`);
+            // 429는 "결과가 없다"가 아니라 "서버가 지금 혼잡하다"이므로 따로 안내한다.
+            // 서버가 동시 실행 상한에 도달해 요청을 흘려보낸 상태 (SearchConcurrencyLimiter 참고).
+            if (response.status === 429) {
+                const retryAfter = parseInt(response.headers.get('Retry-After'), 10);
+                this.showBusyState(Number.isInteger(retryAfter) && retryAfter > 0 ? retryAfter : 1);
+                return;
+            }
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -809,6 +816,24 @@ class ArticleManager {
                 <div class="alert alert-warning text-center">
                     <i class="fas fa-exclamation-triangle mb-2"></i>
                     <p>글을 불러오는 중 오류가 발생했습니다.</p>
+                    <button class="btn btn-primary" onclick="articleManager.loadArticles()">
+                        다시 시도
+                    </button>
+                </div>
+            `;
+        }
+    }
+
+    showBusyState(retryAfterSeconds) {
+        const activeContainer = this.currentView === 'grouped'
+            ? document.querySelector('#article-grouped-container')
+            : document.querySelector('#article-list-container');
+        if (activeContainer) {
+            activeContainer.innerHTML = `
+                <div class="alert alert-info text-center">
+                    <i class="fas fa-hourglass-half mb-2"></i>
+                    <p>지금 검색 요청이 많아 잠시 처리할 수 없습니다.<br>
+                       ${retryAfterSeconds}초 후 다시 시도해 주세요.</p>
                     <button class="btn btn-primary" onclick="articleManager.loadArticles()">
                         다시 시도
                     </button>

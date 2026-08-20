@@ -69,7 +69,7 @@ com.newcodes7.small_town/
 
 - **운영**: PostgreSQL + pgvector + ParadeDB(pg_search)
 - **테스트**: PostgreSQL `small_town_test` (H2 미사용, `create-drop`)
-- **마이그레이션**: Flyway (`src/main/resources/db/migration/`), 현재 최신 버전 V1_32
+- **마이그레이션**: Flyway (`src/main/resources/db/migration/`), 현재 최신 버전 V1_37
 
 > **V1_13 주의**: `V1_13__create_hacker_news_tables.sql`과 `V1_13_1__drop_article_legacy_embedding_columns.sql` — Flyway가 어느 쪽을 적용했는지 확인 필요할 때는 DB `flyway_schema_history` 조회.
 > `article_search_view` Materialized View는 V1_15에서 삭제됨 — 구 코드에서 참조하면 오류, `article_analyzed_content` 테이블로 교체.
@@ -102,6 +102,24 @@ Clova Embedding v2 (1024차원), 2단계 검색:
 - 의미 확장: `SemanticTermExpansionService` — TermSynonym 기반 유의어 확장
 - 따옴표 검색 지원 (정확한 구문 매칭)
 - `SearchQueryEmbedding`: 쿼리별 임베딩 캐싱 (halfvec(1024))
+- **single-flight**: 같은 키워드의 동시 요청은 첫 진입자만 계산하고 나머지는 in-flight future에 합류
+  (`hybridCoreCache`). 리더는 `finally`에서 future를 반드시 종료시키고, 조인자는 30초 상한으로
+  대기한다 — 미완료 future가 남으면 그 키워드의 모든 후속 요청이 영구 정지한다
+
+### 3-1. 유입 제어 (admission control)
+
+`SearchConcurrencyLimiter` — 검색 API 동시 실행 수를 세마포어로 상한 짓고 초과분은 **429**로 거절.
+
+- 적용 지점: `ArticleSearchController` / `ArticleSearchLoadTestController` **진입점**
+- 한도: `search_concurrency_config` 테이블에서 동적 관리 (admin `/admin/search/weights` 페이지 하단 섹션),
+  DB 로드 실패 시 기본값(15 / 300ms)으로 폴백
+- 근거: Tomcat은 동시 300건을 받는데 실측 정점은 VU10에서 14.3 RPS, VU15에서 꺾인다.
+  그 사이를 막지 않으면 HikariCP 풀(5) 앞에 큐가 쌓여 congestion collapse가 난다
+- 레이트 리밋이 아니라 **동시성 제한**인 이유: 싼 요청(캐시 히트)은 permit을 금방 놓아 자동으로 통과하고,
+  느린 요청일수록 오래 물려 자동으로 조여진다 — 부하 적응적이다
+- 거절은 **로그를 남기지 않는다** (과부하 시 appender 락 경합을 유발). 관측은 메트릭으로:
+  `search_concurrency_requests_total{result=accepted|rejected}`, `search_concurrency_in_use`,
+  `search_concurrency_limit`, `search_concurrency_acquire_wait`
 
 ### 4. AI 요약(레거시) vs RAG 채팅(신규) — 두 개의 SSE 스트리밍 답변 시스템이 공존
 
@@ -327,3 +345,5 @@ GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_REDIRECT_URI
 | Gemini AI 요약 실패 | `gemini.api-key` 확인, SSE emitter timeout 확인 |
 | RAG 채팅 실패 | 모델 ID가 `rag.models`에 등록됐는지, `BEDROCK_API_KEY`/`rag.chat.preprocess-model-id` 확인, SSE 타임아웃(150s) 확인 |
 | pgvector 오류 | `CREATE EXTENSION IF NOT EXISTS vector;` 실행 |
+| 검색이 429를 반환 | 정상 동작(동시 실행 상한 도달). 한도는 admin `/admin/search/weights` 하단에서 조정 — `search_concurrency_requests_total{result="rejected"}` 확인 |
+| 외부 API 호출이 오래 매달림 | `RestTemplate`에 `connectionRequestTimeout`을 반드시 명시할 것 — 미설정 시 HttpClient5 기본값이 **3분**이다 (`setReadTimeout`만으로는 적용 안 됨) |

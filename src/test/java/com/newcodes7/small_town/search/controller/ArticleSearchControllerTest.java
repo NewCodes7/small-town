@@ -2,6 +2,7 @@ package com.newcodes7.small_town.search.controller;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -13,6 +14,7 @@ import com.newcodes7.small_town.global.entity.ArticleTerm;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.entity.Term;
 import com.newcodes7.small_town.global.entity.TermSource;
+import com.newcodes7.small_town.search.service.SearchConcurrencyLimiter;
 import com.newcodes7.small_town.term.repository.ArticleTermRepository;
 import com.newcodes7.small_town.term.repository.TermRepository;
 import com.newcodes7.small_town.utils.ArticleCreator;
@@ -39,6 +41,9 @@ public class ArticleSearchControllerTest extends IntegrationTestBase {
 
     @Autowired
     private ArticleRepository articleRepository;
+
+    @Autowired
+    private SearchConcurrencyLimiter searchConcurrencyLimiter;
 
     @Autowired
     private CorporationRepository corporationRepository;
@@ -309,5 +314,36 @@ public class ArticleSearchControllerTest extends IntegrationTestBase {
             .andExpect(jsonPath("$.content").isArray())
             .andExpect(jsonPath("$.content.length()").value(0))
             .andExpect(jsonPath("$.totalElements").value(0));
+    }
+
+    /**
+     * 동시 실행 상한을 넘긴 요청은 5xx가 아니라 429로 즉시 돌아와야 한다.
+     * "결과 없음"(200 + 빈 배열)과 구분되는 응답이어야 프론트가 안내를 달리 띄울 수 있다
+     * (articleManager.showBusyState).
+     */
+    @Test
+    public void 동시_실행_상한을_넘기면_429와_RetryAfter를_돌려준다() throws Exception {
+        int acquired = 0;
+        try {
+            // 상한만큼 permit을 미리 소진시킨다 (테스트 DB에는 설정 행이 없어 기본값 15가 적용된다)
+            while (acquired < 100 && searchConcurrencyLimiter.tryAcquire()) {
+                acquired++;
+            }
+            assertThat(acquired)
+                    .as("permit을 하나도 잡지 못하면 이 테스트는 아무것도 검증하지 못한다")
+                    .isGreaterThan(0);
+
+            mockMvc.perform(get("/api/search/articles")
+                            .param("keyword", "kafka")
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isTooManyRequests())
+                    .andExpect(header().string("Retry-After", "1"))
+                    .andExpect(jsonPath("$.error").value("SEARCH_BUSY"))
+                    .andExpect(jsonPath("$.retryAfterSeconds").value(1));
+        } finally {
+            for (int i = 0; i < acquired; i++) {
+                searchConcurrencyLimiter.release();
+            }
+        }
     }
 }

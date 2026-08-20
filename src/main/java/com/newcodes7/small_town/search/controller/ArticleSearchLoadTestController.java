@@ -3,6 +3,7 @@ package com.newcodes7.small_town.search.controller;
 import com.newcodes7.small_town.article.dto.ArticleResponseDto;
 import com.newcodes7.small_town.global.util.Client;
 import com.newcodes7.small_town.search.service.ArticleSearchService;
+import com.newcodes7.small_town.search.service.SearchConcurrencyLimiter;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.List;
@@ -40,6 +41,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class ArticleSearchLoadTestController {
 
     private final ArticleSearchService articleSearchService;
+    private final SearchConcurrencyLimiter searchConcurrencyLimiter;
 
     @Value("${search.loadtest.enabled:false}")
     private boolean loadTestEnabled;
@@ -69,39 +71,48 @@ public class ArticleSearchLoadTestController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "keyword는 필수입니다");
         }
 
-        String trimmedKeyword = keyword.trim().toLowerCase();
-        String effectiveSort = sort != null ? sort : "relevance";
-        String clientIp = Client.getClientIpAddress(request);
+        // 실사용자 경로와 같은 동시성 상한을 적용한다 — 부하테스트가 실제 경로를 재현해야 하기 때문이다.
+        // 용량(무릎) 자체를 다시 재려면 admin에서 한도를 올린 뒤 돌린다(재배포 불필요).
+        if (!searchConcurrencyLimiter.tryAcquire()) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "검색 동시 실행 상한 초과");
+        }
+        try {
+            String trimmedKeyword = keyword.trim().toLowerCase();
+            String effectiveSort = sort != null ? sort : "relevance";
+            String clientIp = Client.getClientIpAddress(request);
 
-        // 검색어 확장을 미리 부르지 않는다 — 실사용자 경로(ArticleSearchController)와 동일한 순서를
-        // 유지해야 k6 측정이 실제 경로를 재현한다. expandedTerms=null이면 코어 내부에서
-        // Clova 임베딩 호출이 뜬 뒤에 확장이 돌아 임베딩 대기에 겹친다.
-        Page<ArticleResponseDto> articles = articleSearchService.searchArticlesHybrid(
-                trimmedKeyword,
-                null,
-                regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
-                category == null || category.isEmpty() ? null : category.stream().sorted().toList(),
-                page,
-                size,
-                effectiveSort,
-                clientIp,
-                null,
-                true
-        ).map(dto -> (ArticleResponseDto) dto);
+            // 검색어 확장을 미리 부르지 않는다 — 실사용자 경로(ArticleSearchController)와 동일한 순서를
+            // 유지해야 k6 측정이 실제 경로를 재현한다. expandedTerms=null이면 코어 내부에서
+            // Clova 임베딩 호출이 뜬 뒤에 확장이 돌아 임베딩 대기에 겹친다.
+            Page<ArticleResponseDto> articles = articleSearchService.searchArticlesHybrid(
+                    trimmedKeyword,
+                    null,
+                    regions == null || regions.isEmpty() ? null : regions.stream().sorted().toList(),
+                    category == null || category.isEmpty() ? null : category.stream().sorted().toList(),
+                    page,
+                    size,
+                    effectiveSort,
+                    clientIp,
+                    null,
+                    true
+            ).map(dto -> (ArticleResponseDto) dto);
 
-        // 응답 형태는 실사용자 경로와 동일하게 유지 — k6가 같은 방식으로 파싱/검증할 수 있도록.
-        // 단 searchLogService.logSearchAsync는 호출하지 않는다 (search_log 오염 방지).
-        Map<String, Object> response = new HashMap<>();
-        response.put("content", articles.getContent());
-        response.put("currentPage", page);
-        response.put("totalPages", articles.getTotalPages());
-        response.put("totalElements", articles.getTotalElements());
-        response.put("hasNext", articles.hasNext());
-        response.put("hasPrevious", articles.hasPrevious());
-        response.put("currentSort", effectiveSort);
-        response.put("keyword", keyword);
-        response.put("view", "list");
+            // 응답 형태는 실사용자 경로와 동일하게 유지 — k6가 같은 방식으로 파싱/검증할 수 있도록.
+            // 단 searchLogService.logSearchAsync는 호출하지 않는다 (search_log 오염 방지).
+            Map<String, Object> response = new HashMap<>();
+            response.put("content", articles.getContent());
+            response.put("currentPage", page);
+            response.put("totalPages", articles.getTotalPages());
+            response.put("totalElements", articles.getTotalElements());
+            response.put("hasNext", articles.hasNext());
+            response.put("hasPrevious", articles.hasPrevious());
+            response.put("currentSort", effectiveSort);
+            response.put("keyword", keyword);
+            response.put("view", "list");
 
-        return ResponseEntity.ok(response);
+            return ResponseEntity.ok(response);
+        } finally {
+            searchConcurrencyLimiter.release();
+        }
     }
 }

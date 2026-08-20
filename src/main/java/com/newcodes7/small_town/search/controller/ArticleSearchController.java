@@ -7,6 +7,7 @@ import com.newcodes7.small_town.search.dto.SearchClickRequestDto;
 import com.newcodes7.small_town.search.entity.SearchLog;
 import com.newcodes7.small_town.search.service.ArticleSearchService;
 import com.newcodes7.small_town.search.service.SearchClickLogService;
+import com.newcodes7.small_town.search.service.SearchConcurrencyLimiter;
 import com.newcodes7.small_town.search.service.SearchLogService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
@@ -16,6 +17,8 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -32,7 +35,13 @@ public class ArticleSearchController {
     private final ArticleSearchService articleSearchService;
     private final SearchLogService searchLogService;
     private final SearchClickLogService searchClickLogService;
+    private final SearchConcurrencyLimiter searchConcurrencyLimiter;
 
+    /**
+     * 검색 진입점. 동시 실행 수 상한을 여기서 적용한다 — 초과분은 대기시키지 않고 429로 돌려보낸다.
+     * 상한을 넘겨 받아봐야 HikariCP 풀(5) 앞에 줄만 서다 3초 뒤 5xx가 되기 때문이다
+     * (load-test/results/2026-08-06-search-ramp-limit-finder.md). 근거는 SearchConcurrencyLimiter 참고.
+     */
     @GetMapping("/articles")
     public ResponseEntity<Map<String, Object>> searchArticles(
             @RequestParam(name = "page", defaultValue = "0") int page,
@@ -43,6 +52,32 @@ public class ArticleSearchController {
             @RequestParam(name = "view", defaultValue = "list") String view,
             @RequestParam(name = "category", required = false) List<String> category,
             @AuthenticationPrincipal UserDetails userDetails,
+            HttpServletRequest request) {
+
+        if (!searchConcurrencyLimiter.tryAcquire()) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .header(HttpHeaders.RETRY_AFTER, "1")
+                    .body(Map.of(
+                            "error", "SEARCH_BUSY",
+                            "message", "검색 요청이 많아 잠시 처리할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+                            "retryAfterSeconds", 1));
+        }
+        try {
+            return doSearchArticles(page, size, sort, keyword, regions, view, category, userDetails, request);
+        } finally {
+            searchConcurrencyLimiter.release();
+        }
+    }
+
+    private ResponseEntity<Map<String, Object>> doSearchArticles(
+            int page,
+            int size,
+            String sort,
+            String keyword,
+            List<String> regions,
+            String view,
+            List<String> category,
+            UserDetails userDetails,
             HttpServletRequest request) {
 
         // 요청 데이터 미리 추출 (비동기 검색 로그용, 경량 연산)

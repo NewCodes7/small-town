@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import com.newcodes7.small_town.search.dto.ArticleSearchResultDto;
 import com.newcodes7.small_town.search.service.ArticleSearchService;
+import com.newcodes7.small_town.search.service.SearchConcurrencyLimiter;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,14 +40,16 @@ import org.springframework.web.server.ResponseStatusException;
 class ArticleSearchLoadTestControllerTest {
 
     @Mock private ArticleSearchService articleSearchService;
+    @Mock private SearchConcurrencyLimiter searchConcurrencyLimiter;
 
     private ArticleSearchLoadTestController controller;
     private HttpServletRequest request;
 
     @BeforeEach
     void setUp() {
-        controller = new ArticleSearchLoadTestController(articleSearchService);
+        controller = new ArticleSearchLoadTestController(articleSearchService, searchConcurrencyLimiter);
         request = new MockHttpServletRequest();
+        when(searchConcurrencyLimiter.tryAcquire()).thenReturn(true);
         when(articleSearchService.searchArticlesHybrid(
                 anyString(), any(), any(), any(), anyInt(), anyInt(), anyString(), any(), any(), any(Boolean.class)))
                 .thenReturn(Page.<ArticleSearchResultDto>empty());
@@ -55,6 +58,24 @@ class ArticleSearchLoadTestControllerTest {
     private void enable(String clovaEndpoint) {
         ReflectionTestUtils.setField(controller, "loadTestEnabled", true);
         ReflectionTestUtils.setField(controller, "clovaLoadTestEndpoint", clovaEndpoint);
+    }
+
+    @Test
+    @DisplayName("동시 실행 상한을 넘기면 429 — 실사용자 경로와 같은 상한을 적용한다")
+    void overConcurrencyLimit_returns429() {
+        enable("http://llm-mock:9099");
+        when(searchConcurrencyLimiter.tryAcquire()).thenReturn(false);
+
+        assertThatThrownBy(() -> controller.searchArticlesForLoadTest(
+                0, 10, null, "kafka redis msa", null, null, request))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+
+        // 거절된 요청은 검색을 태우지 않고, permit을 잡지 않았으므로 반납도 하지 않는다
+        verify(articleSearchService, never()).searchArticlesHybrid(
+                anyString(), any(), any(), any(), anyInt(), anyInt(), anyString(), any(), any(), any(Boolean.class));
+        verify(searchConcurrencyLimiter, never()).release();
     }
 
     @Test
