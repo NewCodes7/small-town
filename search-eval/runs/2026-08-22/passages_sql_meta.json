@@ -1,0 +1,8 @@
+{
+  "runId": "2026-08-22",
+  "generatedAt": "2026-08-22T05:33:32.149029+00:00",
+  "pairs": 1174,
+  "uniqueArticles": 928,
+  "uniqueKeywords": 50,
+  "keywordNormalization": "trim().toLowerCase() + collapse whitespace (SearchQueryEmbeddingService:113)"
+}

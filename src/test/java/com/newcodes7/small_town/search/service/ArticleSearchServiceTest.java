@@ -29,6 +29,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -208,11 +209,11 @@ class ArticleSearchServiceTest {
         when(vectorSearchService.searchByKeywordWithEmbedding(eq(keyword), any(), any(), eq(false)))
                 .thenReturn(vectorResult);
 
-        // 교차 점수 보충 (빈 결과)
+        // 교차 점수 보충: 원본 반대쪽 최고점보다 크게 주어도 source rank에는 섞이면 안 된다.
         when(vectorSearchService.computeSimilarityForSearchCrossScoring(any(float[].class), anyList(), anyDouble()))
-                .thenReturn(Map.of());
+                .thenReturn(Map.of(2L, 0.99));
         when(articleRepository.computeBM25ScoreForArticleIds(eq(bm25Query), anyList()))
-                .thenReturn(Collections.emptyList());
+                .thenReturn(List.<Object[]>of(new Object[]{3L, 20.0}));
 
         // NSF 계산
         Map<Long, Double> nsfScores = Map.of(1L, 0.95, 2L, 0.25, 3L, 0.35);
@@ -251,6 +252,15 @@ class ArticleSearchServiceTest {
         assertThat(result.getTotalElements()).isEqualTo(3);
         // 첫 번째 결과는 NSF 스코어가 가장 높은 article 1
         assertThat(result.getContent().get(0).getId()).isEqualTo(1L);
+
+        Map<Long, ArticleSearchResultDto> byId = result.getContent().stream()
+                .collect(Collectors.toMap(ArticleSearchResultDto::getId, dto -> dto));
+        assertThat(byId.get(1L).getSourceBm25Rank()).isEqualTo(1);
+        assertThat(byId.get(1L).getSourceVectorRank()).isEqualTo(1);
+        assertThat(byId.get(2L).getSourceBm25Rank()).isEqualTo(2);
+        assertThat(byId.get(2L).getSourceVectorRank()).isNull();
+        assertThat(byId.get(3L).getSourceBm25Rank()).isNull();
+        assertThat(byId.get(3L).getSourceVectorRank()).isEqualTo(2);
     }
 
     @Test

@@ -1,0 +1,190 @@
+[
+  {
+    "keyword": "kubernetes",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "kafka",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "redis",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "msa",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "react",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "kotlin",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "jpa",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "docker",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "elasticsearch",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "코루틴",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "graphql",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "웹소켓",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "동시성",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "llm",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "rag",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "ci/cd",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "모니터링",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "캐시",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "spring boot",
+    "tier": "MODERATE"
+  },
+  {
+    "keyword": "대규모 트래픽",
+    "tier": "MODERATE"
+  },
+  {
+    "keyword": "성능 최적화",
+    "tier": "MODERATE"
+  },
+  {
+    "keyword": "벡터 검색",
+    "tier": "MODERATE"
+  },
+  {
+    "keyword": "테스트 코드",
+    "tier": "MODERATE"
+  },
+  {
+    "keyword": "장애 대응",
+    "tier": "MODERATE"
+  },
+  {
+    "keyword": "쿼리 최적화",
+    "tier": "MODERATE"
+  },
+  {
+    "keyword": "이벤트 드리븐",
+    "tier": "MODERATE"
+  },
+  {
+    "keyword": "데이터 파이프라인",
+    "tier": "MODERATE"
+  },
+  {
+    "keyword": "추천 시스템",
+    "tier": "MODERATE"
+  },
+  {
+    "keyword": "검색 엔진",
+    "tier": "MODERATE"
+  },
+  {
+    "keyword": "형태소 분석",
+    "tier": "MODERATE"
+  },
+  {
+    "keyword": "prompt engineering",
+    "tier": "MODERATE"
+  },
+  {
+    "keyword": "fine tuning",
+    "tier": "MODERATE"
+  },
+  {
+    "keyword": "circuit breaker",
+    "tier": "MODERATE"
+  },
+  {
+    "keyword": "커넥션 풀",
+    "tier": "MODERATE"
+  },
+  {
+    "keyword": "gc 튜닝",
+    "tier": "MODERATE"
+  },
+  {
+    "keyword": "virtual thread",
+    "tier": "MODERATE"
+  },
+  {
+    "keyword": "blue green 배포",
+    "tier": "COMPLEX"
+  },
+  {
+    "keyword": "react 상태관리 라이브러리 비교",
+    "tier": "COMPLEX"
+  },
+  {
+    "keyword": "검색 성능 최적화",
+    "tier": "COMPLEX"
+  },
+  {
+    "keyword": "마이크로서비스 아키텍처 설계",
+    "tier": "COMPLEX"
+  },
+  {
+    "keyword": "jpa n+1 문제 해결",
+    "tier": "COMPLEX"
+  },
+  {
+    "keyword": "kubernetes 운영 노하우",
+    "tier": "COMPLEX"
+  },
+  {
+    "keyword": "대용량 트래픽 처리",
+    "tier": "COMPLEX"
+  },
+  {
+    "keyword": "ci/cd 파이프라인 구축",
+    "tier": "COMPLEX"
+  },
+  {
+    "keyword": "데이터베이스 인덱스 최적화",
+    "tier": "COMPLEX"
+  },
+  {
+    "keyword": "spring security jwt 인증",
+    "tier": "COMPLEX"
+  },
+  {
+    "keyword": "docker 컨테이너 최적화",
+    "tier": "COMPLEX"
+  }
+]

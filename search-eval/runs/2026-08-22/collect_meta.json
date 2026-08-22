@@ -1,0 +1,12 @@
+{
+  "runId": "2026-08-22",
+  "startedAt": "2026-08-22T03:37:14.561712+00:00",
+  "finishedAt": "2026-08-22T03:39:05.504621+00:00",
+  "requestedSize": 300,
+  "delaySeconds": 1.5,
+  "queryCount": 50,
+  "querySetVersion": 3,
+  "querySetFrozenAt": "2026-08-22T11:22:00+09:00",
+  "throttled429": [],
+  "incompleteFetches": []
+}

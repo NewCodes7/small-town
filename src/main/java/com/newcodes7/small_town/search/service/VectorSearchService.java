@@ -5,6 +5,7 @@ import com.newcodes7.small_town.search.dto.AiSummaryChunkDto;
 import io.micrometer.observation.annotation.Observed;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -365,8 +366,9 @@ public class VectorSearchService {
      * 본검색 점수와 같고 모든 행이 본검색 결과로 취급된다.
      */
     private TwoStageRows parseTwoStageRows(List<Object[]> rows) {
-        Map<Long, Double> scores = new HashMap<>();
-        Map<Long, Double> candidateScores = new HashMap<>();
+        // SQL 반환 순서는 점수 동점의 최종 tie-breaker이므로 보존한다.
+        Map<Long, Double> scores = new LinkedHashMap<>();
+        Map<Long, Double> candidateScores = new LinkedHashMap<>();
 
         for (Object[] row : rows) {
             Long articleId = ((Number) row[0]).longValue();

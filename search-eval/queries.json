@@ -1,0 +1,715 @@
+{
+  "version": 3,
+  "frozenAt": "2026-08-22T11:22:00+09:00",
+  "note": "동결된 검색 정확도 평가 쿼리 세트. 설계: docs/testing/SEARCH_ACCURACY_EVAL_DESIGN.md §3-3. 변경 금지.",
+  "corpusSnapshot": {
+    "source": "GET /admin/embedding/embedding-stats (2026-08-22 10:28 KST)",
+    "totalArticles": 18743,
+    "articlesWithEmbedding": 18598,
+    "articleCoverage": "99.23%",
+    "totalChunks": 156157,
+    "chunkCoverage": "100.00%",
+    "articleAnalyzedContent": 18688,
+    "articleAnalyzedContentSource": "prod psql SELECT COUNT(*) (2026-08-22)"
+  },
+  "parameterSnapshot": {
+    "source": "GET /admin/search/weights (2026-08-22 10:47 KST) — DB search_weight_config",
+    "weights": {
+      "SIMPLE": {
+        "titleMultiplier": 2.5,
+        "bm25NsfWeight": 0.5,
+        "vectorNsfWeight": 0.5
+      },
+      "MODERATE": {
+        "titleMultiplier": 2.0,
+        "bm25NsfWeight": 0.5,
+        "vectorNsfWeight": 0.5
+      },
+      "COMPLEX": {
+        "titleMultiplier": 1.0,
+        "bm25NsfWeight": 0.35,
+        "vectorNsfWeight": 0.65
+      }
+    },
+    "vectorSimilarityThreshold": 0.52,
+    "vectorCandidateLimit": 200,
+    "vectorTopKChunks": 3,
+    "hnswEfSearch": 250,
+    "crossScoringStage2Limit": 20,
+    "crossScoringTwoStage": false,
+    "bm25SearchLimit": 100
+  },
+  "selectionRule": {
+    "tierBy": "SemanticTermExpansionService.classifyQueryComplexity — 공백 단어 수 (<=1 SIMPLE, <=2 MODERATE, else COMPLEX)",
+    "sources": [
+      "load-test/data/keywords.json (Zipfian rank 순)",
+      "VectorSearchAccuracyService.DEFAULT_TEST_QUERIES (COMPLEX 층 보강)"
+    ],
+    "SIMPLE": "혼용 불가(단일 토큰이라 풀 62건 중 혼용 0건) → 영문 rank top6 + 한글 rank top4",
+    "MODERATE": "혼용 2(전량) + 영문 rank top3 + 한글 rank top5",
+    "COMPLEX": "조립 순서 상위 10 (풀 11건 중)",
+    "exclusions": "결과 0건 쿼리 제외 규칙 — 후보 70건 전부 결과가 있어 실제 제외 0건",
+    "SPECIFIC": "자연어 의도 명시형 중 **맥락 고정**(기업명 없음). 기술·상황·의도가 명확한 검색어. 앱 분류로는 전부 COMPLEX — 파라미터 층이 아니라 쿼리 유형 층이다. 후보 11건 중 10건.",
+    "CORPORATION": "자연어 의도 명시형 중 **개체(기업) 고정** — '<기업>에서 ~한 사례' 형태. 기업명은 코퍼스에 실제 존재하는 것만 사용(검색 결과 corporation.name 표본으로 확인). 앱 분류로는 전부 COMPLEX. 후보 11건 중 10건."
+  },
+  "queries": [
+    {
+      "keyword": "kubernetes",
+      "tier": "SIMPLE",
+      "script": "english",
+      "probe": {
+        "totalElements": 174,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 1,
+        "latencyMs": 524
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "kafka",
+      "tier": "SIMPLE",
+      "script": "english",
+      "probe": {
+        "totalElements": 104,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 1,
+        "latencyMs": 368
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "redis",
+      "tier": "SIMPLE",
+      "script": "english",
+      "probe": {
+        "totalElements": 135,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 0,
+        "latencyMs": 374
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "msa",
+      "tier": "SIMPLE",
+      "script": "english",
+      "probe": {
+        "totalElements": 103,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 1,
+        "latencyMs": 458
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "react",
+      "tier": "SIMPLE",
+      "script": "english",
+      "probe": {
+        "totalElements": 151,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 0,
+        "latencyMs": 371
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "kotlin",
+      "tier": "SIMPLE",
+      "script": "english",
+      "probe": {
+        "totalElements": 134,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 0,
+        "latencyMs": 456
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "코루틴",
+      "tier": "SIMPLE",
+      "script": "korean",
+      "probe": {
+        "totalElements": 55,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 0,
+        "latencyMs": 504
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "웹소켓",
+      "tier": "SIMPLE",
+      "script": "korean",
+      "probe": {
+        "totalElements": 109,
+        "returnedTop20": 20,
+        "bm25Count": 16,
+        "vectorFoundCount": 4,
+        "latencyMs": 495
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "동시성",
+      "tier": "SIMPLE",
+      "script": "korean",
+      "probe": {
+        "totalElements": 106,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 1,
+        "latencyMs": 520
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "모니터링",
+      "tier": "SIMPLE",
+      "script": "korean",
+      "probe": {
+        "totalElements": 179,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 1,
+        "latencyMs": 554
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "gc 튜닝",
+      "tier": "MODERATE",
+      "script": "mixed",
+      "probe": {
+        "totalElements": 163,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 2,
+        "latencyMs": 497
+      },
+      "appTier": "MODERATE"
+    },
+    {
+      "keyword": "a/b 테스트",
+      "tier": "MODERATE",
+      "script": "mixed",
+      "probe": {
+        "totalElements": 140,
+        "returnedTop20": 20,
+        "bm25Count": 19,
+        "vectorFoundCount": 4,
+        "latencyMs": 462
+      },
+      "appTier": "MODERATE"
+    },
+    {
+      "keyword": "spring boot",
+      "tier": "MODERATE",
+      "script": "english",
+      "probe": {
+        "totalElements": 123,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 2,
+        "latencyMs": 498
+      },
+      "appTier": "MODERATE"
+    },
+    {
+      "keyword": "prompt engineering",
+      "tier": "MODERATE",
+      "script": "english",
+      "probe": {
+        "totalElements": 165,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 8,
+        "latencyMs": 494
+      },
+      "appTier": "MODERATE"
+    },
+    {
+      "keyword": "fine tuning",
+      "tier": "MODERATE",
+      "script": "english",
+      "probe": {
+        "totalElements": 175,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 3,
+        "latencyMs": 500
+      },
+      "appTier": "MODERATE"
+    },
+    {
+      "keyword": "대규모 트래픽",
+      "tier": "MODERATE",
+      "script": "korean",
+      "probe": {
+        "totalElements": 130,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 2,
+        "latencyMs": 507
+      },
+      "appTier": "MODERATE"
+    },
+    {
+      "keyword": "성능 최적화",
+      "tier": "MODERATE",
+      "script": "korean",
+      "probe": {
+        "totalElements": 186,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 4,
+        "latencyMs": 528
+      },
+      "appTier": "MODERATE"
+    },
+    {
+      "keyword": "벡터 검색",
+      "tier": "MODERATE",
+      "script": "korean",
+      "probe": {
+        "totalElements": 146,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 4,
+        "latencyMs": 459
+      },
+      "appTier": "MODERATE"
+    },
+    {
+      "keyword": "테스트 코드",
+      "tier": "MODERATE",
+      "script": "korean",
+      "probe": {
+        "totalElements": 164,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 0,
+        "latencyMs": 482
+      },
+      "appTier": "MODERATE"
+    },
+    {
+      "keyword": "장애 대응",
+      "tier": "MODERATE",
+      "script": "korean",
+      "probe": {
+        "totalElements": 118,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 1,
+        "latencyMs": 460
+      },
+      "appTier": "MODERATE"
+    },
+    {
+      "keyword": "blue green 배포",
+      "tier": "COMPLEX",
+      "script": "mixed",
+      "probe": {
+        "totalElements": 102,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 2,
+        "latencyMs": 497
+      },
+      "appTier": "COMPLEX"
+    },
+    {
+      "keyword": "react 상태관리 라이브러리 비교",
+      "tier": "COMPLEX",
+      "script": "mixed",
+      "probe": {
+        "totalElements": 167,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 7,
+        "latencyMs": 451
+      },
+      "appTier": "COMPLEX"
+    },
+    {
+      "keyword": "검색 성능 최적화",
+      "tier": "COMPLEX",
+      "script": "korean",
+      "probe": {
+        "totalElements": 176,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 7,
+        "latencyMs": 410
+      },
+      "appTier": "COMPLEX"
+    },
+    {
+      "keyword": "마이크로서비스 아키텍처 설계",
+      "tier": "COMPLEX",
+      "script": "korean",
+      "probe": {
+        "totalElements": 177,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 8,
+        "latencyMs": 455
+      },
+      "appTier": "COMPLEX"
+    },
+    {
+      "keyword": "jpa n+1 문제 해결",
+      "tier": "COMPLEX",
+      "script": "mixed",
+      "probe": {
+        "totalElements": 114,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 4,
+        "latencyMs": 425
+      },
+      "appTier": "COMPLEX"
+    },
+    {
+      "keyword": "kubernetes 운영 노하우",
+      "tier": "COMPLEX",
+      "script": "mixed",
+      "probe": {
+        "totalElements": 193,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 15,
+        "latencyMs": 442
+      },
+      "appTier": "COMPLEX"
+    },
+    {
+      "keyword": "대용량 트래픽 처리",
+      "tier": "COMPLEX",
+      "script": "korean",
+      "probe": {
+        "totalElements": 189,
+        "returnedTop20": 20,
+        "bm25Count": 17,
+        "vectorFoundCount": 10,
+        "latencyMs": 426
+      },
+      "appTier": "COMPLEX"
+    },
+    {
+      "keyword": "ci/cd 파이프라인 구축",
+      "tier": "COMPLEX",
+      "script": "mixed",
+      "probe": {
+        "totalElements": 129,
+        "returnedTop20": 20,
+        "bm25Count": 19,
+        "vectorFoundCount": 7,
+        "latencyMs": 446
+      },
+      "appTier": "COMPLEX"
+    },
+    {
+      "keyword": "데이터베이스 인덱스 최적화",
+      "tier": "COMPLEX",
+      "script": "korean",
+      "probe": {
+        "totalElements": 174,
+        "returnedTop20": 20,
+        "bm25Count": 19,
+        "vectorFoundCount": 7,
+        "latencyMs": 423
+      },
+      "appTier": "COMPLEX"
+    },
+    {
+      "keyword": "spring security jwt 인증",
+      "tier": "COMPLEX",
+      "script": "mixed",
+      "probe": {
+        "totalElements": 134,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 9,
+        "latencyMs": 438
+      },
+      "appTier": "COMPLEX"
+    },
+    {
+      "keyword": "java virtual thread 운영 환경에서 설정 방법",
+      "tier": "SPECIFIC",
+      "appTier": "COMPLEX",
+      "script": "mixed",
+      "probe": {
+        "totalElements": 149,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 7,
+        "latencyMs": 606
+      }
+    },
+    {
+      "keyword": "jpa n+1 문제를 쿼리로 해결한 방법",
+      "tier": "SPECIFIC",
+      "appTier": "COMPLEX",
+      "script": "mixed",
+      "probe": {
+        "totalElements": 126,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 7,
+        "latencyMs": 552
+      }
+    },
+    {
+      "keyword": "kubernetes 무중단 배포 구성하는 방법",
+      "tier": "SPECIFIC",
+      "appTier": "COMPLEX",
+      "script": "mixed",
+      "probe": {
+        "totalElements": 185,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 11,
+        "latencyMs": 793
+      }
+    },
+    {
+      "keyword": "postgresql 인덱스로 느린 쿼리 개선한 사례",
+      "tier": "SPECIFIC",
+      "appTier": "COMPLEX",
+      "script": "mixed",
+      "probe": {
+        "totalElements": 169,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 5,
+        "latencyMs": 533
+      }
+    },
+    {
+      "keyword": "프론트엔드 렌더링 성능 개선한 방법",
+      "tier": "SPECIFIC",
+      "appTier": "COMPLEX",
+      "script": "korean",
+      "probe": {
+        "totalElements": 170,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 0,
+        "latencyMs": 606
+      }
+    },
+    {
+      "keyword": "redis 캐시 장애 대응한 사례",
+      "tier": "SPECIFIC",
+      "appTier": "COMPLEX",
+      "script": "mixed",
+      "probe": {
+        "totalElements": 155,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 3,
+        "latencyMs": 1009
+      }
+    },
+    {
+      "keyword": "spring boot 애플리케이션 gc 튜닝하는 방법",
+      "tier": "SPECIFIC",
+      "appTier": "COMPLEX",
+      "script": "mixed",
+      "probe": {
+        "totalElements": 181,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 6,
+        "latencyMs": 589
+      }
+    },
+    {
+      "keyword": "elasticsearch 클러스터 운영하면서 겪은 장애",
+      "tier": "SPECIFIC",
+      "appTier": "COMPLEX",
+      "script": "mixed",
+      "probe": {
+        "totalElements": 169,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 7,
+        "latencyMs": 629
+      }
+    },
+    {
+      "keyword": "github actions 로 ci/cd 파이프라인 구축한 사례",
+      "tier": "SPECIFIC",
+      "appTier": "COMPLEX",
+      "script": "mixed",
+      "probe": {
+        "totalElements": 170,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 8,
+        "latencyMs": 609
+      }
+    },
+    {
+      "keyword": "grpc 로 서비스 간 통신 구현한 방법",
+      "tier": "SPECIFIC",
+      "appTier": "COMPLEX",
+      "script": "mixed",
+      "probe": {
+        "totalElements": 167,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 6,
+        "latencyMs": 671
+      }
+    },
+    {
+      "keyword": "네이버에서 kafka 활용한 사례",
+      "tier": "CORPORATION",
+      "appTier": "COMPLEX",
+      "script": "mixed",
+      "probe": {
+        "totalElements": 107,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 2,
+        "latencyMs": 788
+      }
+    },
+    {
+      "keyword": "카카오에서 대규모 트래픽 처리한 방법",
+      "tier": "CORPORATION",
+      "appTier": "COMPLEX",
+      "script": "korean",
+      "probe": {
+        "totalElements": 186,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 8,
+        "latencyMs": 1095
+      }
+    },
+    {
+      "keyword": "우아한형제들 msa 전환 과정에서 겪은 문제",
+      "tier": "CORPORATION",
+      "appTier": "COMPLEX",
+      "script": "mixed",
+      "probe": {
+        "totalElements": 110,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 5,
+        "latencyMs": 611
+      }
+    },
+    {
+      "keyword": "컬리에서 검색 시스템 개선한 사례",
+      "tier": "CORPORATION",
+      "appTier": "COMPLEX",
+      "script": "korean",
+      "probe": {
+        "totalElements": 128,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 5,
+        "latencyMs": 649
+      }
+    },
+    {
+      "keyword": "라인에서 실시간 메시징 처리한 구조",
+      "tier": "CORPORATION",
+      "appTier": "COMPLEX",
+      "script": "korean",
+      "probe": {
+        "totalElements": 183,
+        "returnedTop20": 20,
+        "bm25Count": 16,
+        "vectorFoundCount": 8,
+        "latencyMs": 609
+      }
+    },
+    {
+      "keyword": "카카오페이 결제 시스템 설계한 사례",
+      "tier": "CORPORATION",
+      "appTier": "COMPLEX",
+      "script": "korean",
+      "probe": {
+        "totalElements": 154,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 3,
+        "latencyMs": 615
+      }
+    },
+    {
+      "keyword": "토스에서 장애 대응한 사례",
+      "tier": "CORPORATION",
+      "appTier": "COMPLEX",
+      "script": "korean",
+      "probe": {
+        "totalElements": 136,
+        "returnedTop20": 20,
+        "bm25Count": 19,
+        "vectorFoundCount": 12,
+        "latencyMs": 627
+      }
+    },
+    {
+      "keyword": "올리브영에서 추천 시스템 개선한 사례",
+      "tier": "CORPORATION",
+      "appTier": "COMPLEX",
+      "script": "korean",
+      "probe": {
+        "totalElements": 161,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 11,
+        "latencyMs": 637
+      }
+    },
+    {
+      "keyword": "하이퍼커넥트에서 실시간 영상 처리한 방법",
+      "tier": "CORPORATION",
+      "appTier": "COMPLEX",
+      "script": "korean",
+      "probe": {
+        "totalElements": 183,
+        "returnedTop20": 20,
+        "bm25Count": 17,
+        "vectorFoundCount": 5,
+        "latencyMs": 619
+      }
+    },
+    {
+      "keyword": "카카오스타일에서 데이터 파이프라인 구축한 사례",
+      "tier": "CORPORATION",
+      "appTier": "COMPLEX",
+      "script": "korean",
+      "probe": {
+        "totalElements": 190,
+        "returnedTop20": 20,
+        "bm25Count": 20,
+        "vectorFoundCount": 13,
+        "latencyMs": 606
+      }
+    }
+  ],
+  "tiers": [
+    "SIMPLE",
+    "MODERATE",
+    "COMPLEX",
+    "SPECIFIC",
+    "CORPORATION"
+  ],
+  "metricsPolicy": "모든 정확도·서비스 지표는 전체(50건) 집계와 함께 5개 층(SIMPLE/MODERATE/COMPLEX/SPECIFIC/CORPORATION)별로 각각 산출한다."
+}

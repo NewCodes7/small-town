@@ -1,0 +1,22 @@
+{"keyword": "네이버에서 kafka 활용한 사례", "status": 200, "totalElements": 107, "returned": 20, "bm25Count": 20, "vectorCount": 2, "vectorScored": 20, "latencyMs": 788, "tier": "SPECIFIC"}
+{"keyword": "java virtual thread 운영 환경에서 설정 방법", "status": 200, "totalElements": 149, "returned": 20, "bm25Count": 20, "vectorCount": 7, "vectorScored": 20, "latencyMs": 606, "tier": "SPECIFIC"}
+{"keyword": "카카오에서 대규모 트래픽 처리한 방법", "status": 200, "totalElements": 186, "returned": 20, "bm25Count": 20, "vectorCount": 8, "vectorScored": 20, "latencyMs": 1095, "tier": "SPECIFIC"}
+{"keyword": "우아한형제들 msa 전환 과정에서 겪은 문제", "status": 200, "totalElements": 110, "returned": 20, "bm25Count": 20, "vectorCount": 5, "vectorScored": 15, "latencyMs": 611, "tier": "SPECIFIC"}
+{"keyword": "컬리에서 검색 시스템 개선한 사례", "status": 200, "totalElements": 128, "returned": 20, "bm25Count": 20, "vectorCount": 5, "vectorScored": 20, "latencyMs": 649, "tier": "SPECIFIC"}
+{"keyword": "redis 캐시 장애 대응한 사례", "status": 200, "totalElements": 155, "returned": 20, "bm25Count": 20, "vectorCount": 3, "vectorScored": 20, "latencyMs": 1009, "tier": "SPECIFIC"}
+{"keyword": "jpa n+1 문제를 쿼리로 해결한 방법", "status": 200, "totalElements": 126, "returned": 20, "bm25Count": 20, "vectorCount": 7, "vectorScored": 15, "latencyMs": 552, "tier": "SPECIFIC"}
+{"keyword": "kubernetes 무중단 배포 구성하는 방법", "status": 200, "totalElements": 185, "returned": 20, "bm25Count": 20, "vectorCount": 11, "vectorScored": 20, "latencyMs": 793, "tier": "SPECIFIC"}
+{"keyword": "라인에서 실시간 메시징 처리한 구조", "status": 200, "totalElements": 183, "returned": 20, "bm25Count": 16, "vectorCount": 8, "vectorScored": 20, "latencyMs": 609, "tier": "SPECIFIC"}
+{"keyword": "postgresql 인덱스로 느린 쿼리 개선한 사례", "status": 200, "totalElements": 169, "returned": 20, "bm25Count": 20, "vectorCount": 5, "vectorScored": 20, "latencyMs": 533, "tier": "SPECIFIC"}
+{"keyword": "spring boot 애플리케이션 gc 튜닝하는 방법", "status": 200, "totalElements": 181, "returned": 20, "bm25Count": 20, "vectorCount": 6, "vectorScored": 20, "latencyMs": 589, "tier": "SPECIFIC"}
+{"keyword": "카카오페이 결제 시스템 설계한 사례", "status": 200, "totalElements": 154, "returned": 20, "bm25Count": 20, "vectorCount": 3, "vectorScored": 20, "latencyMs": 615, "tier": "SPECIFIC"}
+{"keyword": "llm 을 서비스에 도입한 기업 사례", "status": 200, "totalElements": 123, "returned": 20, "bm25Count": 20, "vectorCount": 9, "vectorScored": 14, "latencyMs": 685, "tier": "SPECIFIC"}
+{"keyword": "프론트엔드 렌더링 성능 개선한 방법", "status": 200, "totalElements": 170, "returned": 20, "bm25Count": 20, "vectorCount": 0, "vectorScored": 20, "latencyMs": 606, "tier": "SPECIFIC"}
+{"keyword": "elasticsearch 클러스터 운영하면서 겪은 장애", "status": 200, "totalElements": 169, "returned": 20, "bm25Count": 20, "vectorCount": 7, "vectorScored": 19, "latencyMs": 629, "tier": "SPECIFIC"}
+{"keyword": "github actions 로 ci/cd 파이프라인 구축한 사례", "status": 200, "totalElements": 170, "returned": 20, "bm25Count": 20, "vectorCount": 8, "vectorScored": 20, "latencyMs": 609, "tier": "SPECIFIC"}
+{"keyword": "토스에서 장애 대응한 사례", "status": 200, "totalElements": 136, "returned": 20, "bm25Count": 19, "vectorCount": 12, "vectorScored": 20, "latencyMs": 627, "tier": "CORPORATION"}
+{"keyword": "올리브영에서 추천 시스템 개선한 사례", "status": 200, "totalElements": 161, "returned": 20, "bm25Count": 20, "vectorCount": 11, "vectorScored": 20, "latencyMs": 637, "tier": "CORPORATION"}
+{"keyword": "하이퍼커넥트에서 실시간 영상 처리한 방법", "status": 200, "totalElements": 183, "returned": 20, "bm25Count": 17, "vectorCount": 5, "vectorScored": 20, "latencyMs": 619, "tier": "CORPORATION"}
+{"keyword": "데브시스터즈에서 게임 서버 운영한 사례", "status": 200, "totalElements": 106, "returned": 20, "bm25Count": 20, "vectorCount": 3, "vectorScored": 20, "latencyMs": 639, "tier": "CORPORATION"}
+{"keyword": "카카오스타일에서 데이터 파이프라인 구축한 사례", "status": 200, "totalElements": 190, "returned": 20, "bm25Count": 20, "vectorCount": 13, "vectorScored": 20, "latencyMs": 606, "tier": "CORPORATION"}
+{"keyword": "grpc 로 서비스 간 통신 구현한 방법", "status": 200, "totalElements": 167, "returned": 20, "bm25Count": 20, "vectorCount": 6, "vectorScored": 20, "latencyMs": 671, "tier": "SPECIFIC"}

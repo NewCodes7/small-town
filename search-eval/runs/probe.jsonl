@@ -1,0 +1,48 @@
+{"keyword": "kubernetes", "status": 200, "totalElements": 174, "returned": 20, "bm25Count": 20, "vectorCount": 1, "vectorScored": 20, "latencyMs": 524, "tier": "SIMPLE"}
+{"keyword": "kafka", "status": 200, "totalElements": 104, "returned": 20, "bm25Count": 20, "vectorCount": 1, "vectorScored": 8, "latencyMs": 368, "tier": "SIMPLE"}
+{"keyword": "redis", "status": 200, "totalElements": 135, "returned": 20, "bm25Count": 20, "vectorCount": 0, "vectorScored": 20, "latencyMs": 374, "tier": "SIMPLE"}
+{"keyword": "msa", "status": 200, "totalElements": 103, "returned": 20, "bm25Count": 20, "vectorCount": 1, "vectorScored": 3, "latencyMs": 458, "tier": "SIMPLE"}
+{"keyword": "react", "status": 200, "totalElements": 151, "returned": 20, "bm25Count": 20, "vectorCount": 0, "vectorScored": 20, "latencyMs": 371, "tier": "SIMPLE"}
+{"keyword": "kotlin", "status": 200, "totalElements": 134, "returned": 20, "bm25Count": 20, "vectorCount": 0, "vectorScored": 20, "latencyMs": 456, "tier": "SIMPLE"}
+{"keyword": "jpa", "status": 200, "totalElements": 99, "returned": 20, "bm25Count": 20, "vectorCount": 0, "vectorScored": 13, "latencyMs": 465, "tier": "SIMPLE"}
+{"keyword": "docker", "status": 200, "totalElements": 185, "returned": 20, "bm25Count": 20, "vectorCount": 14, "vectorScored": 20, "latencyMs": 420, "tier": "SIMPLE"}
+{"keyword": "elasticsearch", "status": 200, "totalElements": 124, "returned": 20, "bm25Count": 20, "vectorCount": 3, "vectorScored": 19, "latencyMs": 433, "tier": "SIMPLE"}
+{"keyword": "코루틴", "status": 200, "totalElements": 55, "returned": 20, "bm25Count": 20, "vectorCount": 0, "vectorScored": 3, "latencyMs": 504, "tier": "SIMPLE"}
+{"keyword": "graphql", "status": 200, "totalElements": 133, "returned": 20, "bm25Count": 20, "vectorCount": 0, "vectorScored": 20, "latencyMs": 467, "tier": "SIMPLE"}
+{"keyword": "웹소켓", "status": 200, "totalElements": 109, "returned": 20, "bm25Count": 16, "vectorCount": 4, "vectorScored": 17, "latencyMs": 495, "tier": "SIMPLE"}
+{"keyword": "동시성", "status": 200, "totalElements": 106, "returned": 20, "bm25Count": 20, "vectorCount": 1, "vectorScored": 9, "latencyMs": 520, "tier": "SIMPLE"}
+{"keyword": "llm", "status": 200, "totalElements": 120, "returned": 20, "bm25Count": 20, "vectorCount": 5, "vectorScored": 9, "latencyMs": 494, "tier": "SIMPLE"}
+{"keyword": "rag", "status": 200, "totalElements": 100, "returned": 20, "bm25Count": 20, "vectorCount": 0, "vectorScored": 0, "latencyMs": 478, "tier": "SIMPLE"}
+{"keyword": "ci/cd", "status": 200, "totalElements": 101, "returned": 20, "bm25Count": 20, "vectorCount": 0, "vectorScored": 6, "latencyMs": 496, "tier": "SIMPLE"}
+{"keyword": "모니터링", "status": 200, "totalElements": 179, "returned": 20, "bm25Count": 20, "vectorCount": 1, "vectorScored": 19, "latencyMs": 554, "tier": "SIMPLE"}
+{"keyword": "캐시", "status": 200, "totalElements": 106, "returned": 20, "bm25Count": 20, "vectorCount": 2, "vectorScored": 4, "latencyMs": 384, "tier": "SIMPLE"}
+{"keyword": "spring boot", "status": 200, "totalElements": 123, "returned": 20, "bm25Count": 20, "vectorCount": 2, "vectorScored": 19, "latencyMs": 498, "tier": "MODERATE"}
+{"keyword": "대규모 트래픽", "status": 200, "totalElements": 130, "returned": 20, "bm25Count": 20, "vectorCount": 2, "vectorScored": 6, "latencyMs": 507, "tier": "MODERATE"}
+{"keyword": "성능 최적화", "status": 200, "totalElements": 186, "returned": 20, "bm25Count": 20, "vectorCount": 4, "vectorScored": 20, "latencyMs": 528, "tier": "MODERATE"}
+{"keyword": "벡터 검색", "status": 200, "totalElements": 146, "returned": 20, "bm25Count": 20, "vectorCount": 4, "vectorScored": 20, "latencyMs": 459, "tier": "MODERATE"}
+{"keyword": "테스트 코드", "status": 200, "totalElements": 164, "returned": 20, "bm25Count": 20, "vectorCount": 0, "vectorScored": 20, "latencyMs": 482, "tier": "MODERATE"}
+{"keyword": "장애 대응", "status": 200, "totalElements": 118, "returned": 20, "bm25Count": 20, "vectorCount": 1, "vectorScored": 16, "latencyMs": 460, "tier": "MODERATE"}
+{"keyword": "쿼리 최적화", "status": 200, "totalElements": 185, "returned": 20, "bm25Count": 20, "vectorCount": 6, "vectorScored": 20, "latencyMs": 453, "tier": "MODERATE"}
+{"keyword": "이벤트 드리븐", "status": 200, "totalElements": 105, "returned": 20, "bm25Count": 20, "vectorCount": 0, "vectorScored": 5, "latencyMs": 463, "tier": "MODERATE"}
+{"keyword": "데이터 파이프라인", "status": 200, "totalElements": 156, "returned": 20, "bm25Count": 20, "vectorCount": 3, "vectorScored": 14, "latencyMs": 371, "tier": "MODERATE"}
+{"keyword": "추천 시스템", "status": 200, "totalElements": 140, "returned": 20, "bm25Count": 20, "vectorCount": 0, "vectorScored": 20, "latencyMs": 499, "tier": "MODERATE"}
+{"keyword": "검색 엔진", "status": 200, "totalElements": 103, "returned": 20, "bm25Count": 20, "vectorCount": 1, "vectorScored": 5, "latencyMs": 410, "tier": "MODERATE"}
+{"keyword": "형태소 분석", "status": 200, "totalElements": 107, "returned": 20, "bm25Count": 19, "vectorCount": 4, "vectorScored": 8, "latencyMs": 486, "tier": "MODERATE"}
+{"keyword": "prompt engineering", "status": 200, "totalElements": 165, "returned": 20, "bm25Count": 20, "vectorCount": 8, "vectorScored": 19, "latencyMs": 494, "tier": "MODERATE"}
+{"keyword": "fine tuning", "status": 200, "totalElements": 175, "returned": 20, "bm25Count": 20, "vectorCount": 3, "vectorScored": 19, "latencyMs": 500, "tier": "MODERATE"}
+{"keyword": "circuit breaker", "status": 200, "totalElements": 89, "returned": 20, "bm25Count": 18, "vectorCount": 2, "vectorScored": 11, "latencyMs": 490, "tier": "MODERATE"}
+{"keyword": "커넥션 풀", "status": 200, "totalElements": 93, "returned": 20, "bm25Count": 16, "vectorCount": 4, "vectorScored": 14, "latencyMs": 490, "tier": "MODERATE"}
+{"keyword": "gc 튜닝", "status": 200, "totalElements": 163, "returned": 20, "bm25Count": 20, "vectorCount": 2, "vectorScored": 15, "latencyMs": 497, "tier": "MODERATE"}
+{"keyword": "virtual thread", "status": 200, "totalElements": 139, "returned": 20, "bm25Count": 20, "vectorCount": 2, "vectorScored": 17, "latencyMs": 471, "tier": "MODERATE"}
+{"keyword": "blue green 배포", "status": 200, "totalElements": 102, "returned": 20, "bm25Count": 20, "vectorCount": 2, "vectorScored": 9, "latencyMs": 497, "tier": "COMPLEX"}
+{"keyword": "react 상태관리 라이브러리 비교", "status": 200, "totalElements": 167, "returned": 20, "bm25Count": 20, "vectorCount": 7, "vectorScored": 20, "latencyMs": 451, "tier": "COMPLEX"}
+{"keyword": "검색 성능 최적화", "status": 200, "totalElements": 176, "returned": 20, "bm25Count": 20, "vectorCount": 7, "vectorScored": 20, "latencyMs": 410, "tier": "COMPLEX"}
+{"keyword": "마이크로서비스 아키텍처 설계", "status": 200, "totalElements": 177, "returned": 20, "bm25Count": 20, "vectorCount": 8, "vectorScored": 20, "latencyMs": 455, "tier": "COMPLEX"}
+{"keyword": "jpa n+1 문제 해결", "status": 200, "totalElements": 114, "returned": 20, "bm25Count": 20, "vectorCount": 4, "vectorScored": 11, "latencyMs": 425, "tier": "COMPLEX"}
+{"keyword": "kubernetes 운영 노하우", "status": 200, "totalElements": 193, "returned": 20, "bm25Count": 20, "vectorCount": 15, "vectorScored": 20, "latencyMs": 442, "tier": "COMPLEX"}
+{"keyword": "대용량 트래픽 처리", "status": 200, "totalElements": 189, "returned": 20, "bm25Count": 17, "vectorCount": 10, "vectorScored": 20, "latencyMs": 426, "tier": "COMPLEX"}
+{"keyword": "ci/cd 파이프라인 구축", "status": 200, "totalElements": 129, "returned": 20, "bm25Count": 19, "vectorCount": 7, "vectorScored": 20, "latencyMs": 446, "tier": "COMPLEX"}
+{"keyword": "데이터베이스 인덱스 최적화", "status": 200, "totalElements": 174, "returned": 20, "bm25Count": 19, "vectorCount": 7, "vectorScored": 20, "latencyMs": 423, "tier": "COMPLEX"}
+{"keyword": "spring security jwt 인증", "status": 200, "totalElements": 134, "returned": 20, "bm25Count": 20, "vectorCount": 9, "vectorScored": 20, "latencyMs": 438, "tier": "COMPLEX"}
+{"keyword": "docker 컨테이너 최적화", "status": 200, "totalElements": 192, "returned": 20, "bm25Count": 20, "vectorCount": 12, "vectorScored": 20, "latencyMs": 510, "tier": "COMPLEX"}
+{"keyword": "a/b 테스트", "status": 200, "totalElements": 140, "returned": 20, "bm25Count": 19, "vectorCount": 4, "vectorScored": 8, "latencyMs": 462, "tier": "MODERATE"}

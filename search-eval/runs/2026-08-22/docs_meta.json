@@ -1,0 +1,18 @@
+{
+  "fetchedAt": "2026-08-22T04:12:33.498215+00:00",
+  "uniqueArticles": 928,
+  "excerptChars": 1200,
+  "empty": 0,
+  "short": 0,
+  "title_anchor": 552,
+  "head": 376,
+  "error": 0,
+  "contentLen": {
+    "min": 251,
+    "p25": 6662,
+    "median": 9943,
+    "p75": 14676,
+    "p90": 21391,
+    "max": 101776
+  }
+}

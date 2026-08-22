@@ -295,6 +295,8 @@ public class ArticleSearchService {
         final Map<Long, Double> finalVectorResults = core.vectorScores();
         final Map<Long, Integer> bm25Ranks = core.bm25Ranks();
         final Map<Long, Integer> vectorRanks = core.vectorRanks();
+        final Map<Long, Integer> sourceBm25Ranks = core.sourceBm25Ranks();
+        final Map<Long, Integer> sourceVectorRanks = core.sourceVectorRanks();
         final Map<Long, Double> normalizedBm25Map = core.normalizedBm25();
         final Map<Long, Double> normalizedVectorMap = core.normalizedVector();
         final Map<Long, Double> weightSumMap = core.weightSums();
@@ -363,7 +365,8 @@ public class ArticleSearchService {
                     Double normVector = normalizedVectorMap.get(articleId);
                     Double weightSum = weightSumMap.get(articleId);
                     return new ArticleSearchResultDto(article, foundByVector, bm25Score, vectorScore, nsfScore, null,
-                            bm25Rank, vectorRank, normBm25, normVector, weightSum, isLiked);
+                            bm25Rank, vectorRank, normBm25, normVector, weightSum, isLiked,
+                            sourceBm25Ranks.get(articleId), sourceVectorRanks.get(articleId));
                 })
                 .collect(Collectors.toList());
 
@@ -380,6 +383,8 @@ public class ArticleSearchService {
             Map<Long, Double> nsfScores,
             Map<Long, Integer> bm25Ranks,
             Map<Long, Integer> vectorRanks,
+            Map<Long, Integer> sourceBm25Ranks,
+            Map<Long, Integer> sourceVectorRanks,
             Map<Long, Double> normalizedBm25,
             Map<Long, Double> normalizedVector,
             Map<Long, Double> weightSums,
@@ -388,7 +393,7 @@ public class ArticleSearchService {
             Set<Long> validArticleIds,
             float[] queryEmbedding) {
         static HybridCoreResult empty() {
-            return new HybridCoreResult(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(),
+            return new HybridCoreResult(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(),
                     Map.of(), Map.of(), Map.of(), Set.of(), Map.of(), Set.of(), null);
         }
     }
@@ -566,7 +571,8 @@ public class ArticleSearchService {
         // Phase A: BM25 쿼리만 짧게 트랜잭션으로 감싼다 — 뒤이은 vectorFuture.get() 대기 구간에는
         // 커넥션을 물고 있지 않도록 여기서 트랜잭션을 닫는다
         long bm25StartTime = System.currentTimeMillis();
-        Map<Long, Double> bm25Results = new HashMap<>();
+        // DB가 반환한 점수순을 동점 tie-breaker로 보존한다.
+        Map<Long, Double> bm25Results = new LinkedHashMap<>();
         Map<Long, LocalDateTime> publishedAtMap = new HashMap<>();
 
         readOnlyTx.executeWithoutResult(status -> {
@@ -588,7 +594,8 @@ public class ArticleSearchService {
         long bm25EndTime = System.currentTimeMillis();
 
         // 5. Vector 검색 결과 대기
-        Map<Long, Double> vectorResults = new HashMap<>();
+        // VectorSearchService의 원본 반환 순서를 동점 tie-breaker로 보존한다.
+        Map<Long, Double> vectorResults = new LinkedHashMap<>();
         float[] queryEmbedding = null;
         VectorSearchService.VectorSearchResult vectorSearchResult = new VectorSearchService.VectorSearchResult(new HashMap<>(), null);
         try {
@@ -602,6 +609,8 @@ public class ArticleSearchService {
         // 원본 검색 결과 수 캡처 (cross-scoring 보충 전)
         int originalBm25Count = bm25Results.size();
         int originalVectorCount = vectorResults.size();
+        Map<Long, Double> sourceBm25Scores = new LinkedHashMap<>(bm25Results);
+        Map<Long, Double> sourceVectorScores = new LinkedHashMap<>(vectorResults);
 
         // 4. 교차 점수 계산: 각 검색 방법에서만 발견된 article에 나머지 점수 보충 (병렬)
         Set<Long> bm25OnlyIds = new HashSet<>(bm25Results.keySet());
@@ -744,6 +753,14 @@ public class ArticleSearchService {
         long rerankStartTime = System.currentTimeMillis();
         Map<Long, Integer> bm25Ranks = calculateRanks(bm25Results);
         Map<Long, Integer> vectorRanks = calculateRanks(vectorResults);
+        Map<Long, Integer> sourceBm25Ranks = calculateRanks(sourceBm25Scores.entrySet().stream()
+                .filter(e -> validArticleIds.contains(e.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
+                        (left, right) -> left, LinkedHashMap::new)));
+        Map<Long, Integer> sourceVectorRanks = calculateRanks(sourceVectorScores.entrySet().stream()
+                .filter(e -> validArticleIds.contains(e.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
+                        (left, right) -> left, LinkedHashMap::new)));
         HybridSearchScorer.NSFResult nsfResult = hybridSearchScorer.calculateNSFScores(
                 bm25Results, vectorResults, bm25NsfWeight, vectorNsfWeight);
         Map<Long, Double> nsfScores = nsfResult.getNsfScores();
@@ -772,7 +789,7 @@ public class ArticleSearchService {
         log.debug("NSF 결과 {}개 중 유효한 article: {}개", nsfScores.size(), validArticleIds.size());
 
         return new HybridCoreResult(bm25Results, vectorResults, nsfScores,
-                bm25Ranks, vectorRanks,
+                bm25Ranks, vectorRanks, sourceBm25Ranks, sourceVectorRanks,
                 nsfResult.getNormalizedBm25(), nsfResult.getNormalizedVector(), nsfResult.getWeightSums(),
                 vectorOnlyIds, publishedAtMap, validArticleIds, cachedEmbedding);
     }
