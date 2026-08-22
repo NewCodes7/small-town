@@ -113,7 +113,7 @@ BEGIN
 END $$;
 
 \echo ''
-\echo '=== 삭제 후 검증 (자식 테이블은 CASCADE 로 함께 삭제됐어야 한다) ==='
+\echo '=== 삭제 후 검증 (chunks = contents 여야 하고, 고아가 0 이어야 한다) ==='
 SELECT (SELECT count(*) FROM clova_article_chunk)  AS chunks,
        (SELECT count(*) FROM clova_chunk_contents) AS contents,
        (SELECT count(*) FROM clova_chunk_vectors)  AS vectors,
