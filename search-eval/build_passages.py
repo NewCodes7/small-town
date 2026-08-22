@@ -161,26 +161,51 @@ def truncate_sentences(text, limit):
 
 # ── main ──────────────────────────────────────────────────────────────────────
 def load_chunks(path):
-    by_article = defaultdict(list)
+    """(article_id, chunk_index) 로 중복을 접는다.
+
+    prod 의 clova_article_chunk 에는 (article_id, chunk_index) 유니크 제약이 없고, 실제로
+    같은 아티클이 두 번 임베딩돼 청크 세트가 통째로 중복된 경우가 있다(2026-08-22b 실측 7건).
+    접지 않으면 (a) IDF 코퍼스가 그 아티클을 두 번 세고, (b) BM25 top3 가 같은 청크로 두 칸을
+    쓰고, (c) 판정자에게 같은 텍스트를 두 번 보여 발췌 예산을 낭비한다.
+
+    이건 **계측기 쪽 정리**다 — prod 벡터 검색이 중복 때문에 AVG(상위3)를 부풀리는 것은
+    피험자의 성질이므로 여기서 보정하지 않는다(§5-9).
+    """
+    by_article = defaultdict(dict)
+    dup = Counter()
     csv.field_size_limit(1 << 24)
     with io.open(path, encoding="utf-8", newline="") as f:
         for row in csv.DictReader(f):
-            by_article[int(row["article_id"])].append(
-                (int(row["chunk_index"]), norm(row["content"])))
-    for aid in by_article:
-        by_article[aid].sort()
-    return by_article
+            aid, idx = int(row["article_id"]), int(row["chunk_index"])
+            text = norm(row["content"])
+            prev = by_article[aid].get(idx)
+            if prev is None:
+                by_article[aid][idx] = text
+            else:
+                # 내용까지 같으면 무해한 중복, 다르면 어느 쪽이 진짜인지 알 수 없다 —
+                # 먼저 온 것을 쓰되 건수를 남겨 보고한다.
+                dup["identical" if prev == text else "conflicting"] += 1
+    return {aid: sorted(d.items()) for aid, d in by_article.items()}, dup
 
 
 def load_vec(path):
-    by_pair = defaultdict(list)
+    """같은 쌍에서 같은 chunk_index 가 반복되면 접는다 (값은 동일하므로 최대값 유지).
+
+    중복 청크가 있는 아티클은 SQL 의 LATERAL LIMIT 3 이 같은 청크를 두 번 집어와
+    실질 top-2 가 된다 — 2026-08-22b 실측 12쌍.
+    """
+    by_pair = defaultdict(dict)
+    dup = Counter()
     with io.open(path, encoding="utf-8", newline="") as f:
         for row in csv.DictReader(f):
-            by_pair[(row["keyword"], int(row["article_id"]))].append(
-                (int(row["chunk_index"]), float(row["sim"])))
-    for k in by_pair:
-        by_pair[k].sort(key=lambda x: -x[1])
-    return by_pair
+            key = (row["keyword"], int(row["article_id"]))
+            idx, sim = int(row["chunk_index"]), float(row["sim"])
+            if idx in by_pair[key]:
+                dup["repeated_index"] += 1
+                by_pair[key][idx] = max(by_pair[key][idx], sim)
+            else:
+                by_pair[key][idx] = sim
+    return ({k: sorted(d.items(), key=lambda x: -x[1]) for k, d in by_pair.items()}, dup)
 
 
 def main():
@@ -189,8 +214,11 @@ def main():
         if not os.path.exists(f"{BASE}/{req}"):
             sys.exit(f"[중단] {BASE}/{req} 가 없다. 먼저 passages.sql 을 prod 에서 실행해 CSV 를 받아올 것.")
 
-    chunks = load_chunks(f"{BASE}/chunks.csv")
-    vec = load_vec(f"{BASE}/vec_top3.csv")
+    chunks, chunk_dup = load_chunks(f"{BASE}/chunks.csv")
+    vec, vec_dup = load_vec(f"{BASE}/vec_top3.csv")
+    if chunk_dup or vec_dup:
+        print(f"[주의] 중복 청크를 접었다 — chunks {dict(chunk_dup)} / vec_top3 {dict(vec_dup)}",
+              file=sys.stderr)
 
     fallback = {}
     if os.path.exists(f"{BASE}/docs.jsonl"):
@@ -348,6 +376,8 @@ def main():
         "titlePrefix": {k: v for k, v in sorted(stats.items())},
         "armOverlapMean": round(sum(arm_overlap) / len(arm_overlap), 3) if arm_overlap else 0,
         "armOverlapDist": dict(sorted(Counter(arm_overlap).items())),
+        "duplicateChunkRows": dict(sorted(chunk_dup.items())),
+        "duplicateVecRows": dict(sorted(vec_dup.items())),
         "articlesWithoutChunk": sorted(set(no_chunk)),
         "pairsWithoutVector": len(no_vec),
         "pairsPerTier": dict(sorted(pair_tier.items())),

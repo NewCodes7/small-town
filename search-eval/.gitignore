@@ -9,6 +9,8 @@ runs/*/raw.jsonl
 runs/*/chunks*.csv
 runs/*/vec_top3*.csv
 runs/*/passages*.sql
+# pool.json + chunks.csv.gz + vec_top3.csv.gz + build_passages.py 로 결정적으로 재생성된다
+runs/*/judge_inputs.jsonl
 runs/*/passages_sql_meta*.json
 
 __pycache__/

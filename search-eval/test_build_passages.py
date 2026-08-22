@@ -4,7 +4,9 @@
 실행: python3 -m unittest discover -s search-eval -p 'test_*.py'
 """
 import importlib.util
+import io
 import pathlib
+import tempfile
 import unittest
 
 
@@ -123,3 +125,45 @@ class TruncateTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DuplicateChunkTest(unittest.TestCase):
+    """prod 의 clova_article_chunk 에는 (article_id, chunk_index) 유니크 제약이 없다.
+
+    2026-08-22b 실측: 7개 아티클이 통째로 두 벌 들어 있었고(128쌍, 내용 전부 동일),
+    vec_top3 도 같은 청크를 두 번 집어와 12쌍이 실질 top-2 였다.
+    접지 않으면 판정자에게 같은 텍스트를 두 번 보여 발췌 예산을 낭비한다.
+    """
+
+    def _write(self, path, header, rows):
+        io.open(path, "w", encoding="utf-8").write(
+            header + "\n" + "".join(r + "\n" for r in rows))
+
+    def test_identical_duplicate_chunks_collapse(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = f"{d}/chunks.csv"
+            self._write(p, "article_id,chunk_index,token_count,content", [
+                "1,0,10,본문 하나", "1,0,10,본문 하나", "1,1,10,본문 둘"])
+            chunks, dup = BP.load_chunks(p)
+            self.assertEqual([i for i, _ in chunks[1]], [0, 1])
+            self.assertEqual(dup["identical"], 1)
+            self.assertEqual(dup["conflicting"], 0)
+
+    def test_conflicting_duplicate_keeps_first_and_is_counted(self):
+        """내용이 다르면 어느 쪽이 진짜인지 알 수 없다 — 조용히 덮지 말고 세어 둔다."""
+        with tempfile.TemporaryDirectory() as d:
+            p = f"{d}/chunks.csv"
+            self._write(p, "article_id,chunk_index,token_count,content", [
+                "1,0,10,먼저 온 본문", "1,0,10,나중에 온 다른 본문"])
+            chunks, dup = BP.load_chunks(p)
+            self.assertEqual(chunks[1], [(0, "먼저 온 본문")])
+            self.assertEqual(dup["conflicting"], 1)
+
+    def test_repeated_chunk_index_in_vec_top3_collapses(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = f"{d}/vec_top3.csv"
+            self._write(p, "keyword,article_id,chunk_index,sim", [
+                "동시성,1,0,0.70", "동시성,1,0,0.70", "동시성,1,27,0.60"])
+            vec, dup = BP.load_vec(p)
+            self.assertEqual(vec[("동시성", 1)], [(0, 0.70), (27, 0.60)])
+            self.assertEqual(dup["repeated_index"], 1)
