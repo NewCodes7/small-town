@@ -125,7 +125,7 @@ CREATE TEMP TABLE eval_pair (keyword text NOT NULL, article_id bigint NOT NULL) 
         w(",\n".join(f"  ({sql_str(k)},{a})" for k, a in chunk))
         w(";\n")
 
-    w("""
+    w(f"""
 CREATE INDEX ON eval_pair (article_id);
 CREATE INDEX ON eval_pair (keyword);
 ANALYZE eval_pair;
@@ -157,7 +157,7 @@ WHERE c.article_id IN (SELECT DISTINCT article_id FROM eval_pair)
   AND NOT EXISTS (SELECT 1 FROM clova_chunk_vectors v WHERE v.id = c.id);
 
 \\echo ''
-\\echo '=== (A) 청크 전량 -> chunks.csv ==='
+\\echo '=== (A) 청크 전량 -> chunks{suffix}.csv ==='
 """)
 
     # \copy 는 psql 메타명령이라 반드시 한 줄이어야 한다.
@@ -168,7 +168,7 @@ WHERE c.article_id IN (SELECT DISTINCT article_id FROM eval_pair)
         "ORDER BY c.article_id, c.chunk_index) "
         f"TO 'chunks{suffix}.csv' WITH (FORMAT csv, HEADER true)"
     )
-    w(copy_a + "\n\n\\echo ''\n\\echo '=== (B) 쿼리x아티클별 코사인 top-3 -> vec_top3.csv ==='\n")
+    w(copy_a + f"\n\n\\echo ''\n\\echo '=== (B) 쿼리x아티클별 코사인 top-3 -> vec_top3{suffix}.csv ==='\n")
 
     # <=> 는 코사인 거리다. q.embedding 의 정규화 여부에 영향받지 않는다.
     copy_b = (
