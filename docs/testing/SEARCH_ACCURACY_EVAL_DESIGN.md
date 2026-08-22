@@ -680,11 +680,17 @@ T1~T6이 하루 목표. **T7의 가중치 스윕은 T2 데이터만으로 돌아
       (`pool.json`의 `provenance`가 `sourceRanks`가 아니면 중단 — §7-5)
 - [x] `build_passages.py` — P1 제목 접두 제거 / P2 로컬 근사 BM25 / P3 RRF / P4 중복 제거·병합
 - [x] `test_build_passages.py` 19건 + `test_make_passages_sql.py` 5건 + `test_judge.py` 11건
-      + `test_build_pool.py` 3건 = **38건 통과**
+      + `test_build_pool.py` 3건 = **40건 통과**
 - [x] **선행: T2 재수집 완료** (`runs/2026-08-22b`, 949쌍 / 762 아티클) — 가드 해제 확인
 - [ ] **A/B 비교군 보충**: `docs.jsonl`은 구 풀 928 아티클 기준이다. 신 풀 762건 중
       **17건이 신규**이므로 그 17건만 `fetch_docs.py`로 추가하면 A/B 100쌍을 그대로 쓸 수 있다
-- [ ] prod 에서 `passages.sql` **dry-run(1쿼리×10아티클) → 전량** → `chunks.csv` / `vec_top3.csv`
+- [x] `passages.sql` 생성 (949쌍 / 762 아티클 / 50 키워드, 44KB) — `eval_pair` 내용이
+      `pool.json`과 완전 일치, `\copy` 2개 모두 1줄, 키워드 50개 정규화 일치 확인
+- [x] **dry-run 모드 추가** (`DRY_RUN=1` → `passages_dryrun.sql`, 1쿼리×10아티클).
+      산출 CSV 이름이 달라 본실행분을 덮지 않는다. 대상 키워드는 정렬 순 첫 번째로 고정 —
+      두 번 돌렸을 때 비교가 되려면 재현 가능해야 한다
+- [ ] prod 에서 **dry-run 먼저** (`psql "$DB_URL" -f passages_dryrun.sql`) → 문법·권한·`\copy`
+      쓰기 경로·소요시간 확인 → 이상 없으면 **전량** → `chunks.csv` / `vec_top3.csv`
 - [ ] preflight 4종 확인: 쿼리 임베딩 50/50, 임베딩 없는 키워드 0, 청크 없는 아티클, 벡터 없는 청크 0
 - [ ] `build_passages.py` 실행 → `judge_inputs.jsonl` + `passages_meta.json`
 - [ ] 진단 확인: 제목 접두 제거 적중률, 쌍당 passage/청크 수, 문자수 p50/p95,
@@ -935,7 +941,7 @@ search-eval/
 ├── test_build_passages.py / test_judge.py / test_make_passages_sql.py
 ├── runs/<날짜>/
 │   ├── raw.jsonl             # gitignore (크다)
-│   ├── passages.sql          # gitignore (생성물)
+│   ├── passages{,_dryrun}.sql  # gitignore (생성물, meta json 포함)
 │   ├── chunks.csv            # gitignore — prod SQL 산출
 │   ├── vec_top3.csv          # gitignore — prod SQL 산출
 │   ├── pool.json             # `provenance` 표식으로 풀 신선도를 증명한다 (§7-5)

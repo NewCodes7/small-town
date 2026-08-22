@@ -6,8 +6,9 @@
 # 특정 시점 prod 의 유일한 관측 기록이고, T7 가중치 스윕은 pool.json 에 없는
 # 전체 후보(7,495건 중 pool 은 12.7%)의 정규화 점수를 필요로 한다.
 runs/*/raw.jsonl
-runs/*/chunks.csv
-runs/*/vec_top3.csv
-runs/*/passages.sql
+runs/*/chunks*.csv
+runs/*/vec_top3*.csv
+runs/*/passages*.sql
+runs/*/passages_sql_meta*.json
 
 __pycache__/

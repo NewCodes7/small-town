@@ -106,5 +106,44 @@ class ProvenanceIsActuallyWrittenTest(unittest.TestCase):
             self.assertEqual(MPS.load_pool(run)["runId"], "t")
 
 
+class DryRunTest(unittest.TestCase):
+    """prod 는 vCPU 1 / RAM 1GB 다 — 전량 전에 소량으로 먼저 확인할 수 있어야 한다."""
+
+    def _pool(self):
+        return {"runId": "t", "topK": 10, "provenance": BUILD_POOL.POOL_PROVENANCE,
+                "queries": [{"keyword": kw, "tier": "SIMPLE", "poolSize": 15,
+                             "pool": [{"articleId": base + i, "rankIn": {"hybrid": 1}}
+                                      for i in range(15)]}
+                            for kw, base in (("alpha", 100), ("beta", 200))]}
+
+    def test_dry_run_limits_to_one_keyword_and_ten_articles(self):
+        with tempfile.TemporaryDirectory() as d:
+            write_pool(d, self._pool())
+            with contextlib.redirect_stdout(io.StringIO()):
+                meta = MPS.main(base=d, dry_run=True)
+            self.assertTrue(meta["dryRun"])
+            self.assertEqual((meta["uniqueKeywords"], meta["pairs"]), (1, 10))
+            sql = io.open(f"{d}/passages_dryrun.sql", encoding="utf-8").read()
+            # 키워드는 정렬 순 첫 번째로 고정 — 두 번 돌려도 같은 대상이어야 비교가 된다
+            self.assertIn("('alpha',100)", sql)
+            self.assertNotIn("'beta'", sql)
+
+    def test_dry_run_writes_separate_files_so_it_cannot_clobber_the_real_run(self):
+        with tempfile.TemporaryDirectory() as d:
+            write_pool(d, self._pool())
+            with contextlib.redirect_stdout(io.StringIO()):
+                full = MPS.main(base=d, dry_run=False)
+                dry = MPS.main(base=d, dry_run=True)
+            self.assertEqual((full["pairs"], dry["pairs"]), (30, 10))
+            for f in ("passages.sql", "passages_dryrun.sql",
+                      "passages_sql_meta.json", "passages_sql_meta_dryrun.json"):
+                self.assertTrue(os.path.exists(f"{d}/{f}"), f)
+            real = io.open(f"{d}/passages.sql", encoding="utf-8").read()
+            drys = io.open(f"{d}/passages_dryrun.sql", encoding="utf-8").read()
+            self.assertIn("TO 'chunks.csv'", real)
+            self.assertIn("TO 'chunks_dryrun.csv'", drys)
+            self.assertNotIn("_dryrun", real)
+
+
 if __name__ == "__main__":
     unittest.main()

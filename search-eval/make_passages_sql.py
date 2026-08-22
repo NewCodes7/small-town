@@ -22,6 +22,12 @@ import importlib.util, json, io, os, pathlib, re, sys, datetime
 RUN_ID = os.environ.get("RUN_ID", "2026-08-22b")
 BASE = os.path.join("search-eval", "runs", RUN_ID)
 
+# DRY_RUN=1 이면 1쿼리 x 10아티클만 담은 passages_dryrun.sql 을 만든다.
+# prod DB 는 vCPU 1 / RAM 1GB 다 — 문법·권한·\copy 쓰기 경로·소요시간을 먼저 확인하고
+# 전량을 돌린다(§4 T3 체크리스트). 산출 CSV 이름도 달라 본실행분을 덮지 않는다.
+DRY_RUN = os.environ.get("DRY_RUN") == "1"
+DRY_RUN_ARTICLES = 10
+
 
 def build_pool_module():
     """같은 디렉터리의 build_pool.py 를 로드한다 (경로 무관, sys.path 에 의존하지 않는다)."""
@@ -64,8 +70,11 @@ def sql_str(s):
     return "'" + s.replace("'", "''") + "'"
 
 
-def main():
-    pool = load_pool(BASE)
+def main(base=BASE, dry_run=None, dry_run_keyword=None):
+    dry_run = DRY_RUN if dry_run is None else dry_run
+    run_id = os.path.basename(base.rstrip("/\\")) or RUN_ID
+    suffix = "_dryrun" if dry_run else ""
+    pool = load_pool(base)
 
     pairs = []          # (normalized_keyword, article_id)
     seen = set()
@@ -77,16 +86,24 @@ def main():
                 seen.add(key)
                 pairs.append(key)
     pairs.sort()
+
+    if dry_run:
+        # 키워드는 정렬 순 첫 번째로 고정한다 — 재현 가능해야 두 번 돌렸을 때 비교가 된다.
+        kw = dry_run_keyword or min(k for k, _ in pairs)
+        pairs = [pr for pr in pairs if pr[0] == kw][:DRY_RUN_ARTICLES]
+        assert pairs, f"dry-run 키워드 '{kw}' 에 해당하는 쌍이 없다"
+
     article_ids = sorted({a for _, a in pairs})
     keywords = sorted({k for k, _ in pairs})
 
-    out = io.open(f"{BASE}/passages.sql", "w", encoding="utf-8")
+    sql_path = f"{base}/passages{suffix}.sql"
+    out = io.open(sql_path, "w", encoding="utf-8")
     w = out.write
 
     w(f"""-- T3-P0: 판정 발췌용 청크·벡터 추출 (생성 시각 {datetime.datetime.now().astimezone().isoformat()})
--- 생성기: search-eval/make_passages_sql.py   RUN_ID={RUN_ID}
--- 실행:  prod 호스트에서  psql "$DB_URL" -f passages.sql
--- 산출:  chunks.csv (청크 전량) / vec_top3.csv (쿼리x아티클별 코사인 top-3)
+-- 생성기: search-eval/make_passages_sql.py   RUN_ID={run_id}{"   [DRY-RUN]" if dry_run else ""}
+-- 실행:  prod 호스트에서  psql "$DB_URL" -f passages{suffix}.sql
+-- 산출:  chunks{suffix}.csv (청크 전량) / vec_top3{suffix}.csv (쿼리x아티클별 코사인 top-3)
 --
 -- 부하 메모: DB 는 vCPU 1 / RAM 1GB 다. eval_pair 로 {len(article_ids)}개 아티클에 한정하며
 -- (B) 는 LATERAL LIMIT 3 이라 idx_clova_chunk_article_id 로 아티클당 청크(~8개)만 만진다.
@@ -149,7 +166,7 @@ WHERE c.article_id IN (SELECT DISTINCT article_id FROM eval_pair)
         "FROM clova_article_chunk c JOIN clova_chunk_contents cc ON cc.id = c.id "
         "WHERE c.article_id IN (SELECT DISTINCT article_id FROM eval_pair) "
         "ORDER BY c.article_id, c.chunk_index) "
-        "TO 'chunks.csv' WITH (FORMAT csv, HEADER true)"
+        f"TO 'chunks{suffix}.csv' WITH (FORMAT csv, HEADER true)"
     )
     w(copy_a + "\n\n\\echo ''\n\\echo '=== (B) 쿼리x아티클별 코사인 top-3 -> vec_top3.csv ==='\n")
 
@@ -163,27 +180,29 @@ WHERE c.article_id IN (SELECT DISTINCT article_id FROM eval_pair)
         "WHERE c.article_id = p.article_id "
         "ORDER BY v.embedding_normalized <=> q.embedding LIMIT 3) t "
         "ORDER BY p.keyword, p.article_id, t.sim DESC) "
-        "TO 'vec_top3.csv' WITH (FORMAT csv, HEADER true)"
+        f"TO 'vec_top3{suffix}.csv' WITH (FORMAT csv, HEADER true)"
     )
     w(copy_b + "\n\nCOMMIT;\n")
     w("""
 \\echo ''
-\\echo '완료. chunks.csv / vec_top3.csv 를 devcontainer 의 search-eval/runs/<RUN_ID>/ 로 가져올 것.'
+\\echo '완료. CSV 를 devcontainer 의 search-eval/runs/<RUN_ID>/ 로 가져올 것.'
 """)
     out.close()
 
     meta = {
-        "runId": RUN_ID,
+        "runId": run_id,
+        "dryRun": dry_run,
         "generatedAt": datetime.datetime.now().astimezone().isoformat(),
         "pairs": len(pairs),
         "uniqueArticles": len(article_ids),
         "uniqueKeywords": len(keywords),
         "keywordNormalization": "trim().toLowerCase() + collapse whitespace (SearchQueryEmbeddingService:113)",
     }
-    io.open(f"{BASE}/passages_sql_meta.json", "w", encoding="utf-8").write(
+    io.open(f"{base}/passages_sql_meta{suffix}.json", "w", encoding="utf-8").write(
         json.dumps(meta, ensure_ascii=False, indent=2) + "\n")
     print(json.dumps(meta, ensure_ascii=False, indent=2))
-    print(f"\n생성: {BASE}/passages.sql  ({os.path.getsize(BASE + '/passages.sql'):,} bytes)")
+    print(f"\n생성: {sql_path}  ({os.path.getsize(sql_path):,} bytes)")
+    return meta
 
 
 if __name__ == "__main__":
