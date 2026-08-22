@@ -1,2 +1,13 @@
-runs/*/raw.jsonl
 .venv/
+
+# 원본 수집물 — 비압축본만 무시하고 `raw.jsonl.gz` 는 커밋한다.
+# **재생성 불가**: collect.py 를 다시 돌릴 수는 있지만 같은 데이터가 나오지 않는다
+# (크롤러가 매일 04:00 에 코퍼스를 바꾸고, 가중치는 admin 에서 바뀐다).
+# 특정 시점 prod 의 유일한 관측 기록이고, T7 가중치 스윕은 pool.json 에 없는
+# 전체 후보(7,495건 중 pool 은 12.7%)의 정규화 점수를 필요로 한다.
+runs/*/raw.jsonl
+runs/*/chunks.csv
+runs/*/vec_top3.csv
+runs/*/passages.sql
+
+__pycache__/

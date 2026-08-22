@@ -16,6 +16,12 @@ from collections import Counter
 
 TOP_K = 10
 
+# pool.json 에 찍는 출처 표식 — 단독 랭킹을 무엇으로 복원했는지를 나타낸다.
+# make_passages_sql.py 가 이 값을 읽어 낡은 풀을 걸러낸다. 판정 근거를 pool.json 안에 두는 이유는
+# raw.jsonl 이 gitignore 대상이라 **저장소에 없는 것이 정상 상태**이기 때문이다 —
+# 없는 파일을 근거로 삼으면 가드가 조용히 사라진다.
+POOL_PROVENANCE = "sourceRanks"
+
 def validate_source_ranks(content, field):
     ranks = [a.get(field) for a in content if a.get(field) is not None]
     if any(type(rank) is not int or rank < 1 for rank in ranks):
@@ -94,7 +100,8 @@ def main():
         })
 
     io.open(f"{d}/pool.json", "w", encoding="utf-8").write(
-        json.dumps({"runId": run_id, "topK": TOP_K, "queries": pools}, ensure_ascii=False, indent=2) + "\n")
+        json.dumps({"runId": run_id, "topK": TOP_K, "provenance": POOL_PROVENANCE,
+                    "queries": pools}, ensure_ascii=False, indent=2) + "\n")
     io.open(f"{d}/pool_diagnostics.json", "w", encoding="utf-8").write(
         json.dumps(diag, ensure_ascii=False, indent=2) + "\n")
 

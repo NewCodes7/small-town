@@ -50,11 +50,17 @@ prod 응답이 아티클마다 BM25/벡터 **양쪽 점수와 순위를 모두**
 당초 예상했던 "변형별로 따로 호출" 단계가 통째로 사라진다. 이것이 이 평가를 하루 안에
 끝낼 수 있다고 보는 근거다.
 
-> **2026-08-22 T2 데이터 무효화:** 당시 응답의 `bm25Rank`/`vectorRank`는 cross-scoring 후
-> 순위였고, `foundByVector`는 벡터 원본 후보가 아니라 `vectorOnlyIds`를 뜻했다. 따라서 당시
-> `raw.jsonl`만으로 두 단독 랭킹을 복원할 수 없다. 서버에 cross-scoring 전 순위인
-> `sourceBm25Rank`/`sourceVectorRank`를 추가했으며, 수정 서버 배포 후 T2를 재수집해야 한다.
+> **2026-08-22 T2 데이터 무효화 → 해소:** 초판 수집(`runs/2026-08-22`) 응답의
+> `bm25Rank`/`vectorRank`는 cross-scoring 후 순위였고, `foundByVector`는 벡터 원본 후보가 아니라
+> `vectorOnlyIds`를 뜻했다. 서버에 cross-scoring 전 순위인 `sourceBm25Rank`/`sourceVectorRank`를
+> 추가(`9f86949a`)해 배포하고 **`runs/2026-08-22b`로 재수집을 마쳤다**.
 > `build_pool.py`와 `collect.py`는 두 필드가 없는 응답을 거부한다.
+>
+> **재수집으로 실제로 얼마나 달라졌나** (구 풀 대비 top-10 집합 일치율):
+> 하이브리드 **100.0%**(50/50 순서까지 동일) · BM25 **99.8%**(44/50 동일) · 벡터 **43.4%**(0/50 동일).
+> 즉 이 변경은 **하이브리드를 전혀 건드리지 않았고**(피험자 불변), 오염됐던 것은 **벡터 단독
+> 랭킹뿐**이었다 — `kotlin`은 구 top-10 10건이 신 top-10 에 하나도 남지 않았다.
+> 판정 쌍은 1,174 → **949**로 줄었다(21.3% 교체, 고유 아티클 928 → 762).
 
 ---
 
@@ -165,6 +171,7 @@ SPECIFIC·CORPORATION은 앱 분류상 COMPLEX와 같은 가중치를 쓰므로,
 | 벡터 유사도 threshold | 0.52 | `VectorSearchService.DEFAULT_SIMILARITY_THRESHOLD` | RAG 채팅은 별도 0.6 |
 | Stage1 후보 수 | 200 | `VectorSearchService.DEFAULT_CANDIDATE_LIMIT` | `hnsw.ef_search=250`보다 작게 유지 |
 | 아티클당 청크 수 | 3 | `VectorSearchService.DEFAULT_TOP_K` | |
+| 청크 크기 / overlap | 512/200 토큰(영문), **1024/400(한글 우세)** | `ChunkEmbeddingBatchService` | **판정 발췌 단위를 결정한다** (§3-2-1) |
 | `hnsw.ef_search` | 250 | HikariCP `connection-init-sql` | |
 | cross-scoring stage2 상한 | 20 | `search.hybrid.cross-scoring-stage2-limit` | 비용 결정 값 |
 | cross-scoring 2단계 여부 | false | `search.hybrid.cross-scoring-two-stage` | |
@@ -293,13 +300,75 @@ client.messages.parse(
 - **제목만으로 판정하지 않는다** — 제목만 주면 어휘 일치에 끌려가 BM25 쪽으로 체계적 편향이
   생긴다(§5-5). 본문 발췌를 함께 준다
 
-#### 3-2-1. 판정 프롬프트에 넣는 것 — 실측으로 확정 (2026-08-22)
+#### 3-2-1. 판정 프롬프트에 넣는 것 — **질의집중 passage** (2026-08-22 개정)
 
-**전문은 넣지 않는다.** 본문 길이 표본(n=15) 중앙값 **17,175자**, 최대 28,088자로,
-전문을 넣으면 판정당 15~20K 토큰이 되어 1,174쌍에 20M 토큰을 쓴다. 관련성 판정에는 불필요하다.
+> **개정 이력**: 초판은 "아티클당 제목 앵커 1,200자"였다. 두 가지 문제로 바꿨다.
+> ① 발췌가 **질의와 무관**하다 — 본문 앞머리 1,200자는 "주제를 앞에서 말하는 글"에 유리한,
+>    두 검색 팔 어느 쪽과도 상관없는 **위치 편향**을 판정에 주입한다(중앙값 본문 9,943자 중 12%).
+> ② 등급만 받으므로 **왜 그 등급인지 남지 않는다** — §3-5 인간 앵커, §4 T6 최악 쿼리 진단,
+>    §5-5 어휘 중복 편향 크기 측정이 전부 근거 텍스트를 전제하는데 그게 없었다.
+>
+> 초판 발췌는 폐기하지 않는다. **A/B 비교군**으로 쓴다(아래 "발췌 방식 A/B").
+
+**전문은 여전히 넣지 않는다.** 본문 중앙값 17,175자, 최대 28,088자로 1,174쌍에 20M 토큰이 된다.
+
+**발췌 단위 = 앱이 실제로 색인한 청크.** 로컬에서 다시 자르지 않는다.
+
+| 구분 | 값 | 출처 |
+|---|---|---|
+| 청크 크기 / overlap (영문 우세) | 512 / 200 토큰 | `ChunkEmbeddingBatchService.CHUNK_SIZE_TOKENS` |
+| 청크 크기 / overlap (한글 우세) | **1024 / 400 토큰** (overlap 39%) | `..._KO`, `isKoreanDominant` |
+| 분할 경계 | 문장 (`(?<=[.!?。！？])\s*`) | `splitIntoSentences` |
+| 제목 접두 | `"{translatedTitle ?? title}. "` **1회**, chunk 0 앞머리 | `buildFullText:699` |
+
+> ⚠️ **"제목 3회 반복"은 저장된 청크에 없다.** 3×는 `AdminChunkEmbeddingController.previewSegmentation`
+> (`:474-476`)에만 있는데, 그 엔드포인트는 `"Segmentation 미리보기는 별도 구현이 필요합니다"`를
+> 돌려주는 **미구현 스텁**이라 청크를 만들지 않는다. 실제 경로는 위 표대로 1회다.
+> 그래도 판정 프롬프트는 제목을 별도 필드로 주므로 **발췌 안의 제목 접두는 벗긴다**(잡음).
+
+**선택 파이프라인** (`search-eval/build_passages.py`)
 
 ```
-[system] 루브릭 (0~3 기준 + 판단 규칙)
+       (쿼리, 아티클)
+             │
+      앱 청크 전량 (아티클당 ~8개)
+             │
+   P1 제목 접두 제거 (chunk 0)
+             │
+   ┌─────────┴─────────┐
+   ▼                   ▼
+BM25 top3          Vector top3
+(로컬 근사)      (앱 Clova 벡터 그대로)
+   └─────────┬─────────┘
+             ▼  RRF(k=60)
+          Union
+             │
+   near-duplicate 제거
+   · 인접(|Δidx|=1) → 병합 후 겹침 문장 제거
+   · 비인접 → 5-gram Jaccard ≥ 0.5 면 하위 폐기
+             │
+   문서 순서 · 문자 예산 4,500자
+             ▼
+   3~5 passages (인접 병합으로 span 수는 더 적을 수 있음)
+```
+
+- **벡터 팔은 앱의 Clova 벡터를 그대로 쓴다.** 새 임베더를 도입하지 않았다.
+  청크 벡터는 `clova_chunk_vectors`에 있고, 50개 쿼리의 임베딩은 T2 수집 때
+  `search_query_embedding`에 이미 캐시됐다 → **임베딩 API 재호출이 없다.**
+  단 이 값을 주는 admin 엔드포인트가 없어(`/admin/articles/{id}/embeddings`는 `hasEmbedding`/차원만,
+  `/admin/chunks/{id}/embedding`도 같다) **prod psql 1회**로 뽑는다
+  (`search-eval/make_passages_sql.py` → `runs/<날짜>/passages.sql`).
+- **BM25 팔은 로컬 근사다** — 소문자 라틴/숫자 런 + 한글 문자 bigram, k1=1.2/b=0.75, IDF는 풀
+  전체 청크. 로컬에 Nori가 없다. **앱의 ParadeDB/Nori BM25가 아니며 지표로 보고하지 않는다.**
+- **RRF로 섞는다.** BM25 점수와 코사인은 스케일이 달라 순위로 융합한다. NSF 가중치는 이 평가의
+  **피험자**라 계측기에 재사용하지 않는다.
+- **인접 컨텍스트를 따로 붙이지 않는다.** 앱 청크는 문장 경계로 패킹돼 문장이 잘리지 않고,
+  overlap 39%가 이미 앞뒤 맥락을 담는다. 인접 선택분은 병합해 하나의 연속 구간으로 만든다.
+
+**프롬프트**
+
+```
+[system] 루브릭 (0~3 + 판단 규칙 + evidence 규칙)
 [user]
 쿼리: {keyword}
 
@@ -308,53 +377,51 @@ client.messages.parse(
 - 번역 제목: {translatedTitle}      # 있을 때만
 - 발행 기업: {corporation}
 - 카테고리: {category}
-- 요약: {summary}                    # 있을 때만 (34%)
-- 본문 발췌: {excerpt}               # 1,200자
+
+- 본문 발췌 (전체 {n}개 구간 중 {i}, {j}, {k}번째)
+[발췌 1] …
+[발췌 2] …
+[발췌 3] …
 ```
 
-**발행 기업을 반드시 넣는다.** CORPORATION 층 10건이 회사를 지목하는 질의(`네이버에서 kafka
-활용한 사례`)라서, 기업명이 없으면 세트의 20%가 판정 불가가 된다. 루브릭에도
-*"쿼리가 특정 기업을 지목하면 발행 기업 일치도 함께 본다 — 주제가 맞아도 기업이 다르면 최대 2"*
-규칙을 넣는다.
+- **발행 기업을 반드시 넣는다.** CORPORATION 층 10건이 회사를 지목하는 질의라 없으면 세트의 20%가
+  판정 불가다. 루브릭에도 *"쿼리가 특정 기업을 지목하면 발행 기업 일치도 함께 본다 — 주제가 맞아도
+  기업이 다르면 최대 2"* 규칙을 넣는다.
+- **`summary`는 넣지 않는다.** 66%가 null이라 초판이 "잡음"으로 감수하던 비대칭이 있었는데,
+  passage가 그 자리를 대체하므로 비대칭 자체를 없앤다.
+- **`heading`은 넣을 수 없다** — §5-10 참고. 대신 **본문 위치(i/n)** 를 준다.
+- **어느 시스템이 몇 위로 뽑았는지, 어느 팔이 이 발췌를 골랐는지는 넣지 않는다.**
+  발췌는 점수 순이 아니라 **문서 순서**로 배치한다.
+- 프롬프트 캐싱은 쓰지 않는다 — 루브릭이 ~350토큰이라 최소 캐시 프리픽스(1,024토큰)에 못 미친다.
 
-**본문 발췌 규칙 — 제목 앵커** (§5-7의 보일러플레이트 대응)
+**출력 스키마 — evidence 필수**
 
 ```python
-pos = content.find(title[:25])            # 정규화(공백 압축) 후 탐색
-start = pos + len(title) if (pos >= 0 and 남은 길이 >= 300) else 0
-excerpt = content[start : start + 1200]
+class Judgement(BaseModel):
+    relevance: Literal[0, 1, 2, 3]
+    evidence: list[str]   # 발췌에서 글자 그대로 인용, 1~3개·각 200자 이내
+    reason: str           # 한국어 두 문장 이내
 ```
 
-표본 15건 **전부에서 올바르게 동작**했다.
+**근거 검증 게이트**: 공백 정규화 후 각 evidence가 제시한 발췌의 부분문자열인지 확인해
+`evidenceGrounded`로 남기고 전체 `evidenceGroundedRate`를 낸다.
+`relevance >= 2`인데 근거 있는 인용이 0개면 `needsReview: true`. **이게 없으면 "LLM이 대충 점수
+매긴 것"과 구분되지 않는다.**
 
-| 경우 | 건수 | 동작 |
-|---|---|---|
-| 제목이 본문 중간에 등장 (내비게이션 있음) | 9 | 제목 뒤부터 발췌 — 데보션 1,392자, GitHub **8,273자**의 내비를 건너뜀 |
-| 제목 미등장 | 5 | **전부 내비게이션이 없는 문서**였다 → offset 0 폴백이 정답 |
-| 제목 뒤 잔여 < 300자 | 1 | offset 0 폴백 |
+판정 캐시 키는 `sha256(keyword | articleId | mode | passageSetHash | rubricVersion | model | trial)`
+— **선택기를 바꾸면 캐시가 자동 무효화된다.** 초판의 `(query, articleId)` 키로는 이 변경을 못 잡는다.
 
-> 앵커 뒤에도 작성자·날짜·공유버튼 같은 **잔여 UI 문구가 100자 남짓** 남는다(예:
-> `sjlee 25.04.01 1,878 12 3 facebook twitter kakao link …`). 이는 제거하지 않고
-> **루브릭에서 "메뉴·내비게이션·댓글 UI 문구는 무시하라"고 지시**해 처리한다 —
-> 사이트별 규칙을 늘리는 것보다 견고하다. 실측에서 판정 등급은 발췌 길이와 무관하게 동일했다.
+**발췌 방식 A/B (100쌍) — 사전 결정 규칙**
 
-**발췌 길이 = 1,200자** (실측 토큰/비용)
+같은 100쌍(5개 층 × 20)을 두 발췌로 판정한다. 비교군은 이미 만들어 둔 `docs.jsonl`(head-1200자)이라
+추가 수집 비용이 0이다. 산출: 등급 분포, 완전 일치율, Cohen's κ, 평균 등급 차,
+evidence 근거율, **passages 판정의 근거 인용 중 head-1200자 밖에서 나온 비율**.
 
-| 발췌 | 입력 토큰 | 잔여 UI 비중 | 1,174쌍 비용 |
-|---|---|---|---|
-| 600자 | 1,351 | ~17% | ~$5.5 |
-| **1,200자** | **1,970** | **~8%** | **~$7.6** |
-| 2,000자 | 2,704 | ~5% | ~$10.1 |
-
-600자는 보일러플레이트가 심한 문서에서 실제 본문이 거의 안 남을 수 있고, 2,000자는 33% 더 비싼데
-얻는 게 적다. **1,200자를 채택**한다(출력은 어느 길이든 35~40토큰).
-
-> **본문은 918건 전부 받는다**(`summary` 없는 617건만이 아니라). 문서마다 근거의 종류가 다르면
-> 판정 일관성이 떨어지기 때문이다. `summary`는 있을 때 **추가로** 붙인다. 이 비대칭은 모든
-> 시스템이 같은 문서를 보므로 **시스템 간 편향이 아니라 잡음**으로 작용한다.
->
-> 프롬프트 캐싱은 쓰지 않는다 — 루브릭이 ~250토큰이라 최소 캐시 프리픽스(1,024토큰)에 못 미쳐
-> 애초에 걸리지 않는다.
+> **판정 전에 못박는다**: `|평균 등급 차| < 0.15` **이고** `unweighted κ ≥ 0.7`이면
+> "발췌 방식이 판정을 바꾸지 않는다"로 보고 본판정은 싼 쪽(head-1200자)으로 간다. 그 외면 passages.
+> κ는 **비가중**을 쓴다 — 순서형이라 quadratic-weighted가 더 관대한데(실측: 인접 등급 불일치에서
+> 0.83 vs 0.20), "발췌를 바꿨더니 등급이 달라졌는가"를 묻는 자리에서는 엄격한 쪽이 맞다.
+> **결과를 보고 기준을 정하지 않는다.**
 
 ### 3-3. 쿼리 세트 — 30개, 복잡도 층화 (**2026-08-22 동결 완료**)
 
@@ -502,13 +569,16 @@ CORPORATION은 **BM25 기여가 가장 낮은 층(19.2)** 이기도 하다: 고�
 |---|---|---|---|
 | **T1** | **쿼리 세트 동결** — prod `search_logs` + `keywords.json`에서 복잡도 3층 × 10개 선정. 코퍼스 스냅샷(article 총건수) + **prod 파라미터 스냅샷**(`search_weight_config` 실제 행) 기록 | `queries.json` | 30분 |
 | **T2** | **후보 풀 수집** — 30쿼리 × `size=50` 순차 1회 호출, 응답 원본 그대로 저장. 3개 랭킹 재구성 → top-10 합집합 풀. 지연도 함께 기록 | `runs/<날짜>/raw.jsonl` | 1시간 |
-| **T3** | **판정 텍스트 확보** — T2 응답의 `title`/`summary` 재사용, null 34%만 `/admin/articles/{id}/content`로 보충 | `docs.jsonl` | 30분 |
-| **T4** | **LLM 판정** — pointwise 0~3, 셔플, 시스템 은닉, `(query, articleId)` 캐시. 20% 재판정 + 교차 모델로 κ 산출 | `judgments.jsonl` | 1.5시간 |
+| **T3** | **판정 텍스트 확보 (개정)** — 앱 청크를 prod psql 1회로 받아 **(쿼리,아티클)마다 질의집중 passage 3~5개** 선택. BM25(로컬 근사) ∪ 벡터(앱 Clova) → RRF → 중복 제거. head-1200자 발췌는 A/B 비교군으로 보존 | `chunks.csv`, `vec_top3.csv`, `judge_inputs.jsonl` | SQL 수 분 + 스크립트 1분 |
+| **T4** | **LLM 판정** — pointwise 0~3 + **evidence(원문 인용) + reason**, 시스템 은닉, `passageSetHash` 캐시. 발췌 방식 A/B 100쌍 → 20% 재판정 + 교차 모델로 κ 산출 | `judgments.jsonl`, `ab_excerpt.json` | A/B 30분 + 본판정 20~40분 |
 | **T5** | **스코어러** — NDCG@10 / P@5 / pooled Recall@10 / MRR + paired bootstrap CI | `score.py` | 1시간 |
 | **T6** | **첫 결과표** — 하이브리드 vs BM25 단독 vs 벡터 단독 | `results/<날짜>-baseline.md` | — |
 | T7 | (이후) **파라미터 스윕** — NSF 가중치를 `normalized*Score`로 오프라인 재채점. cross-scoring on/off는 프로퍼티 A/B라 재수집 필요 | `results/<날짜>-sweep.md` | — |
 
 T1~T6이 하루 목표. **T7의 가중치 스윕은 T2 데이터만으로 돌아가므로 추가 호출·과금이 없다.**
+
+> ✅ **T2 재수집 완료(2026-08-22 18:33 KST, `runs/2026-08-22b`)** — §7-5의 선행 조건이 풀렸다.
+> 무결성 검사 전 항목 통과, 판정 풀 949쌍 / 고유 아티클 762건. T3는 바로 실행 가능하다.
 
 ### 4-1. 체크리스트
 
@@ -549,26 +619,37 @@ T1~T6이 하루 목표. **T7의 가중치 스윕은 T2 데이터만으로 돌아
 - [x] `search-eval/queries.json` 작성 → **이후 변경 금지**
 - [ ] 커밋 (사용자 확인 후)
 
-#### T2. 후보 풀 수집 — **재수집 필요** (`2026-08-22` 실행은 provenance 오류로 무효)
+#### T2. 후보 풀 수집 — **완료** (`runs/2026-08-22b`, 2026-08-22 18:33 KST)
+
+> 초판 `runs/2026-08-22`는 provenance 오류로 무효다. 폐기하지 않고 남겨 둔다 — 재수집 전후
+> 비교가 이 변경의 근거이기 때문이다(§0-1).
 
 - [x] `collect.py` 작성 — 50쿼리 순차 호출, 간격 1.5초
 - [x] **`size=300`으로 전량 수집** — API에 페이지 상한이 없음을 확인(`size=200`에서 174/174).
       전량을 받아야 BM25·벡터 단독 랭킹이 **절단 없이** 재구성된다
 - [x] 응답 원본 그대로 저장 (`raw.jsonl` 9.8MB → gzip 1.9MB, git 제외)
 - [x] 쿼리별 지연·`totalElements`·429 기록 → **429 0건, 불완전 수집 0건**
-- [ ] 수정 서버 배포 후 `sourceBm25Rank`/`sourceVectorRank`가 포함된 응답 재수집
-- [ ] 3개 랭킹 재구성 (`build_pool.py`) + 원본 순위 연속성 검증
-- [ ] top-10 합집합 풀 재구성 (`2026-08-22`의 1,174쌍 수치는 폐기)
+- [x] 수정 서버 배포 확인 후 `sourceBm25Rank`/`sourceVectorRank` 포함 응답 재수집
+      — **50/50 완전 수집, 429 0건, provenance 불일치 0건**
+- [x] 3개 랭킹 재구성 (`build_pool.py`) + 원본 순위 연속성 검증 — 아래 표
+- [x] top-10 합집합 풀 재구성 — **949쌍 / 고유 아티클 762건** (`2026-08-22`의 1,174쌍은 폐기)
 - [x] 실행 시각 기록 (`collect_meta.json`)
 
-**구형 랭킹 재구성 진단 — 무효, 결과에 사용 금지** (`runs/2026-08-22/pool_diagnostics.json`)
+**랭킹 재구성 무결성** (`runs/2026-08-22b/pool_diagnostics.json`)
 
 | 검사 | 결과 |
 |---|---|
 | API 순서에서 `finalScore` 단조 감소 | **50 / 50** |
-| BM25 최소 rank == 1 | 50 / 50 |
-| BM25 top-10 rank 연속(1..10) | 50 / 50 |
-| 벡터 랭킹 깊이 < 10 | **7 / 50** (아래) |
+| BM25 최소 source rank == 1 | 50 / 50 |
+| BM25 top-10 source rank 연속(1..10) | **50 / 50** |
+| 벡터 최소 source rank == 1 | 50 / 50 |
+| 벡터 top-10 source rank 연속(1..10) | 47 / 50 (나머지 3건은 깊이 < 10, 비연속 아님) |
+| 벡터 랭킹 깊이 < 10 | **3 / 50** (§5-6-1) |
+| 지연 | p50 782ms / p95 963ms / max 1,073ms |
+
+> 연속성 검사가 통과한다는 것은 **응답이 원본 후보를 하나도 빠뜨리지 않았다**는 뜻이다
+> (`size=300` 전량 수집 + `validArticleIds` 필터를 서버가 순위 계산 **전에** 적용하므로
+> 반환된 source rank 는 1..n 조밀해야 한다). 구멍이 있으면 절단이 일어난 것이다.
 
 > **하이브리드 랭킹은 API 반환 순서를 그대로 쓴다.** 처음엔 `finalScore` 내림차순으로 재정렬했는데
 > 50쿼리 중 12건만 API 순서와 일치했다. 원인은 **동점 문서 647건** — 재정렬이 시스템 고유의
@@ -579,35 +660,59 @@ T1~T6이 하루 목표. **T7의 가중치 스윕은 T2 데이터만으로 돌아
 
 | top-10에 든 랭킹 | 쌍 수 | 비중 |
 |---|---|---|
-| 벡터에만 | 375 | 31.9% |
-| BM25에만 | 299 | 25.5% |
-| 하이브리드에만 | 212 | 18.1% |
-| BM25 + 하이브리드 | 201 | 17.1% |
-| 하이브리드 + 벡터 | 87 | 7.4% |
+| BM25에만 | 299 | 31.5% |
+| 하이브리드 + 벡터 | 242 | 25.5% |
+| 벡터에만 | 150 | 15.8% |
+| BM25 + 하이브리드 | 102 | 10.7% |
+| 셋 모두 | 99 | 10.4% |
+| 하이브리드에만 | 57 | 6.0% |
 
-#### T3. 판정 텍스트 확보
+> 구 풀(무효)에는 **"셋 모두"와 "BM25 + 벡터"가 한 건도 없었다** — 오염된 벡터 랭킹이 다른 두
+> 랭킹과 거의 겹치지 않았기 때문이다. 신 풀에서는 하이브리드가 벡터와 크게 겹치고(25.5% + 10.4%)
+> BM25 단독 기여가 가장 크다(31.5%). 벡터 비중 0.5~0.65 가중치와 방향이 일치한다.
 
-- [ ] 풀 안에서 `summary`가 null인 문서 목록 추출 — **실측 617건 / 고유 928건 (66.5%)**
-- [ ] **T2 응답에 이미 들어온 `title`/`summary`를 그대로 재사용** (batch 재호출 금지 — 같은 DTO다)
-- [ ] null인 617건만 `GET /admin/articles/{id}/content`로 보충 + 보일러플레이트 제거 (§5-7)
-- [ ] 617회 admin 호출 = 관리자 JWT 만료 가능 → **로그인 폴백 내장** (§7-2 T0 결론과 동일)
-- [ ] `docs.jsonl` 생성 — 문서당 `{articleId, title, summary, contentHead}`
-- [ ] **제목만 있는 문서가 몇 건인지 집계** → §5-5 한계 서술에 사용
+#### T3. 판정 텍스트 확보 — **질의집중 passage** (스크립트 작성 완료, 실행 대기)
+
+초판(head-1200자)은 `fetch_docs.py`로 928건을 이미 만들어 뒀다 → **A/B 비교군으로 보존**한다.
+
+- [x] head-1200자 발췌 928건 (`docs.jsonl`, 제목앵커 552 / head 376, 오류 0)
+- [x] `make_passages_sql.py` — prod 1회 실행할 자립형 SQL 생성 + **풀 신선도 가드**
+      (`pool.json`의 `provenance`가 `sourceRanks`가 아니면 중단 — §7-5)
+- [x] `build_passages.py` — P1 제목 접두 제거 / P2 로컬 근사 BM25 / P3 RRF / P4 중복 제거·병합
+- [x] `test_build_passages.py` 19건 + `test_make_passages_sql.py` 5건 + `test_judge.py` 11건
+      + `test_build_pool.py` 3건 = **38건 통과**
+- [x] **선행: T2 재수집 완료** (`runs/2026-08-22b`, 949쌍 / 762 아티클) — 가드 해제 확인
+- [ ] **A/B 비교군 보충**: `docs.jsonl`은 구 풀 928 아티클 기준이다. 신 풀 762건 중
+      **17건이 신규**이므로 그 17건만 `fetch_docs.py`로 추가하면 A/B 100쌍을 그대로 쓸 수 있다
+- [ ] prod 에서 `passages.sql` **dry-run(1쿼리×10아티클) → 전량** → `chunks.csv` / `vec_top3.csv`
+- [ ] preflight 4종 확인: 쿼리 임베딩 50/50, 임베딩 없는 키워드 0, 청크 없는 아티클, 벡터 없는 청크 0
+- [ ] `build_passages.py` 실행 → `judge_inputs.jsonl` + `passages_meta.json`
+- [ ] 진단 확인: 제목 접두 제거 적중률, 쌍당 passage/청크 수, 문자수 p50/p95,
+      **`armOverlapMean`**, **`pairsWithoutBm25HitByTier`** (§5-9), `articlesWithoutChunk`
+- [ ] 무작위 10쌍 눈검사 — `데이터`(BM25 0건, §5-6) 같은 극단 쿼리 포함
 
 #### T4. LLM 판정
 
-- [ ] **UMBRELA 프롬프트를 한국어 도메인에 맞춰 차용** (자체 루브릭 발명 금지 — §3-1-1)
-- [ ] structured outputs(`output_config.format`)로 등급 + 짧은 근거 수신
-- [ ] **시스템·순위 정보 제거** 확인 (어느 랭킹에서 왔는지 프롬프트에 없어야 함)
-- [ ] 문서 제시 순서 셔플
-- [ ] `(query, articleId)` 캐시 구현 — 재실행 시 LLM 재호출 없음
-- [ ] 전체 판정 실행 (450~750건 예상, `anthropic.claude-opus-5`, adaptive thinking)
+- [x] **UMBRELA 프롬프트를 한국어 도메인에 맞춰 차용** (자체 루브릭 발명 금지 — §3-1-1)
+- [x] structured outputs(`messages.parse` + pydantic)로 **등급 + evidence + reason** 수신
+- [x] **evidence 근거 검증** — 인용문이 발췌의 부분문자열인지 확인, `needsReview` 표시
+- [x] **시스템·순위 정보 제거** — 프롬프트에 랭킹도, 어느 팔이 발췌를 골랐는지도 없다
+- [x] 캐시 키에 `passageSetHash`·`rubricVersion`·`trial` 포함 (선택기 변경 시 자동 무효화)
+- [x] 스모크 검증 완료 — evidence 3건 전부 근거 통과, 관련/무관 등급이 기대대로 갈렸다
+- [ ] **A/B 100쌍** (`judge.py --mode ab` → `ab_excerpt.py`) → **사전 결정 규칙**대로 본판정 발췌 확정
+- [ ] 전체 판정 실행 (1,174건, `global.anthropic.claude-sonnet-4-6`, adaptive thinking)
 - [ ] **등급 분포(0/1/2/3 비율) 출력** — 3등급 과반이면 루브릭 미작동 신호 (§5-5-1)
-- [ ] **자기 일치도**: 20% 무작위 재판정 → 완전 일치율 + Cohen's κ (**목표 ≥ 0.6**)
-- [ ] **인간 앵커 50쌍**: 사용자 직접 판정 → Claude와 대조 (**κ ≈ 0.3 이상이면 정상**)
+- [ ] **evidence 근거율 / `needsReview` 건수 / 근거가 나온 발췌 번호 분포** 출력
+      — 전부 [발췌 1]에서만 나오면 선택기가 무의미하다는 신호
+- [ ] **자기 일치도**: 20% 무작위 재판정(`--trial 2 --frac 0.2`) → 완전 일치율 + Cohen's κ (**목표 ≥ 0.6**)
+- [ ] **인간 앵커 50쌍**: 사용자 직접 판정 → Claude와 대조 (**κ ≈ 0.3 이상이면 정상**).
+      evidence 덕분에 문서 전문을 읽지 않고 근거만 확인하면 되므로 초판보다 빨라진다
 - [ ] **교차 모델**: Gemini로 같은 표본 판정 → 참고 기록 (타당성 근거로 쓰지 않음)
 - [ ] 판정자 등급과 `bm25Score`의 상관 측정 — 어휘 중복 편향 크기 확인 (§5-5)
 - [ ] `judgments.jsonl` 커밋 (재현 근거)
+
+> 문서 제시 순서 셔플은 **불필요해졌다** — pointwise 판정이라 한 번에 한 문서만 보고,
+> 발췌 내부 순서는 점수가 아니라 문서 순서다(§3-2-1). 초판 체크리스트의 항목을 삭제한다.
 
 #### T5. 스코어러
 
@@ -736,27 +841,35 @@ positive를 내는 경향이 강하다** — 표면적 어휘 일치에 과도�
 - 쿼리 세트에서 BM25 0건이 몇 개인지 **집계해 기록**한다 — 이 자체가 보고할 발견이다
 - SIMPLE 층에 몰려 있을 가능성이 있어 **층별로 따로 집계**한다
 
-### 5-6-1. 폐기된 관찰 — `foundByVector`가 10건에 못 미친 쿼리 7건
+### 5-6-1. 벡터 단독 랭킹이 top-10에 못 미치는 쿼리 3건 (2026-08-22b 실측)
 
-구형 T2에서 `foundByVector=true` 문서 수가 top-10보다 적었던 쿼리다. 이 플래그는
-벡터 단독 결과가 아니라 vector-only 결과를 뜻하므로 아래 표와 해석은 **모두 무효**다.
+`sourceVectorRank` 기준 실측이다. 초판은 `foundByVector=true` 개수를 벡터 깊이로 착각해
+7건(`코루틴` 1, `blue green 배포` 2, `msa` 3 …)이라고 적었는데, 그 플래그는 vector-only를
+뜻하므로 **그 표는 폐기**한다. 진짜 깊이는 훨씬 크다.
 
 | 쿼리 | 층 | 벡터 깊이 |
 |---|---|---|
-| 코루틴 | SIMPLE | **1** |
-| blue green 배포 | COMPLEX | 2 |
-| msa | SIMPLE | 3 |
-| kafka | SIMPLE | 4 |
-| 동시성 | SIMPLE | 6 |
-| 네이버에서 kafka 활용한 사례 | CORPORATION | 7 |
-| 웹소켓 | SIMPLE | 9 |
+| 코루틴 | SIMPLE | **5** |
+| msa | SIMPLE | 7 |
+| blue green 배포 | COMPLEX | 9 |
 
-5건이 SIMPLE이다 — §3-3-1의 "단답 쿼리에서 벡터 팔이 논다"와 같은 현상이며, 층 평균 깊이가
-SIMPLE 29.6 vs SPECIFIC 64.1로 두 배 이상 차이난다.
+층 평균 깊이도 다시 잰다 (벡터 팔 상한은 `DEFAULT_MAX_RESULTS=100`):
+
+| 층 | 평균 | 범위 |
+|---|---|---|
+| SIMPLE | 49.3 | 5~100 |
+| MODERATE | 71.1 | 35~100 |
+| COMPLEX | 73.2 | 9~100 |
+| SPECIFIC | 86.3 | 35~100 |
+| CORPORATION | 72.7 | 24~100 |
+
+**§3-3-1의 "단답 쿼리에서 벡터 팔이 논다"는 방향은 유지된다** — SIMPLE 49.3 vs SPECIFIC 86.3으로
+1.75배 차이고, 깊이 10 미만 3건 중 2건이 SIMPLE이다. 다만 초판이 말한 "깊이 1~3" 수준의
+극단은 실재하지 않았다.
 
 **스코어러 처리 규칙**: 벡터 단독의 NDCG@10은 **짧은 리스트 그대로** 계산한다(빈 자리를 0으로
 채우지 않는다 — 시스템이 실제로 반환한 것이 그것이기 때문). 다만 **깊이를 함께 보고**해야
-"NDCG가 낮다"와 "애초에 낼 게 없다"가 구분된다. `코루틴`(깊이 1)처럼 극단적인 경우는
+"NDCG가 낮다"와 "애초에 낼 게 없다"가 구분된다. `코루틴`(깊이 5)처럼 top-10에 못 미치는 3건은
 쿼리 단위로 별도 표기한다.
 
 ### 5-7. 크롤링 본문에 보일러플레이트가 섞여 있다
@@ -777,6 +890,32 @@ SIMPLE 29.6 vs SPECIFIC 64.1로 두 배 이상 차이난다.
 
 ---
 
+### 5-9. 판정 근거를 벡터 팔의 시야로 고르면 벡터 팔에 유리해진다
+
+§3-2-1의 passage 선택은 **앱의 Clova 벡터**로 top-3를 뽑는다. 즉 판정자가 읽는 근거의 절반을
+피험자 중 하나가 고른다. §5-5(어휘 중복 편향 → BM25 유리)의 **반대 방향** 편향이다.
+
+→ 대응: BM25 팔과 **union**하고 RRF로 융합해 두 팔에 같은 지분을 준다. 어느 팔이 골랐는지는
+프롬프트에 넣지 않고 발췌는 문서 순서로 배치한다. 진단으로 **두 팔의 선택 겹침률**
+(`passages_meta.json:armOverlapMean`)을 기록한다.
+
+> ⚠️ **BM25 팔이 통째로 비는 쌍이 있다.** 로컬 근사 BM25는 소문자 라틴 런 + 한글 bigram이라
+> `kubernetes`(쿼리)와 `쿠버네티스`(본문) 사이에 **어휘 다리가 없다**. 앱은 `TermSynonym` 확장으로
+> 메우지만 그건 피험자라 계측기에 넣지 않는다. 대신 얼마나 자주 그런지를 층별로 세어
+> (`pairsWithoutBm25HitByTier`) 한계로 보고한다 — §3-3-1이 예측한 대로 SIMPLE 영문 층에 몰릴 것이다.
+> 그런 쌍의 발췌는 사실상 벡터 팔 단독 선택이다.
+
+### 5-10. heading은 복구 불가능하다
+
+`ContentExtractor.convertHtmlToParagraphs`가 `h1~h6`을 `Element::text()`로 평문화해 `\n\n`으로
+이어붙이므로 **크롤링 시점에 헤딩 마크업이 이미 소실**됐고, 청크는 그 위에서
+`String.join(" ", sentences)`라 `\n\n`마저 사라진다. 두 번 잃었다.
+
+→ 판정 프롬프트에서 heading 자리를 **본문 위치(전체 n개 구간 중 i번째)** 로 대체했다. 헤딩을
+살리려면 크롤러의 추출 단계를 고쳐 재크롤링해야 하며, 이 평가의 범위 밖이다.
+
+---
+
 ## 6. 산출물 배치
 
 `load-test/`(k6, 부하)와 성격이 달라 섞지 않는다.
@@ -784,12 +923,30 @@ SIMPLE 29.6 vs SPECIFIC 64.1로 두 배 이상 차이난다.
 ```
 search-eval/
 ├── queries.json              # 동결된 쿼리 세트 + 코퍼스/파라미터 스냅샷 (T1)
-├── collect.py                # 후보 풀 수집 (T2) + 문서 텍스트 보충 (T3)
-├── judge.py                  # LLM 판정 + 일치도 (T4)
-├── score.py                  # 지표 계산 + bootstrap CI (T5)
-├── runs/<날짜>/              # raw.jsonl, docs.jsonl, judgments.jsonl
+├── collect.py                # 후보 풀 수집 (T2)
+├── build_pool.py             # 3개 랭킹 재구성 + 판정 풀 (T2)
+├── fetch_docs.py             # head-1200자 발췌 — 이제 A/B 비교군 공급원 (T3)
+├── make_passages_sql.py      # prod 1회 실행할 SQL 생성 (T3-P0)
+├── build_passages.py         # 제목 접두 제거 + BM25/벡터 union + 중복 제거 (T3-P1~P4)
+├── judge.py                  # LLM 판정 + evidence 근거 검증 + 캐시 (T3-P5 / T4)
+├── ab_excerpt.py             # 발췌 방식 A/B 분석 + 사전 결정 규칙 판정
+├── score.py                  # 지표 계산 + bootstrap CI (T5)  ※ 미구현
+├── test_build_pool.py        # 단위 테스트 — python3 -m unittest discover -s search-eval
+├── test_build_passages.py / test_judge.py / test_make_passages_sql.py
+├── runs/<날짜>/
+│   ├── raw.jsonl             # gitignore (크다)
+│   ├── passages.sql          # gitignore (생성물)
+│   ├── chunks.csv            # gitignore — prod SQL 산출
+│   ├── vec_top3.csv          # gitignore — prod SQL 산출
+│   ├── pool.json             # `provenance` 표식으로 풀 신선도를 증명한다 (§7-5)
+│   ├── docs.jsonl / judge_inputs.jsonl / passages_meta.json
+│   ├── judgments.jsonl       # 커밋 (재현 근거)
+│   └── judgments_ab.jsonl / ab_excerpt.json
 └── results/<날짜>-*.md       # 결과 보고 (load-test/results/ 형식 준용)
 ```
+
+판정 스크립트만 venv 를 쓴다(`search-eval/.venv`, `anthropic` 1.0.0 / pydantic 2.13.4).
+나머지는 전부 stdlib 다.
 
 판정 캐시(`judgments.jsonl`)는 **커밋한다** — 재실행 시 LLM 재호출을 막고, 수치의 재현
 근거가 된다.
@@ -827,29 +984,77 @@ prod 실측: `SELECT COUNT(*) FROM article_analyzed_content;` → **18,688건**.
 
 - [x] `pip` 부재 → `sudo apt-get install python3-pip python3-venv`로 해결
 - [x] `anthropic` 1.0.0 설치 (venv 격리)
-- [ ] 하네스용 venv를 `search-eval/.venv`로 옮기고 `.gitignore`에 추가
-- [ ] `.env` 로드 시 `AWS_ACCESS_KEY`/`AWS_SECRET_KEY`(placeholder 5자)를 **unset** 해야 한다 —
-      SDK가 `api_key`와 AWS 자격증명 동시 지정을 거부한다(`_client.py:171`)
+- [x] 하네스용 venv를 `search-eval/.venv`로 옮기고 `.gitignore`에 추가
+      (anthropic 1.0.0 / pydantic 2.13.4 / Python 3.14.4, `messages.parse` 사용 가능 확인)
+- [x] `.env` 로드 시 `AWS_ACCESS_KEY`/`AWS_SECRET_KEY`(placeholder 5자)를 **unset** 해야 한다 —
+      SDK가 `api_key`와 AWS 자격증명 동시 지정을 거부한다(`_client.py:171`).
+      → `judge.py:make_client()`가 표준·비표준 두 철자 모두 `os.environ.pop` 한다
 
-### 7-3. 판정 비용 — 산정 완료, 제약 아님
+### 7-3. 판정 비용 — 재산정 (2026-08-22 개정)
 
-`claude-sonnet-4-6` 기준 $3/MTok(입력) · $15/MTok(출력), 판정당 실측 입력 ~640tok / 출력 ~70tok.
-쿼리 50건 × 풀 15~25건 → **약 1,000~1,250 판정**.
+초판의 $4.5는 **"1,200자 발췌 + 등급만 출력"** 기준이었다. §3-2-1 개정으로 셋이 바뀐다:
+발췌가 3~4배(passage 3~5개), 출력에 evidence·reason 추가, adaptive thinking.
 
-| 항목 | 수량 | 비용 |
-|---|---|---|
-| 본 판정 1,250건 | 800K in / 88K out | ~$3.7 |
-| 자기 일치도 재판정 20% (250건) | 160K / 18K | ~$0.75 |
-| 교차 검증 Gemini | — | 별도, 훨씬 저렴 |
-| **합계** | | **약 $4.5** |
+`claude-sonnet-4-6` 기준 $3/MTok(입력) · $15/MTok(출력). 스모크 실측 판정당 입력 ~1,260 / 출력 ~168
+(픽스처라 발췌가 짧다). 실제 발췌 예산 4,500자 기준 판정당 입력 ~3,200 / 출력 ~750(thinking 포함) 추정.
 
-본문 발췌를 길게 넣어 입력이 3배가 되어도 $9 안쪽이다. **비용이 모델·발췌 길이·쿼리 수를
-제약하지 않는다** — §5-2의 층당 20건 확장(총 80쿼리)도 $10 미만이다.
+| 항목 | 수량 | 입력 | 출력 | 비용 |
+|---|---|---|---|---|
+| A/B 200건 (100쌍 × 2 발췌) | 200 | ~520K | ~150K | ~$4 |
+| 본 판정 1,174건 | 1,174 | ~3.8M | ~880K | ~$25 |
+| 자기 일치도 재판정 20% | 235 | ~750K | ~180K | ~$5 |
+| 교차 검증 Gemini | — | — | — | 별도, 훨씬 저렴 |
+| **합계** | | | | **약 $34** |
+
+여전히 제약은 아니지만 **초판의 $4.5로 계획하면 안 된다.** 줄여야 하면
+`output_config.effort`를 낮추거나 evidence를 최대 2개로 제한한다.
+A/B에서 head-1200자가 이겨 그쪽으로 본판정하면 본 판정분이 ~$25 → ~$16으로 준다.
 
 ### 7-4. T7 cross-scoring A/B의 실행 환경
 
 prod 프로퍼티(`search.hybrid.*`)를 토글하는 것이므로 실사용자에게 영향이 간다.
 배포 창을 잡을지, blue/green 한쪽만 바꿔 잴지 별도 판단이 필요하다.
+
+---
+
+### 7-5. T2 풀이 낡았다 — **해소됨** (2026-08-22 재수집 완료) ✅
+
+커밋 `9f86949a`(source rank 보존) 이후 `build_pool.rankings()`는 응답에
+`sourceBm25Rank`/`sourceVectorRank`를 요구한다. cross-scoring이 사후에 덮어쓴 `bm25Rank`/`vectorRank`로는
+단독 랭킹을 복원할 수 없기 때문이다(§0-1의 경고가 코드로 확정됐다).
+
+**실측(2026-08-22): `runs/2026-08-22/raw.jsonl` 50건을 현재 `build_pool.py`가 전부 거부했다.**
+즉 초판 `pool.json`(1,174쌍 / 928 아티클)은 낡았고, 특히 **벡터 단독 랭킹이 오염**돼 있었다.
+
+함의였던 것:
+- `make_passages_sql.py`가 임베드하는 아티클 집합이 틀리게 된다 → **신선도 가드를 넣어 중단시킨다.**
+- T3~T6 전체가 T2 재수집을 기다린다.
+
+**해소 기록.** 서버 변경 배포 확인(prod 응답에 두 필드 존재) → `RUN_ID=2026-08-22b`로 `collect.py`
+재실행(50/50 완전 수집, 429 0건) → `build_pool.py`(무결성 전 항목 통과) → 가드 자동 해제.
+새 풀 **949쌍 / 762 아티클**. 재수집 전후 top-10 집합 일치율은 하이브리드 100.0% / BM25 99.8% /
+**벡터 43.4%** 로, 오염은 벡터 단독 랭킹에만 있었고 피험자인 하이브리드는 불변이었다(§0-1).
+
+**가드의 판정 근거는 `pool.json`의 `provenance` 필드다** (`build_pool.POOL_PROVENANCE`가 찍고
+`make_passages_sql.load_pool()`이 검사한다). 초판은 `raw.jsonl`을 다시 읽어 `build_pool.rankings()`가
+받아주는지로 판정했는데, 같은 변경에서 `raw.jsonl`이 gitignore 대상이 되면서 **가드가 저장소에
+없는 파일을 근거로 삼는 상태**가 됐다 — 파일이 없으면 경고만 찍고 통과했고, 클론 직후가 정확히
+그 상태였다(재현 확인: 낡은 풀로 `passages.sql`이 종료코드 0으로 생성됨). 근거를 커밋되는 파일로
+옮겨 raw 파일의 존재·압축 여부와 무관하게 동작한다. `test_make_passages_sql.py`가 회귀를 막는다.
+
+> 이 실패가 위험한 이유는 **아무 데서도 에러가 나지 않기 때문**이다. 틀린 아티클 집합으로 SQL이
+> 만들어지고 → prod가 그 청크를 성실히 뽑아주고 → 판정까지 완주해 **그럴듯한 결과표**가 나온다.
+> 구 풀의 오염 규모: "벡터 단독 top-10"이라 부른 491건 중 **277건(56.4%)** 이 원본 벡터 후보인지
+> cross-scoring 보충인지 구분 불가였고, 판정 풀 1,174건 중 **375건(31.9%)** 이 그 벡터 랭킹
+> 때문에만 들어왔다.
+
+해제 절차(실행 완료): 서버 변경(`ArticleSearchResultDto` / `ArticleSearchService` /
+`VectorSearchService`) 배포 → `collect.py` 재실행 → `build_pool.py` → `make_passages_sql.py`.
+판정 캐시는 `passageSetHash`를 키에 물고 있어 풀이 바뀌면 자동 무효화되므로 오염된 판정이
+섞일 위험은 없다.
+
+> ⚠️ 캐시 키가 막아주는 것은 **낡은 판정의 재사용**뿐이다. **처음부터 틀린 대상을 판정하는 것**은
+> 막지 못한다 — 그래서 가드가 따로 필요하다.
 
 ---
 

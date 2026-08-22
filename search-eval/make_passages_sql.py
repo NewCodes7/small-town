@@ -17,10 +17,42 @@
   prod 호스트에서  psql "$DB_URL" -f passages.sql  로 실행하면
   같은 디렉터리에 chunks.csv / vec_top3.csv 가 떨어진다.
 """
-import json, io, os, re, datetime
+import importlib.util, json, io, os, pathlib, re, sys, datetime
 
-RUN_ID = os.environ.get("RUN_ID", "2026-08-22")
+RUN_ID = os.environ.get("RUN_ID", "2026-08-22b")
 BASE = os.path.join("search-eval", "runs", RUN_ID)
+
+
+def build_pool_module():
+    """같은 디렉터리의 build_pool.py 를 로드한다 (경로 무관, sys.path 에 의존하지 않는다)."""
+    spec = importlib.util.spec_from_file_location(
+        "build_pool", pathlib.Path(__file__).with_name("build_pool.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_pool(base):
+    """pool.json 을 읽되, 낡은 풀이면 중단한다.
+
+    커밋 9f86949a 이후 build_pool.rankings() 는 sourceBm25Rank/sourceVectorRank 로 단독 랭킹을
+    복원한다. 그 이전 풀은 cross-scoring 이 사후에 덮어쓴 순위로 만들어져 **아티클 집합 자체가
+    다르다** — 그대로 쓰면 틀린 대상을 판정하고도 파이프라인은 에러 없이 끝까지 간다(§7-5).
+
+    판정 근거는 pool.json 안의 출처 표식이다. 예전처럼 raw.jsonl 을 다시 읽어 검사하면 안 된다 —
+    그 파일은 gitignore 대상이라 **없는 것이 정상 상태**여서, 없을 때 통과시키는 순간
+    가드가 사라진다(클론 직후가 정확히 그 상태다).
+    """
+    path = f"{base}/pool.json"
+    pool = json.load(io.open(path, encoding="utf-8"))
+    expected = build_pool_module().POOL_PROVENANCE
+    actual = pool.get("provenance")
+    if actual != expected:
+        sys.exit(f"[중단] 낡은 풀이다 — {path} 의 provenance 가 {actual!r} (기대: {expected!r}).\n"
+                 f"        cross-scoring 이 덮어쓴 순위로 만든 풀이라 아티클 집합이 틀리다.\n"
+                 f"        서버 변경 배포 후 collect.py → build_pool.py 로 T2 를 재수집하고 "
+                 f"다시 이 스크립트를 돌릴 것.")
+    return pool
 
 
 def normalize_keyword(kw):
@@ -33,7 +65,7 @@ def sql_str(s):
 
 
 def main():
-    pool = json.load(io.open(f"{BASE}/pool.json", encoding="utf-8"))
+    pool = load_pool(BASE)
 
     pairs = []          # (normalized_keyword, article_id)
     seen = set()
