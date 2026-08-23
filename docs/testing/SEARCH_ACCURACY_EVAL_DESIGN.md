@@ -646,9 +646,18 @@ CORPORATION은 **BM25 기여가 가장 낮은 층(19.2)** 이기도 하다: 고�
 | **T4** | **LLM 판정** — pointwise 0~3 + **evidence(원문 인용) + reason**, 시스템 은닉, `passageSetHash` 캐시. 발췌 방식 A/B 100쌍 → 20% 재판정 + 교차 모델로 κ 산출 | `judgments.jsonl`, `ab_excerpt.json` | A/B 30분 + 본판정 20~40분 |
 | **T5** | **스코어러** — NDCG@10 / P@5 / pooled Recall@10 / MRR + paired bootstrap CI | `score.py` | 1시간 |
 | **T6** | **첫 결과표** — 하이브리드 vs BM25 단독 vs 벡터 단독 | `results/<날짜>-baseline.md` | — |
-| T7 | (이후) **파라미터 스윕** — NSF 가중치를 `normalized*Score`로 오프라인 재채점. cross-scoring on/off는 프로퍼티 A/B라 재수집 필요 | `results/<날짜>-sweep.md` | — |
+| **T7** | **파라미터 스윕 (완료)** — NSF 가중치를 `normalized*Score`로 오프라인 재채점, $0. titleMultiplier는 BM25 쿼리 자체를 바꾸므로 **오프라인 대상이 아니다**; cross-scoring on/off도 재수집 필요 | [`results/2026-08-22-sweep.md`](../../search-eval/results/2026-08-22-sweep.md) | 완료 |
 
 T1~T6이 하루 목표. **T7의 가중치 스윕은 T2 데이터만으로 돌아가므로 추가 호출·과금이 없다.**
+
+> ⚠️ **단 가중치만 그렇다.** `titleMultiplier`는 같은 `WeightEntry`에 묶여 있지만 BM25 **쿼리
+> 자체**를 바꾸므로(`buildBM25SearchQuery`) 오프라인 재채점으로 다룰 수 없다 — cross-scoring
+> on/off와 마찬가지로 재수집이 필요하다. 초판은 이 구분을 적지 않았다.
+>
+> **그리고 스윕에는 판정 범위의 한계가 있다.** 가중치를 옮기면 판정 풀(세 랭킹 top-10 합집합)
+> 밖 문서가 top-10에 들어온다. 실측(§T7 보고서): appTier SIMPLE은 0건이라 그대로 읽을 수 있지만,
+> MODERATE 7건·COMPLEX 16건이 들어와 처리 방식(condensed vs unjudged0)에 따라 **결론이 반대로
+> 갈린다.** 그 두 층은 풀을 넓히기 전에는 스윕이 성립하지 않는다.
 
 > ✅ **T2 완료 — 최종 런은 `runs/2026-08-22c`** (2026-08-22 22:1x KST).
 > 판정 풀 **950쌍 / 고유 아티클 763건**, 무결성 검사 전 항목 통과.
@@ -1081,6 +1090,7 @@ search-eval/
 ├── judge.py                  # LLM 판정 + evidence 근거 검증 + 캐시 (T3-P5 / T4)
 ├── ab_excerpt.py             # 발췌 방식 A/B 분석 + 사전 결정 규칙 판정
 ├── agreement.py              # 판정자 신뢰도 — 자기 일치도 / 인간 앵커 (T4)
+├── sweep.py                  # NSF 가중치 오프라인 스윕 (T7)
 ├── score.py                  # 지표 계산 + bootstrap CI (T5)
 ├── test_build_pool.py        # 단위 테스트 — python3 -m unittest discover -s search-eval
 ├── test_build_passages.py / test_judge.py / test_make_passages_sql.py
