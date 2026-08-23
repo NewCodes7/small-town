@@ -1,0 +1,42 @@
+{
+  "file": "search-eval/runs/2026-08-22c/judgments_ab.jsonl",
+  "total": 200,
+  "modes": {
+    "head1200": {
+      "n": 100,
+      "gradeDist": {
+        "0": 28,
+        "1": 23,
+        "2": 15,
+        "3": 34
+      },
+      "meanGrade": 1.55,
+      "evidenceGroundedRate": 0.9205,
+      "evidencePerJudgement": 1.51,
+      "needsReview": 1,
+      "tokens": {
+        "in": 211333,
+        "out": 27516
+      },
+      "costUsd": 1.05
+    },
+    "passages": {
+      "n": 100,
+      "gradeDist": {
+        "0": 20,
+        "1": 19,
+        "2": 23,
+        "3": 38
+      },
+      "meanGrade": 1.79,
+      "evidenceGroundedRate": 0.9113,
+      "evidencePerJudgement": 2.03,
+      "needsReview": 1,
+      "tokens": {
+        "in": 401462,
+        "out": 35839
+      },
+      "costUsd": 1.74
+    }
+  }
+}

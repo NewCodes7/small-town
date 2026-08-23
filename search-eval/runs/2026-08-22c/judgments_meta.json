@@ -1,0 +1,24 @@
+{
+  "file": "search-eval/runs/2026-08-22c/judgments.jsonl",
+  "total": 3,
+  "modes": {
+    "passages": {
+      "n": 3,
+      "gradeDist": {
+        "0": 0,
+        "1": 0,
+        "2": 1,
+        "3": 2
+      },
+      "meanGrade": 2.667,
+      "evidenceGroundedRate": 1.0,
+      "evidencePerJudgement": 2.0,
+      "needsReview": 0,
+      "tokens": {
+        "in": 12012,
+        "out": 1014
+      },
+      "costUsd": 0.05
+    }
+  }
+}

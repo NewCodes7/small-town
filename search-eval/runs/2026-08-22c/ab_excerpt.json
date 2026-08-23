@@ -1,0 +1,67 @@
+{
+  "runId": "2026-08-22c",
+  "pairedSamples": 100,
+  "decisionRule": {
+    "preRegistered": "|평균 등급 차| < 0.15 AND unweighted κ >= 0.7 → head1200 로 본판정, 아니면 passages",
+    "meanGradeDelta(passages-head1200)": 0.24,
+    "kappaUnweighted": 0.647,
+    "kappaQuadraticWeighted": 0.8328,
+    "exactAgreement": 0.74,
+    "verdict": "발췌 방식이 판정을 바꾼다 → passages 로 본판정"
+  },
+  "passages": {
+    "gradeDist": {
+      "0": 20,
+      "1": 19,
+      "2": 23,
+      "3": 38
+    },
+    "meanGrade": 1.79,
+    "evidenceGroundedRate": 0.9113,
+    "needsReview": 1
+  },
+  "head1200": {
+    "gradeDist": {
+      "0": 28,
+      "1": 23,
+      "2": 15,
+      "3": 34
+    },
+    "meanGrade": 1.55,
+    "evidenceGroundedRate": 0.9205,
+    "needsReview": 1
+  },
+  "evidenceVisibility": {
+    "groundedEvidence": 185,
+    "outsideHead1200": 138,
+    "outsideRate": 0.7459,
+    "note": "passages 판정의 근거 인용 중 기존 head-1200자 발췌에는 없던 비율. 높을수록 질의집중 선택이 실제로 새 근거를 보여준 것이다."
+  },
+  "byTier": {
+    "COMPLEX": {
+      "n": 20,
+      "meanDelta": 0.5,
+      "exact": 0.6
+    },
+    "CORPORATION": {
+      "n": 20,
+      "meanDelta": 0.0,
+      "exact": 0.8
+    },
+    "MODERATE": {
+      "n": 20,
+      "meanDelta": 0.2,
+      "exact": 0.8
+    },
+    "SIMPLE": {
+      "n": 20,
+      "meanDelta": 0.25,
+      "exact": 0.85
+    },
+    "SPECIFIC": {
+      "n": 20,
+      "meanDelta": 0.25,
+      "exact": 0.65
+    }
+  }
+}
