@@ -1,0 +1,70 @@
+{
+  "runId": "2026-08-22c",
+  "a": "trial:1",
+  "b": "trial:2",
+  "target": 0.6,
+  "n": 190,
+  "exactAgreement": 0.9632,
+  "kappaUnweighted": 0.9494,
+  "kappaQuadraticWeighted": 0.9872,
+  "meanDelta(a-b)": 0.0263,
+  "deltaDist": {
+    "-1": 1,
+    "0": 183,
+    "1": 6
+  },
+  "confusion": [
+    [
+      45,
+      0,
+      0,
+      0
+    ],
+    [
+      2,
+      32,
+      0,
+      0
+    ],
+    [
+      0,
+      1,
+      37,
+      1
+    ],
+    [
+      0,
+      0,
+      3,
+      69
+    ]
+  ],
+  "byTier": {
+    "SIMPLE": {
+      "n": 42,
+      "exact": 1.0,
+      "kappaUnweighted": 1.0
+    },
+    "MODERATE": {
+      "n": 37,
+      "exact": 0.973,
+      "kappaUnweighted": 0.951
+    },
+    "COMPLEX": {
+      "n": 40,
+      "exact": 0.9,
+      "kappaUnweighted": 0.859
+    },
+    "SPECIFIC": {
+      "n": 31,
+      "exact": 1.0,
+      "kappaUnweighted": 1.0
+    },
+    "CORPORATION": {
+      "n": 40,
+      "exact": 0.95,
+      "kappaUnweighted": 0.913
+    }
+  },
+  "verdict": "목표 충족"
+}

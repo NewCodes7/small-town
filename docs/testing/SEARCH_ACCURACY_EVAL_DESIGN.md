@@ -816,7 +816,11 @@ T1~T6이 하루 목표. **T7의 가중치 스윕은 T2 데이터만으로 돌아
       (`doesn't` ↔ `doesn’t`) 멀쩡한 근거가 미검증으로 잡혔다. `norm()` 에 타이포그래피 폴딩을
       넣고 `judge.py --reverify` 로 **LLM 재호출 없이** 재검증 — 근거율 0.9261 → **0.9670**,
       needsReview 4 → **1**. 등급은 건드리지 않았다(검증 방법만 고쳤다)
-- [ ] **자기 일치도**: 20% 무작위 재판정(`--trial 2 --frac 0.2`) → 완전 일치율 + Cohen's κ (**목표 ≥ 0.6**)
+- [x] **자기 일치도**: 20% 재판정(190쌍) → 완전 일치율 **0.9632**, unweighted κ **0.9494**
+      (목표 0.6 충족). 불일치 7건이 전부 인접 등급이고 평균 등급 차 +0.026 으로 계통 이동도 없다.
+      **자기 일치도 0.949 vs A/B 의 0.647** 대조가 §3-2-2 의 결론을 확정한다 — 그 차이는
+      판정자 노이즈가 아니라 발췌 방식이 만든 것이다. 2회차 등급으로 교체해 전 지표를 다시
+      계산해도 NDCG@10 이 0.8513 → 0.8489 로 움직일 뿐 유의성은 그대로다 (`agreement.py`)
 - [ ] **인간 앵커 50쌍**: 사용자 직접 판정 → Claude와 대조 (**κ ≈ 0.3 이상이면 `정상**).
       evidence 덕분에 문서 전문을 읽지 않고 근거만 확인하면 되므로 초판보다 빨라진다
 - [ ] **교차 모델**: Gemini로 같은 표본 판정 → 참고 기록 (타당성 근거로 쓰지 않음)
@@ -1076,6 +1080,7 @@ search-eval/
 ├── build_passages.py         # 제목 접두 제거 + BM25/벡터 union + 중복 제거 (T3-P1~P4)
 ├── judge.py                  # LLM 판정 + evidence 근거 검증 + 캐시 (T3-P5 / T4)
 ├── ab_excerpt.py             # 발췌 방식 A/B 분석 + 사전 결정 규칙 판정
+├── agreement.py              # 판정자 신뢰도 — 자기 일치도 / 인간 앵커 (T4)
 ├── score.py                  # 지표 계산 + bootstrap CI (T5)
 ├── test_build_pool.py        # 단위 테스트 — python3 -m unittest discover -s search-eval
 ├── test_build_passages.py / test_judge.py / test_make_passages_sql.py
