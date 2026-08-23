@@ -84,3 +84,28 @@ class CacheKeyTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TypographicNormalizationTest(unittest.TestCase):
+    """판정자는 원문의 굽은 따옴표를 곧은 따옴표로 바꿔 인용한다.
+
+    그걸 '원문에 없는 인용'으로 세면 근거율이 실제보다 낮게 나온다 —
+    2026-08-22c 실측 needsReview 4건 중 3건이 이 문제였다.
+    """
+
+    def test_curly_apostrophe_quote_is_grounded(self):
+        hay = [J.norm("the Python runtime can pause a coroutine that’s waiting")]
+        self.assertTrue(J.grounded("a coroutine that's waiting", hay))
+
+    def test_curly_double_quotes_and_dashes_fold(self):
+        hay = [J.norm("“blue–green” deployment")]
+        self.assertTrue(J.grounded('"blue-green" deployment', hay))
+
+    def test_genuinely_absent_quote_is_still_not_grounded(self):
+        """정규화는 타이포그래피만 접는다 — 없는 문장을 만들어내면 안 된다."""
+        hay = [J.norm("코루틴은 경량 스레드다")]
+        self.assertFalse(J.grounded("코루틴은 무거운 스레드다", hay))
+
+    def test_nbsp_and_zero_width_are_folded(self):
+        hay = [J.norm("G1 GC​ 를 사용한다")]
+        self.assertTrue(J.grounded("G1 GC 를 사용한다", hay))

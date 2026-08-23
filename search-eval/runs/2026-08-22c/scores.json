@@ -1,0 +1,2234 @@
+{
+  "runId": "2026-08-22c",
+  "k": 10,
+  "relevanceThreshold": 2,
+  "gain": "linear(등급 0~3, §2-1) — ndcg10Exp 는 2^g-1 민감도",
+  "judgedPairs": 950,
+  "missingJudgements": 0,
+  "overall": {
+    "n": 50,
+    "hybrid": {
+      "queries": 50,
+      "emptyArm": 0,
+      "ndcg10": 0.8513,
+      "ndcg10Exp": 0.8231,
+      "p5": 0.76,
+      "pooledRecall10": 0.6703,
+      "mrr": 0.8817,
+      "depthMean": 150.04,
+      "depthUnderK": 0
+    },
+    "bm25": {
+      "queries": 50,
+      "emptyArm": 0,
+      "ndcg10": 0.7046,
+      "ndcg10Exp": 0.6641,
+      "p5": 0.644,
+      "pooledRecall10": 0.4868,
+      "mrr": 0.8257,
+      "depthMean": 99.08,
+      "depthUnderK": 0
+    },
+    "vector": {
+      "queries": 50,
+      "emptyArm": 0,
+      "ndcg10": 0.7924,
+      "ndcg10Exp": 0.7376,
+      "p5": 0.7,
+      "pooledRecall10": 0.6352,
+      "mrr": 0.8274,
+      "depthMean": 70.74,
+      "depthUnderK": 3
+    }
+  },
+  "byTier": {
+    "SIMPLE": {
+      "n": 10,
+      "hybrid": {
+        "queries": 10,
+        "emptyArm": 0,
+        "ndcg10": 0.92,
+        "ndcg10Exp": 0.8883,
+        "p5": 0.9,
+        "pooledRecall10": 0.5627,
+        "mrr": 1.0,
+        "depthMean": 125.3,
+        "depthUnderK": 0
+      },
+      "bm25": {
+        "queries": 10,
+        "emptyArm": 0,
+        "ndcg10": 0.9267,
+        "ndcg10Exp": 0.8953,
+        "p5": 0.98,
+        "pooledRecall10": 0.5781,
+        "mrr": 1.0,
+        "depthMean": 95.4,
+        "depthUnderK": 0
+      },
+      "vector": {
+        "queries": 10,
+        "emptyArm": 0,
+        "ndcg10": 0.8155,
+        "ndcg10Exp": 0.7514,
+        "p5": 0.88,
+        "pooledRecall10": 0.5037,
+        "mrr": 0.8833,
+        "depthMean": 49.5,
+        "depthUnderK": 2
+      }
+    },
+    "MODERATE": {
+      "n": 10,
+      "hybrid": {
+        "queries": 10,
+        "emptyArm": 0,
+        "ndcg10": 0.9128,
+        "ndcg10Exp": 0.8918,
+        "p5": 0.94,
+        "pooledRecall10": 0.5886,
+        "mrr": 0.95,
+        "depthMean": 151.5,
+        "depthUnderK": 0
+      },
+      "bm25": {
+        "queries": 10,
+        "emptyArm": 0,
+        "ndcg10": 0.7739,
+        "ndcg10Exp": 0.7493,
+        "p5": 0.76,
+        "pooledRecall10": 0.4676,
+        "mrr": 0.9,
+        "depthMean": 100,
+        "depthUnderK": 0
+      },
+      "vector": {
+        "queries": 10,
+        "emptyArm": 0,
+        "ndcg10": 0.8797,
+        "ndcg10Exp": 0.8261,
+        "p5": 0.92,
+        "pooledRecall10": 0.6085,
+        "mrr": 0.9,
+        "depthMean": 71.6,
+        "depthUnderK": 0
+      }
+    },
+    "COMPLEX": {
+      "n": 10,
+      "hybrid": {
+        "queries": 10,
+        "emptyArm": 0,
+        "ndcg10": 0.9223,
+        "ndcg10Exp": 0.8885,
+        "p5": 0.86,
+        "pooledRecall10": 0.7241,
+        "mrr": 1.0,
+        "depthMean": 155.4,
+        "depthUnderK": 0
+      },
+      "bm25": {
+        "queries": 10,
+        "emptyArm": 0,
+        "ndcg10": 0.6746,
+        "ndcg10Exp": 0.6123,
+        "p5": 0.62,
+        "pooledRecall10": 0.4306,
+        "mrr": 0.8583,
+        "depthMean": 100,
+        "depthUnderK": 0
+      },
+      "vector": {
+        "queries": 10,
+        "emptyArm": 0,
+        "ndcg10": 0.8618,
+        "ndcg10Exp": 0.7973,
+        "p5": 0.8,
+        "pooledRecall10": 0.6525,
+        "mrr": 1.0,
+        "depthMean": 73.3,
+        "depthUnderK": 1
+      }
+    },
+    "SPECIFIC": {
+      "n": 10,
+      "hybrid": {
+        "queries": 10,
+        "emptyArm": 0,
+        "ndcg10": 0.8217,
+        "ndcg10Exp": 0.785,
+        "p5": 0.74,
+        "pooledRecall10": 0.772,
+        "mrr": 0.95,
+        "depthMean": 164.2,
+        "depthUnderK": 0
+      },
+      "bm25": {
+        "queries": 10,
+        "emptyArm": 0,
+        "ndcg10": 0.5999,
+        "ndcg10Exp": 0.5265,
+        "p5": 0.54,
+        "pooledRecall10": 0.4437,
+        "mrr": 0.9,
+        "depthMean": 100,
+        "depthUnderK": 0
+      },
+      "vector": {
+        "queries": 10,
+        "emptyArm": 0,
+        "ndcg10": 0.7864,
+        "ndcg10Exp": 0.733,
+        "p5": 0.64,
+        "pooledRecall10": 0.6911,
+        "mrr": 0.9143,
+        "depthMean": 86.4,
+        "depthUnderK": 0
+      }
+    },
+    "CORPORATION": {
+      "n": 10,
+      "hybrid": {
+        "queries": 10,
+        "emptyArm": 0,
+        "ndcg10": 0.6796,
+        "ndcg10Exp": 0.6617,
+        "p5": 0.36,
+        "pooledRecall10": 0.7125,
+        "mrr": 0.5083,
+        "depthMean": 153.8,
+        "depthUnderK": 0
+      },
+      "bm25": {
+        "queries": 10,
+        "emptyArm": 0,
+        "ndcg10": 0.5481,
+        "ndcg10Exp": 0.5373,
+        "p5": 0.32,
+        "pooledRecall10": 0.5208,
+        "mrr": 0.47,
+        "depthMean": 100,
+        "depthUnderK": 0
+      },
+      "vector": {
+        "queries": 10,
+        "emptyArm": 0,
+        "ndcg10": 0.6184,
+        "ndcg10Exp": 0.5801,
+        "p5": 0.26,
+        "pooledRecall10": 0.7417,
+        "mrr": 0.4393,
+        "depthMean": 72.9,
+        "depthUnderK": 0
+      }
+    }
+  },
+  "service": {
+    "overall": {
+      "latencyP50": 807,
+      "latencyP95": 983,
+      "totalElementsMean": 150.0,
+      "vectorDepthMean": 70.7
+    },
+    "SIMPLE": {
+      "latencyP50": 842,
+      "latencyP95": 1288,
+      "totalElementsMean": 125.3,
+      "vectorDepthMean": 49.5
+    },
+    "MODERATE": {
+      "latencyP50": 860,
+      "latencyP95": 983,
+      "totalElementsMean": 151.5,
+      "vectorDepthMean": 71.6
+    },
+    "COMPLEX": {
+      "latencyP50": 761,
+      "latencyP95": 830,
+      "totalElementsMean": 155.4,
+      "vectorDepthMean": 73.3
+    },
+    "SPECIFIC": {
+      "latencyP50": 768,
+      "latencyP95": 890,
+      "totalElementsMean": 164.2,
+      "vectorDepthMean": 86.4
+    },
+    "CORPORATION": {
+      "latencyP50": 774,
+      "latencyP95": 855,
+      "totalElementsMean": 153.8,
+      "vectorDepthMean": 72.9
+    }
+  },
+  "pairedBootstrap": {
+    "ndcg10": {
+      "hybrid-bm25": {
+        "n": 50,
+        "meanDelta": 0.1467,
+        "ci95": [
+          0.0903,
+          0.2063
+        ],
+        "significant": true
+      },
+      "hybrid-vector": {
+        "n": 50,
+        "meanDelta": 0.0589,
+        "ci95": [
+          0.0296,
+          0.0887
+        ],
+        "significant": true
+      },
+      "bm25-vector": {
+        "n": 50,
+        "meanDelta": -0.0878,
+        "ci95": [
+          -0.1675,
+          -0.0114
+        ],
+        "significant": true
+      }
+    },
+    "p5": {
+      "hybrid-bm25": {
+        "n": 50,
+        "meanDelta": 0.116,
+        "ci95": [
+          0.052,
+          0.184
+        ],
+        "significant": true
+      },
+      "hybrid-vector": {
+        "n": 50,
+        "meanDelta": 0.06,
+        "ci95": [
+          0.024,
+          0.1
+        ],
+        "significant": true
+      },
+      "bm25-vector": {
+        "n": 50,
+        "meanDelta": -0.056,
+        "ci95": [
+          -0.132,
+          0.016
+        ],
+        "significant": false
+      }
+    },
+    "pooledRecall10": {
+      "hybrid-bm25": {
+        "n": 48,
+        "meanDelta": 0.1835,
+        "ci95": [
+          0.1202,
+          0.2533
+        ],
+        "significant": true
+      },
+      "hybrid-vector": {
+        "n": 48,
+        "meanDelta": 0.0351,
+        "ci95": [
+          -0.0345,
+          0.1002
+        ],
+        "significant": false
+      },
+      "bm25-vector": {
+        "n": 48,
+        "meanDelta": -0.1484,
+        "ci95": [
+          -0.2481,
+          -0.0558
+        ],
+        "significant": true
+      }
+    },
+    "mrr": {
+      "hybrid-bm25": {
+        "n": 50,
+        "meanDelta": 0.056,
+        "ci95": [
+          -0.02,
+          0.1393
+        ],
+        "significant": false
+      },
+      "hybrid-vector": {
+        "n": 50,
+        "meanDelta": 0.0543,
+        "ci95": [
+          0.0005,
+          0.1181
+        ],
+        "significant": true
+      },
+      "bm25-vector": {
+        "n": 50,
+        "meanDelta": -0.0017,
+        "ci95": [
+          -0.101,
+          0.0957
+        ],
+        "significant": false
+      }
+    }
+  },
+  "perQuery": [
+    {
+      "keyword": "kubernetes",
+      "tier": "SIMPLE",
+      "poolSize": 22,
+      "judged": 22,
+      "relevantInPool": 21,
+      "hybrid": {
+        "empty": false,
+        "depth": 174,
+        "returned": 10,
+        "ndcg10": 0.9349369997364463,
+        "ndcg10Exp": 0.8884634281196222,
+        "p5": 1.0,
+        "pooledRecall10": 0.47619047619047616,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.8958236282594846,
+        "ndcg10Exp": 0.8214119341591165,
+        "p5": 1.0,
+        "pooledRecall10": 0.47619047619047616,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.8982550386867663,
+        "ndcg10Exp": 0.8570217472198964,
+        "p5": 0.8,
+        "pooledRecall10": 0.42857142857142855,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "kafka",
+      "tier": "SIMPLE",
+      "poolSize": 18,
+      "judged": 18,
+      "relevantInPool": 17,
+      "hybrid": {
+        "empty": false,
+        "depth": 104,
+        "returned": 10,
+        "ndcg10": 0.8286723577748708,
+        "ndcg10Exp": 0.7306220755116705,
+        "p5": 0.8,
+        "pooledRecall10": 0.5294117647058824,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.9716189607861263,
+        "ndcg10Exp": 0.9513467899190737,
+        "p5": 1.0,
+        "pooledRecall10": 0.5882352941176471,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 13,
+        "returned": 10,
+        "ndcg10": 0.697731016867887,
+        "ndcg10Exp": 0.5447079621444004,
+        "p5": 0.8,
+        "pooledRecall10": 0.5294117647058824,
+        "mrr": 0.5
+      }
+    },
+    {
+      "keyword": "redis",
+      "tier": "SIMPLE",
+      "poolSize": 22,
+      "judged": 22,
+      "relevantInPool": 22,
+      "hybrid": {
+        "empty": false,
+        "depth": 135,
+        "returned": 10,
+        "ndcg10": 1.0,
+        "ndcg10Exp": 1.0,
+        "p5": 1.0,
+        "pooledRecall10": 0.45454545454545453,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.96331803895032,
+        "ndcg10Exp": 0.9371166382005485,
+        "p5": 1.0,
+        "pooledRecall10": 0.45454545454545453,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 64,
+        "returned": 10,
+        "ndcg10": 0.8078922150291062,
+        "ndcg10Exp": 0.6706723686213251,
+        "p5": 1.0,
+        "pooledRecall10": 0.45454545454545453,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "msa",
+      "tier": "SIMPLE",
+      "poolSize": 17,
+      "judged": 17,
+      "relevantInPool": 13,
+      "hybrid": {
+        "empty": false,
+        "depth": 103,
+        "returned": 10,
+        "ndcg10": 0.7375534525733177,
+        "ndcg10Exp": 0.621208297846429,
+        "p5": 0.6,
+        "pooledRecall10": 0.6153846153846154,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.9716189607861263,
+        "ndcg10Exp": 0.9513467899190737,
+        "p5": 1.0,
+        "pooledRecall10": 0.7692307692307693,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 7,
+        "returned": 7,
+        "ndcg10": 0.3847966023138414,
+        "ndcg10Exp": 0.23976744039377262,
+        "p5": 0.4,
+        "pooledRecall10": 0.23076923076923078,
+        "mrr": 0.3333333333333333
+      }
+    },
+    {
+      "keyword": "react",
+      "tier": "SIMPLE",
+      "poolSize": 16,
+      "judged": 16,
+      "relevantInPool": 16,
+      "hybrid": {
+        "empty": false,
+        "depth": 152,
+        "returned": 10,
+        "ndcg10": 1.0,
+        "ndcg10Exp": 1.0,
+        "p5": 1.0,
+        "pooledRecall10": 0.625,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.9768562593544076,
+        "ndcg10Exp": 0.9603250160361274,
+        "p5": 1.0,
+        "pooledRecall10": 0.625,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 92,
+        "returned": 10,
+        "ndcg10": 0.9755453593002132,
+        "ndcg10Exp": 0.9580777588003657,
+        "p5": 1.0,
+        "pooledRecall10": 0.625,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "kotlin",
+      "tier": "SIMPLE",
+      "poolSize": 20,
+      "judged": 20,
+      "relevantInPool": 19,
+      "hybrid": {
+        "empty": false,
+        "depth": 136,
+        "returned": 10,
+        "ndcg10": 1.0,
+        "ndcg10Exp": 1.0,
+        "p5": 1.0,
+        "pooledRecall10": 0.5263157894736842,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.9045513367491769,
+        "ndcg10Exp": 0.8363737201414463,
+        "p5": 1.0,
+        "pooledRecall10": 0.5263157894736842,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 74,
+        "returned": 10,
+        "ndcg10": 0.955830517697074,
+        "ndcg10Exp": 0.9432106656105238,
+        "p5": 1.0,
+        "pooledRecall10": 0.47368421052631576,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "코루틴",
+      "tier": "SIMPLE",
+      "poolSize": 12,
+      "judged": 12,
+      "relevantInPool": 7,
+      "hybrid": {
+        "empty": false,
+        "depth": 55,
+        "returned": 10,
+        "ndcg10": 0.8369329446180366,
+        "ndcg10Exp": 0.8435733481758915,
+        "p5": 0.8,
+        "pooledRecall10": 0.7142857142857143,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 54,
+        "returned": 10,
+        "ndcg10": 0.8294165741831323,
+        "ndcg10Exp": 0.8383330291796621,
+        "p5": 0.8,
+        "pooledRecall10": 0.7142857142857143,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 5,
+        "returned": 5,
+        "ndcg10": 0.7802380785861072,
+        "ndcg10Exp": 0.818535940176833,
+        "p5": 1.0,
+        "pooledRecall10": 0.7142857142857143,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "웹소켓",
+      "tier": "SIMPLE",
+      "poolSize": 17,
+      "judged": 17,
+      "relevantInPool": 14,
+      "hybrid": {
+        "empty": false,
+        "depth": 109,
+        "returned": 10,
+        "ndcg10": 0.8622951144513719,
+        "ndcg10Exp": 0.7992593583705276,
+        "p5": 0.8,
+        "pooledRecall10": 0.5714285714285714,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.8414176968617836,
+        "ndcg10Exp": 0.7593780620288603,
+        "p5": 1.0,
+        "pooledRecall10": 0.5714285714285714,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 24,
+        "returned": 10,
+        "ndcg10": 0.8156517437146832,
+        "ndcg10Exp": 0.7197819915645332,
+        "p5": 0.8,
+        "pooledRecall10": 0.5714285714285714,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "동시성",
+      "tier": "SIMPLE",
+      "poolSize": 18,
+      "judged": 18,
+      "relevantInPool": 17,
+      "hybrid": {
+        "empty": false,
+        "depth": 106,
+        "returned": 10,
+        "ndcg10": 1.0,
+        "ndcg10Exp": 1.0,
+        "p5": 1.0,
+        "pooledRecall10": 0.5882352941176471,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.9125388471459603,
+        "ndcg10Exp": 0.8973910404319243,
+        "p5": 1.0,
+        "pooledRecall10": 0.5294117647058824,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 16,
+        "returned": 10,
+        "ndcg10": 1.0,
+        "ndcg10Exp": 1.0,
+        "p5": 1.0,
+        "pooledRecall10": 0.5882352941176471,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "모니터링",
+      "tier": "SIMPLE",
+      "poolSize": 21,
+      "judged": 21,
+      "relevantInPool": 19,
+      "hybrid": {
+        "empty": false,
+        "depth": 179,
+        "returned": 10,
+        "ndcg10": 1.0,
+        "ndcg10Exp": 1.0,
+        "p5": 1.0,
+        "pooledRecall10": 0.5263157894736842,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 1.0,
+        "ndcg10Exp": 1.0,
+        "p5": 1.0,
+        "pooledRecall10": 0.5263157894736842,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.838878422292104,
+        "ndcg10Exp": 0.7618064411109582,
+        "p5": 1.0,
+        "pooledRecall10": 0.42105263157894735,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "gc 튜닝",
+      "tier": "MODERATE",
+      "poolSize": 17,
+      "judged": 17,
+      "relevantInPool": 11,
+      "hybrid": {
+        "empty": false,
+        "depth": 163,
+        "returned": 10,
+        "ndcg10": 0.8966245464937114,
+        "ndcg10Exp": 0.894819674796347,
+        "p5": 1.0,
+        "pooledRecall10": 0.7272727272727273,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.759157856024403,
+        "ndcg10Exp": 0.7475638506386413,
+        "p5": 0.6,
+        "pooledRecall10": 0.5454545454545454,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 78,
+        "returned": 10,
+        "ndcg10": 0.8383092157673083,
+        "ndcg10Exp": 0.8245748052661024,
+        "p5": 1.0,
+        "pooledRecall10": 0.7272727272727273,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "a/b 테스트",
+      "tier": "MODERATE",
+      "poolSize": 20,
+      "judged": 20,
+      "relevantInPool": 9,
+      "hybrid": {
+        "empty": false,
+        "depth": 140,
+        "returned": 10,
+        "ndcg10": 0.74197265897124,
+        "ndcg10Exp": 0.7273499790863189,
+        "p5": 0.8,
+        "pooledRecall10": 0.6666666666666666,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.02420623197913257,
+        "ndcg10Exp": 0.01090508735927636,
+        "p5": 0.0,
+        "pooledRecall10": 0.0,
+        "mrr": 0.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 47,
+        "returned": 10,
+        "ndcg10": 0.9713519154760276,
+        "ndcg10Exp": 0.9586353296848602,
+        "p5": 0.8,
+        "pooledRecall10": 1.0,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "spring boot",
+      "tier": "MODERATE",
+      "poolSize": 17,
+      "judged": 17,
+      "relevantInPool": 17,
+      "hybrid": {
+        "empty": false,
+        "depth": 123,
+        "returned": 10,
+        "ndcg10": 0.9217418482084477,
+        "ndcg10Exp": 0.8637343199758349,
+        "p5": 1.0,
+        "pooledRecall10": 0.5882352941176471,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.9493915577467889,
+        "ndcg10Exp": 0.9118789079383559,
+        "p5": 1.0,
+        "pooledRecall10": 0.5882352941176471,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 55,
+        "returned": 10,
+        "ndcg10": 0.8530594268767634,
+        "ndcg10Exp": 0.7441422182686945,
+        "p5": 1.0,
+        "pooledRecall10": 0.5882352941176471,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "prompt engineering",
+      "tier": "MODERATE",
+      "poolSize": 23,
+      "judged": 23,
+      "relevantInPool": 14,
+      "hybrid": {
+        "empty": false,
+        "depth": 166,
+        "returned": 10,
+        "ndcg10": 0.9391032321568611,
+        "ndcg10Exp": 0.9105285601846933,
+        "p5": 1.0,
+        "pooledRecall10": 0.6428571428571429,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.42699151571495747,
+        "ndcg10Exp": 0.3976297888689902,
+        "p5": 0.2,
+        "pooledRecall10": 0.2857142857142857,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 88,
+        "returned": 10,
+        "ndcg10": 0.8487243945879824,
+        "ndcg10Exp": 0.769683319972119,
+        "p5": 1.0,
+        "pooledRecall10": 0.5714285714285714,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "fine tuning",
+      "tier": "MODERATE",
+      "poolSize": 18,
+      "judged": 18,
+      "relevantInPool": 16,
+      "hybrid": {
+        "empty": false,
+        "depth": 176,
+        "returned": 10,
+        "ndcg10": 1.0,
+        "ndcg10Exp": 1.0,
+        "p5": 1.0,
+        "pooledRecall10": 0.625,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.9253314794949414,
+        "ndcg10Exp": 0.8918343139732647,
+        "p5": 1.0,
+        "pooledRecall10": 0.5625,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 99,
+        "returned": 10,
+        "ndcg10": 0.9510907186004267,
+        "ndcg10Exp": 0.9371166382005485,
+        "p5": 1.0,
+        "pooledRecall10": 0.5625,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "대규모 트래픽",
+      "tier": "MODERATE",
+      "poolSize": 20,
+      "judged": 20,
+      "relevantInPool": 15,
+      "hybrid": {
+        "empty": false,
+        "depth": 132,
+        "returned": 10,
+        "ndcg10": 0.8040697834774904,
+        "ndcg10Exp": 0.7732053682724889,
+        "p5": 0.8,
+        "pooledRecall10": 0.5333333333333333,
+        "mrr": 0.5
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.798032057719878,
+        "ndcg10Exp": 0.7811333434139086,
+        "p5": 0.8,
+        "pooledRecall10": 0.4666666666666667,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 37,
+        "returned": 10,
+        "ndcg10": 0.7006420333488828,
+        "ndcg10Exp": 0.5636476599475834,
+        "p5": 0.8,
+        "pooledRecall10": 0.5333333333333333,
+        "mrr": 0.5
+      }
+    },
+    {
+      "keyword": "성능 최적화",
+      "tier": "MODERATE",
+      "poolSize": 26,
+      "judged": 26,
+      "relevantInPool": 26,
+      "hybrid": {
+        "empty": false,
+        "depth": 186,
+        "returned": 10,
+        "ndcg10": 0.9401742983047275,
+        "ndcg10Exp": 0.8974416542366759,
+        "p5": 1.0,
+        "pooledRecall10": 0.38461538461538464,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.9282056735743376,
+        "ndcg10Exp": 0.8769240118417218,
+        "p5": 1.0,
+        "pooledRecall10": 0.38461538461538464,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.8685015885397402,
+        "ndcg10Exp": 0.7745741517824121,
+        "p5": 1.0,
+        "pooledRecall10": 0.38461538461538464,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "벡터 검색",
+      "tier": "MODERATE",
+      "poolSize": 18,
+      "judged": 18,
+      "relevantInPool": 17,
+      "hybrid": {
+        "empty": false,
+        "depth": 146,
+        "returned": 10,
+        "ndcg10": 0.92663607790064,
+        "ndcg10Exp": 0.9056749573008228,
+        "p5": 0.8,
+        "pooledRecall10": 0.5294117647058824,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.9534606181487503,
+        "ndcg10Exp": 0.9202182025407148,
+        "p5": 1.0,
+        "pooledRecall10": 0.5882352941176471,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 77,
+        "returned": 10,
+        "ndcg10": 0.8288175151014932,
+        "ndcg10Exp": 0.7694276734020112,
+        "p5": 0.8,
+        "pooledRecall10": 0.5294117647058824,
+        "mrr": 0.5
+      }
+    },
+    {
+      "keyword": "테스트 코드",
+      "tier": "MODERATE",
+      "poolSize": 16,
+      "judged": 16,
+      "relevantInPool": 15,
+      "hybrid": {
+        "empty": false,
+        "depth": 164,
+        "returned": 10,
+        "ndcg10": 0.9575861412006988,
+        "ndcg10Exp": 0.9454678958294701,
+        "p5": 1.0,
+        "pooledRecall10": 0.6,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.9738672436737749,
+        "ndcg10Exp": 0.9552009891550427,
+        "p5": 1.0,
+        "pooledRecall10": 0.6666666666666666,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 96,
+        "returned": 10,
+        "ndcg10": 0.9368077570869662,
+        "ndcg10Exp": 0.9187528305403851,
+        "p5": 0.8,
+        "pooledRecall10": 0.6,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "장애 대응",
+      "tier": "MODERATE",
+      "poolSize": 17,
+      "judged": 17,
+      "relevantInPool": 17,
+      "hybrid": {
+        "empty": false,
+        "depth": 119,
+        "returned": 10,
+        "ndcg10": 1.0,
+        "ndcg10Exp": 1.0,
+        "p5": 1.0,
+        "pooledRecall10": 0.5882352941176471,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 1.0,
+        "ndcg10Exp": 1.0,
+        "p5": 1.0,
+        "pooledRecall10": 0.5882352941176471,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 39,
+        "returned": 10,
+        "ndcg10": 1.0,
+        "ndcg10Exp": 1.0,
+        "p5": 1.0,
+        "pooledRecall10": 0.5882352941176471,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "blue green 배포",
+      "tier": "COMPLEX",
+      "poolSize": 15,
+      "judged": 15,
+      "relevantInPool": 13,
+      "hybrid": {
+        "empty": false,
+        "depth": 102,
+        "returned": 10,
+        "ndcg10": 0.9966819224638114,
+        "ndcg10Exp": 0.9942224537445509,
+        "p5": 1.0,
+        "pooledRecall10": 0.7692307692307693,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.8780204811852509,
+        "ndcg10Exp": 0.828220268527513,
+        "p5": 1.0,
+        "pooledRecall10": 0.6153846153846154,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 9,
+        "returned": 9,
+        "ndcg10": 0.9051079927367391,
+        "ndcg10Exp": 0.8819287317752382,
+        "p5": 1.0,
+        "pooledRecall10": 0.6923076923076923,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "react 상태관리 라이브러리 비교",
+      "tier": "COMPLEX",
+      "poolSize": 20,
+      "judged": 20,
+      "relevantInPool": 8,
+      "hybrid": {
+        "empty": false,
+        "depth": 167,
+        "returned": 10,
+        "ndcg10": 0.8999559022904736,
+        "ndcg10Exp": 0.8753382236045498,
+        "p5": 0.8,
+        "pooledRecall10": 0.75,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.6827253844053434,
+        "ndcg10Exp": 0.6045903059991173,
+        "p5": 0.2,
+        "pooledRecall10": 0.25,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.8933948825984958,
+        "ndcg10Exp": 0.8618818730719913,
+        "p5": 0.6,
+        "pooledRecall10": 0.75,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "검색 성능 최적화",
+      "tier": "COMPLEX",
+      "poolSize": 20,
+      "judged": 20,
+      "relevantInPool": 17,
+      "hybrid": {
+        "empty": false,
+        "depth": 176,
+        "returned": 10,
+        "ndcg10": 0.9155681986298226,
+        "ndcg10Exp": 0.8552597690796961,
+        "p5": 1.0,
+        "pooledRecall10": 0.5882352941176471,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.6792938316462971,
+        "ndcg10Exp": 0.5269194358843785,
+        "p5": 0.6,
+        "pooledRecall10": 0.4117647058823529,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.8809808094496986,
+        "ndcg10Exp": 0.795967101913769,
+        "p5": 1.0,
+        "pooledRecall10": 0.5882352941176471,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "마이크로서비스 아키텍처 설계",
+      "tier": "COMPLEX",
+      "poolSize": 17,
+      "judged": 17,
+      "relevantInPool": 14,
+      "hybrid": {
+        "empty": false,
+        "depth": 175,
+        "returned": 10,
+        "ndcg10": 0.9416068302140956,
+        "ndcg10Exp": 0.8945366324655303,
+        "p5": 1.0,
+        "pooledRecall10": 0.7142857142857143,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.8756277796439099,
+        "ndcg10Exp": 0.8599313681268081,
+        "p5": 1.0,
+        "pooledRecall10": 0.5714285714285714,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.8836419592674281,
+        "ndcg10Exp": 0.8103604647017224,
+        "p5": 1.0,
+        "pooledRecall10": 0.6428571428571429,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "jpa n+1 문제 해결",
+      "tier": "COMPLEX",
+      "poolSize": 19,
+      "judged": 19,
+      "relevantInPool": 4,
+      "hybrid": {
+        "empty": false,
+        "depth": 114,
+        "returned": 10,
+        "ndcg10": 0.9107646145260162,
+        "ndcg10Exp": 0.9416294532239078,
+        "p5": 0.6,
+        "pooledRecall10": 1.0,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.559164983976563,
+        "ndcg10Exp": 0.6242970062551728,
+        "p5": 0.2,
+        "pooledRecall10": 0.25,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 24,
+        "returned": 10,
+        "ndcg10": 0.9496860740517834,
+        "ndcg10Exp": 0.9647120712464536,
+        "p5": 0.6,
+        "pooledRecall10": 1.0,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "kubernetes 운영 노하우",
+      "tier": "COMPLEX",
+      "poolSize": 24,
+      "judged": 24,
+      "relevantInPool": 8,
+      "hybrid": {
+        "empty": false,
+        "depth": 193,
+        "returned": 10,
+        "ndcg10": 0.8541620244635514,
+        "ndcg10Exp": 0.8153532549275171,
+        "p5": 0.6,
+        "pooledRecall10": 0.625,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.08504710324564348,
+        "ndcg10Exp": 0.06809399981944454,
+        "p5": 0.2,
+        "pooledRecall10": 0.125,
+        "mrr": 0.25
+      },
+      "vector": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.8162649117982858,
+        "ndcg10Exp": 0.7781264478565173,
+        "p5": 0.4,
+        "pooledRecall10": 0.625,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "대용량 트래픽 처리",
+      "tier": "COMPLEX",
+      "poolSize": 20,
+      "judged": 20,
+      "relevantInPool": 16,
+      "hybrid": {
+        "empty": false,
+        "depth": 189,
+        "returned": 10,
+        "ndcg10": 0.9546684437043697,
+        "ndcg10Exp": 0.9081840786251361,
+        "p5": 1.0,
+        "pooledRecall10": 0.625,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.7958336486223075,
+        "ndcg10Exp": 0.7109432482511471,
+        "p5": 1.0,
+        "pooledRecall10": 0.4375,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.8194146891800281,
+        "ndcg10Exp": 0.7146289693088659,
+        "p5": 1.0,
+        "pooledRecall10": 0.5625,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "ci/cd 파이프라인 구축",
+      "tier": "COMPLEX",
+      "poolSize": 17,
+      "judged": 17,
+      "relevantInPool": 14,
+      "hybrid": {
+        "empty": false,
+        "depth": 129,
+        "returned": 10,
+        "ndcg10": 0.8998572634179568,
+        "ndcg10Exp": 0.8465041053447694,
+        "p5": 1.0,
+        "pooledRecall10": 0.6428571428571429,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.8285782178384199,
+        "ndcg10Exp": 0.7701356767273415,
+        "p5": 0.6,
+        "pooledRecall10": 0.5714285714285714,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 52,
+        "returned": 10,
+        "ndcg10": 0.8064871750384611,
+        "ndcg10Exp": 0.6871935067671874,
+        "p5": 1.0,
+        "pooledRecall10": 0.6428571428571429,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "데이터베이스 인덱스 최적화",
+      "tier": "COMPLEX",
+      "poolSize": 22,
+      "judged": 22,
+      "relevantInPool": 19,
+      "hybrid": {
+        "empty": false,
+        "depth": 174,
+        "returned": 10,
+        "ndcg10": 0.9034881919690534,
+        "ndcg10Exp": 0.817251122075148,
+        "p5": 1.0,
+        "pooledRecall10": 0.5263157894736842,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.7745921456652368,
+        "ndcg10Exp": 0.6036129045676837,
+        "p5": 0.8,
+        "pooledRecall10": 0.47368421052631576,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.8473282264848803,
+        "ndcg10Exp": 0.7640805780457578,
+        "p5": 0.8,
+        "pooledRecall10": 0.42105263157894735,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "spring security jwt 인증",
+      "tier": "COMPLEX",
+      "poolSize": 17,
+      "judged": 17,
+      "relevantInPool": 5,
+      "hybrid": {
+        "empty": false,
+        "depth": 135,
+        "returned": 10,
+        "ndcg10": 0.9461757400955481,
+        "ndcg10Exp": 0.9366950841978063,
+        "p5": 0.6,
+        "pooledRecall10": 1.0,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.5871077522785876,
+        "ndcg10Exp": 0.5259721410329572,
+        "p5": 0.6,
+        "pooledRecall10": 0.6,
+        "mrr": 0.3333333333333333
+      },
+      "vector": {
+        "empty": false,
+        "depth": 48,
+        "returned": 10,
+        "ndcg10": 0.8161089357544264,
+        "ndcg10Exp": 0.7144684030266347,
+        "p5": 0.6,
+        "pooledRecall10": 0.6,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "java virtual thread 운영 환경에서 설정 방법",
+      "tier": "SPECIFIC",
+      "poolSize": 16,
+      "judged": 16,
+      "relevantInPool": 6,
+      "hybrid": {
+        "empty": false,
+        "depth": 149,
+        "returned": 10,
+        "ndcg10": 0.8304172623659031,
+        "ndcg10Exp": 0.7434172690757208,
+        "p5": 0.8,
+        "pooledRecall10": 0.8333333333333334,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.6337353315876355,
+        "ndcg10Exp": 0.5372673446827814,
+        "p5": 0.8,
+        "pooledRecall10": 0.6666666666666666,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 66,
+        "returned": 10,
+        "ndcg10": 0.8263836950029271,
+        "ndcg10Exp": 0.7466757316311744,
+        "p5": 0.6,
+        "pooledRecall10": 0.8333333333333334,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "jpa n+1 문제를 쿼리로 해결한 방법",
+      "tier": "SPECIFIC",
+      "poolSize": 19,
+      "judged": 19,
+      "relevantInPool": 4,
+      "hybrid": {
+        "empty": false,
+        "depth": 126,
+        "returned": 10,
+        "ndcg10": 0.8986279320518721,
+        "ndcg10Exp": 0.931196964159231,
+        "p5": 0.6,
+        "pooledRecall10": 1.0,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.43085723285289357,
+        "ndcg10Exp": 0.4795413494919273,
+        "p5": 0.2,
+        "pooledRecall10": 0.25,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 35,
+        "returned": 10,
+        "ndcg10": 0.9703523734319949,
+        "ndcg10Exp": 0.9680053564071708,
+        "p5": 0.4,
+        "pooledRecall10": 1.0,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "kubernetes 무중단 배포 구성하는 방법",
+      "tier": "SPECIFIC",
+      "poolSize": 22,
+      "judged": 22,
+      "relevantInPool": 7,
+      "hybrid": {
+        "empty": false,
+        "depth": 185,
+        "returned": 10,
+        "ndcg10": 0.7704961992447152,
+        "ndcg10Exp": 0.7599101048971473,
+        "p5": 0.4,
+        "pooledRecall10": 0.7142857142857143,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.6449270798883006,
+        "ndcg10Exp": 0.578436687024386,
+        "p5": 0.4,
+        "pooledRecall10": 0.5714285714285714,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.3673378012974825,
+        "ndcg10Exp": 0.25175393870004886,
+        "p5": 0.0,
+        "pooledRecall10": 0.14285714285714285,
+        "mrr": 0.14285714285714285
+      }
+    },
+    {
+      "keyword": "postgresql 인덱스로 느린 쿼리 개선한 사례",
+      "tier": "SPECIFIC",
+      "poolSize": 20,
+      "judged": 20,
+      "relevantInPool": 8,
+      "hybrid": {
+        "empty": false,
+        "depth": 169,
+        "returned": 10,
+        "ndcg10": 0.8304591003426736,
+        "ndcg10Exp": 0.7690407086711692,
+        "p5": 0.6,
+        "pooledRecall10": 0.75,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.5133227277085888,
+        "ndcg10Exp": 0.39731809942370583,
+        "p5": 0.6,
+        "pooledRecall10": 0.375,
+        "mrr": 0.5
+      },
+      "vector": {
+        "empty": false,
+        "depth": 98,
+        "returned": 10,
+        "ndcg10": 0.8933201994105039,
+        "ndcg10Exp": 0.8985195428470256,
+        "p5": 0.8,
+        "pooledRecall10": 0.75,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "프론트엔드 렌더링 성능 개선한 방법",
+      "tier": "SPECIFIC",
+      "poolSize": 17,
+      "judged": 17,
+      "relevantInPool": 16,
+      "hybrid": {
+        "empty": false,
+        "depth": 170,
+        "returned": 10,
+        "ndcg10": 0.9026531232466954,
+        "ndcg10Exp": 0.8275455872128188,
+        "p5": 1.0,
+        "pooledRecall10": 0.625,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.7927763165055853,
+        "ndcg10Exp": 0.6668559929127202,
+        "p5": 0.8,
+        "pooledRecall10": 0.5625,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.920582461529293,
+        "ndcg10Exp": 0.8593082241695625,
+        "p5": 1.0,
+        "pooledRecall10": 0.625,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "redis 캐시 장애 대응한 사례",
+      "tier": "SPECIFIC",
+      "poolSize": 22,
+      "judged": 22,
+      "relevantInPool": 12,
+      "hybrid": {
+        "empty": false,
+        "depth": 156,
+        "returned": 10,
+        "ndcg10": 0.7661073829887022,
+        "ndcg10Exp": 0.6495547708431513,
+        "p5": 0.8,
+        "pooledRecall10": 0.5833333333333334,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.5965494452572234,
+        "ndcg10Exp": 0.47485376014472164,
+        "p5": 0.4,
+        "pooledRecall10": 0.3333333333333333,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 93,
+        "returned": 10,
+        "ndcg10": 0.666776249457411,
+        "ndcg10Exp": 0.49270351032714105,
+        "p5": 0.6,
+        "pooledRecall10": 0.5,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "spring boot 애플리케이션 gc 튜닝하는 방법",
+      "tier": "SPECIFIC",
+      "poolSize": 19,
+      "judged": 19,
+      "relevantInPool": 4,
+      "hybrid": {
+        "empty": false,
+        "depth": 181,
+        "returned": 10,
+        "ndcg10": 0.5197189138983314,
+        "ndcg10Exp": 0.5303547678019411,
+        "p5": 0.6,
+        "pooledRecall10": 1.0,
+        "mrr": 0.5
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.5957292661413294,
+        "ndcg10Exp": 0.6482493632635361,
+        "p5": 0.2,
+        "pooledRecall10": 0.25,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.4491994397885334,
+        "ndcg10Exp": 0.3872274550115095,
+        "p5": 0.4,
+        "pooledRecall10": 0.75,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "elasticsearch 클러스터 운영하면서 겪은 장애",
+      "tier": "SPECIFIC",
+      "poolSize": 20,
+      "judged": 20,
+      "relevantInPool": 6,
+      "hybrid": {
+        "empty": false,
+        "depth": 169,
+        "returned": 10,
+        "ndcg10": 0.7709136570447133,
+        "ndcg10Exp": 0.7665808115396571,
+        "p5": 0.6,
+        "pooledRecall10": 0.6666666666666666,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.42539224263131087,
+        "ndcg10Exp": 0.3429470910282532,
+        "p5": 0.4,
+        "pooledRecall10": 0.3333333333333333,
+        "mrr": 0.5
+      },
+      "vector": {
+        "empty": false,
+        "depth": 87,
+        "returned": 10,
+        "ndcg10": 0.8808154361441315,
+        "ndcg10Exp": 0.8955939803971008,
+        "p5": 0.8,
+        "pooledRecall10": 0.8333333333333334,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "github actions 로 ci/cd 파이프라인 구축한 사례",
+      "tier": "SPECIFIC",
+      "poolSize": 19,
+      "judged": 19,
+      "relevantInPool": 14,
+      "hybrid": {
+        "empty": false,
+        "depth": 170,
+        "returned": 10,
+        "ndcg10": 0.9396517506276555,
+        "ndcg10Exp": 0.8930903357627366,
+        "p5": 1.0,
+        "pooledRecall10": 0.7142857142857143,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.58968236522126,
+        "ndcg10Exp": 0.3982799840892984,
+        "p5": 0.8,
+        "pooledRecall10": 0.42857142857142855,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.8980963668327735,
+        "ndcg10Exp": 0.8457497989764444,
+        "p5": 0.8,
+        "pooledRecall10": 0.6428571428571429,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "grpc 로 서비스 간 통신 구현한 방법",
+      "tier": "SPECIFIC",
+      "poolSize": 14,
+      "judged": 14,
+      "relevantInPool": 12,
+      "hybrid": {
+        "empty": false,
+        "depth": 167,
+        "returned": 10,
+        "ndcg10": 0.9882700665986156,
+        "ndcg10Exp": 0.9792198903114802,
+        "p5": 1.0,
+        "pooledRecall10": 0.8333333333333334,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.775980901132187,
+        "ndcg10Exp": 0.741614730233043,
+        "p5": 0.8,
+        "pooledRecall10": 0.6666666666666666,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 85,
+        "returned": 10,
+        "ndcg10": 0.9913943371716067,
+        "ndcg10Exp": 0.9847546775077748,
+        "p5": 1.0,
+        "pooledRecall10": 0.8333333333333334,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "네이버에서 kafka 활용한 사례",
+      "tier": "CORPORATION",
+      "poolSize": 18,
+      "judged": 18,
+      "relevantInPool": 2,
+      "hybrid": {
+        "empty": false,
+        "depth": 107,
+        "returned": 10,
+        "ndcg10": 0.41007952453665736,
+        "ndcg10Exp": 0.28569826092507516,
+        "p5": 0.2,
+        "pooledRecall10": 0.5,
+        "mrr": 0.25
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.38160071740127094,
+        "ndcg10Exp": 0.36298597021266427,
+        "p5": 0.2,
+        "pooledRecall10": 0.5,
+        "mrr": 0.2
+      },
+      "vector": {
+        "empty": false,
+        "depth": 28,
+        "returned": 10,
+        "ndcg10": 0.5074909742078478,
+        "ndcg10Exp": 0.34489797185706234,
+        "p5": 0.2,
+        "pooledRecall10": 0.5,
+        "mrr": 0.25
+      }
+    },
+    {
+      "keyword": "카카오에서 대규모 트래픽 처리한 방법",
+      "tier": "CORPORATION",
+      "poolSize": 20,
+      "judged": 20,
+      "relevantInPool": 10,
+      "hybrid": {
+        "empty": false,
+        "depth": 186,
+        "returned": 10,
+        "ndcg10": 0.871078399759484,
+        "ndcg10Exp": 0.8648232731717804,
+        "p5": 1.0,
+        "pooledRecall10": 0.7,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.6699055172158686,
+        "ndcg10Exp": 0.6431287530322044,
+        "p5": 0.8,
+        "pooledRecall10": 0.5,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.7342313974069381,
+        "ndcg10Exp": 0.7282593240904234,
+        "p5": 0.6,
+        "pooledRecall10": 0.6,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "우아한형제들 msa 전환 과정에서 겪은 문제",
+      "tier": "CORPORATION",
+      "poolSize": 21,
+      "judged": 21,
+      "relevantInPool": 0,
+      "hybrid": {
+        "empty": false,
+        "depth": 110,
+        "returned": 10,
+        "ndcg10": 0.4660026449463635,
+        "ndcg10Exp": 0.4660026449463635,
+        "p5": 0.0,
+        "pooledRecall10": null,
+        "mrr": 0.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.23330247263525344,
+        "ndcg10Exp": 0.23330247263525344,
+        "p5": 0.0,
+        "pooledRecall10": null,
+        "mrr": 0.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 24,
+        "returned": 10,
+        "ndcg10": 0.3896266367619439,
+        "ndcg10Exp": 0.3896266367619439,
+        "p5": 0.0,
+        "pooledRecall10": null,
+        "mrr": 0.0
+      }
+    },
+    {
+      "keyword": "컬리에서 검색 시스템 개선한 사례",
+      "tier": "CORPORATION",
+      "poolSize": 18,
+      "judged": 18,
+      "relevantInPool": 3,
+      "hybrid": {
+        "empty": false,
+        "depth": 128,
+        "returned": 10,
+        "ndcg10": 0.9458193690309143,
+        "ndcg10Exp": 0.9734087881728344,
+        "p5": 0.6,
+        "pooledRecall10": 1.0,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.7999284901692548,
+        "ndcg10Exp": 0.8852415849293628,
+        "p5": 0.6,
+        "pooledRecall10": 1.0,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 50,
+        "returned": 10,
+        "ndcg10": 0.9342771422427787,
+        "ndcg10Exp": 0.9511783118017322,
+        "p5": 0.6,
+        "pooledRecall10": 1.0,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "라인에서 실시간 메시징 처리한 구조",
+      "tier": "CORPORATION",
+      "poolSize": 18,
+      "judged": 18,
+      "relevantInPool": 1,
+      "hybrid": {
+        "empty": false,
+        "depth": 183,
+        "returned": 10,
+        "ndcg10": 0.6463036163895768,
+        "ndcg10Exp": 0.5475341878573692,
+        "p5": 0.0,
+        "pooledRecall10": 0.0,
+        "mrr": 0.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.7105596593727583,
+        "ndcg10Exp": 0.6019704921229443,
+        "p5": 0.0,
+        "pooledRecall10": 0.0,
+        "mrr": 0.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.6126783603047614,
+        "ndcg10Exp": 0.5734839158219418,
+        "p5": 0.0,
+        "pooledRecall10": 1.0,
+        "mrr": 0.16666666666666666
+      }
+    },
+    {
+      "keyword": "카카오페이 결제 시스템 설계한 사례",
+      "tier": "CORPORATION",
+      "poolSize": 17,
+      "judged": 17,
+      "relevantInPool": 6,
+      "hybrid": {
+        "empty": false,
+        "depth": 154,
+        "returned": 10,
+        "ndcg10": 0.918058900151763,
+        "ndcg10Exp": 0.8477020438412135,
+        "p5": 0.8,
+        "pooledRecall10": 1.0,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.7592889112558496,
+        "ndcg10Exp": 0.7258572167026835,
+        "p5": 0.8,
+        "pooledRecall10": 0.6666666666666666,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 95,
+        "returned": 10,
+        "ndcg10": 0.7987890315574813,
+        "ndcg10Exp": 0.6811545316842819,
+        "p5": 0.6,
+        "pooledRecall10": 1.0,
+        "mrr": 0.3333333333333333
+      }
+    },
+    {
+      "keyword": "토스에서 장애 대응한 사례",
+      "tier": "CORPORATION",
+      "poolSize": 21,
+      "judged": 21,
+      "relevantInPool": 2,
+      "hybrid": {
+        "empty": false,
+        "depth": 136,
+        "returned": 10,
+        "ndcg10": 0.46051141932460515,
+        "ndcg10Exp": 0.46538022283605096,
+        "p5": 0.2,
+        "pooledRecall10": 1.0,
+        "mrr": 0.3333333333333333
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.6689458901518506,
+        "ndcg10Exp": 0.610002992745695,
+        "p5": 0.2,
+        "pooledRecall10": 0.5,
+        "mrr": 0.5
+      },
+      "vector": {
+        "empty": false,
+        "depth": 51,
+        "returned": 10,
+        "ndcg10": 0.37939726922237893,
+        "ndcg10Exp": 0.34282819238935364,
+        "p5": 0.0,
+        "pooledRecall10": 0.5,
+        "mrr": 0.14285714285714285
+      }
+    },
+    {
+      "keyword": "올리브영에서 추천 시스템 개선한 사례",
+      "tier": "CORPORATION",
+      "poolSize": 22,
+      "judged": 22,
+      "relevantInPool": 2,
+      "hybrid": {
+        "empty": false,
+        "depth": 162,
+        "returned": 10,
+        "ndcg10": 0.7039180890341347,
+        "ndcg10Exp": 0.7871546029909718,
+        "p5": 0.2,
+        "pooledRecall10": 0.5,
+        "mrr": 1.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.0,
+        "ndcg10Exp": 0.0,
+        "p5": 0.0,
+        "pooledRecall10": 0.0,
+        "mrr": 0.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 81,
+        "returned": 10,
+        "ndcg10": 0.8854598815714874,
+        "ndcg10Exp": 0.9176601606601069,
+        "p5": 0.4,
+        "pooledRecall10": 1.0,
+        "mrr": 1.0
+      }
+    },
+    {
+      "keyword": "하이퍼커넥트에서 실시간 영상 처리한 방법",
+      "tier": "CORPORATION",
+      "poolSize": 21,
+      "judged": 21,
+      "relevantInPool": 3,
+      "hybrid": {
+        "empty": false,
+        "depth": 183,
+        "returned": 10,
+        "ndcg10": 0.6889294122067837,
+        "ndcg10Exp": 0.6936983524469341,
+        "p5": 0.6,
+        "pooledRecall10": 1.0,
+        "mrr": 0.5
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.7662036006326975,
+        "ndcg10Exp": 0.8191782226423623,
+        "p5": 0.6,
+        "pooledRecall10": 1.0,
+        "mrr": 1.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.5092501867462552,
+        "ndcg10Exp": 0.43922983491233575,
+        "p5": 0.2,
+        "pooledRecall10": 0.3333333333333333,
+        "mrr": 0.5
+      }
+    },
+    {
+      "keyword": "카카오스타일에서 데이터 파이프라인 구축한 사례",
+      "tier": "CORPORATION",
+      "poolSize": 20,
+      "judged": 20,
+      "relevantInPool": 0,
+      "hybrid": {
+        "empty": false,
+        "depth": 189,
+        "returned": 10,
+        "ndcg10": 0.6854831540674774,
+        "ndcg10Exp": 0.6854831540674774,
+        "p5": 0.0,
+        "pooledRecall10": null,
+        "mrr": 0.0
+      },
+      "bm25": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.4909156065077738,
+        "ndcg10Exp": 0.4909156065077738,
+        "p5": 0.0,
+        "pooledRecall10": null,
+        "mrr": 0.0
+      },
+      "vector": {
+        "empty": false,
+        "depth": 100,
+        "returned": 10,
+        "ndcg10": 0.43292617940918415,
+        "ndcg10Exp": 0.43292617940918415,
+        "p5": 0.0,
+        "pooledRecall10": null,
+        "mrr": 0.0
+      }
+    }
+  ]
+}

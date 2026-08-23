@@ -53,8 +53,19 @@ RUBRIC = """당신은 검색 결과의 관련성을 평가하는 심사자다.
 - 한국어 두 문장 이내로 등급의 이유를 쓴다."""
 
 
+# 판정자는 원문의 굽은 따옴표를 곧은 따옴표로 바꿔 인용한다(doesn't ↔ doesn’t).
+# 그걸 "원문에 없는 인용"으로 세면 근거율이 실제보다 낮게 나온다 — 2026-08-22c 실측
+# needsReview 4건 중 3건이 이 문제였다. 타이포그래피 변형만 접고, 그 외 문자는 건드리지 않는다.
+TYPOGRAPHIC = str.maketrans({
+    "\u2018": "'", "\u2019": "'", "\u201a": "'", "\u201b": "'",
+    "\u201c": '"', "\u201d": '"', "\u201e": '"',
+    "\u2013": "-", "\u2014": "-", "\u2212": "-",
+    "\u00a0": " ", "\u200b": "",
+})
+
+
 def norm(s):
-    return re.sub(r"\s+", " ", s or "").strip()
+    return re.sub(r"\s+", " ", (s or "").translate(TYPOGRAPHIC)).strip()
 
 
 def build_user_prompt(rec, mode):
@@ -141,7 +152,13 @@ def main():
     ap.add_argument("--frac", type=float, default=1.0, help="무작위 표본 비율")
     ap.add_argument("--seed", type=int, default=20260822)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--reverify", action="store_true",
+                    help="LLM 재호출 없이 기존 판정의 evidence 근거 검증만 다시 계산한다")
     args = ap.parse_args()
+
+    if args.reverify:
+        reverify(BASE)
+        return
 
     inputs = [json.loads(l) for l in io.open(f"{BASE}/judge_inputs.jsonl", encoding="utf-8")]
     if not inputs:
@@ -259,6 +276,43 @@ def main():
     fh.close()
     print(dict(counts))
     summarize(out_path)
+
+
+def reverify(base):
+    """저장된 판정의 evidenceGrounded / needsReview 를 현재 norm() 으로 다시 계산한다.
+
+    등급은 건드리지 않는다 — LLM 이 낸 판정 자체는 그대로고, **검증 방법만** 고친다.
+    """
+    inputs = {(r["keyword"], r["articleId"]): r
+              for r in (json.loads(l) for l in io.open(f"{base}/judge_inputs.jsonl", encoding="utf-8"))}
+    excerpts = {}
+    if os.path.exists(f"{base}/docs.jsonl"):
+        for line in io.open(f"{base}/docs.jsonl", encoding="utf-8"):
+            d = json.loads(line)
+            excerpts[d["articleId"]] = d.get("excerpt") or ""
+
+    for path in (f"{base}/judgments.jsonl", f"{base}/judgments_ab.jsonl"):
+        if not os.path.exists(path):
+            continue
+        rows = [json.loads(l) for l in io.open(path, encoding="utf-8")]
+        before_ok = sum(r["groundedCount"] for r in rows)
+        before_nr = sum(1 for r in rows if r["needsReview"])
+        for r in rows:
+            rec = dict(inputs[(r["keyword"], r["articleId"])])
+            rec["_excerpt"] = excerpts.get(r["articleId"], "")
+            hays = haystacks(rec, r["mode"])
+            ok = [grounded(e, hays) for e in r["evidence"]]
+            r["evidenceGrounded"] = ok
+            r["groundedCount"] = sum(ok)
+            r["needsReview"] = bool(r["relevance"] >= 2 and sum(ok) == 0)
+        io.open(path, "w", encoding="utf-8").write(
+            "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows))
+        total = sum(len(r["evidence"]) for r in rows)
+        after_ok = sum(r["groundedCount"] for r in rows)
+        after_nr = sum(1 for r in rows if r["needsReview"])
+        print(f"{path}\n  근거 검증 통과 {before_ok}/{total} ({before_ok/total:.4f}) "
+              f"→ {after_ok}/{total} ({after_ok/total:.4f})   needsReview {before_nr} → {after_nr}")
+        summarize(path)
 
 
 def summarize(path):

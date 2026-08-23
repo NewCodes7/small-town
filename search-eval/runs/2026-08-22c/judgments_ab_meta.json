@@ -11,9 +11,9 @@
         "3": 34
       },
       "meanGrade": 1.55,
-      "evidenceGroundedRate": 0.9205,
+      "evidenceGroundedRate": 0.9669,
       "evidencePerJudgement": 1.51,
-      "needsReview": 1,
+      "needsReview": 0,
       "tokens": {
         "in": 211333,
         "out": 27516
@@ -29,9 +29,9 @@
         "3": 38
       },
       "meanGrade": 1.79,
-      "evidenceGroundedRate": 0.9113,
+      "evidenceGroundedRate": 0.9704,
       "evidencePerJudgement": 2.03,
-      "needsReview": 1,
+      "needsReview": 0,
       "tokens": {
         "in": 401462,
         "out": 35839
