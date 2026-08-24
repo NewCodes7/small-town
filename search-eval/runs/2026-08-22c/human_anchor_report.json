@@ -1,0 +1,87 @@
+{
+  "runId": "2026-08-22c",
+  "sampleSeed": 20260823,
+  "judged": 60,
+  "sampled": 60,
+  "missing": 0,
+  "headline": {
+    "n": 30,
+    "kappaUnweighted": 0.3098,
+    "kappaQuadraticWeighted": 0.8018,
+    "exactAgreement": 0.5,
+    "meanDelta(human-llm)": -0.2667,
+    "reference": 0.3,
+    "note": "게이트가 아니다 — 문헌(GPT-4o 대 사람 κ=0.308) 대조용. 음의 평균 델타는 §5-5-1 등급 인플레이션."
+  },
+  "gates": {
+    "B": {
+      "n": 25,
+      "claim": "hybrid > bm25 (NDCG@10 +0.147)",
+      "threat": "§5-5 어휘 중복 편향 — 판정자가 쿼리 단어가 그대로 박힌 문서에 후하다",
+      "meanDelta(human-llm)": -0.12,
+      "stderr": 0.1855,
+      "gate": 0.35,
+      "flipPoint": 0.7,
+      "deltaDist": {
+        "-2": 1,
+        "-1": 8,
+        "0": 10,
+        "1": 5,
+        "2": 1
+      },
+      "verdict": "통과",
+      "direction": "판정자가 이 층을 과대평가 → 결론은 하한(강화)"
+    },
+    "V": {
+      "n": 18,
+      "claim": "hybrid > vector (NDCG@10 +0.059)",
+      "threat": "§5-9 발췌 선택기 편향 — 발췌의 절반을 피험자인 벡터 팔이 골랐다",
+      "meanDelta(human-llm)": -0.1111,
+      "stderr": 0.1374,
+      "gate": 0.4,
+      "flipPoint": 0.8,
+      "deltaDist": {
+        "-1": 4,
+        "0": 12,
+        "1": 2
+      },
+      "verdict": "통과",
+      "direction": "판정자가 이 층을 과대평가 → 결론은 하한(강화)"
+    }
+  },
+  "boundary": {
+    "n": 41,
+    "crossings": 8,
+    "crossRate": 0.1951,
+    "llmHigher": 5,
+    "humanHigher": 3,
+    "note": "관련/무관 경계를 넘나든 비율. NDCG 는 견디지만 MRR·pooledRecall 은 부호까지 바뀐다."
+  },
+  "byTier": {
+    "SIMPLE": {
+      "n": 13,
+      "meanDelta": -0.462,
+      "exact": 0.538
+    },
+    "MODERATE": {
+      "n": 12,
+      "meanDelta": -0.5,
+      "exact": 0.5
+    },
+    "COMPLEX": {
+      "n": 12,
+      "meanDelta": -0.333,
+      "exact": 0.583
+    },
+    "SPECIFIC": {
+      "n": 12,
+      "meanDelta": 0.5,
+      "exact": 0.417
+    },
+    "CORPORATION": {
+      "n": 11,
+      "meanDelta": 0.273,
+      "exact": 0.545
+    }
+  }
+}

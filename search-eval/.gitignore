@@ -14,3 +14,6 @@ runs/*/judge_inputs.jsonl
 runs/*/passages_sql_meta*.json
 
 __pycache__/
+
+# 인간 앵커 블라인드 시트 — 생성물 (human_anchor_sample.json + 템플릿으로 재생성)
+runs/*/human_anchor_sheet.html

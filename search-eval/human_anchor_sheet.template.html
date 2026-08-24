@@ -1,0 +1,616 @@
+<title>인간 앵커 심사대</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Noto+Serif+KR:wght@400;600&display=swap">
+
+<style>
+/* ── 토큰 ───────────────────────────────────────────────────────────────
+   등급 0~3 은 순서형이라 색도 순서형으로 쓴다 — 중립 회색에서 짙은 petrol 로
+   단조 증가하는 한 갈래 램프. 두 테마 모두 "등급이 높을수록 강하게" 를 지킨다. */
+:root {
+  --bg:        #f2f5f5;
+  --surface:   #ffffff;
+  --surface-2: #e9eeee;
+  --border:    #dae1e0;
+  --border-strong: #c2cdcc;
+  --ink:       #121818;
+  --ink-muted: #566462;
+  --ink-faint: #8b9997;
+  --accent:    #0f6b6b;
+  --accent-ink:#ffffff;
+  --flag:      #8a5a12;
+  --flag-bg:   #fdf3e0;
+
+  --g0: #949e9d;  --g1: #5f9695;  --g2: #2b7d7a;  --g3: #0a5453;
+  --g0-ink: #ffffff; --g1-ink: #ffffff; --g2-ink: #ffffff; --g3-ink: #ffffff;
+
+  --shadow: 0 1px 2px rgba(10,30,30,.05), 0 8px 24px -12px rgba(10,30,30,.18);
+  --radius: 6px;
+
+  --font-ui: "IBM Plex Sans KR", system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-read: "Noto Serif KR", Georgia, "Batang", serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:        #0d1313;
+    --surface:   #141c1c;
+    --surface-2: #1b2524;
+    --border:    #263231;
+    --border-strong: #384746;
+    --ink:       #e4ecea;
+    --ink-muted: #94a4a2;
+    --ink-faint: #6c7c7a;
+    --accent:    #4fc0b8;
+    --accent-ink:#08201f;
+    --flag:      #d9a441;
+    --flag-bg:   #2a2113;
+
+    --g0: #4b5857;  --g1: #2f7d79;  --g2: #33a79e;  --g3: #62d8cc;
+    --g0-ink: #dfe8e7; --g1-ink: #ffffff; --g2-ink: #062322; --g3-ink: #062322;
+
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"] {
+  --bg:        #0d1313;
+  --surface:   #141c1c;
+  --surface-2: #1b2524;
+  --border:    #263231;
+  --border-strong: #384746;
+  --ink:       #e4ecea;
+  --ink-muted: #94a4a2;
+  --ink-faint: #6c7c7a;
+  --accent:    #4fc0b8;
+  --accent-ink:#08201f;
+  --flag:      #d9a441;
+  --flag-bg:   #2a2113;
+
+  --g0: #4b5857;  --g1: #2f7d79;  --g2: #33a79e;  --g3: #62d8cc;
+  --g0-ink: #dfe8e7; --g1-ink: #ffffff; --g2-ink: #062322; --g3-ink: #062322;
+
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.7);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: 132px;
+}
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ── 상단 레일 ───────────────────────────────────────────────────────── */
+.rail {
+  position: sticky; top: 0; z-index: 20;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.rail-inner {
+  max-width: 1080px; margin: 0 auto; padding: 12px 24px;
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+}
+.mark { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.mark b { font-weight: 600; font-size: 14px; letter-spacing: .01em; white-space: nowrap; }
+/* 발췌가 4,000자라 큰 제목은 금방 스크롤 밖으로 나간다 — 쿼리는 레일에 붙들어 둔다. */
+.mark span {
+  font-size: 13px; color: var(--ink-muted);
+  border-left: 1px solid var(--border-strong); padding-left: 12px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mark span b { font-weight: 500; font-size: 13px; color: var(--ink); }
+.counter {
+  margin-left: auto; display: flex; align-items: baseline; gap: 6px;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+}
+.counter .done { font-size: 20px; font-weight: 500; color: var(--accent); }
+.counter .of { font-size: 13px; color: var(--ink-faint); }
+.rail-btns { display: flex; gap: 6px; }
+
+/* 진행 스트립 — 칸 하나가 쌍 하나다. 상태가 곧 정보라서 장식이 아니다. */
+.strip {
+  max-width: 1080px; margin: 0 auto; padding: 0 24px 10px;
+  display: grid; gap: 2px;   /* grid-template-columns 는 JS 가 칸 수만큼 넣는다 */
+}
+.cell {
+  height: 8px; border-radius: 1px; border: 0; padding: 0; cursor: pointer;
+  background: var(--surface-2);
+  transition: transform .12s ease, background .12s ease;
+}
+.cell:hover { transform: scaleY(1.7); }
+.cell[data-g="0"] { background: var(--g0); }
+.cell[data-g="1"] { background: var(--g1); }
+.cell[data-g="2"] { background: var(--g2); }
+.cell[data-g="3"] { background: var(--g3); }
+.cell[data-current="1"] { outline: 1.5px solid var(--accent); outline-offset: 1.5px; }
+.cell[data-flag="1"]::after {
+  content: ""; display: block; height: 2px; background: var(--flag);
+  position: relative; top: 6px;
+}
+
+/* ── 본문 ───────────────────────────────────────────────────────────── */
+main { max-width: 1080px; margin: 0 auto; padding: 26px 24px 0; }
+
+.query-head {
+  display: flex; align-items: flex-start; gap: 16px;
+  padding-bottom: 18px; border-bottom: 2px solid var(--ink);
+}
+.query-label {
+  font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink-faint); padding-top: 9px; white-space: nowrap;
+}
+.query-text {
+  margin: 0; font-size: clamp(24px, 3.4vw, 34px); font-weight: 600;
+  line-height: 1.24; letter-spacing: -.01em; text-wrap: balance;
+}
+
+.doc {
+  margin-top: 22px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;
+}
+.doc-head { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); }
+.doc-title {
+  margin: 0 0 4px; font-size: 19px; font-weight: 600; line-height: 1.4;
+  text-wrap: balance;
+}
+.doc-title-alt { margin: 0 0 10px; font-size: 15px; color: var(--ink-muted); }
+.doc-meta {
+  display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center;
+  font-size: 12px;
+}
+.chip {
+  border: 1px solid var(--border-strong); border-radius: 100px;
+  padding: 2px 10px; color: var(--ink-muted);
+}
+.chip b { font-weight: 500; color: var(--ink); }
+.chip.mono { font-family: var(--font-mono); font-size: 11px; }
+
+.passages { padding: 4px 24px 24px; }
+.passage { padding-top: 20px; }
+.passage + .passage { border-top: 1px dashed var(--border); margin-top: 4px; }
+.passage-tag {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+  font-size: 11px; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.passage-tag i {
+  font-style: normal; font-family: var(--font-mono);
+  color: var(--accent); letter-spacing: 0;
+}
+.passage-tag hr {
+  flex: 1; border: 0; border-top: 1px solid var(--border); margin: 0;
+}
+.passage p {
+  margin: 0; font-family: var(--font-read); font-size: 15.5px; line-height: 1.85;
+  white-space: pre-wrap; overflow-wrap: anywhere; max-width: 68ch;
+}
+
+.tools { display: flex; gap: 8px; margin: 16px 0 0; flex-wrap: wrap; }
+details.raw {
+  margin-top: 14px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface-2);
+}
+details.raw summary {
+  cursor: pointer; padding: 9px 14px; font-size: 12px; color: var(--ink-muted);
+  list-style: none;
+}
+details.raw summary::-webkit-details-marker { display: none; }
+details.raw summary::before { content: "▸ "; color: var(--ink-faint); }
+details.raw[open] summary::before { content: "▾ "; }
+details.raw pre {
+  margin: 0; padding: 0 14px 14px; font-family: var(--font-mono); font-size: 12px;
+  line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-muted);
+}
+
+/* ── 하단 판정 바 ───────────────────────────────────────────────────── */
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border-strong);
+}
+.dock-inner {
+  max-width: 1080px; margin: 0 auto; padding: 14px 24px;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.grades { display: flex; gap: 8px; flex: 1; min-width: 320px; }
+.grade {
+  flex: 1; cursor: pointer; text-align: left;
+  border: 1px solid var(--border-strong); border-radius: var(--radius);
+  background: var(--surface); color: var(--ink);
+  padding: 9px 12px; font-family: inherit; font-size: 12.5px; line-height: 1.35;
+  transition: background .1s ease, border-color .1s ease, color .1s ease;
+}
+.grade:hover { border-color: var(--ink-muted); }
+.grade b {
+  display: block; font-family: var(--font-mono); font-size: 17px; font-weight: 500;
+  margin-bottom: 1px;
+}
+.grade span { color: var(--ink-muted); }
+.grade[aria-pressed="true"] { border-color: transparent; }
+.grade[aria-pressed="true"] span { color: inherit; opacity: .85; }
+.grade[data-g="0"][aria-pressed="true"] { background: var(--g0); color: var(--g0-ink); }
+.grade[data-g="1"][aria-pressed="true"] { background: var(--g1); color: var(--g1-ink); }
+.grade[data-g="2"][aria-pressed="true"] { background: var(--g2); color: var(--g2-ink); }
+.grade[data-g="3"][aria-pressed="true"] { background: var(--g3); color: var(--g3-ink); }
+
+.btn {
+  cursor: pointer; font-family: inherit; font-size: 12.5px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius);
+  background: var(--surface); color: var(--ink-muted); padding: 7px 12px;
+  transition: border-color .1s ease, color .1s ease, background .1s ease;
+}
+.btn:hover { border-color: var(--ink-muted); color: var(--ink); }
+.btn kbd {
+  font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint);
+  margin-left: 5px;
+}
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { color: var(--accent-ink); opacity: .9; }
+.btn[aria-pressed="true"] {
+  background: var(--flag-bg); border-color: var(--flag); color: var(--flag);
+}
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.nav { display: flex; gap: 6px; }
+
+/* ── 패널 (루브릭 / 내보내기) ─────────────────────────────────────────── */
+.scrim {
+  position: fixed; inset: 0; z-index: 40; background: rgba(8,20,20,.45);
+  display: none;
+}
+.scrim[data-open="1"] { display: block; }
+.panel {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100%);
+  background: var(--surface); border-left: 1px solid var(--border-strong);
+  z-index: 41; overflow-y: auto; display: none;
+  padding: 24px 26px 40px;
+}
+.panel[data-open="1"] { display: block; }
+.panel h2 {
+  margin: 0 0 4px; font-size: 17px; font-weight: 600;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.panel .sub { margin: 0 0 18px; font-size: 12.5px; color: var(--ink-muted); }
+.panel pre {
+  font-family: var(--font-mono); font-size: 12.5px; line-height: 1.75;
+  white-space: pre-wrap; overflow-wrap: anywhere; margin: 0;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px;
+}
+.panel textarea {
+  width: 100%; min-height: 260px; resize: vertical;
+  font-family: var(--font-mono); font-size: 11.5px; line-height: 1.6;
+  background: var(--surface-2); color: var(--ink);
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 14px;
+}
+.panel .row { display: flex; gap: 8px; margin: 14px 0; flex-wrap: wrap; }
+.stat-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px; margin-bottom: 18px;
+}
+.stat {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface-2); padding: 10px 12px;
+}
+.stat b {
+  display: block; font-family: var(--font-mono); font-size: 20px; font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.stat span { font-size: 11px; color: var(--ink-muted); }
+.note {
+  font-size: 12.5px; color: var(--ink-muted); line-height: 1.7;
+  border-left: 2px solid var(--accent); padding-left: 12px; margin: 16px 0;
+}
+.note b { color: var(--ink); font-weight: 600; }
+
+.toast {
+  position: fixed; left: 50%; bottom: 148px; transform: translateX(-50%);
+  background: var(--ink); color: var(--bg); font-size: 13px;
+  padding: 9px 16px; border-radius: 100px; z-index: 50;
+  opacity: 0; pointer-events: none; transition: opacity .18s ease;
+}
+.toast[data-show="1"] { opacity: 1; }
+
+@media (max-width: 720px) {
+  .grades { flex-wrap: wrap; }
+  .grade { min-width: calc(50% - 4px); }
+  .grade span { display: none; }
+  body { padding-bottom: 190px; }
+}
+</style>
+
+<div class="rail">
+  <div class="rail-inner">
+    <div class="mark">
+      <b>인간 앵커 심사대</b>
+      <span id="mark-meta"></span>
+    </div>
+    <div class="counter">
+      <span class="done" id="c-done">0</span>
+      <span class="of">/ <span id="c-total">0</span> 판정</span>
+    </div>
+    <div class="rail-btns">
+      <button class="btn" id="open-rubric">루브릭 <kbd>R</kbd></button>
+      <button class="btn" id="open-export">내보내기 <kbd>E</kbd></button>
+    </div>
+  </div>
+  <div class="strip" id="strip"></div>
+</div>
+
+<main>
+  <div class="query-head">
+    <div class="query-label">쿼리</div>
+    <h1 class="query-text" id="q-text">—</h1>
+  </div>
+
+  <article class="doc">
+    <div class="doc-head">
+      <h2 class="doc-title" id="d-title">—</h2>
+      <p class="doc-title-alt" id="d-alt" hidden></p>
+      <div class="doc-meta" id="d-meta"></div>
+    </div>
+    <div class="passages" id="d-passages"></div>
+  </article>
+
+  <details class="raw">
+    <summary>판정자가 받은 프롬프트 원문 — 사람이 같은 것을 봤다는 증거</summary>
+    <pre id="d-prompt"></pre>
+  </details>
+</main>
+
+<div class="dock">
+  <div class="dock-inner">
+    <div class="grades" id="grades"></div>
+    <button class="btn" id="flag" aria-pressed="false">애매함 <kbd>U</kbd></button>
+    <div class="nav">
+      <button class="btn" id="prev">← 이전</button>
+      <button class="btn" id="next">다음 →</button>
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<aside class="panel" id="panel-rubric" role="dialog" aria-label="루브릭">
+  <h2>루브릭 <button class="btn" data-close>닫기</button></h2>
+  <p class="sub">판정자(Claude Sonnet 4.6)가 system 프롬프트로 받은 것과 **글자 그대로 같다**.</p>
+  <pre id="rubric-text"></pre>
+</aside>
+
+<aside class="panel" id="panel-export" role="dialog" aria-label="내보내기">
+  <h2>내보내기 <button class="btn" data-close>닫기</button></h2>
+  <p class="sub">JSONL 로 복사해 <code id="export-path"></code> 에 붙여 넣는다.</p>
+  <div class="stat-grid" id="export-stats"></div>
+  <div class="row">
+    <button class="btn primary" id="copy">클립보드로 복사</button>
+    <button class="btn" id="reset">전체 지우기</button>
+  </div>
+  <textarea id="export-text" readonly spellcheck="false"></textarea>
+  <p class="note">
+    <b>그다음:</b> 저장한 뒤 <code id="export-cmd"></code> 를 돌리면
+    사전 등록한 게이트(B ≤ +0.35 · V ≤ +0.40)와 문헌 대조 κ 가 나온다.
+  </p>
+</aside>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const DATA = __DATA__;
+const R = DATA.records;
+const KEY = "anchor:" + DATA.meta.runId + ":" + DATA.meta.seed;
+
+const GRADE_LABEL = [
+  ["무관", "쿼리와 관계가 없다"],
+  ["주변", "같은 기술 영역이나 의도가 어긋난다"],
+  ["부분", "관련 있고 유용하나 주제가 부분적이다"],
+  ["정면", "핵심 주제를 정면으로 다룬다"],
+];
+
+let state = load();
+let i = state.cursor || 0;
+let shownAt = Date.now();
+
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) { /* 프라이빗 모드·저장 차단 — 메모리로만 간다 */ }
+  return { cursor: 0, marks: {} };
+}
+function save() {
+  state.cursor = i;
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+}
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* ── 하단 등급 버튼 ─────────────────────────────────────────────────── */
+$("grades").innerHTML = GRADE_LABEL.map((l, g) =>
+  `<button class="grade" data-g="${g}" aria-pressed="false">
+     <b>${g}</b><span>${l[0]} · ${l[1]}</span>
+   </button>`).join("");
+$("grades").addEventListener("click", (e) => {
+  const b = e.target.closest(".grade");
+  if (b) grade(Number(b.dataset.g));
+});
+
+/* ── 진행 스트립 ───────────────────────────────────────────────────── */
+// repeat() 의 반복 횟수에는 var() 를 못 쓴다(Chrome 파싱 실패 → 칸이 접힌다).
+$("strip").style.gridTemplateColumns = `repeat(${R.length}, minmax(0, 1fr))`;
+$("strip").innerHTML = R.map((_, n) =>
+  `<button class="cell" data-n="${n}" title="${n + 1}번"></button>`).join("");
+$("strip").addEventListener("click", (e) => {
+  const c = e.target.closest(".cell");
+  if (c) go(Number(c.dataset.n));
+});
+
+$("c-total").textContent = R.length;
+$("rubric-text").textContent = DATA.rubric;
+
+/* ── 렌더 ──────────────────────────────────────────────────────────── */
+function render() {
+  const r = R[i];
+  $("q-text").textContent = r.keyword;
+  $("mark-meta").innerHTML = `쿼리 <b>${esc(r.keyword)}</b>`;
+  $("d-title").textContent = r.title || "(제목 없음)";
+  if (r.translatedTitle) {
+    $("d-alt").textContent = r.translatedTitle;
+    $("d-alt").hidden = false;
+  } else $("d-alt").hidden = true;
+
+  $("d-meta").innerHTML = [
+    `<span class="chip">발행 기업 <b>${esc(r.corporation || "미상")}</b></span>`,
+    `<span class="chip">카테고리 <b>${esc(r.category || "미분류")}</b></span>`,
+    `<span class="chip mono">article ${r.articleId}</span>`,
+    `<span class="chip mono">전체 ${r.totalChunks || "?"}구간</span>`,
+  ].join("");
+
+  $("d-passages").innerHTML = r.passages.map((p, n) =>
+    `<div class="passage">
+       <div class="passage-tag"><span>발췌 ${n + 1}</span><i>${esc(p.span)}번째 구간</i><hr></div>
+       <p>${esc(p.text)}</p>
+     </div>`).join("");
+
+  $("d-prompt").textContent = r.promptText;
+
+  const m = state.marks[key(i)] || {};
+  document.querySelectorAll(".grade").forEach((b) =>
+    b.setAttribute("aria-pressed", String(Number(b.dataset.g) === m.g)));
+  $("flag").setAttribute("aria-pressed", String(!!m.flag));
+  $("prev").disabled = i === 0;
+  $("next").disabled = i === R.length - 1;
+
+  document.querySelectorAll(".cell").forEach((c, n) => {
+    const mk = state.marks[key(n)];
+    if (mk && mk.g != null) c.dataset.g = mk.g; else delete c.dataset.g;
+    c.dataset.flag = mk && mk.flag ? "1" : "0";
+    c.dataset.current = n === i ? "1" : "0";
+  });
+
+  $("c-done").textContent = Object.values(state.marks).filter((x) => x.g != null).length;
+  window.scrollTo({ top: 0, behavior: "instant" });
+  shownAt = Date.now();
+}
+
+const key = (n) => R[n].keyword + " " + R[n].articleId;
+
+function grade(g) {
+  const k = key(i);
+  const prev = state.marks[k] || {};
+  state.marks[k] = { g, flag: !!prev.flag, sec: Math.round((Date.now() - shownAt) / 1000) };
+  save();
+  render();
+  if (i < R.length - 1) setTimeout(() => go(i + 1), 130);
+  else toast("60쌍 끝. 내보내기(E)로 저장하세요.");
+}
+function go(n) {
+  i = Math.max(0, Math.min(R.length - 1, n));
+  save();
+  render();
+}
+$("flag").addEventListener("click", () => {
+  const k = key(i);
+  const m = state.marks[k] || {};
+  state.marks[k] = { g: m.g, flag: !m.flag, sec: m.sec };
+  save();
+  render();
+});
+$("prev").addEventListener("click", () => go(i - 1));
+$("next").addEventListener("click", () => go(i + 1));
+
+/* ── 패널 ──────────────────────────────────────────────────────────── */
+function openPanel(id) {
+  ["panel-rubric", "panel-export"].forEach((p) =>
+    $(p).dataset.open = p === id ? "1" : "0");
+  $("scrim").dataset.open = id ? "1" : "0";
+  if (id === "panel-export") buildExport();
+}
+function closePanels() {
+  ["panel-rubric", "panel-export"].forEach((p) => ($(p).dataset.open = "0"));
+  $("scrim").dataset.open = "0";
+}
+$("open-rubric").addEventListener("click", () => openPanel("panel-rubric"));
+$("open-export").addEventListener("click", () => openPanel("panel-export"));
+$("scrim").addEventListener("click", closePanels);
+document.querySelectorAll("[data-close]").forEach((b) =>
+  b.addEventListener("click", closePanels));
+
+function buildExport() {
+  const path = `search-eval/runs/${DATA.meta.runId}/human.jsonl`;
+  $("export-path").textContent = path;
+  $("export-cmd").textContent = `python3 search-eval/sample_human_anchor.py --report ${path}`;
+  const lines = [];
+  let flags = 0, secs = [];
+  R.forEach((r, n) => {
+    const m = state.marks[key(n)];
+    if (!m || m.g == null) return;
+    if (m.flag) flags++;
+    if (m.sec) secs.push(m.sec);
+    lines.push(JSON.stringify({
+      keyword: r.keyword, articleId: r.articleId,
+      relevance: m.g, confident: !m.flag, seconds: m.sec || null,
+    }));
+  });
+  $("export-text").value = lines.join("\n") + (lines.length ? "\n" : "");
+  const median = secs.length
+    ? secs.slice().sort((a, b) => a - b)[Math.floor(secs.length / 2)] : 0;
+  $("export-stats").innerHTML = [
+    ["판정", lines.length + " / " + R.length],
+    ["애매 표시", flags],
+    ["쌍당 중앙값", median + "초"],
+  ].map(([s, v]) => `<div class="stat"><b>${v}</b><span>${s}</span></div>`).join("");
+}
+$("copy").addEventListener("click", async () => {
+  const t = $("export-text");
+  try {
+    await navigator.clipboard.writeText(t.value);
+    toast("복사했습니다.");
+  } catch (e) {
+    t.select();
+    toast("아래 상자를 직접 선택해 복사하세요.");
+  }
+});
+$("reset").addEventListener("click", () => {
+  if (!confirm("판정 " + Object.keys(state.marks).length + "건을 전부 지웁니다. 되돌릴 수 없습니다.")) return;
+  state = { cursor: 0, marks: {} };
+  save();
+  i = 0;
+  render();
+  buildExport();
+  toast("전부 지웠습니다.");
+});
+
+let toastTimer;
+function toast(msg) {
+  $("toast").textContent = msg;
+  $("toast").dataset.show = "1";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => ($("toast").dataset.show = "0"), 2200);
+}
+
+/* ── 키보드 — 60쌍을 45분에 끝내려면 손이 키보드를 안 떠야 한다 ────────── */
+document.addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.target.tagName === "TEXTAREA") return;
+  if (e.key === "Escape") return closePanels();
+  const open = $("panel-rubric").dataset.open === "1" || $("panel-export").dataset.open === "1";
+  if (open) return;
+  if (e.key >= "0" && e.key <= "3") { e.preventDefault(); grade(Number(e.key)); }
+  else if (e.key === "ArrowLeft") { e.preventDefault(); go(i - 1); }
+  else if (e.key === "ArrowRight") { e.preventDefault(); go(i + 1); }
+  else if (e.key === "u" || e.key === "U") $("flag").click();
+  else if (e.key === "r" || e.key === "R") openPanel("panel-rubric");
+  else if (e.key === "e" || e.key === "E") openPanel("panel-export");
+});
+
+render();
+</script>
