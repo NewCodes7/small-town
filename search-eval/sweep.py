@@ -32,6 +32,8 @@ from collections import defaultdict
 
 RUN_ID = os.environ.get("RUN_ID", "2026-08-22c")
 BASE = os.path.join("search-eval", "runs", RUN_ID)
+# appTier 조회표. 확장 런은 두 세트를 합쳐 읽어야 하므로 콜론으로 여러 개를 준다(T8).
+QUERIES = os.environ.get("QUERIES", "search-eval/queries.json")
 K = 10
 
 _spec = importlib.util.spec_from_file_location("score", pathlib.Path(__file__).with_name("score.py"))
@@ -84,7 +86,10 @@ def main():
     args = ap.parse_args()
 
     raw = [json.loads(l) for l in io.open(f"{BASE}/raw.jsonl", encoding="utf-8")]
-    qset = {q["keyword"]: q for q in json.load(io.open("search-eval/queries.json", encoding="utf-8"))["queries"]}
+    qset = {}
+    for path in QUERIES.split(":"):
+        for q in json.load(io.open(path, encoding="utf-8"))["queries"]:
+            qset[q["keyword"]] = q
     grades = {}
     for line in io.open(f"{BASE}/judgments.jsonl", encoding="utf-8"):
         d = json.loads(line)

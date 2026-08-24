@@ -1,0 +1,337 @@
+{
+  "version": "simple-ext-1",
+  "frozenAt": "2026-08-24",
+  "note": "T8 — SIMPLE 층 확장 20건. 동결 세트(queries.json v3)는 건드리지 않는다. T7 스윕이 SIMPLE 0.65/0.35 의 방향은 확인했으나 CI 가 0을 포함했고(n=10 중 6건이 무변화), 그 표본을 30건으로 늘리는 것이 유일한 권고였다 (results/2026-08-22-sweep.md §4).",
+  "extends": {
+    "querySet": "search-eval/queries.json",
+    "version": 3,
+    "tier": "SIMPLE",
+    "existing": 10,
+    "added": 20,
+    "merged": 30
+  },
+  "corpusSnapshot": {
+    "source": "GET /admin/embedding/embedding-stats (2026-08-24)",
+    "totalArticles": 18747,
+    "articlesWithEmbedding": 18602,
+    "articleCoverage": "99.23%",
+    "totalChunks": 154992,
+    "chunkCoverage": "100.00%",
+    "driftVsBaseline": "+4 아티클 (+0.02%) — §5-8 임계 10% 미만, 기존 런과 합산 가능",
+    "chunkDelta": "156,157 → 154,992 (−1,165). V1_39 청크 중복 제거(§7-6)가 적용된 결과"
+  },
+  "parameterSnapshot": {
+    "source": "GET /admin/search/weights (2026-08-24)",
+    "weights": {
+      "SIMPLE": {
+        "titleMultiplier": 2.5,
+        "bm25NsfWeight": 0.5,
+        "vectorNsfWeight": 0.5
+      },
+      "MODERATE": {
+        "titleMultiplier": 2.0,
+        "bm25NsfWeight": 0.5,
+        "vectorNsfWeight": 0.5
+      },
+      "COMPLEX": {
+        "titleMultiplier": 1.0,
+        "bm25NsfWeight": 0.35,
+        "vectorNsfWeight": 0.65
+      }
+    },
+    "identicalToBaseline": true,
+    "note": "08-22 스냅샷과 세 층 모두 동일 — 두 런을 같은 조건으로 취급할 수 있다"
+  },
+  "selectionRule": {
+    "source": "load-test/data/keywords.json (Zipfian rank 순), 동결 세트 미사용 단일 토큰 52건 중",
+    "rule": "기존 SIMPLE 규칙(영문 6 / 한글 4)의 비율을 유지해 영문 rank top12 + 한글 rank top8",
+    "exclusions": "결과 0건 쿼리 제외 규칙 적용 — 프로브 20건 전부 결과 있음, 실제 제외 0건",
+    "kept": [
+      "임베딩 — BM25 팔이 통째로 0건(§5-6 의 '데이터' 와 같은 현상). 설계가 '이런 쿼리를 세트에서 빼면 안 된다'고 못박았고, 이번엔 동결 세트 **안에서** 잡혔다",
+      "rag — 벡터 팔 깊이 0. 반대 방향의 같은 사례",
+      "온콜 — totalElements 14 로 가장 작지만 0 이 아니므로 유지"
+    ]
+  },
+  "queries": [
+    {
+      "keyword": "jpa",
+      "tier": "SIMPLE",
+      "script": "english",
+      "probe": {
+        "totalElements": 99,
+        "returned": 20,
+        "bm25Count": 20,
+        "vectorCount": 0,
+        "vectorScored": 13,
+        "latencyMs": 502
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "docker",
+      "tier": "SIMPLE",
+      "script": "english",
+      "probe": {
+        "totalElements": 184,
+        "returned": 20,
+        "bm25Count": 7,
+        "vectorCount": 13,
+        "vectorScored": 20,
+        "latencyMs": 509
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "elasticsearch",
+      "tier": "SIMPLE",
+      "script": "english",
+      "probe": {
+        "totalElements": 124,
+        "returned": 20,
+        "bm25Count": 17,
+        "vectorCount": 3,
+        "vectorScored": 19,
+        "latencyMs": 393
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "graphql",
+      "tier": "SIMPLE",
+      "script": "english",
+      "probe": {
+        "totalElements": 133,
+        "returned": 20,
+        "bm25Count": 20,
+        "vectorCount": 0,
+        "vectorScored": 20,
+        "latencyMs": 453
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "llm",
+      "tier": "SIMPLE",
+      "script": "english",
+      "probe": {
+        "totalElements": 120,
+        "returned": 20,
+        "bm25Count": 15,
+        "vectorCount": 5,
+        "vectorScored": 9,
+        "latencyMs": 495
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "rag",
+      "tier": "SIMPLE",
+      "script": "english",
+      "probe": {
+        "totalElements": 100,
+        "returned": 20,
+        "bm25Count": 20,
+        "vectorCount": 0,
+        "vectorScored": 0,
+        "latencyMs": 473
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "ci/cd",
+      "tier": "SIMPLE",
+      "script": "english",
+      "probe": {
+        "totalElements": 101,
+        "returned": 20,
+        "bm25Count": 20,
+        "vectorCount": 0,
+        "vectorScored": 6,
+        "latencyMs": 394
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "postgresql",
+      "tier": "SIMPLE",
+      "script": "english",
+      "probe": {
+        "totalElements": 127,
+        "returned": 20,
+        "bm25Count": 20,
+        "vectorCount": 0,
+        "vectorScored": 20,
+        "latencyMs": 496
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "mysql",
+      "tier": "SIMPLE",
+      "script": "english",
+      "probe": {
+        "totalElements": 161,
+        "returned": 20,
+        "bm25Count": 20,
+        "vectorCount": 0,
+        "vectorScored": 18,
+        "latencyMs": 468
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "mongodb",
+      "tier": "SIMPLE",
+      "script": "english",
+      "probe": {
+        "totalElements": 100,
+        "returned": 20,
+        "bm25Count": 20,
+        "vectorCount": 0,
+        "vectorScored": 1,
+        "latencyMs": 396
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "aws",
+      "tier": "SIMPLE",
+      "script": "english",
+      "probe": {
+        "totalElements": 150,
+        "returned": 20,
+        "bm25Count": 15,
+        "vectorCount": 5,
+        "vectorScored": 18,
+        "latencyMs": 448
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "terraform",
+      "tier": "SIMPLE",
+      "script": "english",
+      "probe": {
+        "totalElements": 105,
+        "returned": 20,
+        "bm25Count": 20,
+        "vectorCount": 0,
+        "vectorScored": 16,
+        "latencyMs": 440
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "캐시",
+      "tier": "SIMPLE",
+      "script": "korean",
+      "probe": {
+        "totalElements": 106,
+        "returned": 20,
+        "bm25Count": 18,
+        "vectorCount": 2,
+        "vectorScored": 4,
+        "latencyMs": 403
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "인덱스",
+      "tier": "SIMPLE",
+      "script": "korean",
+      "probe": {
+        "totalElements": 153,
+        "returned": 20,
+        "bm25Count": 10,
+        "vectorCount": 10,
+        "vectorScored": 20,
+        "latencyMs": 410
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "배치",
+      "tier": "SIMPLE",
+      "script": "korean",
+      "probe": {
+        "totalElements": 108,
+        "returned": 20,
+        "bm25Count": 13,
+        "vectorCount": 7,
+        "vectorScored": 10,
+        "latencyMs": 433
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "임베딩",
+      "tier": "SIMPLE",
+      "script": "korean",
+      "probe": {
+        "totalElements": 93,
+        "returned": 20,
+        "bm25Count": 0,
+        "vectorCount": 20,
+        "vectorScored": 20,
+        "latencyMs": 409
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "온콜",
+      "tier": "SIMPLE",
+      "script": "korean",
+      "probe": {
+        "totalElements": 14,
+        "returned": 14,
+        "bm25Count": 14,
+        "vectorCount": 0,
+        "vectorScored": 2,
+        "latencyMs": 600
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "웹뷰",
+      "tier": "SIMPLE",
+      "script": "korean",
+      "probe": {
+        "totalElements": 110,
+        "returned": 20,
+        "bm25Count": 18,
+        "vectorCount": 2,
+        "vectorScored": 17,
+        "latencyMs": 440
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "리팩토링",
+      "tier": "SIMPLE",
+      "script": "korean",
+      "probe": {
+        "totalElements": 146,
+        "returned": 20,
+        "bm25Count": 17,
+        "vectorCount": 3,
+        "vectorScored": 18,
+        "latencyMs": 458
+      },
+      "appTier": "SIMPLE"
+    },
+    {
+      "keyword": "헥사고날",
+      "tier": "SIMPLE",
+      "script": "korean",
+      "probe": {
+        "totalElements": 101,
+        "returned": 20,
+        "bm25Count": 19,
+        "vectorCount": 1,
+        "vectorScored": 1,
+        "latencyMs": 429
+      },
+      "appTier": "SIMPLE"
+    }
+  ]
+}

@@ -1063,12 +1063,52 @@ BM25 단독 대비 **+0.147** [+0.090, +0.206], 벡터 단독 대비 **+0.059** 
    5개가 이 층이고, 그중 2개는 **판정 풀 안에 관련 문서가 하나도 없다** — 코퍼스 부재인지
    검색 실패인지는 이 보고서로 구분되지 않는다.
 
-#### T7. 파라미터 스윕 (이후)
+#### T7. 파라미터 스윕 — **완료** ([`results/2026-08-22-sweep.md`](../../search-eval/results/2026-08-22-sweep.md))
 
-- [ ] NSF 가중치 스윕 — `normalized*Score`로 **오프라인 재채점**, 복잡도 층별로 따로
+- [x] NSF 가중치 스윕 — `normalized*Score`로 **오프라인 재채점**, appTier 별로 따로.
+      **추가 호출 0 / $0**
+- [x] 판정 풀 밖 문서 처리를 두 방식(`condensed` / `unjudged0`)으로 병기 — appTier SIMPLE 만
+      두 방식이 같은 방향이고, MODERATE·COMPLEX 는 **반대**를 가리켜 결론 불가
+- [x] **결론: prod 가중치를 바꾸지 않는다.** SIMPLE `0.65/0.35` 가 +0.0283 로 최적이고 방향도
+      §2-3 의 가설과 일치하지만 **95% CI [−0.0049, +0.0764] 가 0을 포함**한다. 10개 중 6개가
+      이미 만점이라 실질 표본이 4건이다
+- [x] 최적 조합을 §2-3 스냅샷 형식으로 기록
 - [ ] 벡터 threshold(0.52) 변경은 재수집 필요 — 오프라인 불가임을 확인하고 별도 실행
 - [ ] cross-scoring on/off A/B (`search.hybrid.*` 프로퍼티) — **실행 환경 판단 선행** (§7-4)
-- [ ] 최적 조합을 §2-3 스냅샷 형식으로 기록 후 `results/<날짜>-sweep.md`
+
+#### T8. SIMPLE 층 확장 — 스윕을 유의하게 만들기 (T7 권고 1순위)
+
+**진행 중 (2026-08-24).** prod psql 단계에서 대기.
+
+- [x] **선행 확인 ① prod 가중치가 08-22 스냅샷과 같은가** — `GET /admin/search/weights` 재조회,
+      **세 층 모두 완전히 동일**(SIMPLE 2.5/0.5/0.5 · MODERATE 2.0/0.5/0.5 · COMPLEX 1.0/0.35/0.65).
+      두 런을 같은 조건으로 취급할 수 있다
+- [x] **선행 확인 ② 코퍼스 이동** — article **18,743 → 18,747 (+0.02%)**, §5-8 임계 10% 미만.
+      청크는 156,157 → **154,992 (−1,165)** 로 줄었는데 이는 V1_39 중복 제거(§7-6)가 적용된 결과다
+- [x] **선행 확인 ③ Bedrock 키** — 스모크 1회로 유효 확인 (§7-2 의 12시간 메모는 초판 키 기준)
+- [x] SIMPLE 후보 프로브 20건 → `runs/probe_simple_ext.jsonl`. **결과 0건 0건**,
+      `임베딩` **BM25 팔 0건** · `rag` **벡터 깊이 0** — §5-6 대로 **빼지 않고 유지**한다
+- [x] 확장 세트 동결 → `queries_simple_ext.json` (영문 12 / 한글 8, 기존 6:4 비율 유지).
+      **동결 세트 `queries.json` 은 건드리지 않았다** — `collect.py`/`sweep.py` 에 `QUERIES`
+      환경변수를 넣어 세트 경로를 주입한다
+- [x] `collect.py` — 20/20 완전 수집, **429 0건 · provenance 불일치 0건** (`runs/2026-08-24-simple-ext`)
+- [x] `build_pool.py` — **판정 풀 327쌍 / 320 아티클**, 무결성 검사 통과
+      (BM25 최소 rank 1: 19/20 — 빠진 하나가 `임베딩`. 벡터 최소 rank 1: 19/20 — 빠진 하나가 `rag`)
+- [x] `make_passages_sql.py` → `passages.sql` (327쌍 / 320 아티클 / 20 키워드) + dry-run 생성
+- [ ] **prod psql 실행** — `psql "$DB_URL" -f passages.sql` → `chunks.csv` / `vec_top3.csv` 회수.
+      **devcontainer 에서 prod DB 에 닿지 않는다**(`.env` 의 `DB_URL` 은 로컬 postgres 를 가리킨다)
+- [ ] `build_passages.py` → `judge.py` (327쌍, 약 **$5.7** — 판정당 $0.0174 실측 기준)
+- [ ] `merge_runs.py --from 2026-08-22c --from 2026-08-24-simple-ext --tier SIMPLE` →
+      `build_pool.py` → SIMPLE 30건 런
+- [ ] `sweep.py` 재실행 → **CI 가 0을 벗어나는지** 확인 → `results/<날짜>-sweep-simple.md`
+
+> **부수 수정**: `build_pool.py` 가 다섯 층이 모두 있다고 가정해 한 층짜리 런에서
+> `ZeroDivisionError` 로 죽었다. 빈 층을 건너뛰도록 고치고 회귀 테스트를 넣었다.
+
+> **이번 확장에서 관측된 것** (판정 전이라 정확도 수치는 아직 없다): 벡터 깊이 10 미만인 쿼리가
+> **6/20**(`rag` 0 · `mongodb` 1 · `헥사고날` 1 · `온콜` 2 · `ci/cd` 8 · `캐시` 9)이고 층 평균 깊이는
+> **43.8** 이다. 기존 SIMPLE 10건(평균 49.5, 깊이<10 이 2건)과 같은 방향이며 표본이 늘면서
+> §3-3-1 의 "단답 쿼리에서 벡터 팔이 논다"가 더 굵어졌다.
 
 ---
 
@@ -1261,7 +1301,9 @@ search-eval/
 ├── agreement.py              # 판정자 신뢰도 — 자기 일치도 / 인간 앵커 (T4)
 ├── sample_human_anchor.py    # 인간 앵커 표본 + 블라인드 시트 + 사전 등록 게이트 판정 (§3-5-1)
 ├── human_anchor_sheet.template.html  # 시트 템플릿 — 스크립트가 __DATA__ 를 채워 넣는다
-├── sweep.py                  # NSF 가중치 오프라인 스윕 (T7)
+├── sweep.py                  # NSF 가중치 오프라인 스윕 (T7) — QUERIES 로 세트 주입
+├── merge_runs.py             # 여러 런에서 한 층만 뽑아 합친다 (T8)
+├── queries_simple_ext.json   # T8 확장 세트 20건 — queries.json 은 동결이라 별도 파일
 ├── score.py                  # 지표 계산 + bootstrap CI (T5)
 ├── test_build_pool.py        # 단위 테스트 — python3 -m unittest discover -s search-eval
 ├── test_build_passages.py / test_judge.py / test_make_passages_sql.py
@@ -1310,10 +1352,11 @@ prod 실측: `SELECT COUNT(*) FROM article_analyzed_content;` → **18,688건**.
 
 `AWS_BEARER_TOKEN_BEDROCK` 주입 후 실제 판정 호출 성공 (§3-1-2).
 
-> ⚠️ **이 키는 단기 키다.** 토큰에 내장된 SigV4 스코프 기준 발급일 `2026-08-22`,
-> `X-Amz-Expires=43200` = **12시간**. 즉 **T4(LLM 판정)는 발급 후 12시간 안에 끝내야 한다.**
+> ⚠️ **이 키는 단기 키다.** 초판 키는 발급일 `2026-08-22` / `X-Amz-Expires=43200`(12시간)이었다.
 > 만료되면 401이 나며, 새 키를 발급받아 `.env`를 갱신하면 된다 —
 > **판정 캐시(`judgments.jsonl`) 덕분에 이미 끝난 판정은 다시 호출하지 않는다.**
+> **판정을 새로 돌리기 전에는 키부터 확인할 것** — 스모크 1회(`messages.create`, 20토큰)면 된다.
+> (2026-08-24 확인: `.env` 의 키가 유효했다. 초판이 적은 12시간 시한은 그 키에만 해당한다.)
 
 남은 환경 정비:
 

@@ -41,5 +41,36 @@ class RankingsTest(unittest.TestCase):
             ])
 
 
+class TierSummaryTest(unittest.TestCase):
+    """T8 확장 런은 SIMPLE 한 층만 있다 — 없는 층을 나누다 죽으면 안 된다."""
+
+    def test_single_tier_run_does_not_divide_by_zero(self):
+        import io as _io, json, os, pathlib, tempfile, contextlib
+        with tempfile.TemporaryDirectory() as tmp:
+            d = pathlib.Path(tmp) / "search-eval" / "runs" / "one-tier"
+            d.mkdir(parents=True)
+            _io.open(d / "raw.jsonl", "w", encoding="utf-8").write(json.dumps({
+                "keyword": "kafka", "tier": "SIMPLE", "appTier": "SIMPLE", "status": 200,
+                "latencyMs": 500,
+                "body": {"totalElements": 2, "content": [
+                    {"id": 1, "sourceBm25Rank": 1, "sourceVectorRank": 1, "finalScore": 0.9,
+                     "title": "a", "foundByVector": False},
+                    {"id": 2, "sourceBm25Rank": 2, "sourceVectorRank": 2, "finalScore": 0.5,
+                     "title": "b", "foundByVector": False}]},
+            }, ensure_ascii=False) + "\n")
+            cwd = os.getcwd()
+            try:
+                os.chdir(tmp)
+                os.environ["RUN_ID"] = "one-tier"
+                with contextlib.redirect_stdout(_io.StringIO()) as out:
+                    BUILD_POOL.main()          # 예외 없이 끝나야 한다
+            finally:
+                os.chdir(cwd)
+                os.environ.pop("RUN_ID", None)
+            self.assertIn("SIMPLE", out.getvalue())
+            self.assertNotIn("MODERATE", out.getvalue())
+            self.assertTrue((d / "pool.json").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

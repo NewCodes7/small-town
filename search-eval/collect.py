@@ -11,6 +11,8 @@
 import json, time, io, os, sys, datetime, urllib.parse, urllib.request, urllib.error
 
 BASE = "https://newcodes.net/api/search/articles"
+# 동결된 세트(§3-3)는 고치지 않는다. 확장 세트는 별도 파일을 QUERIES 로 주입한다(T8).
+QUERIES = os.environ.get("QUERIES", "search-eval/queries.json")
 SIZE = int(os.environ.get("COLLECT_SIZE", "300"))
 DELAY = float(os.environ.get("COLLECT_DELAY", "1.5"))
 PROVENANCE_FIELDS = ("sourceBm25Rank", "sourceVectorRank")
@@ -39,7 +41,7 @@ def fetch(keyword):
             "latencyMs": round((time.monotonic() - t0) * 1000)}
 
 def main():
-    qdoc = json.load(io.open("search-eval/queries.json", encoding="utf-8"))
+    qdoc = json.load(io.open(QUERIES, encoding="utf-8"))
     run_id = os.environ.get("RUN_ID", datetime.date.today().isoformat())
     outdir = f"search-eval/runs/{run_id}"
     os.makedirs(outdir, exist_ok=True)
@@ -72,7 +74,7 @@ def main():
                   f"got={len(r.get('body',{}).get('content',[])):>4} {r['latencyMs']:>5}ms {note}", flush=True)
             time.sleep(DELAY)
 
-    meta = {"runId": run_id, "startedAt": started,
+    meta = {"runId": run_id, "querySet": QUERIES, "startedAt": started,
             "finishedAt": datetime.datetime.now().astimezone().isoformat(),
             "requestedSize": SIZE, "delaySeconds": DELAY,
             "queryCount": len(qdoc["queries"]),

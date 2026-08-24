@@ -1,0 +1,19 @@
+{
+  "runId": "2026-08-24-simple-ext",
+  "querySet": "search-eval/queries_simple_ext.json",
+  "startedAt": "2026-08-24T09:49:37.991767+00:00",
+  "finishedAt": "2026-08-24T09:50:18.832694+00:00",
+  "requestedSize": 300,
+  "delaySeconds": 1.5,
+  "queryCount": 20,
+  "querySetVersion": "simple-ext-1",
+  "querySetFrozenAt": "2026-08-24",
+  "throttled429": [],
+  "httpErrors": [],
+  "incompleteFetches": [],
+  "incompatibleResponses": [],
+  "requiredProvenanceFields": [
+    "sourceBm25Rank",
+    "sourceVectorRank"
+  ]
+}

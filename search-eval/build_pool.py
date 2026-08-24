@@ -119,8 +119,11 @@ def main():
     print(f"\n=== 판정 풀 크기 === 총 {sum(sizes)}건 | 평균 {sum(sizes)/len(sizes):.1f} "
           f"| 범위 {min(sizes)}~{max(sizes)}")
     print(f"\n{'층':12} {'풀평균':>6} {'풀범위':>9} {'벡터깊이평균':>12} {'지연중앙':>8}")
+    # 한 층만 있는 런(T8 확장 수집)도 돌아야 한다 — 빈 층은 나누지 않고 건너뛴다.
     for t in ("SIMPLE","MODERATE","COMPLEX","SPECIFIC","CORPORATION"):
         ds = [x for x in diag if x["tier"] == t]
+        if not ds:
+            continue
         ps = [x["poolSize"] for x in ds]; lat = sorted(x["latencyMs"] for x in ds)
         print(f"{t:12} {sum(ps)/len(ps):>6.1f} {f'{min(ps)}~{max(ps)}':>9} "
               f"{sum(x['vectorDepth'] for x in ds)/len(ds):>12.1f} {lat[len(lat)//2]:>6}ms")
