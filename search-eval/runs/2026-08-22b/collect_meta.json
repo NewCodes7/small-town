@@ -1,0 +1,18 @@
+{
+  "runId": "2026-08-22b",
+  "startedAt": "2026-08-22T09:32:32.270749+00:00",
+  "finishedAt": "2026-08-22T09:34:26.968631+00:00",
+  "requestedSize": 300,
+  "delaySeconds": 1.5,
+  "queryCount": 50,
+  "querySetVersion": 3,
+  "querySetFrozenAt": "2026-08-22T11:22:00+09:00",
+  "throttled429": [],
+  "httpErrors": [],
+  "incompleteFetches": [],
+  "incompatibleResponses": [],
+  "requiredProvenanceFields": [
+    "sourceBm25Rank",
+    "sourceVectorRank"
+  ]
+}

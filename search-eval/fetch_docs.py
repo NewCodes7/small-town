@@ -9,11 +9,38 @@
   제목이 없으면 내비게이션도 없는 문서이므로 offset 0.
 - 관리자 JWT 는 만료되므로 로그인 폴백을 내장한다.
 """
-import json, io, os, re, time, datetime, urllib.request, urllib.error
+import glob, json, io, os, re, time, datetime, urllib.request, urllib.error
 
 EXCERPT_CHARS = int(os.environ.get("EXCERPT_CHARS", "1200"))
 MIN_TAIL = 300
 SHORT_CONTENT = 200   # 이 미만이면 '본문 사실상 없음'으로 표시 (크롤러 백필 기준과 동일)
+REFETCH = os.environ.get("REFETCH") == "1"
+
+
+def load_cache(run_dir):
+    """다른 런에서 이미 받아둔 발췌를 재사용한다.
+
+    아티클 본문은 풀이 바뀌어도 그대로다. 풀을 재구성할 때마다 763건을 다시 받으면
+    admin 호출만 낭비고 JWT 만료 위험만 커진다 (2026-08-22c 는 18건만 새로 필요했다).
+    발췌 길이(EXCERPT_CHARS)가 다른 런은 발췌 규칙 자체가 다르므로 재사용하지 않는다.
+    REFETCH=1 로 전량 재수집.
+    """
+    cache = {}
+    if REFETCH:
+        return cache
+    for docs in sorted(glob.glob("search-eval/runs/*/docs.jsonl")):
+        if os.path.dirname(docs) == run_dir.rstrip("/"):
+            continue
+        meta_path = os.path.join(os.path.dirname(docs), "docs_meta.json")
+        if os.path.exists(meta_path):
+            meta = json.load(io.open(meta_path, encoding="utf-8"))
+            if meta.get("excerptChars") != EXCERPT_CHARS:
+                continue
+        for line in io.open(docs, encoding="utf-8"):
+            d = json.loads(line)
+            if (d.get("excerpt") or "").strip():
+                cache[d["articleId"]] = d
+    return cache
 
 def login():
     payload = json.dumps({"email": os.environ["PERF_ADMIN_EMAIL"],
@@ -46,13 +73,32 @@ def main():
         for it in q["pool"]:
             uniq.setdefault(it["articleId"], it)
 
-    tok = login()
-    out = io.open(f"{d}/docs.jsonl", "w", encoding="utf-8")
-    stats = {"empty": 0, "short": 0, "title_anchor": 0, "head": 0, "error": 0}
-    lens = []
     ids = sorted(uniq)
+    cache = load_cache(d)
+    todo = [a for a in ids if a not in cache]
+    print(f"풀 {len(ids)}건 | 재사용 {len(ids) - len(todo)}건 | 새로 받을 것 {len(todo)}건", flush=True)
+
+    # ADMIN_JWT_TOKEN 이 있으면 그것을 쓰고, 없으면 로그인한다. 401/403 은 아래에서 재로그인.
+    tok = os.environ.get("ADMIN_JWT_TOKEN") or login()
+    out = io.open(f"{d}/docs.jsonl", "w", encoding="utf-8")
+    stats = {"empty": 0, "short": 0, "title_anchor": 0, "head": 0, "error": 0, "reused": 0}
+    lens = []
     for i, aid in enumerate(ids, 1):
         meta = uniq[aid]
+        if aid in cache:
+            c = cache[aid]
+            stats["reused"] += 1
+            mode = c.get("excerptMode", "head")
+            stats[mode] = stats.get(mode, 0) + 1
+            lens.append(c.get("contentLength", 0))
+            if c.get("contentLength", 0) < SHORT_CONTENT:
+                stats["short"] += 1
+            # 메타(제목/기업/카테고리)만 현재 풀 기준으로 갱신한다
+            out.write(json.dumps({**c, "title": meta.get("title"),
+                                  "translatedTitle": meta.get("translatedTitle"),
+                                  "corporation": meta.get("corporation"),
+                                  "category": meta.get("category")}, ensure_ascii=False) + "\n")
+            continue
         req = urllib.request.Request(f"https://newcodes.net/admin/articles/{aid}/content",
                                      headers={"Authorization": f"Bearer {tok}"})
         try:
@@ -89,8 +135,8 @@ def main():
             "contentLength": clen, "excerptMode": mode, "titlePos": pos,
             "excerpt": ex, "excerptLength": len(ex),
         }, ensure_ascii=False) + "\n")
-        if i % 100 == 0 or i == len(ids):
-            print(f"  {i}/{len(ids)}  앵커={stats['title_anchor']} head={stats['head']} "
+        if i % 25 == 0 or i == len(ids):
+            print(f"  {i}/{len(ids)}  재사용={stats['reused']} 앵커={stats['title_anchor']} head={stats['head']} "
                   f"빈본문={stats['empty']} 짧음(<200자)={stats['short']} 오류={stats['error']}", flush=True)
         time.sleep(0.25)
     out.close()

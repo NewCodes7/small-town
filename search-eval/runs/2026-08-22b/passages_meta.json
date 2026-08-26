@@ -1,0 +1,62 @@
+{
+  "runId": "2026-08-22b",
+  "pairs": 949,
+  "passagesPerPair": {
+    "1": 278,
+    "2": 381,
+    "3": 275,
+    "4": 14,
+    "5": 1
+  },
+  "chunksPerPair": {
+    "1": 29,
+    "2": 43,
+    "3": 232,
+    "4": 441,
+    "5": 204
+  },
+  "charsPerPair": {
+    "p50": 4095,
+    "p90": 4485,
+    "p95": 4495,
+    "max": 5471
+  },
+  "budgetChars": 4500,
+  "truncatedPairs": 379,
+  "adjacentMerges": 1677,
+  "titlePrefix": {
+    "title_prefix_original": 662,
+    "title_prefix_translated": 100
+  },
+  "armOverlapMean": 1.724,
+  "armOverlapDist": {
+    "0": 88,
+    "1": 245,
+    "2": 457,
+    "3": 159
+  },
+  "duplicateChunkRows": {
+    "identical": 128
+  },
+  "duplicateVecRows": {
+    "repeated_index": 12
+  },
+  "articlesWithoutChunk": [],
+  "pairsWithoutVector": 0,
+  "pairsPerTier": {
+    "COMPLEX": 191,
+    "CORPORATION": 195,
+    "MODERATE": 192,
+    "SIMPLE": 183,
+    "SPECIFIC": 188
+  },
+  "pairsWithoutBm25HitByTier": {
+    "COMPLEX": 4,
+    "CORPORATION": 7,
+    "MODERATE": 17,
+    "SIMPLE": 8,
+    "SPECIFIC": 1
+  },
+  "pairsWithoutVectorByTier": {},
+  "note": "BM25 는 로컬 근사(공백+한글 bigram)다. 앱의 ParadeDB/Nori BM25 가 아니며 지표로 보고하지 않는다."
+}

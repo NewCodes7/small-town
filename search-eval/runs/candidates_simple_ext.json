@@ -1,0 +1,82 @@
+[
+  {
+    "keyword": "jpa",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "docker",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "elasticsearch",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "graphql",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "llm",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "rag",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "ci/cd",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "postgresql",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "mysql",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "mongodb",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "aws",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "terraform",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "캐시",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "인덱스",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "배치",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "임베딩",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "온콜",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "웹뷰",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "리팩토링",
+    "tier": "SIMPLE"
+  },
+  {
+    "keyword": "헥사고날",
+    "tier": "SIMPLE"
+  }
+]

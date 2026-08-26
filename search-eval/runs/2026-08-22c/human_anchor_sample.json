@@ -1,0 +1,518 @@
+{
+  "meta": {
+    "runId": "2026-08-22c",
+    "seed": 20260823,
+    "strata": {
+      "random": 30,
+      "B": 15,
+      "V": 15
+    },
+    "universe": 950,
+    "categoryPopulation": {
+      "B": 298,
+      "HV": 240,
+      "V": 152,
+      "HB": 103,
+      "HBV": 99,
+      "H": 58
+    },
+    "gates": {
+      "B": {
+        "flip": 0.7,
+        "gate": 0.35,
+        "claim": "hybrid > bm25 (NDCG@10 +0.147)",
+        "threat": "§5-5 어휘 중복 편향 — 판정자가 쿼리 단어가 그대로 박힌 문서에 후하다"
+      },
+      "V": {
+        "flip": 0.8,
+        "gate": 0.4,
+        "claim": "hybrid > vector (NDCG@10 +0.059)",
+        "threat": "§5-9 발췌 선택기 편향 — 발췌의 절반을 피험자인 벡터 팔이 골랐다"
+      }
+    },
+    "kappaReference": 0.3,
+    "design": "docs/testing/SEARCH_ACCURACY_EVAL_DESIGN.md §3-5-1"
+  },
+  "pairs": [
+    {
+      "keyword": "검색 성능 최적화",
+      "articleId": 14855,
+      "tier": "COMPLEX",
+      "stratum": "random",
+      "category": "B",
+      "llmGrade": 2
+    },
+    {
+      "keyword": "java virtual thread 운영 환경에서 설정 방법",
+      "articleId": 3510,
+      "tier": "SPECIFIC",
+      "stratum": "random",
+      "category": "HV",
+      "llmGrade": 0
+    },
+    {
+      "keyword": "msa",
+      "articleId": 1253,
+      "tier": "SIMPLE",
+      "stratum": "random",
+      "category": "HB",
+      "llmGrade": 3
+    },
+    {
+      "keyword": "데이터베이스 인덱스 최적화",
+      "articleId": 6116,
+      "tier": "COMPLEX",
+      "stratum": "random",
+      "category": "B",
+      "llmGrade": 3
+    },
+    {
+      "keyword": "동시성",
+      "articleId": 14913,
+      "tier": "SIMPLE",
+      "stratum": "V",
+      "category": "V",
+      "llmGrade": 3
+    },
+    {
+      "keyword": "데이터베이스 인덱스 최적화",
+      "articleId": 3322,
+      "tier": "COMPLEX",
+      "stratum": "V",
+      "category": "V",
+      "llmGrade": 1
+    },
+    {
+      "keyword": "컬리에서 검색 시스템 개선한 사례",
+      "articleId": 1206,
+      "tier": "CORPORATION",
+      "stratum": "random",
+      "category": "HV",
+      "llmGrade": 1
+    },
+    {
+      "keyword": "벡터 검색",
+      "articleId": 9362,
+      "tier": "MODERATE",
+      "stratum": "random",
+      "category": "HV",
+      "llmGrade": 3
+    },
+    {
+      "keyword": "웹소켓",
+      "articleId": 5744,
+      "tier": "SIMPLE",
+      "stratum": "random",
+      "category": "HBV",
+      "llmGrade": 2
+    },
+    {
+      "keyword": "java virtual thread 운영 환경에서 설정 방법",
+      "articleId": 15703,
+      "tier": "SPECIFIC",
+      "stratum": "V",
+      "category": "V",
+      "llmGrade": 0
+    },
+    {
+      "keyword": "카카오페이 결제 시스템 설계한 사례",
+      "articleId": 6986,
+      "tier": "CORPORATION",
+      "stratum": "B",
+      "category": "B",
+      "llmGrade": 1
+    },
+    {
+      "keyword": "카카오에서 대규모 트래픽 처리한 방법",
+      "articleId": 7084,
+      "tier": "CORPORATION",
+      "stratum": "B",
+      "category": "B",
+      "llmGrade": 2
+    },
+    {
+      "keyword": "올리브영에서 추천 시스템 개선한 사례",
+      "articleId": 8879,
+      "tier": "CORPORATION",
+      "stratum": "B",
+      "category": "B",
+      "llmGrade": 0
+    },
+    {
+      "keyword": "jpa n+1 문제 해결",
+      "articleId": 1210,
+      "tier": "COMPLEX",
+      "stratum": "random",
+      "category": "V",
+      "llmGrade": 1
+    },
+    {
+      "keyword": "jpa n+1 문제를 쿼리로 해결한 방법",
+      "articleId": 8397,
+      "tier": "SPECIFIC",
+      "stratum": "B",
+      "category": "B",
+      "llmGrade": 0
+    },
+    {
+      "keyword": "github actions 로 ci/cd 파이프라인 구축한 사례",
+      "articleId": 10771,
+      "tier": "SPECIFIC",
+      "stratum": "V",
+      "category": "V",
+      "llmGrade": 1
+    },
+    {
+      "keyword": "a/b 테스트",
+      "articleId": 9491,
+      "tier": "MODERATE",
+      "stratum": "random",
+      "category": "B",
+      "llmGrade": 0
+    },
+    {
+      "keyword": "컬리에서 검색 시스템 개선한 사례",
+      "articleId": 1198,
+      "tier": "CORPORATION",
+      "stratum": "B",
+      "category": "B",
+      "llmGrade": 0
+    },
+    {
+      "keyword": "마이크로서비스 아키텍처 설계",
+      "articleId": 6887,
+      "tier": "COMPLEX",
+      "stratum": "random",
+      "category": "B",
+      "llmGrade": 2
+    },
+    {
+      "keyword": "spring boot",
+      "articleId": 3110,
+      "tier": "MODERATE",
+      "stratum": "V",
+      "category": "V",
+      "llmGrade": 2
+    },
+    {
+      "keyword": "장애 대응",
+      "articleId": 4012,
+      "tier": "MODERATE",
+      "stratum": "B",
+      "category": "B",
+      "llmGrade": 3
+    },
+    {
+      "keyword": "msa",
+      "articleId": 9457,
+      "tier": "SIMPLE",
+      "stratum": "random",
+      "category": "V",
+      "llmGrade": 3
+    },
+    {
+      "keyword": "kubernetes 무중단 배포 구성하는 방법",
+      "articleId": 9479,
+      "tier": "SPECIFIC",
+      "stratum": "V",
+      "category": "V",
+      "llmGrade": 0
+    },
+    {
+      "keyword": "코루틴",
+      "articleId": 6606,
+      "tier": "SIMPLE",
+      "stratum": "random",
+      "category": "HBV",
+      "llmGrade": 3
+    },
+    {
+      "keyword": "대규모 트래픽",
+      "articleId": 3749,
+      "tier": "MODERATE",
+      "stratum": "random",
+      "category": "V",
+      "llmGrade": 3
+    },
+    {
+      "keyword": "react 상태관리 라이브러리 비교",
+      "articleId": 15423,
+      "tier": "COMPLEX",
+      "stratum": "V",
+      "category": "V",
+      "llmGrade": 2
+    },
+    {
+      "keyword": "elasticsearch 클러스터 운영하면서 겪은 장애",
+      "articleId": 18506,
+      "tier": "SPECIFIC",
+      "stratum": "B",
+      "category": "B",
+      "llmGrade": 1
+    },
+    {
+      "keyword": "토스에서 장애 대응한 사례",
+      "articleId": 5535,
+      "tier": "CORPORATION",
+      "stratum": "random",
+      "category": "H",
+      "llmGrade": 0
+    },
+    {
+      "keyword": "elasticsearch 클러스터 운영하면서 겪은 장애",
+      "articleId": 6485,
+      "tier": "SPECIFIC",
+      "stratum": "random",
+      "category": "HV",
+      "llmGrade": 2
+    },
+    {
+      "keyword": "jpa n+1 문제를 쿼리로 해결한 방법",
+      "articleId": 7726,
+      "tier": "SPECIFIC",
+      "stratum": "random",
+      "category": "B",
+      "llmGrade": 0
+    },
+    {
+      "keyword": "kubernetes 운영 노하우",
+      "articleId": 6593,
+      "tier": "COMPLEX",
+      "stratum": "random",
+      "category": "B",
+      "llmGrade": 0
+    },
+    {
+      "keyword": "카카오스타일에서 데이터 파이프라인 구축한 사례",
+      "articleId": 1133,
+      "tier": "CORPORATION",
+      "stratum": "random",
+      "category": "HV",
+      "llmGrade": 0
+    },
+    {
+      "keyword": "성능 최적화",
+      "articleId": 6992,
+      "tier": "MODERATE",
+      "stratum": "random",
+      "category": "B",
+      "llmGrade": 3
+    },
+    {
+      "keyword": "spring security jwt 인증",
+      "articleId": 4163,
+      "tier": "COMPLEX",
+      "stratum": "V",
+      "category": "V",
+      "llmGrade": 1
+    },
+    {
+      "keyword": "장애 대응",
+      "articleId": 6491,
+      "tier": "MODERATE",
+      "stratum": "random",
+      "category": "HB",
+      "llmGrade": 3
+    },
+    {
+      "keyword": "테스트 코드",
+      "articleId": 6875,
+      "tier": "MODERATE",
+      "stratum": "V",
+      "category": "V",
+      "llmGrade": 3
+    },
+    {
+      "keyword": "redis",
+      "articleId": 1271,
+      "tier": "SIMPLE",
+      "stratum": "random",
+      "category": "HV",
+      "llmGrade": 3
+    },
+    {
+      "keyword": "대용량 트래픽 처리",
+      "articleId": 18100,
+      "tier": "COMPLEX",
+      "stratum": "V",
+      "category": "V",
+      "llmGrade": 2
+    },
+    {
+      "keyword": "동시성",
+      "articleId": 15927,
+      "tier": "SIMPLE",
+      "stratum": "random",
+      "category": "HV",
+      "llmGrade": 3
+    },
+    {
+      "keyword": "github actions 로 ci/cd 파이프라인 구축한 사례",
+      "articleId": 10207,
+      "tier": "SPECIFIC",
+      "stratum": "B",
+      "category": "B",
+      "llmGrade": 1
+    },
+    {
+      "keyword": "마이크로서비스 아키텍처 설계",
+      "articleId": 7380,
+      "tier": "COMPLEX",
+      "stratum": "random",
+      "category": "HV",
+      "llmGrade": 2
+    },
+    {
+      "keyword": "카카오페이 결제 시스템 설계한 사례",
+      "articleId": 7002,
+      "tier": "CORPORATION",
+      "stratum": "B",
+      "category": "B",
+      "llmGrade": 1
+    },
+    {
+      "keyword": "kubernetes",
+      "articleId": 1791,
+      "tier": "SIMPLE",
+      "stratum": "B",
+      "category": "B",
+      "llmGrade": 3
+    },
+    {
+      "keyword": "github actions 로 ci/cd 파이프라인 구축한 사례",
+      "articleId": 3514,
+      "tier": "SPECIFIC",
+      "stratum": "B",
+      "category": "B",
+      "llmGrade": 1
+    },
+    {
+      "keyword": "a/b 테스트",
+      "articleId": 6081,
+      "tier": "MODERATE",
+      "stratum": "random",
+      "category": "HB",
+      "llmGrade": 0
+    },
+    {
+      "keyword": "postgresql 인덱스로 느린 쿼리 개선한 사례",
+      "articleId": 4097,
+      "tier": "SPECIFIC",
+      "stratum": "random",
+      "category": "HB",
+      "llmGrade": 2
+    },
+    {
+      "keyword": "벡터 검색",
+      "articleId": 2531,
+      "tier": "MODERATE",
+      "stratum": "random",
+      "category": "HB",
+      "llmGrade": 3
+    },
+    {
+      "keyword": "모니터링",
+      "articleId": 15419,
+      "tier": "SIMPLE",
+      "stratum": "V",
+      "category": "V",
+      "llmGrade": 1
+    },
+    {
+      "keyword": "redis",
+      "articleId": 6179,
+      "tier": "SIMPLE",
+      "stratum": "random",
+      "category": "B",
+      "llmGrade": 3
+    },
+    {
+      "keyword": "모니터링",
+      "articleId": 6271,
+      "tier": "SIMPLE",
+      "stratum": "random",
+      "category": "B",
+      "llmGrade": 3
+    },
+    {
+      "keyword": "react 상태관리 라이브러리 비교",
+      "articleId": 7674,
+      "tier": "COMPLEX",
+      "stratum": "B",
+      "category": "B",
+      "llmGrade": 1
+    },
+    {
+      "keyword": "spring boot",
+      "articleId": 15224,
+      "tier": "MODERATE",
+      "stratum": "random",
+      "category": "HBV",
+      "llmGrade": 3
+    },
+    {
+      "keyword": "kotlin",
+      "articleId": 4657,
+      "tier": "SIMPLE",
+      "stratum": "V",
+      "category": "V",
+      "llmGrade": 3
+    },
+    {
+      "keyword": "kafka",
+      "articleId": 6419,
+      "tier": "SIMPLE",
+      "stratum": "B",
+      "category": "B",
+      "llmGrade": 3
+    },
+    {
+      "keyword": "postgresql 인덱스로 느린 쿼리 개선한 사례",
+      "articleId": 18186,
+      "tier": "SPECIFIC",
+      "stratum": "B",
+      "category": "B",
+      "llmGrade": 0
+    },
+    {
+      "keyword": "토스에서 장애 대응한 사례",
+      "articleId": 4012,
+      "tier": "CORPORATION",
+      "stratum": "random",
+      "category": "B",
+      "llmGrade": 0
+    },
+    {
+      "keyword": "대규모 트래픽",
+      "articleId": 11930,
+      "tier": "MODERATE",
+      "stratum": "V",
+      "category": "V",
+      "llmGrade": 2
+    },
+    {
+      "keyword": "토스에서 장애 대응한 사례",
+      "articleId": 15803,
+      "tier": "CORPORATION",
+      "stratum": "B",
+      "category": "B",
+      "llmGrade": 1
+    },
+    {
+      "keyword": "카카오에서 대규모 트래픽 처리한 방법",
+      "articleId": 6419,
+      "tier": "CORPORATION",
+      "stratum": "V",
+      "category": "V",
+      "llmGrade": 1
+    },
+    {
+      "keyword": "react 상태관리 라이브러리 비교",
+      "articleId": 6489,
+      "tier": "COMPLEX",
+      "stratum": "V",
+      "category": "V",
+      "llmGrade": 2
+    }
+  ]
+}

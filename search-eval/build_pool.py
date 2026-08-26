@@ -16,6 +16,12 @@ from collections import Counter
 
 TOP_K = 10
 
+# pool.json 에 찍는 출처 표식 — 단독 랭킹을 무엇으로 복원했는지를 나타낸다.
+# make_passages_sql.py 가 이 값을 읽어 낡은 풀을 걸러낸다. 판정 근거를 pool.json 안에 두는 이유는
+# raw.jsonl 이 gitignore 대상이라 **저장소에 없는 것이 정상 상태**이기 때문이다 —
+# 없는 파일을 근거로 삼으면 가드가 조용히 사라진다.
+POOL_PROVENANCE = "sourceRanks"
+
 def validate_source_ranks(content, field):
     ranks = [a.get(field) for a in content if a.get(field) is not None]
     if any(type(rank) is not int or rank < 1 for rank in ranks):
@@ -94,7 +100,8 @@ def main():
         })
 
     io.open(f"{d}/pool.json", "w", encoding="utf-8").write(
-        json.dumps({"runId": run_id, "topK": TOP_K, "queries": pools}, ensure_ascii=False, indent=2) + "\n")
+        json.dumps({"runId": run_id, "topK": TOP_K, "provenance": POOL_PROVENANCE,
+                    "queries": pools}, ensure_ascii=False, indent=2) + "\n")
     io.open(f"{d}/pool_diagnostics.json", "w", encoding="utf-8").write(
         json.dumps(diag, ensure_ascii=False, indent=2) + "\n")
 
@@ -112,8 +119,11 @@ def main():
     print(f"\n=== 판정 풀 크기 === 총 {sum(sizes)}건 | 평균 {sum(sizes)/len(sizes):.1f} "
           f"| 범위 {min(sizes)}~{max(sizes)}")
     print(f"\n{'층':12} {'풀평균':>6} {'풀범위':>9} {'벡터깊이평균':>12} {'지연중앙':>8}")
+    # 한 층만 있는 런(T8 확장 수집)도 돌아야 한다 — 빈 층은 나누지 않고 건너뛴다.
     for t in ("SIMPLE","MODERATE","COMPLEX","SPECIFIC","CORPORATION"):
         ds = [x for x in diag if x["tier"] == t]
+        if not ds:
+            continue
         ps = [x["poolSize"] for x in ds]; lat = sorted(x["latencyMs"] for x in ds)
         print(f"{t:12} {sum(ps)/len(ps):>6.1f} {f'{min(ps)}~{max(ps)}':>9} "
               f"{sum(x['vectorDepth'] for x in ds)/len(ds):>12.1f} {lat[len(lat)//2]:>6}ms")

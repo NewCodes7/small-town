@@ -37,3 +37,6 @@ nginx/loadtest_token.conf
 
 # 개인 이력서용 요약 — 저장소에 올리지 않음 (로컬 보관)
 load-test/results/RESUME-*.md
+
+# 개인 자소서 초안 — 저장소에 올리지 않음 (로컬 보관)
+docs/자소서/

@@ -1,0 +1,60 @@
+{"keyword":"검색 성능 최적화","articleId":14855,"relevance":1,"confident":true,"seconds":36}
+{"keyword":"java virtual thread 운영 환경에서 설정 방법","articleId":3510,"relevance":0,"confident":true,"seconds":20}
+{"keyword":"msa","articleId":1253,"relevance":3,"confident":true,"seconds":31}
+{"keyword":"데이터베이스 인덱스 최적화","articleId":6116,"relevance":2,"confident":true,"seconds":7}
+{"keyword":"동시성","articleId":14913,"relevance":2,"confident":true,"seconds":32}
+{"keyword":"데이터베이스 인덱스 최적화","articleId":3322,"relevance":0,"confident":true,"seconds":55}
+{"keyword":"컬리에서 검색 시스템 개선한 사례","articleId":1206,"relevance":0,"confident":true,"seconds":67}
+{"keyword":"벡터 검색","articleId":9362,"relevance":2,"confident":true,"seconds":28}
+{"keyword":"웹소켓","articleId":5744,"relevance":1,"confident":true,"seconds":40}
+{"keyword":"java virtual thread 운영 환경에서 설정 방법","articleId":15703,"relevance":0,"confident":true,"seconds":28}
+{"keyword":"카카오페이 결제 시스템 설계한 사례","articleId":6986,"relevance":1,"confident":true,"seconds":30}
+{"keyword":"카카오에서 대규모 트래픽 처리한 방법","articleId":7084,"relevance":2,"confident":true,"seconds":71}
+{"keyword":"올리브영에서 추천 시스템 개선한 사례","articleId":8879,"relevance":1,"confident":true,"seconds":34}
+{"keyword":"jpa n+1 문제 해결","articleId":1210,"relevance":1,"confident":true,"seconds":27}
+{"keyword":"jpa n+1 문제를 쿼리로 해결한 방법","articleId":8397,"relevance":1,"confident":true,"seconds":22}
+{"keyword":"github actions 로 ci/cd 파이프라인 구축한 사례","articleId":10771,"relevance":2,"confident":true,"seconds":17}
+{"keyword":"a/b 테스트","articleId":9491,"relevance":0,"confident":true,"seconds":52}
+{"keyword":"컬리에서 검색 시스템 개선한 사례","articleId":1198,"relevance":0,"confident":true,"seconds":32}
+{"keyword":"마이크로서비스 아키텍처 설계","articleId":6887,"relevance":0,"confident":true,"seconds":57}
+{"keyword":"spring boot","articleId":3110,"relevance":1,"confident":true,"seconds":9}
+{"keyword":"장애 대응","articleId":4012,"relevance":3,"confident":true,"seconds":16}
+{"keyword":"msa","articleId":9457,"relevance":3,"confident":true,"seconds":15}
+{"keyword":"kubernetes 무중단 배포 구성하는 방법","articleId":9479,"relevance":0,"confident":true,"seconds":26}
+{"keyword":"코루틴","articleId":6606,"relevance":3,"confident":true,"seconds":26}
+{"keyword":"대규모 트래픽","articleId":3749,"relevance":3,"confident":true,"seconds":11}
+{"keyword":"react 상태관리 라이브러리 비교","articleId":15423,"relevance":3,"confident":true,"seconds":43}
+{"keyword":"elasticsearch 클러스터 운영하면서 겪은 장애","articleId":18506,"relevance":0,"confident":true,"seconds":15}
+{"keyword":"토스에서 장애 대응한 사례","articleId":5535,"relevance":0,"confident":true,"seconds":21}
+{"keyword":"elasticsearch 클러스터 운영하면서 겪은 장애","articleId":6485,"relevance":3,"confident":true,"seconds":23}
+{"keyword":"jpa n+1 문제를 쿼리로 해결한 방법","articleId":7726,"relevance":0,"confident":true,"seconds":9}
+{"keyword":"kubernetes 운영 노하우","articleId":6593,"relevance":0,"confident":true,"seconds":35}
+{"keyword":"카카오스타일에서 데이터 파이프라인 구축한 사례","articleId":1133,"relevance":1,"confident":true,"seconds":18}
+{"keyword":"성능 최적화","articleId":6992,"relevance":2,"confident":true,"seconds":14}
+{"keyword":"spring security jwt 인증","articleId":4163,"relevance":1,"confident":true,"seconds":39}
+{"keyword":"장애 대응","articleId":6491,"relevance":3,"confident":true,"seconds":7}
+{"keyword":"테스트 코드","articleId":6875,"relevance":3,"confident":true,"seconds":5}
+{"keyword":"redis","articleId":1271,"relevance":3,"confident":true,"seconds":6}
+{"keyword":"대용량 트래픽 처리","articleId":18100,"relevance":2,"confident":true,"seconds":10}
+{"keyword":"동시성","articleId":15927,"relevance":3,"confident":true,"seconds":25}
+{"keyword":"github actions 로 ci/cd 파이프라인 구축한 사례","articleId":10207,"relevance":3,"confident":true,"seconds":16}
+{"keyword":"마이크로서비스 아키텍처 설계","articleId":7380,"relevance":2,"confident":true,"seconds":27}
+{"keyword":"카카오페이 결제 시스템 설계한 사례","articleId":7002,"relevance":2,"confident":true,"seconds":11}
+{"keyword":"kubernetes","articleId":1791,"relevance":2,"confident":true,"seconds":22}
+{"keyword":"github actions 로 ci/cd 파이프라인 구축한 사례","articleId":3514,"relevance":1,"confident":true,"seconds":3}
+{"keyword":"a/b 테스트","articleId":6081,"relevance":0,"confident":true,"seconds":8}
+{"keyword":"postgresql 인덱스로 느린 쿼리 개선한 사례","articleId":4097,"relevance":3,"confident":true,"seconds":9}
+{"keyword":"벡터 검색","articleId":2531,"relevance":2,"confident":true,"seconds":13}
+{"keyword":"모니터링","articleId":15419,"relevance":1,"confident":true,"seconds":13}
+{"keyword":"redis","articleId":6179,"relevance":2,"confident":true,"seconds":6}
+{"keyword":"모니터링","articleId":6271,"relevance":2,"confident":true,"seconds":5}
+{"keyword":"react 상태관리 라이브러리 비교","articleId":7674,"relevance":1,"confident":true,"seconds":29}
+{"keyword":"spring boot","articleId":15224,"relevance":2,"confident":true,"seconds":7}
+{"keyword":"kotlin","articleId":4657,"relevance":3,"confident":true,"seconds":2}
+{"keyword":"kafka","articleId":6419,"relevance":2,"confident":true,"seconds":8}
+{"keyword":"postgresql 인덱스로 느린 쿼리 개선한 사례","articleId":18186,"relevance":1,"confident":true,"seconds":7}
+{"keyword":"토스에서 장애 대응한 사례","articleId":4012,"relevance":1,"confident":true,"seconds":7}
+{"keyword":"대규모 트래픽","articleId":11930,"relevance":1,"confident":true,"seconds":10}
+{"keyword":"토스에서 장애 대응한 사례","articleId":15803,"relevance":1,"confident":true,"seconds":5}
+{"keyword":"카카오에서 대규모 트래픽 처리한 방법","articleId":6419,"relevance":1,"confident":true,"seconds":5}
+{"keyword":"react 상태관리 라이브러리 비교","articleId":6489,"relevance":2,"confident":true,"seconds":47}

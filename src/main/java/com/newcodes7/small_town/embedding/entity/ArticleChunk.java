@@ -21,6 +21,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -45,6 +46,10 @@ import lombok.Setter;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @EntityListeners(AuditingEntityListener.class)
 @Table(name = "clova_article_chunk",
+    // 아티클당 chunk_index 는 유일해야 한다. 제약이 없던 동안 같은 아티클이 두 번 임베딩되어
+    // 청크 세트가 통째로 중복된 사례가 있었고(V1_39), 벡터 검색의 AVG(상위 topK)를 부풀렸다.
+    uniqueConstraints = @UniqueConstraint(
+        name = "uq_clova_chunk_article_index", columnNames = {"article_id", "chunk_index"}),
     indexes = {
         @Index(name = "idx_clova_chunk_article_id", columnList = "article_id"),
         @Index(name = "idx_clova_chunk_article_embedding", columnList = "article_id, embedding_generated_at")
