@@ -560,6 +560,59 @@ class VectorSearchServiceTest {
                 anyString(), anyString(), anyInt(), anyInt(), eq(0.75), anyInt());
     }
 
+    /**
+     * 부하테스트 경로 회귀 가드 — mock 임베딩은 의사난수 단위벡터라 RAG 운영 임계값(0.6)에서는
+     * 벡터 팔이 항상 0건이 되어 NSF가 BM25 단독으로 축퇴한다. 검색 경로가 이미 같은 이유로
+     * 임계값·결과 수 상한을 갈아끼우는데 RAG 경로만 빠져 있었다.
+     */
+    @Test
+    @DisplayName("searchForRag: useMockEmbedding=true → 요청 임계값 0.6이 아닌 부하테스트 값(0.0/30)을 쓴다")
+    void searchForRag_부하테스트경로는임계값과결과수상한을갈아끼운다() {
+        ReflectionTestUtils.setField(vectorSearchService, "loadTestVectorThreshold", 0.0);
+        ReflectionTestUtils.setField(vectorSearchService, "loadTestMaxVectorResults", 30);
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(true)))
+                .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.hit(DUMMY_EMBEDDING, 5));
+        when(chunkRepository.findArticlesByTwoStageSearch(
+                anyString(), anyString(), anyInt(), anyInt(), eq(0.0), eq(30)))
+                .thenReturn(List.<Object[]>of(new Object[]{10L, 0.03}));
+
+        VectorSearchService.VectorSearchResult result =
+                vectorSearchService.searchForRag("kafka 도입 사례", List.of(), 0.6, true);
+
+        // 요청 임계값 0.6으로 호출됐다면 mock 벡터(유사도 ≈ ±0.03)는 0건이 됐을 것이다
+        assertThat(result.getScores()).containsEntry(10L, 0.03);
+        verify(chunkRepository).findArticlesByTwoStageSearch(
+                anyString(), anyString(), anyInt(), anyInt(), eq(0.0), eq(30));
+    }
+
+    @Test
+    @DisplayName("searchForRag: useMockEmbedding=false → 요청 임계값과 DEFAULT_MAX_RESULTS(100) 그대로 (실사용자 경로 불변)")
+    void searchForRag_실사용자경로는요청값을유지한다() {
+        ReflectionTestUtils.setField(vectorSearchService, "loadTestVectorThreshold", 0.0);
+        ReflectionTestUtils.setField(vectorSearchService, "loadTestMaxVectorResults", 30);
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false)))
+                .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.hit(DUMMY_EMBEDDING, 5));
+        when(chunkRepository.findArticlesByTwoStageSearch(
+                anyString(), anyString(), anyInt(), anyInt(), eq(0.6), eq(100)))
+                .thenReturn(List.of());
+
+        vectorSearchService.searchForRag("kafka 도입 사례", List.of(), 0.6, false);
+
+        verify(chunkRepository).findArticlesByTwoStageSearch(
+                anyString(), anyString(), anyInt(), anyInt(), eq(0.6), eq(100));
+    }
+
+    @Test
+    @DisplayName("vectorThresholdFor(useMock, requested): 부하테스트만 갈아끼우고 실사용자는 요청값 유지")
+    void vectorThresholdFor_요청값오버로드() {
+        ReflectionTestUtils.setField(vectorSearchService, "loadTestVectorThreshold", 0.0);
+
+        assertThat(vectorSearchService.vectorThresholdFor(true, 0.6)).isEqualTo(0.0);
+        assertThat(vectorSearchService.vectorThresholdFor(false, 0.6)).isEqualTo(0.6);
+        // 1-arg 오버로드는 종전대로 일반 검색 기본 임계값(0.52)
+        assertThat(vectorSearchService.vectorThresholdFor(false)).isEqualTo(0.52);
+    }
+
     // ==================== computeSimilarityForArticlesWithEmbedding — 커스텀 threshold ====================
 
     @Test

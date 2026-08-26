@@ -1187,7 +1187,8 @@ class ArticleSearchServiceTest {
                 .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(20L, 0.8), dummyEmbedding));
 
         // cross-scoring (빈 결과)
-        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(float[].class), anyList(), eq(0.6)))
+        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(
+                any(float[].class), anyList(), eq(0.6), eq(false)))
                 .thenReturn(Map.of());
         when(articleRepository.computeBM25ScoreForArticleIds(eq(bm25Query), anyList()))
                 .thenReturn(Collections.emptyList());
@@ -1358,7 +1359,8 @@ class ArticleSearchServiceTest {
         float[] dummyEmbedding = new float[]{0.1f, 0.2f};
         when(vectorSearchService.searchForRag(vectorQuery, List.of(), 0.6, false))
                 .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(20L, 0.8), dummyEmbedding));
-        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(eq(dummyEmbedding), anyList(), eq(0.6)))
+        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(
+                eq(dummyEmbedding), anyList(), eq(0.6), eq(false)))
                 .thenReturn(Map.of(10L, 0.55));
 
         Map<Long, Double> nsfScores = Map.of(10L, 0.7, 20L, 0.5);
@@ -1374,7 +1376,46 @@ class ArticleSearchServiceTest {
 
         // then
         verify(vectorSearchService).computeSimilarityForArticlesWithEmbedding(
-                eq(dummyEmbedding), argThat(ids -> ids.contains(10L)), eq(0.6));
+                eq(dummyEmbedding), argThat(ids -> ids.contains(10L)), eq(0.6), eq(false));
+    }
+
+    /**
+     * 부하테스트 경로 회귀 가드 — 본검색(searchForRag)과 cross-scoring 보충 <b>양쪽</b>에
+     * useMockEmbedding이 전파돼야 한다. 보충만 빠지면 mock 벡터(유사도 ≈ ±0.03)가 요청 임계값 0.6에
+     * 전부 걸려 BM25-only id 보충이 통째로 죽고, NSF 입력이 운영과 달라진다.
+     */
+    @Test
+    @DisplayName("getTopArticleIdsForRag: useMockEmbedding=true → 본검색과 cross-scoring 보충 양쪽에 전파")
+    void getTopArticleIdsForRag_부하테스트경로가보충에도전파된다() {
+        // given
+        String bm25Keywords = "kafka";
+        String vectorQuery = "Kafka 도입 사례 (test:abc)";
+        String bm25Query = setupRagBm25Query(bm25Keywords);
+        when(articleRepository.searchByBM25(bm25Query, 100))
+                .thenReturn(List.<Object[]>of(new Object[]{10L, 10.0, LocalDateTime.of(2024, 1, 1, 0, 0)}));
+
+        float[] dummyEmbedding = new float[]{0.1f, 0.2f};
+        when(vectorSearchService.searchForRag(vectorQuery, List.of(), 0.6, true))
+                .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(20L, 0.03), dummyEmbedding));
+        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(
+                eq(dummyEmbedding), anyList(), eq(0.6), eq(true)))
+                .thenReturn(Map.of(10L, 0.02));
+
+        when(hybridSearchScorer.calculateNSFScores(anyMap(), anyMap(), eq(0.6), eq(0.4)))
+                .thenReturn(new HybridSearchScorer.NSFResult(
+                        Map.of(10L, 0.7, 20L, 0.5), Map.of(), Map.of(), Map.of()));
+        when(articleRepository.findIdAndPublishedAtByIdIn(anyList())).thenReturn(List.of(
+                new Object[]{10L, LocalDateTime.of(2024, 1, 1, 0, 0)},
+                new Object[]{20L, LocalDateTime.of(2024, 2, 1, 0, 0)}
+        ));
+
+        // when
+        articleSearchService.getTopArticleIdsForRag(bm25Keywords, vectorQuery, List.of(), 5, 0.6, true);
+
+        // then — 보충 호출이 useMockEmbedding=true로 나가야 임계값 갈아끼우기가 적용된다
+        verify(vectorSearchService).computeSimilarityForArticlesWithEmbedding(
+                eq(dummyEmbedding), argThat(ids -> ids.contains(10L)), eq(0.6), eq(true));
+        verify(vectorSearchService).searchForRag(vectorQuery, List.of(), 0.6, true);
     }
 
     @Test
@@ -1390,7 +1431,8 @@ class ArticleSearchServiceTest {
         float[] dummyEmbedding = new float[]{0.1f, 0.2f};
         when(vectorSearchService.searchForRag(vectorQuery, List.of(), 0.6, false))
                 .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(20L, 0.8), dummyEmbedding));
-        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(float[].class), anyList(), anyDouble()))
+        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(
+                any(float[].class), anyList(), anyDouble(), anyBoolean()))
                 .thenReturn(Map.of());
         when(articleRepository.computeBM25ScoreForArticleIds(eq(bm25Query), argThat(ids -> ids.contains(20L))))
                 .thenReturn(List.<Object[]>of(new Object[]{20L, 4.0, LocalDateTime.of(2024, 2, 1, 0, 0)}));
@@ -1672,7 +1714,8 @@ class ArticleSearchServiceTest {
         when(vectorSearchService.searchForRag(vectorQuery, List.of(), 0.6, false))
                 .thenReturn(new VectorSearchService.VectorSearchResult(Map.of(20L, 0.8), dummyEmbedding));
 
-        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(any(float[].class), anyList(), eq(0.6)))
+        when(vectorSearchService.computeSimilarityForArticlesWithEmbedding(
+                any(float[].class), anyList(), eq(0.6), eq(false)))
                 .thenReturn(Map.of(10L, 0.65));
         when(articleRepository.computeBM25ScoreForArticleIds(eq(bm25Query), anyList()))
                 .thenReturn(List.<Object[]>of(new Object[]{20L, 3.0}));
@@ -1795,5 +1838,7 @@ class ArticleSearchServiceTest {
         // 검색 경로는 검색 전용 진입점만 쓴다 — RAG가 타는 메서드로 새면 퍼널 스위치가 무시된다
         verify(vectorSearchService, never()).computeSimilarityForArticlesWithEmbedding(
                 any(float[].class), anyList(), anyDouble());
+        verify(vectorSearchService, never()).computeSimilarityForArticlesWithEmbedding(
+                any(float[].class), anyList(), anyDouble(), anyBoolean());
     }
 }

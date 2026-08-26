@@ -1085,6 +1085,7 @@ public class ArticleSearchService {
         if (bm25SearchQuery == null || bm25SearchQuery.isEmpty()) return HybridTopArticles.empty();
 
         boolean hasCorpFilter = corporationIds != null && !corporationIds.isEmpty();
+        long totalStartTime = System.currentTimeMillis();
 
         CompletableFuture<VectorSearchService.VectorSearchResult> vectorFuture =
                 CompletableFuture.supplyAsync(
@@ -1114,13 +1115,21 @@ public class ArticleSearchService {
 
         Map<Long, Double> vectorResults = new HashMap<>();
         float[] queryEmbedding = null;
+        String embeddingInfo = "n/a";
+        long vectorQueryMs = -1;
         try {
             VectorSearchService.VectorSearchResult vsr = vectorFuture.get(5, TimeUnit.SECONDS);
             vectorResults.putAll(vsr.getScores());
             queryEmbedding = vsr.getQueryEmbedding();
+            embeddingInfo = vsr.isCacheHit()
+                    ? String.format("hit(%dms)", vsr.getCacheLookupMs())
+                    : String.format("miss(%dms, lookup %dms)", vsr.getEmbeddingMs(), vsr.getCacheLookupMs());
+            vectorQueryMs = vsr.getQueryMs();
         } catch (Exception e) {
             log.warn("RAG Vector 검색 실패: {}", e.getMessage());
         }
+        int originalBm25Count = bm25Results.size();
+        int originalVectorCount = vectorResults.size();
 
         Set<Long> bm25OnlyIds = new HashSet<>(bm25Results.keySet());
         bm25OnlyIds.removeAll(vectorResults.keySet());
@@ -1145,8 +1154,10 @@ public class ArticleSearchService {
         readOnlyTx.executeWithoutResult(status -> {
             if (!bm25OnlyIds.isEmpty() && cachedEmbedding != null) {
                 try {
+                    // 보충도 본검색(searchForRag)과 같은 기준을 써야 한다 — 부하테스트 경로에서는
+                    // VectorSearchService가 요청 임계값 대신 부하테스트 임계값으로 갈아끼운다.
                     vectorResults.putAll(vectorSearchService.computeSimilarityForArticlesWithEmbedding(
-                            cachedEmbedding, new ArrayList<>(bm25OnlyIds), vectorThreshold));
+                            cachedEmbedding, new ArrayList<>(bm25OnlyIds), vectorThreshold, useMockEmbedding));
                 } catch (Exception e) {
                     log.warn("RAG 교차검색 Vector 보충 실패: {}", e.getMessage());
                 }
@@ -1177,6 +1188,18 @@ public class ArticleSearchService {
         HybridSearchScorer.NSFResult nsfResult = hybridSearchScorer.calculateNSFScores(
                 bm25Results, vectorResults, weights.bm25NsfWeight(), weights.vectorNsfWeight());
         Map<Long, Double> nsfScores = nsfResult.getNsfScores();
+
+        // 검색 경로의 [검색] 로그와 같은 역할 — "무엇이 실제로 돌았는가"를 한 줄로 드러낸다.
+        // 검색은 이 로그가 있었는데도 안 봐서 벡터가 꺼진 채 5회를 측정했고(9.7 교훈 2항),
+        // RAG는 아예 이 줄이 없었다. Vector가 (0개)면 임계값·mock 기동을 먼저 의심할 것.
+        // 프리픽스를 [RAG검색]으로 둬 Grafana의 [검색] Loki 파서와 섞이지 않게 한다.
+        log.info("[RAG검색] keywords='{}' | mock={} threshold={} | BM25: {}개, Vector: {}개 "
+                        + "(embedding: {}, query: {}ms), 보충: BM25-only {}건/Vector-only {}건, "
+                        + "NSF: {}개 | 총: {}ms",
+                bm25Keywords, useMockEmbedding, vectorThreshold,
+                originalBm25Count, originalVectorCount, embeddingInfo, vectorQueryMs,
+                bm25OnlyIds.size(), vectorOnlyIds.size(),
+                nsfScores.size(), System.currentTimeMillis() - totalStartTime);
 
         if (nsfScores.isEmpty()) {
             // nsfScores가 비어도 embedding은 보존한다 — computeHybridCore(HybridCoreResult.empty())와

@@ -242,13 +242,25 @@ public class VectorSearchService {
         return searchForRag(vectorQuery, corporationIds, threshold, false);
     }
 
-    /** useMockEmbedding=true(부하테스트 경로)면 임베딩을 mock 엔드포인트로 생성한다 (DB 캐시 저장 안 함). */
+    /**
+     * useMockEmbedding=true(부하테스트 경로)면 임베딩을 mock 엔드포인트로 생성한다 (DB 캐시 저장 안 함).
+     *
+     * 이때 유사도 임계값·결과 수 상한은 호출자가 넘긴 값이 아니라 부하테스트 값
+     * ({@link #vectorThresholdFor}/{@link #maxVectorResultsFor})으로 강제한다 — mock 임베딩이
+     * 의사난수 단위벡터라 운영 임계값(RAG는 0.6)에서는 벡터 팔이 <b>항상 0건</b>이 되어
+     * NSF가 BM25 단독으로 축퇴하기 때문이다. 검색 경로가 이미 같은 이유로 같은 처리를 한다
+     * (loadTestVectorThreshold/loadTestMaxVectorResults 필드 주석 참고).
+     * 실사용자 경로(useMockEmbedding=false)는 호출자 값을 그대로 쓴다.
+     */
     @Observed(name = "search.vector", contextualName = "vector-search-rag")
     public VectorSearchResult searchForRag(
             String vectorQuery, List<Long> corporationIds, double threshold, boolean useMockEmbedding) {
         if (vectorQuery == null || vectorQuery.trim().isEmpty()) {
             return new VectorSearchResult(Map.of(), null);
         }
+
+        double effectiveThreshold = vectorThresholdFor(useMockEmbedding, threshold);
+        int maxResults = maxVectorResultsFor(useMockEmbedding);
 
         try {
             SearchQueryEmbeddingService.CachedEmbeddingResult cachedEmbedding =
@@ -262,20 +274,26 @@ public class VectorSearchService {
             String vectorString = formatVectorForPostgres(queryEmbedding);
             String binaryString = toBinaryString(queryEmbedding);
 
+            long queryStart = System.currentTimeMillis();
             List<Object[]> results;
             if (corporationIds != null && !corporationIds.isEmpty()) {
                 results = chunkRepository.findArticlesByTwoStageSearchWithCorporationFilter(
                         vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, DEFAULT_TOP_K,
-                        threshold, DEFAULT_MAX_RESULTS, corporationIds);
+                        effectiveThreshold, maxResults, corporationIds);
             } else {
                 results = chunkRepository.findArticlesByTwoStageSearch(
                         vectorString, binaryString, DEFAULT_CANDIDATE_LIMIT, DEFAULT_TOP_K,
-                        threshold, DEFAULT_MAX_RESULTS);
+                        effectiveThreshold, maxResults);
             }
+            long queryMs = System.currentTimeMillis() - queryStart;
 
+            // 임베딩/쿼리 계측을 0으로 버리지 않고 그대로 싣는다 — 검색 경로에서 "벡터가 조용히 꺼진"
+            // 사고를 즉시 드러냈던 단서가 바로 embedding: miss(0ms) / query: 0ms 였다
+            // (2026-08-17-search-ladder 9.7 교훈 2항). RAG 로그도 같은 것을 볼 수 있어야 한다.
             TwoStageRows parsed = parseTwoStageRows(results);
             return new VectorSearchResult(parsed.scores(), queryEmbedding,
-                    0, 0, false, 0, parsed.candidateScores());
+                    cachedEmbedding.getEmbeddingMs(), queryMs, cachedEmbedding.isCacheHit(),
+                    cachedEmbedding.getCacheLookupMs(), parsed.candidateScores());
 
         } catch (Exception e) {
             log.error("RAG 벡터 검색 실패: {}", e.getMessage(), e);
@@ -693,7 +711,15 @@ public class VectorSearchService {
      * cross-scoring 보충 호출자(ArticleSearchService)가 2단계 검색과 같은 값을 쓰도록 공개한다.
      */
     public double vectorThresholdFor(boolean useMockEmbedding) {
-        return useMockEmbedding ? loadTestVectorThreshold : DEFAULT_SIMILARITY_THRESHOLD;
+        return vectorThresholdFor(useMockEmbedding, DEFAULT_SIMILARITY_THRESHOLD);
+    }
+
+    /**
+     * 요청별 임계값을 쓰는 호출자(RAG: 요청당 0.6)용 오버로드.
+     * 부하테스트 경로만 loadTestVectorThreshold로 갈아끼우고, 실사용자 경로는 요청값을 그대로 쓴다.
+     */
+    public double vectorThresholdFor(boolean useMockEmbedding, double requestedThreshold) {
+        return useMockEmbedding ? loadTestVectorThreshold : requestedThreshold;
     }
 
     /** 요청 경로에 맞는 벡터 결과 수 상한. 부하테스트 경로만 축소된 값을 쓴다. */
@@ -703,6 +729,19 @@ public class VectorSearchService {
 
     public Map<Long, Double> computeSimilarityForArticlesWithEmbedding(float[] queryEmbedding, List<Long> articleIds) {
         return computeSimilarityForArticlesWithEmbedding(queryEmbedding, articleIds, DEFAULT_SIMILARITY_THRESHOLD);
+    }
+
+    /**
+     * 부하테스트 경로 인지 오버로드 — useMockEmbedding=true면 요청 임계값 대신 부하테스트 임계값을 쓴다.
+     *
+     * cross-scoring 보충은 본검색(searchForRag)과 같은 기준을 써야 한다. searchForRag가 mock 경로에서
+     * 임계값을 갈아끼우므로 보충만 요청값(RAG 0.6)을 쓰면 mock 벡터(유사도 ≈ ±0.03)가 전부 탈락해
+     * 보충 분기가 무의미해진다. 임계값 해석은 설정을 가진 이 클래스가 한 곳에서 책임진다.
+     */
+    public Map<Long, Double> computeSimilarityForArticlesWithEmbedding(
+            float[] queryEmbedding, List<Long> articleIds, double threshold, boolean useMockEmbedding) {
+        return computeSimilarityForArticlesWithEmbedding(
+                queryEmbedding, articleIds, vectorThresholdFor(useMockEmbedding, threshold));
     }
 
     /**

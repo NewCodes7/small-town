@@ -1,7 +1,14 @@
 // RAG(SSE) 한계점 탐색 — 동시 VU(스트림 수) 단계별 p50/p95/p99 곡선.
 // ramp-limit-finder.js(검색/baseline용)와 같은 startTime 오프셋 constant-vus 계단 패턴이지만,
-// RAG는 iteration 하나가 SSE 스트림 완료까지 블로킹(cache-miss 기준 20~25초)이라
-// search(10/20/50/100, 3분)보다 레벨을 낮게 잡는다.
+// RAG는 iteration 하나가 SSE 스트림 완료까지 블로킹(mock 기본값 기준 약 25초)이라
+// 레벨 길이·드레인을 검색보다 길게 잡는다(아래 LEVELS 주석 참고).
+//
+// ⚠️ 이 시나리오가 재는 "RPS"는 검색의 RPS와 성격이 다르다.
+//    mock 기본값에서 iteration ≈ 25초(전처리 2.1s + retrieval + TTFT 1.65s + 410청크 × 51ms)이므로
+//    완료 RPS ≈ VU / 25로, 상한을 정하는 것은 서버 용량이 아니라 mock의 토큰 페이싱 상수다.
+//    서버가 실제로 부담하는 것은 retrieval의 DB 비용과 초당 SSE 릴레이 청크 수뿐이다.
+//    → 운용 용량(mock 기본값)과 서버 코어 한계(MOCK_TOKEN_INTERVAL_MS=0 등으로 유휴 제거)를
+//      별도 런으로 나눠 재고, 두 수치를 나란히 보고할 것.
 //
 // level 태그 주의: 스크립트 상단 options.tags/scenario.tags는 k6_vus·http_reqs 같은
 // 시스템 메트릭에 반영되지 않는 게 실측 확인됐다(2026-08-05 rag-answer VU 계측 버그 — 태스크를
@@ -26,15 +33,32 @@ const questions = new SharedArray('rag-questions', () => JSON.parse(open('../dat
 const MODE = CONFIG.mode || 'cache-miss';
 const CACHE_HIT_SET_SIZE = 10;
 
-// 레벨/duration은 search-hybrid용 ramp-limit-finder.js(3분+30초 드레인)와 같은 간격을 쓰되,
-// SSE iteration이 무거운 만큼 레벨 자체는 낮게: 5 -> 10 -> 20 -> 40 VU.
-const LEVELS = [
-  { level: 5, startTime: '0s' },
-  { level: 10, startTime: '3m30s' },
-  { level: 20, startTime: '7m' },
-  { level: 40, startTime: '10m30s' },
-];
-const LEVEL_DURATION = '3m';
+// 사다리·레벨 길이는 전부 env로 조절한다. 기본값은 "mock 기본 지연(iteration ≈ 25초)" 기준이고,
+// 런 4(LLM 인위적 대기 제거, iteration ≈ 1초)는 검색과 같은 3분/210초로 내려 쓴다.
+//
+// 왜 검색(3분 + 30초 드레인)을 그대로 못 쓰나:
+// - 레벨 길이: iteration이 25초라 VU5·3분이면 완료가 42건뿐이다. p95가 42표본의 40번째 값이 되어
+//   레벨 간 비교가 노이즈에 묻힌다(2026-08-05 실행에서 VU5 8.14s > VU10 7.40s로 역전된 원인).
+//   7분이면 VU10에서 168건, VU20에서 336건으로 분위수가 안정된다.
+// - 드레인: 스트림 하나가 25초를 점유하므로 30초 간격으로는 앞 레벨의 잔여 스트림이 다음 레벨에
+//   겹친다. 60초를 준다(= LEVEL_GAP 480 - LEVEL_DURATION 420).
+//
+// ⚠️ 수집 스크립트(scripts/collect-rag-results.py)에 같은 VU_LEVELS/LEVEL_GAP/LEVEL_DURATION을
+//    넘겨야 한다 — 검색이 사다리를 바꿨을 때 분석 스크립트 기본값과 어긋나 재수집을 놓쳤던 함정이다.
+const DEFAULT_LEVELS = [10, 20, 35, 55];
+const LEVEL_VALUES = (__ENV.VU_LEVELS || '')
+  .split(',')
+  .map((v) => parseInt(v.trim(), 10))
+  .filter((v) => Number.isFinite(v) && v > 0);
+const VUS_LADDER = LEVEL_VALUES.length > 0 ? LEVEL_VALUES : DEFAULT_LEVELS;
+
+const LEVEL_DURATION = __ENV.LEVEL_DURATION || '7m';
+const LEVEL_GAP = parseInt(__ENV.LEVEL_GAP, 10) > 0 ? parseInt(__ENV.LEVEL_GAP, 10) : 480;
+
+const LEVELS = VUS_LADDER.map((level, i) => ({
+  level,
+  startTime: `${i * LEVEL_GAP}s`,
+}));
 
 const scenarios = {};
 for (const { level, startTime } of LEVELS) {
@@ -64,6 +88,15 @@ function randomQuestion() {
   return questions[Math.floor(Math.random() * questions.length)];
 }
 
+// nonce는 RAG의 4개 앱 캐시를 전부 미스로 만든다 (코드로 확인, 2026-08-26):
+//   ragAnswer(rag-answer:lt:{질문}) / ragPreprocess({modelId}:{질문}) — 질문 원문이 키
+//   ragTopArticles / chunkSearchResults — mock이 vectorQuery에 nonce를 유지하므로 키가 매번 다름
+//   SearchQueryEmbedding(DB) — mock 경로는 저장 자체를 skip
+//
+// ⚠️ 단 BM25 팔은 캐시 미스가 아니다. mock(BedrockHandlers.stripNonce)이 전처리 결과의
+//    keywords에서 nonce를 벗기므로 BM25 쿼리는 rag-questions.json의 30개 질문만 반복한다 —
+//    PG 플랜·버퍼가 뜨거운 상태로 도는 것이라 결과 문서에 반드시 명시할 것.
+//    (실사용자도 질문을 반복하므로 비현실적이진 않다.)
 function withNonce(question) {
   return `${question} (test:${uuid()})`;
 }
