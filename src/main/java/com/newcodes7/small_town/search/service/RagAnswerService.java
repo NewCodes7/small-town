@@ -14,6 +14,7 @@ import com.newcodes7.small_town.search.repository.RagQueryLogRepository;
 import com.newcodes7.small_town.search.service.RagQueryPreprocessService.RagPreprocessResult;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
+import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.observation.Observation;
@@ -26,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -69,6 +71,28 @@ public class RagAnswerService {
     private static final int HISTORY_ANSWER_MAX_CHARS = 500;
 
     private static final String CACHE_NAME = "ragAnswer";
+
+    /**
+     * 진행 중인 RAG 요청 수 / 그중 답변 스트림 단계에 있는 수.
+     *
+     * <p>왜 필요한가: RAG처럼 요청 하나가 수십 초를 점유하는 경로에서는 <b>용량의 단위가 RPS가 아니라
+     * 동시 진행 수</b>다. Little's Law로 L = λ·W인데 W(스트림 길이)가 LLM 손에 있어서, λ만 보면
+     * "우리 용량"이 아니라 "LLM 속도"를 재게 된다. 실제로 2026-08-27 사다리의 천장은
+     * 2.05 RPS가 아니라 <b>동시 스트림 50개</b>였다(load-test/results/2026-08-27-rag-ladder.md).
+     *
+     * <p>둘로 나눈 이유: 천장 50은 Bedrock <b>async</b> 클라이언트의 maxConcurrency이고,
+     * 그 풀을 쓰는 건 답변 스트림(generateStream)뿐이다. 전처리(generateJson)는 sync 클라이언트라
+     * 별도 풀을 쓴다. 따라서 천장 근접도를 보려면 {@code llmStreamInFlight}를,
+     * "몇 명이 답변을 기다리는가"를 보려면 {@code inFlight}를 봐야 한다.
+     * 전처리·retrieval이 약 3초, 답변 스트림이 약 17초라 두 값은 15% 안팎 벌어진다.
+     *
+     * <p>검색은 같은 것을 {@code search_concurrency_in_use}로 노출한다(SearchConcurrencyLimiter).
+     * RAG에는 유입 제어가 없어 그 지표도 없었다 — 이 게이지가 그 공백을 메우고,
+     * 나중에 유입 제어를 넣을 때 그대로 입력이 된다.
+     */
+    private final AtomicInteger inFlight = new AtomicInteger();
+
+    private final AtomicInteger llmStreamInFlight = new AtomicInteger();
     private static final String CACHE_KEY_PREFIX = "rag-answer:";
     private static final String LOADTEST_CACHE_KEY_PREFIX = "rag-answer:lt:";
     private static final int CACHE_REPLAY_CHUNK_SIZE = 50;
@@ -167,6 +191,13 @@ public class RagAnswerService {
                 .description("Inter-arrival gap between consecutive LLM stream chunks (second chunk onward)")
                 .publishPercentileHistogram()
                 .register(meterRegistry);
+        Gauge.builder("rag_answer_in_flight", inFlight, AtomicInteger::get)
+                .description("RAG answer requests currently in flight (whole handler)")
+                .register(meterRegistry);
+        Gauge.builder("rag_answer_llm_stream_in_flight", llmStreamInFlight, AtomicInteger::get)
+                .description("RAG answer requests currently streaming from the LLM "
+                        + "(this is what consumes the Bedrock async client maxConcurrency)")
+                .register(meterRegistry);
         llmChunkSizeSummary = DistributionSummary.builder("rag_answer_llm_chunk_size_bytes")
                 .description("Size in bytes of each streamed LLM chunk")
                 .baseUnit("bytes")
@@ -240,6 +271,9 @@ public class RagAnswerService {
         RagPreprocessResult pre = null;
         // 부모 span(rag-answer)에 캐시 히트 여부를 태그로 남겨 Tempo에서 히트/미스 지연을 분리 조회할 수 있게 한다.
         Observation parentObservation = observationRegistry.getCurrentObservation();
+        // 입력 검증에 걸려 조기 반환한 요청은 세지 않는다 — 여기서부터가 실제 처리 구간이다.
+        // 아래 try의 finally에서 반드시 반납한다(캐시 히트·notfound의 중간 return, 예외 경로 포함).
+        inFlight.incrementAndGet();
         try {
             Cache cache = cacheManager.getCache(CACHE_NAME);
             if (cacheEligible && cache != null) {
@@ -354,6 +388,8 @@ public class RagAnswerService {
             long llmStartNanos = System.nanoTime();
             long[] lastChunkNanos = {0L};
             LlmTokenUsage usage;
+            // 이 구간만이 Bedrock async 풀(maxConcurrency)을 점유한다 — 천장 근접도는 이 게이지로 본다.
+            llmStreamInFlight.incrementAndGet();
             try {
                 usage = llmClientResolver.resolve(model.getProvider())
                     .generateStream(model.getId(), RAG_SYSTEM_PROMPT, userMessage,
@@ -390,6 +426,7 @@ public class RagAnswerService {
                 llmObservation.error(e);
                 throw e;
             } finally {
+                llmStreamInFlight.decrementAndGet();
                 llmDurationTimer.record(System.nanoTime() - llmStartNanos, TimeUnit.NANOSECONDS);
                 llmObservation.stop();
             }
@@ -459,6 +496,8 @@ public class RagAnswerService {
                     conversationId, ipAddress, userId, null);
             failureCounter.increment();
             failureLatencyTimer.record(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
+        } finally {
+            inFlight.decrementAndGet();
         }
     }
 

@@ -93,6 +93,84 @@ class RagAnswerServiceTest {
         return captor.getValue();
     }
 
+    // ==================== in-flight 게이지 ====================
+    //
+    // 이 게이지의 가치는 "안 새는 것"에 전적으로 달려 있다. 한 번이라도 반납을 놓치면 값이
+    // 단조증가해 영영 못 쓰게 되고, 하필 그걸 알아채는 시점은 과부하 때다.
+    // 그래서 정상 종료뿐 아니라 조기 반환·예외 경로까지 0으로 돌아오는지 고정한다.
+
+    private double gauge(String name) {
+        return meterRegistry.get(name).gauge().value();
+    }
+
+    private AiSummaryChunkDto chunk(Long articleId) {
+        return new AiSummaryChunkDto(articleId, "Kafka 도입기", "https://example.com/kafka",
+                "Kafka 도입 배경과 성과", null, "네이버", null);
+    }
+
+    @Test
+    @DisplayName("in-flight: 정상 응답 후 두 게이지 모두 0으로 반납된다")
+    void inFlight_정상경로_반납() throws Exception {
+        when(preprocessService.preprocess(anyString(), anyString(), any()))
+                .thenReturn(preprocessResult(List.of(), List.of(), List.of()));
+        when(articleSearchService.getTopArticleIdsForRag(
+                anyString(), anyString(), anyList(), anyInt(), anyDouble(), anyBoolean()))
+                .thenReturn(new ArticleSearchService.HybridTopArticles(List.of(1L), new float[]{0.1f}));
+        when(vectorSearchService.getChunksForRag(
+                anyString(), anyList(), any(), anyInt(), anyBoolean()))
+                .thenReturn(List.of(chunk(1L)));
+        when(llmClientResolver.resolve(any())).thenReturn(llmClient);
+        when(llmClient.generateStream(anyString(), anyString(), anyString(), any(), any()))
+                .thenReturn(new LlmTokenUsage(10, 20, 30));
+
+        ragAnswerService.streamAnswer("Kafka 사례", 5, 3, 0.6, geminiModel(), emitter);
+
+        assertThat(gauge("rag_answer_in_flight")).isZero();
+        assertThat(gauge("rag_answer_llm_stream_in_flight")).isZero();
+    }
+
+    @Test
+    @DisplayName("in-flight: LLM이 예외를 던져도 두 게이지 모두 반납된다 (누수 방지)")
+    void inFlight_LLM예외_반납() throws Exception {
+        when(preprocessService.preprocess(anyString(), anyString(), any()))
+                .thenReturn(preprocessResult(List.of(), List.of(), List.of()));
+        when(articleSearchService.getTopArticleIdsForRag(
+                anyString(), anyString(), anyList(), anyInt(), anyDouble(), anyBoolean()))
+                .thenReturn(new ArticleSearchService.HybridTopArticles(List.of(1L), new float[]{0.1f}));
+        when(vectorSearchService.getChunksForRag(
+                anyString(), anyList(), any(), anyInt(), anyBoolean()))
+                .thenReturn(List.of(chunk(1L)));
+        when(llmClientResolver.resolve(any())).thenReturn(llmClient);
+        when(llmClient.generateStream(anyString(), anyString(), anyString(), any(), any()))
+                .thenThrow(new RagLlmException("Bedrock 호출에 실패했습니다", null));
+
+        ragAnswerService.streamAnswer("Kafka 사례", 5, 3, 0.6, geminiModel(), emitter);
+
+        assertThat(gauge("rag_answer_in_flight")).isZero();
+        assertThat(gauge("rag_answer_llm_stream_in_flight")).isZero();
+    }
+
+    @Test
+    @DisplayName("in-flight: retrieval이 빈 결과로 조기 반환해도 반납된다 (LLM 게이지는 애초에 0)")
+    void inFlight_조기반환_반납() throws Exception {
+        when(preprocessService.preprocess(anyString(), anyString(), any()))
+                .thenReturn(preprocessResult(List.of("존재하지않는회사"), List.of(), List.of()));
+
+        ragAnswerService.streamAnswer("존재하지않는회사의 Kafka 사례", 5, 3, 0.6, geminiModel(), emitter);
+
+        assertThat(gauge("rag_answer_in_flight")).isZero();
+        assertThat(gauge("rag_answer_llm_stream_in_flight")).isZero();
+    }
+
+    @Test
+    @DisplayName("in-flight: 입력 검증에 걸린 요청은 아예 세지 않는다")
+    void inFlight_입력검증_미집계() throws Exception {
+        ragAnswerService.streamAnswer("   ", 5, 3, 0.6, geminiModel(), emitter);
+
+        assertThat(gauge("rag_answer_in_flight")).isZero();
+        verify(preprocessService, never()).preprocess(anyString(), anyString(), any());
+    }
+
     @Test
     @DisplayName("기업 지목+무매칭: preprocess/notfound 이벤트 후 종료, retrieval·LLM 미호출, NO_CORP 로그")
     void streamAnswer_corporationNotMatched() throws Exception {
