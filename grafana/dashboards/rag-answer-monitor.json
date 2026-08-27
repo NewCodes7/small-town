@@ -150,7 +150,7 @@
   "timezone": "Asia/Seoul",
   "title": "Small Town — RAG Answer (/api/rag/answer)",
   "uid": "small-town-rag-answer",
-  "version": 1,
+  "version": 2,
   "panels": [
     {
       "id": 1,
@@ -923,11 +923,86 @@
       ]
     },
     {
+      "id": 16,
+      "type": "timeseries",
+      "title": "동시 진행 수 (천장 50)",
+      "description": "RAG처럼 요청 하나가 수십 초를 점유하는 경로에서는 용량의 단위가 RPS가 아니라 동시 진행 수다 — Little's Law로 L=λ·W인데 W(스트림 길이)가 LLM 손에 있어 λ는 우리 용량이 아니라 LLM 속도를 잰다. 실제로 2026-08-27 사다리의 천장은 2.05 RPS가 아니라 동시 스트림 50개였다.\n\n빨간 임계선 50 = Bedrock async 클라이언트의 maxConcurrency(bedrock.async-max-concurrency). llm_stream이 여기 닿으면 초과분은 커넥션 획득을 10초 대기하다 실패한다.\n\n두 선의 간격 = 전처리·retrieval 단계에 있는 요청 수(약 3초). llm_stream만이 async 풀을 점유한다 — 전처리(generateJson)는 sync 클라이언트라 별도 풀이다.\n\n⚠️ 올리기 전 선행조건은 RAG 유입 제어와 힙 예산 재산정이다. 300으로 올렸다가 백엔드가 12분간 세 번 OOM으로 죽었다. 근거: load-test/results/2026-08-27-rag-ladder.md 5장",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 50 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": { "mode": "multi" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "동시 진행 수",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "unit": "short",
+          "min": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 50 }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "답변 스트림 단계 (async 풀 점유)" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "전체 진행 중" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#73BF69" } }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rag_answer_in_flight)",
+          "range": true,
+          "legendFormat": "전체 진행 중",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rag_answer_llm_stream_in_flight)",
+          "range": true,
+          "legendFormat": "답변 스트림 단계 (async 풀 점유)",
+          "refId": "B"
+        }
+      ]
+    },
+    {
       "id": 7,
       "type": "table",
       "title": "최근 트레이스 (POST /api/rag/answer 전체)",
       "description": "선택된 기간 내 /api/rag/answer 요청 전체 트레이스. 클릭하면 워터폴(전처리 → 하이브리드 검색 → LLM 스트리밍) 상세 확인 가능.",
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 50 },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 59 },
       "datasource": { "type": "tempo", "uid": "tempo" },
       "options": {},
       "targets": [
@@ -947,7 +1022,7 @@
       "type": "table",
       "title": "느린 트레이스 ($slow_threshold 초과)",
       "description": "duration이 임계값을 넘는 /api/rag/answer 트레이스만 필터링. 전처리·검색·LLM 중 어느 구간이 느린지는 워터폴에서 확인.",
-      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 60 },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 69 },
       "datasource": { "type": "tempo", "uid": "tempo" },
       "options": {},
       "targets": [
@@ -967,7 +1042,7 @@
       "type": "table",
       "title": "에러 트레이스",
       "description": "status=error span이 포함된 /api/rag/answer 트레이스. RagLlmException, 인터럽트 등 예외 발생 구간 즉시 확인용.",
-      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 60 },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 69 },
       "datasource": { "type": "tempo", "uid": "tempo" },
       "options": {},
       "targets": [
@@ -987,7 +1062,7 @@
       "type": "table",
       "title": "RAG 답변 생성 구간 (rag-answer-stream)",
       "description": "RagAnswerService.streamAnswer — @Observed(name=rag-answer, contextualName=rag-answer-stream). searchExecutor 비동기 스레드에서 실행되지만 trace context가 전파되어 위 루트 트레이스와 같은 trace로 이어진다.",
-      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 70 },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 79 },
       "datasource": { "type": "tempo", "uid": "tempo" },
       "options": {},
       "targets": [
@@ -1007,7 +1082,7 @@
       "type": "table",
       "title": "RAG 벡터 검색 (vector-search-rag)",
       "description": "VectorSearchService.searchForRag — RAG용 기업 프리필터 hybrid retrieval의 vector 단계 (search.vector, contextualName=vector-search-rag)",
-      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 70 },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 79 },
       "datasource": { "type": "tempo", "uid": "tempo" },
       "options": {},
       "targets": [
