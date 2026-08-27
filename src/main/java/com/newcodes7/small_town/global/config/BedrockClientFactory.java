@@ -44,25 +44,36 @@ public class BedrockClientFactory {
     private String defaultRegion;
 
     /**
-     * ConverseStream(답변 생성) async 클라이언트의 동시 요청 상한. 기본 300.
+     * ConverseStream(답변 생성) async 클라이언트의 동시 요청 상한. <b>기본 50 — 올리지 말 것.</b>
      *
-     * <p>설정하지 않으면 AWS SDK 기본값 <b>50</b>(SdkHttpConfigurationOption.DEFAULT_MAX_CONNECTIONS)이
-     * 그대로 RAG의 동시 답변 스트림 천장이 된다. 2026-08-27 사다리에서 이게 실측으로 드러났다:
-     * VU45(동시 45 &lt; 50)는 에러 0인데 VU70(동시 70 &gt; 50)에서 first_token p95가 +8,108ms 뛰고
-     * 9.5%가 "Acquire operation took longer than the configured maximum time"로 실패했다.
-     * 그 시점 DB CPU 31% / app CPU 0.19로 <b>다른 자원은 전부 한가했다</b> —
-     * 하드웨어가 아니라 설정한 적 없는 기본값이 용량을 정하고 있었다.
-     * (load-test/results/2026-08-27-rag-ladder.md 3.3)
+     * <p>이 값을 명시하지 않으면 AWS SDK 기본값 50
+     * ({@code SdkHttpConfigurationOption.DEFAULT_MAX_CONNECTIONS})이 걸린다. 2026-08-27 사다리에서
+     * 그 50이 RAG 동시 답변 스트림의 실질 천장임이 드러났고(VU45 에러 0 / VU70 first_token p95
+     * +8,108ms·에러 9.5%), 그때 DB CPU는 31%뿐이라 "하드웨어가 아니라 설정한 적 없는 기본값이
+     * 용량을 정하고 있다"는 판단으로 300(= server.tomcat.max-connections)으로 올려 재측정했다.
      *
-     * <p>300은 {@code server.tomcat.max-connections}와 맞춘 값이다. 근거는 "LLM 클라이언트가
-     * 서버가 받아들이는 수보다 더 좁은 제약이 되어서는 안 된다"는 것이고, 반대로 <b>동시성을
-     * 제한하고 싶다면 그건 SDK 기본값이 아니라 명시적인 유입 제어여야 한다</b> —
-     * 검색이 SearchConcurrencyLimiter로 한 것처럼. RAG 유입 제어는 아직 없다(부채).
+     * <p><b>그 실험은 실패했고, 그래서 이 값은 다시 50이다.</b> 300으로 올린 채 VU 45/90/140/190을
+     * 돌리자 VU90부터 무너져 <b>백엔드가 12분간 세 번 OOM으로 죽고 재기동</b>했다
+     * (힙 used 506 / committed 512 MB, {@code -XX:+ExitOnOutOfMemoryError}).
+     * DB CPU는 오히려 0.60 → 0.28로 <b>떨어졌다</b> — 일이 실행된 게 아니라 큐에 쌓인 congestion
+     * collapse다. HikariCP pending 34 → 129, 획득 대기 0.19s → 1.10s.
      *
-     * <p>connectionAcquisitionTimeout(기본 10초)은 일부러 그대로 둔다. 풀이 다시 마르면
-     * 위와 똑같은 명확한 에러로 드러나는 편이 조용히 느려지는 것보다 낫다.
+     * <p>즉 <b>SDK 기본값 50은 우연히 벌크헤드 역할을 하고 있었다.</b> 이 경로의 진짜 다음 한계는
+     * DB CPU가 아니라 <b>JVM 힙 512MB</b>이고, 파국적으로(OOM → 재기동) 무너진다.
+     *
+     * <p>올리기 전에 반드시 선행되어야 하는 것:
+     * <ol>
+     *   <li><b>RAG 유입 제어</b> — 검색의 {@code SearchConcurrencyLimiter}처럼 상한 초과를 429로
+     *       거절하는 명시적 장치. 현재 RAG에는 없다(부채). 상한을 올린다는 건 그 뒤에 받아줄
+     *       장치가 있다는 뜻이어야 한다</li>
+     *   <li><b>힙 예산 재산정</b> — 512는 검색 부하 기준으로 산정된 값이다
+     *       (load-test/results/2026-08-20-jvm-heap-sizing.md). 동시 스트림 N개가 얼마를 쓰는지
+     *       측정하지 않은 채 동시성만 올리면 같은 결과가 난다</li>
+     * </ol>
+     *
+     * <p>근거 전문: load-test/results/2026-08-27-rag-ladder.md 3.3 · 5장
      */
-    @Value("${bedrock.async-max-concurrency:300}")
+    @Value("${bedrock.async-max-concurrency:50}")
     private int asyncMaxConcurrency;
 
     private final Map<String, BedrockRuntimeClient> syncClients = new ConcurrentHashMap<>();
