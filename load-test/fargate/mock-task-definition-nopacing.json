@@ -1,0 +1,46 @@
+{
+  "family": "newcodes-llm-mock-nopacing",
+  "requiresCompatibilities": ["FARGATE"],
+  "networkMode": "awsvpc",
+  "cpu": "2048",
+  "memory": "4096",
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "executionRoleArn": "arn:aws:iam::503561419347:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "llm-mock",
+      "image": "503561419347.dkr.ecr.ap-northeast-2.amazonaws.com/newcodes-llm-mock:latest",
+      "essential": true,
+      "portMappings": [
+        { "containerPort": 9099, "protocol": "tcp" }
+      ],
+      "environment": [
+        { "name": "MOCK_TOKEN_INTERVAL_MS", "value": "0" },
+        { "name": "MOCK_TOKEN_JITTER_MS", "value": "0" },
+        { "name": "MOCK_PREPROCESS_MEDIAN_MS", "value": "50" },
+        { "name": "MOCK_PREPROCESS_SIGMA", "value": "0.1" },
+        { "name": "MOCK_TTFT_MEDIAN_MS", "value": "50" },
+        { "name": "MOCK_TTFT_SIGMA", "value": "0.1" }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "/bin/bash -c '</dev/tcp/localhost/9099' || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 10
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/newcodes-llm-mock",
+          "awslogs-region": "ap-northeast-2",
+          "awslogs-stream-prefix": "llm-mock",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}
