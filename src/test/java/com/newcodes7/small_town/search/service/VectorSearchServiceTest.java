@@ -569,7 +569,7 @@ class VectorSearchServiceTest {
     @DisplayName("searchForRag: useMockEmbedding=true → 요청 임계값 0.6이 아닌 부하테스트 값(0.0/30)을 쓴다")
     void searchForRag_부하테스트경로는임계값과결과수상한을갈아끼운다() {
         ReflectionTestUtils.setField(vectorSearchService, "loadTestVectorThreshold", 0.0);
-        ReflectionTestUtils.setField(vectorSearchService, "loadTestMaxVectorResults", 30);
+        ReflectionTestUtils.setField(vectorSearchService, "ragLoadTestMaxVectorResults", 30);
         when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(true)))
                 .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.hit(DUMMY_EMBEDDING, 5));
         when(chunkRepository.findArticlesByTwoStageSearch(
@@ -585,11 +585,35 @@ class VectorSearchServiceTest {
                 anyString(), anyString(), anyInt(), anyInt(), eq(0.0), eq(30));
     }
 
+    /**
+     * RAG는 검색용 상한(30)이 아니라 자기 것(10)을 써야 한다 — 두 경로는 임계값이 달라
+     * (검색 0.52 / RAG 0.6) 운영 분포가 다르다. 검색 값을 빌려 쓰면 벡터 팔이 운영보다 부푼다.
+     */
+    @Test
+    @DisplayName("searchForRag: 부하테스트 상한은 검색용(30)이 아니라 RAG 전용(10)을 쓴다")
+    void searchForRag_RAG전용상한을쓴다() {
+        ReflectionTestUtils.setField(vectorSearchService, "loadTestVectorThreshold", 0.0);
+        ReflectionTestUtils.setField(vectorSearchService, "loadTestMaxVectorResults", 30);
+        ReflectionTestUtils.setField(vectorSearchService, "ragLoadTestMaxVectorResults", 10);
+        when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(true)))
+                .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.hit(DUMMY_EMBEDDING, 5));
+        when(chunkRepository.findArticlesByTwoStageSearch(
+                anyString(), anyString(), anyInt(), anyInt(), eq(0.0), eq(10)))
+                .thenReturn(List.of());
+
+        vectorSearchService.searchForRag("kafka 도입 사례", List.of(), 0.6, true);
+
+        verify(chunkRepository).findArticlesByTwoStageSearch(
+                anyString(), anyString(), anyInt(), anyInt(), eq(0.0), eq(10));
+        verify(chunkRepository, never()).findArticlesByTwoStageSearch(
+                anyString(), anyString(), anyInt(), anyInt(), anyDouble(), eq(30));
+    }
+
     @Test
     @DisplayName("searchForRag: useMockEmbedding=false → 요청 임계값과 DEFAULT_MAX_RESULTS(100) 그대로 (실사용자 경로 불변)")
     void searchForRag_실사용자경로는요청값을유지한다() {
         ReflectionTestUtils.setField(vectorSearchService, "loadTestVectorThreshold", 0.0);
-        ReflectionTestUtils.setField(vectorSearchService, "loadTestMaxVectorResults", 30);
+        ReflectionTestUtils.setField(vectorSearchService, "ragLoadTestMaxVectorResults", 10);
         when(searchQueryEmbeddingService.getEmbeddingWithCacheInfo(anyString(), isNull(), eq(false)))
                 .thenReturn(SearchQueryEmbeddingService.CachedEmbeddingResult.hit(DUMMY_EMBEDDING, 5));
         when(chunkRepository.findArticlesByTwoStageSearch(

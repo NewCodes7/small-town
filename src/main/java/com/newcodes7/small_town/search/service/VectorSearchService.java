@@ -72,6 +72,34 @@ public class VectorSearchService {
     private int loadTestMaxVectorResults;
 
     /**
+     * <b>RAG 경로</b> 부하테스트 전용 벡터 결과 수 상한. 기본 10.
+     *
+     * 검색용 {@link #loadTestMaxVectorResults}(30)를 빌려 쓰지 않고 분리한 이유: 두 경로는
+     * <b>임계값이 다르고, 따라서 운영 분포도 다르다.</b> 30은 검색(임계값 0.52)의 운영 중앙값
+     * 28에서 온 값인데, RAG는 0.6으로 더 엄격해 그대로 쓰면 벡터 팔이 운영보다 부풀어 오른다.
+     *
+     * 10은 운영 실측에서 왔다 — {@code [RAG검색]} 로그의 {@code mock=false} 요청:
+     * <pre>
+     * BM25: 100개, Vector: 10개, 보충: BM25-only 94건/Vector-only 4건, NSF: 104개
+     * </pre>
+     * 부하테스트(상한 30)와 대조하면 BM25 보충 대상이 4건 → 30건으로 7.5배 부풀고 NSF 합집합도
+     * 104 → 130이 된다.
+     *
+     * <p>⚠️ <b>표본이 1건뿐이다.</b> 운영 RAG 트래픽이 22시간에 1건이라 그 이상을 모으지 못했다
+     * (검색은 12건 표본이었고 그것도 넓은 신뢰구간이라 문서에 명시했다).
+     * {@code [RAG검색]} 로그가 이제 매 요청 {@code Vector: N개}를 찍으므로 트래픽이 쌓이면
+     * 같은 방식으로 재보정할 것 — 그 전까지 이 값은 <b>"검색 것을 빌려 쓰는 것보다 낫다"</b>
+     * 이상의 근거가 없다.
+     *
+     * <p>참고로 이 상한이 RAG 비용에 미치는 영향은 검색만큼 크지 않을 것으로 <b>예상</b>한다:
+     * RAG cross-scoring의 지배 항목은 BM25-only(≈100건)에 대한 <b>벡터 보충</b>이고 이건 상한과
+     * 무관하게 거의 그대로다. 상한이 줄이는 것은 Vector-only에 대한 BM25 보충(30 → 10)뿐이다.
+     * 이 예상은 아직 실측으로 확인하지 않았다.
+     */
+    @Value("${rag.loadtest.max-vector-results:10}")
+    private int ragLoadTestMaxVectorResults;
+
+    /**
      * cross-scoring 보충을 binary → halfvec 2단계로 수행할지 여부. 기본 true.
      *
      * 켜면 대상 아티클의 전 청크를 인라인 embedding_binary로 먼저 스코어링해 상위
@@ -260,7 +288,7 @@ public class VectorSearchService {
         }
 
         double effectiveThreshold = vectorThresholdFor(useMockEmbedding, threshold);
-        int maxResults = maxVectorResultsFor(useMockEmbedding);
+        int maxResults = ragMaxVectorResultsFor(useMockEmbedding);
 
         try {
             SearchQueryEmbeddingService.CachedEmbeddingResult cachedEmbedding =
@@ -722,9 +750,14 @@ public class VectorSearchService {
         return useMockEmbedding ? loadTestVectorThreshold : requestedThreshold;
     }
 
-    /** 요청 경로에 맞는 벡터 결과 수 상한. 부하테스트 경로만 축소된 값을 쓴다. */
+    /** 검색 경로의 벡터 결과 수 상한. 부하테스트 경로만 축소된 값을 쓴다. */
     private int maxVectorResultsFor(boolean useMockEmbedding) {
         return useMockEmbedding ? loadTestMaxVectorResults : DEFAULT_MAX_RESULTS;
+    }
+
+    /** RAG 경로의 벡터 결과 수 상한 — 임계값(0.6)이 달라 운영 분포도 다르므로 검색과 분리한다. */
+    private int ragMaxVectorResultsFor(boolean useMockEmbedding) {
+        return useMockEmbedding ? ragLoadTestMaxVectorResults : DEFAULT_MAX_RESULTS;
     }
 
     public Map<Long, Double> computeSimilarityForArticlesWithEmbedding(float[] queryEmbedding, List<Long> articleIds) {
