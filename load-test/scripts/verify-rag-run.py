@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 """RAG 부하테스트 실행 검증 — 「무엇이 실제로 돌았는가」를 항목으로 만든 것.
 
-사용법: python3 load-test/scripts/verify-rag-run.py <시작ISO_UTC> <종료ISO_UTC>
-  예:   python3 load-test/scripts/verify-rag-run.py 2026-08-26T13:08:00 2026-08-26T13:28:00
+사용법:
+  단일 창:   python3 verify-rag-run.py <시작ISO_UTC> <종료ISO_UTC>
+  레벨별:    VU_LEVELS=45,90,140,190 LEVEL_GAP=360 LEVEL_DURATION=300 \
+             python3 verify-rag-run.py <사다리시작ISO_UTC>
+
+⚠️ 사다리는 반드시 레벨별로 돌릴 것. 창 전체를 뭉뚱그리면 한 레벨만의 실패가 실행 전체의
+   실패로 보고된다 — 2026-08-27 런 2에서 실제로 그랬다(VU70만 무너졌는데 TTFB 1.80배·에러 84건이
+   전 구간 평균으로 나와 "실행 전체 실패"처럼 보였다).
 
 왜 필요한가: 검색은 5xx가 0인 채로 벡터가 조용히 꺼진 사다리를 5회 돌리고 나서야 알아챘다
 (2026-08-17-search-ladder-5-10-15-20.md 9장). 9.7 교훈 3항이 "실행마다 무엇이 실제로
@@ -63,13 +69,32 @@ def by_label(expr, at, label):
 
 
 def main():
+    import os
+    levels = [int(x) for x in os.environ["VU_LEVELS"].split(",")] if os.environ.get("VU_LEVELS") else None
+    if levels:
+        gap = int(os.environ.get("LEVEL_GAP", 360))
+        dur = int(os.environ.get("LEVEL_DURATION", 300))
+        base = datetime.datetime.fromisoformat(sys.argv[1]).replace(tzinfo=datetime.UTC)
+        allok = True
+        for i, lv in enumerate(levels):
+            s0 = base + datetime.timedelta(seconds=i * gap)
+            s1 = s0 + datetime.timedelta(seconds=dur)
+            print(f"\n{'#' * 60}\n#  level_{lv}\n{'#' * 60}")
+            allok &= (check(int(s0.timestamp()), int(s1.timestamp()),
+                            s0.strftime('%H:%M:%S'), s1.strftime('%H:%M:%S')) == 0)
+        print("\n" + "=" * 46)
+        print("전 레벨 검증 통과" if allok else "일부 레벨 검증 실패 — 해당 레벨 수치는 쓰지 말 것")
+        return 0 if allok else 1
     start = datetime.datetime.fromisoformat(sys.argv[1]).replace(tzinfo=datetime.UTC)
     end = datetime.datetime.fromisoformat(sys.argv[2]).replace(tzinfo=datetime.UTC)
-    t0, t1 = int(start.timestamp()), int(end.timestamp())
+    return check(int(start.timestamp()), int(end.timestamp()), sys.argv[1], sys.argv[2])
+
+
+def check(t0, t1, label0, label1):
     win = f"{t1 - t0}s"
     ok = True
 
-    print(f"검증 창: {sys.argv[1]} ~ {sys.argv[2]} UTC ({(t1 - t0) / 60:.0f}분)\n")
+    print(f"검증 창: {label0} ~ {label1} UTC ({(t1 - t0) / 60:.0f}분)\n")
 
     # ① RAG 요청이 캐시 미스 경로로 돌았나
     print("① 캐시 미스 경로 (cache-miss 모드면 cached=0 이어야 한다)")
@@ -142,8 +167,10 @@ def main():
     if not vals:
         print("   ? 표본 없음")
     else:
-        # 앞 2분은 rate 창이 안 차서 낮게 나오므로 제외한다
-        body = vals[4:]
+        # 앞 2분은 rate([2m]) 창이 안 차서 낮게 나온다. 다만 레벨 창(5분)에서 4개를 버리면
+        # 표본이 6개뿐이라, 창 길이의 1/3을 넘지 않는 선에서만 버린다.
+        skip = min(4, max(1, len(vals) // 3))
+        body = vals[skip:]
         zeros = sum(1 for v in body if v == 0)
         print(f"   30초 버킷 {len(body)}개 중 완료율 0인 구간 {zeros}개 (최소 {min(body):.3f}/s)")
         if zeros:
@@ -151,11 +178,11 @@ def main():
         else:
             print("   ✓ 연속")
 
-    print("\n" + ("=" * 46))
-    print("검증 통과 — 이 실행의 수치는 쓸 수 있다" if ok else
-          "검증 실패 — 원인을 잡기 전에는 이 실행의 수치를 쓰지 말 것")
-    print("※ 벡터 팔 실행 여부는 Loki에서 별도 확인: {job=\"small-town\"} |= \"[RAG검색]\"")
+    print("\n  " + ("→ 통과 — 이 구간의 수치는 쓸 수 있다" if ok else
+                     "→ 실패 — 원인을 잡기 전에는 이 구간의 수치를 쓰지 말 것"))
     return 0 if ok else 1
 
 
-sys.exit(main())
+rc = main()
+print("\n※ 벡터 팔 실행 여부는 Loki에서 별도 확인: {job=\"small-town\"} |= \"[RAG검색]\"")
+sys.exit(rc)
