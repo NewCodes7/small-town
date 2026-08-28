@@ -31,7 +31,23 @@ services:
       # load1 > 1이면 그 회차를 취소한다 — 유휴(중앙값 0.04)에서는 그대로 돌아 반납은 유지된다.
       # 롤백은 .env에 아래 한 줄:
       #   JAVA_OPTS=-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200
-      - JAVA_OPTS=${JAVA_OPTS:--Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:MaxMetaspaceSize=384m -XX:MinHeapFreeRatio=10 -XX:MaxHeapFreeRatio=30 -XX:G1PeriodicGCInterval=60000 -XX:G1PeriodicGCSystemLoadThreshold=1 -XX:+ExitOnOutOfMemoryError}
+      # ⚠️ 임시 진단 플래그 (JFR) — 목적 달성 후 제거할 것.
+      # RAG 동시 스트림 1개가 live 힙 3.6MB를 잡는데(2026-08-27 실측, 결과 문서 8.4) 그 3.6MB가
+      # 무슨 객체인지 못 갈랐다. 프롬프트+답변은 수십 KB라 설명이 안 되고 netty/Tomcat 풀 버퍼가
+      # 유력한데, 확인해야 "힙을 늘릴지 / 버퍼를 줄일지"를 정할 수 있다.
+      #
+      # 힙 덤프 대신 JFR인 이유: 이 이미지는 JRE라 jcmd/jmap이 없고(java jfr jwebserver keytool
+      # rmiregistry가 전부), 힙 덤프는 full GC + 힙 전체 순회라 이미 스왑 중인 호스트에서
+      # 수십 초 정지를 만든다(최악 정지 21.6초가 STW 중 swap-in이었다, 2026-08-20 문서).
+      #
+      # settings=default + OldObjectSample#stackTrace=true:
+      #   default는 stackTrace가 false라 "무슨 객체인지"만 알고 "어디서 왔는지"를 모른다.
+      #   profile은 stackTrace=true지만 할당 프로파일링까지 켜져 2 vCPU에서 측정을 흔든다.
+      # duration=30m: jcmd가 없어 on-demand 덤프를 못 하므로 만료 시 자동 기록되게 한다.
+      #   OldObjectSample은 덤프 시점의 live 표본을 싣기 때문에 **부하가 도는 중에 만료돼야** 한다
+      #   — 기동 후 30분에 만료되므로 그 시각에 VU45 부하가 걸려 있도록 실행을 맞출 것.
+      # 회수: docker cp <container>:/app/logs/rag.jfr .
+      - JAVA_OPTS=${JAVA_OPTS:--Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:MaxMetaspaceSize=384m -XX:MinHeapFreeRatio=10 -XX:MaxHeapFreeRatio=30 -XX:G1PeriodicGCInterval=60000 -XX:G1PeriodicGCSystemLoadThreshold=1 -XX:+ExitOnOutOfMemoryError -XX:StartFlightRecording=name=rag,settings=default,jdk.OldObjectSample#stackTrace=true,disk=true,maxsize=150m,duration=30m,filename=/app/logs/rag.jfr,dumponexit=true}
       - JWT_SECRET=${JWT_SECRET}
       - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
       - AWS_SECRET_KEY=${AWS_SECRET_KEY}
