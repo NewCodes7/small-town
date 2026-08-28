@@ -21,7 +21,7 @@
     },
     {
       "description": "AWS SDK",
-      "matchPackagePatterns": ["^com\\.amazonaws", "spring-cloud-starter-aws"],
+      "matchPackagePatterns": ["^com\\.amazonaws", "^software\\.amazon\\.(awssdk|eventstream)", "spring-cloud-starter-aws"],
       "groupName": "aws-sdk"
     },
     {

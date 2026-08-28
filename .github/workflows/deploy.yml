@@ -64,7 +64,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       - name: Run tests
-        run: ./gradlew test --no-daemon -x jacocoTestReport
+        run: ./gradlew test verifyEventstreamFork bootJarShadowingTest --no-daemon -x jacocoTestReport
         env:
           POSTGRES_HOST: localhost
           TEST_DB_PASSWORD: ${{ secrets.TEST_DB_PASSWORD }}

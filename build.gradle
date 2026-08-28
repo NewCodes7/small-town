@@ -14,6 +14,11 @@ ext['selenium.version'] = '4.44.0'
 // opentelemetry-jdbc 2.29.0-alpha가 요구하는 API 1.63과 Boot BOM(1.62) 정합
 ext['opentelemetry.version'] = '1.63.0'
 
+// software.amazon.eventstream:eventstream에는 버퍼 크기 설정 지점이 없어 MessageDecoder를 포크한다.
+// 이 버전과 원본 소스 SHA-256은 verifyEventstreamFork가 함께 검증한다.
+def eventstreamForkVersion = '1.0.1'
+def eventstreamUpstreamSourceSha256 = '67fd69b944e38b87e3074bc2df0239542a1171a24771c5524dd398285dab5c0b'
+
 java {
 	toolchain {
 		languageVersion = JavaLanguageVersion.of(26)
@@ -24,6 +29,7 @@ configurations {
 	compileOnly {
 		extendsFrom annotationProcessor
 	}
+	eventstreamForkSources
 }
 
 repositories {
@@ -107,6 +113,11 @@ dependencies {
     implementation 'software.amazon.awssdk:bedrockruntime'
     implementation 'software.amazon.awssdk:apache-client'
     implementation 'software.amazon.awssdk:netty-nio-client'
+	// MessageDecoder 포크의 ABI 기준을 명시적으로 고정한다. transitive 버전에 맡기지 않는다.
+	implementation("software.amazon.eventstream:eventstream:${eventstreamForkVersion}") {
+		because 'the classpath-shadowed MessageDecoder is forked from this exact version'
+	}
+	eventstreamForkSources "software.amazon.eventstream:eventstream:${eventstreamForkVersion}:sources"
 
     // WebP 이미지 변환 (scrimage - 더 간단하고 강력한 이미지 처리 라이브러리)
     implementation 'com.sksamuel.scrimage:scrimage-core:4.6.5'
@@ -178,6 +189,66 @@ jacocoTestReport {
 
 jar {
     enabled = false
+}
+
+// 포크가 고정된 1.0.1 원본에서 디코딩 로직을 바꾸지 않았는지 검증한다. 허용되는 기능 차이는
+// INITIAL_BUFFER_SIZE 초기화뿐이다. 원본 버전/내용 또는 디코딩 로직이 바뀌면 빌드를 실패시킨다.
+tasks.register('verifyEventstreamFork') {
+	group = 'verification'
+	description = 'Verifies the pinned upstream MessageDecoder and the local fork logic.'
+	inputs.file('src/main/java/software/amazon/eventstream/MessageDecoder.java')
+	inputs.files(configurations.eventstreamForkSources)
+	doLast {
+		def sourcesJar = configurations.eventstreamForkSources.singleFile
+		def upstreamFile = zipTree(sourcesJar).matching {
+			include 'software/amazon/eventstream/MessageDecoder.java'
+		}.singleFile
+		def upstreamBytes = upstreamFile.bytes
+		def digest = java.security.MessageDigest.getInstance('SHA-256')
+			.digest(upstreamBytes).collect { String.format('%02x', it) }.join()
+		if (digest != eventstreamUpstreamSourceSha256) {
+			throw new GradleException("eventstream ${eventstreamForkVersion} MessageDecoder SHA-256 changed: ${digest}")
+		}
+
+		def upstream = new String(upstreamBytes, java.nio.charset.StandardCharsets.UTF_8)
+		def local = file('src/main/java/software/amazon/eventstream/MessageDecoder.java').getText('UTF-8')
+		def logicMarker = '    private final Consumer<Message> messageConsumer;'
+		def upstreamLogic = upstream.substring(upstream.indexOf(logicMarker))
+		def localLogic = local.substring(local.indexOf(logicMarker))
+		if (upstreamLogic != localLogic) {
+			throw new GradleException('Local MessageDecoder decoding logic differs from pinned upstream 1.0.1')
+		}
+		if (!local.contains('Integer.getInteger("smalltown.eventstream.initial-buffer-bytes", 32 * 1024)')) {
+			throw new GradleException('Local MessageDecoder must retain the 32 KiB configurable initial buffer')
+		}
+	}
+}
+
+sourceSets {
+	bootJarProbe {
+		java.srcDir 'src/bootJarProbe/java'
+	}
+}
+
+tasks.register('bootJarShadowingTest', Exec) {
+	group = 'verification'
+	description = 'Loads MessageDecoder through the executable bootJar class loader and verifies shadowing.'
+	dependsOn tasks.named('bootJar'), tasks.named('compileBootJarProbeJava')
+	def bootJarFile = tasks.named('bootJar').flatMap { it.archiveFile }
+	inputs.file(bootJarFile)
+	inputs.files(sourceSets.bootJarProbe.output.classesDirs)
+	doFirst {
+		def probePath = sourceSets.bootJarProbe.output.classesDirs.singleFile.absolutePath
+		commandLine javaToolchains.launcherFor(java.toolchain).get().executablePath.asFile.absolutePath,
+				"-Dloader.path=${probePath}",
+				'-Dloader.main=com.newcodes7.small_town.build.BootJarShadowingProbe',
+				'-cp', bootJarFile.get().asFile.absolutePath,
+				'org.springframework.boot.loader.launch.PropertiesLauncher'
+	}
+}
+
+tasks.named('check') {
+	dependsOn tasks.named('verifyEventstreamFork'), tasks.named('bootJarShadowingTest')
 }
 
 // ---------------------------------------------------------------------------
