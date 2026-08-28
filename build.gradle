@@ -191,6 +191,11 @@ spotless {
 	ratchetFrom 'HEAD'
 	java {
 		target 'src/**/*.java'
+		// 업스트림 라이브러리 클래스의 포크는 포맷을 건드리지 않는다.
+		// src/main/java/software/amazon/eventstream/MessageDecoder.java는
+		// eventstream:1.0.1 원본을 클래스패스 섀도잉으로 대체한 것이라, 원본과 diff가 가능해야
+		// 의존성 업그레이드 때 로직 변경분을 대조할 수 있다. 재포맷하면 그 대조가 불가능해진다.
+		targetExclude 'src/*/java/software/amazon/**'
 		// 세션 시작 시점에 이미 더럽던 파일(기존 WIP)은 게이트 대상에서 제외
 		def gateBaseline = file('.claude/.cache/baseline-files')
 		if (gateBaseline.exists()) {
