@@ -626,6 +626,115 @@ VU70이면 약 50개 스트리밍 + 약 20개 대기 = 70, 관측과 맞는다.
 
 ---
 
+## 9. 스트림당 메모리의 정체 — AWS SDK eventstream 디코더 버퍼 2 MB
+
+8.4에서 동시 스트림 1개가 live 힙 2.6~3.6 MB를 잡는 것을 실측했지만 **무슨 객체인지 못 갈랐다.**
+프롬프트+답변은 수십 KB라 설명이 안 됐다. JFR로 확인했다.
+
+### 9.1 방법 — 왜 힙 덤프가 아니라 JFR인가
+
+- 이미지가 `eclipse-temurin:26-jre-jammy`(**JRE**)라 `jcmd`/`jmap`이 없다.
+  실제 보유 도구: `java jfr jwebserver keytool rmiregistry`
+- 힙 덤프는 full GC + 힙 전체 순회라 모든 페이지를 건드린다. 이 호스트는 스왑 347 MB 사용 중이고
+  유휴에도 초당 523페이지를 밀어내므로, **최악 정지 21.6초(STW 중 swap-in)를 의도적으로 재현**하는 꼴이 된다
+- `-XX:StartFlightRecording=settings=default,jdk.OldObjectSample#stackTrace=true,duration=30m,...`
+  (`default`는 stackTrace가 false라 출처를 모르고, `profile`은 할당 프로파일링까지 켜져 2 vCPU에서
+  측정을 흔든다 — 필요한 것만 켰다)
+- `jcmd`가 없어 on-demand 덤프가 불가하므로 `duration` 만료로 자동 기록시켰다.
+  **`OldObjectSample`은 덤프 시점의 live 표본을 싣기 때문에 부하 중에 만료돼야 한다** —
+  JVM 기동 후 30분에 만료되도록 부하 시작 시각을 맞췄다.
+  만료 시점 실측: `rag_answer_in_flight` **45**, live **350 MB**, committed 502/512 MB
+
+### 9.2 결과 — 41개 샘플이 한 곳을 가리킨다
+
+`OldObjectSample` 164개 중 타입 상위:
+
+| 개수 | 타입 |
+|---|---|
+| **41** | **`byte[2097152]`** (= 2 MiB 정확히) |
+| 8 | `java.util.HashMap$Node` |
+| 3 | `HashMap$Node[131072]` |
+| 3 | `java.lang.String` |
+| … | 나머지는 개수 1~2의 잡다한 것 |
+
+크기 분포도 같은 그림이다 — **41개가 `2.0 MB`**, 나머지는 대부분 수십~수백 바이트.
+
+할당 스택이 한 줄도 안 흩어진다:
+
+```
+41  software.amazon.eventstream.MessageDecoder.<init>() line: 46
+41  ...EventStreamAsyncResponseTransformer$SynchronousMessageDecoder.<init>() line: 210
+41  ...EventStreamAsyncResponseTransformer$SynchronousMessageDecoder.<init>() line: 211
+```
+
+**샘플 41개가 동시 스트림 45개와 거의 1:1이다 — 스트림당 정확히 하나.**
+
+### 9.3 바이트코드로 확정
+
+`eventstream-1.0.1.jar`의 `MessageDecoder` 무인자 생성자:
+
+```
+ldc           #8    // int 2097152
+invokestatic  #9    // ByteBuffer.allocate:(I)
+putfield      #10   // buf:Ljava/nio/ByteBuffer;
+```
+
+**`ConverseStream` 호출 하나당 2 MiB `ByteBuffer`를 무조건 잡는다.** 인자 없는 생성자라
+크기 인자가 없고, SDK 내부라 우리 설정으로 못 건드린다.
+
+**업그레이드로도 못 푼다** — Maven Central에 존재하는 버전은 `1.0.0`과 `1.0.1`뿐이고
+우리가 이미 최신(1.0.1)이다.
+
+### 9.4 산수
+
+| | |
+|---|---|
+| 실측 스트림당 live (8.4) | 2.6 ~ 3.6 MB |
+| 그중 eventstream 버퍼 | **2.0 MB (55~77%)** |
+| 나머지 | 프롬프트·답변·retrieval 결과 |
+
+우리 코드에서 잡힌 것은 24개뿐이고 전부 예상 범위다:
+
+| 개수 | 지점 | 무엇 |
+|---|---|---|
+| 12 | `RagAnswerService:227` | 진입점 프레임 |
+| 10 | `RagAnswerService:373` | 프롬프트 조립 (`userMessage` + `buildContext(orderedChunks)`) |
+| 2 | `RagAnswerService:443` | 답변 파싱 (`rawAnswer.substring`) |
+
+**합쳐도 2 MB 버퍼 하나를 못 이긴다.**
+
+그 외 상위 스택은 전부 인프라다 — `postgresql.core.Encoding.decode`(14),
+`JsonProtocolMarshaller`(11), `jtokkit.TokenEncoder`(8, 기동 시 1회 로드).
+
+> **mock 청크는 평균 6바이트다.** 그 6바이트를 디코딩하려고 2 MiB를 잡는다.
+> 운영 Bedrock도 청크 크기는 비슷하니 마찬가지다 — 버퍼의 99.9997%가 안 쓰인다.
+> 우리가 잘못한 게 아니라 SDK 설계다.
+
+### 9.5 판정 — 결론이 바뀐다
+
+5.5는 상한을 올리기 전 선행조건으로 "힙 예산 재산정"을 요구했다. 그 답이 나왔고,
+**"버퍼를 줄인다"는 선택지는 없다.**
+
+| 선택지 | 판정 |
+|---|---|
+| eventstream 버퍼 축소 | ❌ **불가.** 무인자 생성자에 하드코딩, SDK 내부, 최신 버전 |
+| SDK 업그레이드 | ❌ **불가.** 1.0.1이 최신 |
+| **동시성 상한을 이 비용으로 산정** | ✅ **현실적인 답.** 동시 N개 = `2 MB × N` 확보 |
+| Bedrock async 대신 다른 경로 | ⚠️ 검토 대상. `rag.openai.base-url`이 이미 Bedrock mantle을 가리키고 그쪽은 SSE라 이 디코더를 안 탄다. 다만 모델 라우팅·응답 형식이 달라 큰 변경 |
+
+**따라서 RAG 동시성의 메모리 원가는 스트림당 최소 2 MB로 고정이다.**
+현재 상한 50이면 스트리밍 중 **100 MB가 항상 잡혀 있다.** 동시 100을 원하면 그것만으로 +100 MB다.
+이건 이제 추측이 아니라 확정된 제약이며, 유입 제어 상한을 정할 때의 기준선이다.
+
+### 9.6 한계
+
+- `OldObjectSample`은 **표본이지 전수가 아니다.** 41개가 45 스트림과 1:1로 맞는 것은
+  강한 증거지만, "2.0/3.6 = 55%"라는 비율 자체는 8.4의 힙 측정에 기대고 있다
+- JFR 녹화 자체가 유휴 live set을 약 50 MB 올린 것으로 보인다(180 → 229 MB, 부하 종료 후에도
+  안 내려감). **플래그 제거 후 180으로 복귀하는지 확인해야 확정된다**
+
+---
+
 ## 7. 미기록 / 다음
 
 - [ ] **🔴 RAG 유입 제어 신설** — 5.5의 1번. 이번 실행이 그 필요를 실측으로 보여줬다
