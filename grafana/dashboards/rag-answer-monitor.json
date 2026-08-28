@@ -150,7 +150,7 @@
   "timezone": "Asia/Seoul",
   "title": "Small Town — RAG Answer (/api/rag/answer)",
   "uid": "small-town-rag-answer",
-  "version": 2,
+  "version": 3,
   "panels": [
     {
       "id": 1,
@@ -925,8 +925,8 @@
     {
       "id": 16,
       "type": "timeseries",
-      "title": "동시 진행 수 (천장 50)",
-      "description": "RAG처럼 요청 하나가 수십 초를 점유하는 경로에서는 용량의 단위가 RPS가 아니라 동시 진행 수다 — Little's Law로 L=λ·W인데 W(스트림 길이)가 LLM 손에 있어 λ는 우리 용량이 아니라 LLM 속도를 잰다. 실제로 2026-08-27 사다리의 천장은 2.05 RPS가 아니라 동시 스트림 50개였다.\n\n빨간 임계선 50 = Bedrock async 클라이언트의 maxConcurrency(bedrock.async-max-concurrency). llm_stream이 여기 닿으면 초과분은 커넥션 획득을 10초 대기하다 실패한다.\n\n두 선의 간격 = 전처리·retrieval 단계에 있는 요청 수(약 3초). llm_stream만이 async 풀을 점유한다 — 전처리(generateJson)는 sync 클라이언트라 별도 풀이다.\n\n⚠️ 올리기 전 선행조건은 RAG 유입 제어와 힙 예산 재산정이다. 300으로 올렸다가 백엔드가 12분간 세 번 OOM으로 죽었다. 근거: load-test/results/2026-08-27-rag-ladder.md 5장",
+      "title": "동시 진행 수 — 스트리밍 중 / 대기 중",
+      "description": "RAG처럼 요청 하나가 수십 초를 점유하는 경로에서는 용량의 단위가 RPS가 아니라 동시 진행 수다 — Little's Law로 L=λ·W인데 W(스트림 길이)가 LLM 손에 있어 λ는 우리 용량이 아니라 LLM 속도를 잰다. 실제로 2026-08-27 사다리의 천장은 2.05 RPS가 아니라 동시 스트림 50개였다.\n\n■ 스트리밍 중 / ■ 대기 중 — 풀 정의상 유도한 값이다. rag_answer_llm_stream_in_flight는 generateStream() 호출 직전에 증가하는데 커넥션 획득은 그 호출 안에서 일어나므로 대기 중인 요청도 포함한다(2026-08-27 실측: VU70에서 게이지가 50이 아니라 70까지 갔다). 따라서 상한 초과분이 곧 대기 수다.\n\n**대기 중이 0보다 크면 이미 지연이 붙고 있다.** 초과분은 커넥션 획득을 최대 10초 기다리고, 그 안에 못 잡으면 실패한다 — VU70에서 first_token p95가 +8,108ms, 에러 9.5%였다.\n\n전체 진행 중(회색)과의 간격 = 전처리·retrieval 단계 요청 수(약 3초). 전처리는 sync 클라이언트라 이 풀을 안 쓴다.\n\n⚠️ 상한을 올리기 전 선행조건은 RAG 유입 제어와 힙 증설이다. 300으로 올렸다가 백엔드가 12분간 세 번 OOM으로 죽었다 (동시 스트림당 힙 ≈2.5MB, VU45에서 이미 힙 최대 511/512MB). 근거: load-test/results/2026-08-27-rag-ladder.md 5·8장",
       "gridPos": { "h": 9, "w": 24, "x": 0, "y": 50 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": {
@@ -967,7 +967,13 @@
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "답변 스트림 단계 (async 풀 점유)" },
+            "matcher": { "id": "byName", "options": "대기 중 (커넥션 획득 대기)" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "스트리밍 중 (커넥션 점유)" },
             "properties": [
               { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }
             ]
@@ -975,7 +981,16 @@
           {
             "matcher": { "id": "byName", "options": "전체 진행 중" },
             "properties": [
-              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#73BF69" } }
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#8e8e8e" } },
+              { "id": "custom.fillOpacity", "value": 0 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "상한 (maxConcurrency)" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "dark-red" } },
+              { "id": "custom.lineStyle", "value": { "dash": [10, 10], "fill": "dash" } },
+              { "id": "custom.fillOpacity", "value": 0 }
             ]
           }
         ]
@@ -983,17 +998,31 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rag_answer_in_flight)",
+          "expr": "sum(rag_answer_llm_stream_in_flight) - clamp_min(sum(rag_answer_llm_stream_in_flight) - sum(rag_answer_llm_max_concurrency), 0)",
           "range": true,
-          "legendFormat": "전체 진행 중",
+          "legendFormat": "스트리밍 중 (커넥션 점유)",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rag_answer_llm_stream_in_flight)",
+          "expr": "clamp_min(sum(rag_answer_llm_stream_in_flight) - sum(rag_answer_llm_max_concurrency), 0)",
           "range": true,
-          "legendFormat": "답변 스트림 단계 (async 풀 점유)",
+          "legendFormat": "대기 중 (커넥션 획득 대기)",
           "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rag_answer_in_flight)",
+          "range": true,
+          "legendFormat": "전체 진행 중",
+          "refId": "C"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rag_answer_llm_max_concurrency)",
+          "range": true,
+          "legendFormat": "상한 (maxConcurrency)",
+          "refId": "D"
         }
       ]
     },

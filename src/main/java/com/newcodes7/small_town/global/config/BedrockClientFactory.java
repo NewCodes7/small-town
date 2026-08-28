@@ -1,5 +1,8 @@
 package com.newcodes7.small_town.global.config;
 
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.net.URI;
 import java.time.Duration;
@@ -75,6 +78,33 @@ public class BedrockClientFactory {
      */
     @Value("${bedrock.async-max-concurrency:50}")
     private int asyncMaxConcurrency;
+
+    private final MeterRegistry meterRegistry;
+
+    public BedrockClientFactory(MeterRegistry meterRegistry) {
+        this.meterRegistry = meterRegistry;
+    }
+
+    /**
+     * async 풀 상한을 지표로 노출한다 — 대시보드에서 "지금 몇 개가 대기 중인가"를 유도하려면
+     * 상한이 지표로 있어야 프로퍼티를 바꿔도 패널이 안 깨진다.
+     * 검색의 {@code search_concurrency_limit}(SearchConcurrencyLimiter)과 같은 역할.
+     *
+     * <p>풀 정의상 다음이 성립한다 (2026-08-27 실측으로 확인, 결과 문서 8.5):
+     * <pre>
+     * 스트리밍 중 = min(rag_answer_llm_stream_in_flight, 이 값)
+     * 대기 중     = max(0, rag_answer_llm_stream_in_flight - 이 값)
+     * </pre>
+     * {@code rag_answer_llm_stream_in_flight}는 generateStream() 호출 직전에 증가하는데 커넥션
+     * 획득은 그 호출 안에서 일어나므로 <b>대기 중인 요청도 포함</b>하기 때문이다.
+     */
+    @PostConstruct
+    void registerMetrics() {
+        Gauge.builder("rag_answer_llm_max_concurrency", this, f -> f.asyncMaxConcurrency)
+                .description("Configured maxConcurrency of the Bedrock async client "
+                        + "(the ceiling on concurrent RAG answer streams)")
+                .register(meterRegistry);
+    }
 
     private final Map<String, BedrockRuntimeClient> syncClients = new ConcurrentHashMap<>();
     private final Map<String, BedrockRuntimeAsyncClient> asyncClients = new ConcurrentHashMap<>();

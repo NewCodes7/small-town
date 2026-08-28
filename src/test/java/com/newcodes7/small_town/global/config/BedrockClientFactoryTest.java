@@ -2,6 +2,7 @@ package com.newcodes7.small_town.global.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,13 +13,28 @@ import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
 class BedrockClientFactoryTest {
 
     private BedrockClientFactory factory;
+    private SimpleMeterRegistry meterRegistry;
 
     @BeforeEach
     void setUp() {
-        factory = new BedrockClientFactory();
+        meterRegistry = new SimpleMeterRegistry();
+        factory = new BedrockClientFactory(meterRegistry);
         ReflectionTestUtils.setField(factory, "accessKey", "test-access");
         ReflectionTestUtils.setField(factory, "secretKey", "test-secret");
         ReflectionTestUtils.setField(factory, "defaultRegion", "ap-northeast-2");
+    }
+
+    /**
+     * 이 게이지는 대시보드가 "대기 중" 선을 유도하는 데 쓰인다
+     * (대기 = max(0, llm_stream_in_flight - 이 값)). 값이 안 나오면 패널이 조용히 틀린다.
+     */
+    @Test
+    @DisplayName("async 풀 상한이 지표로 노출된다 — 대시보드가 대기 수를 유도하는 근거")
+    void maxConcurrency_노출된다() {
+        ReflectionTestUtils.setField(factory, "asyncMaxConcurrency", 50);
+        factory.registerMetrics();
+
+        assertThat(meterRegistry.get("rag_answer_llm_max_concurrency").gauge().value()).isEqualTo(50.0);
     }
 
     @Test
