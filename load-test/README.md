@@ -77,7 +77,31 @@ PREPROCESS/TTFT/TOKEN_INTERVAL/ANSWER_TOKENS 기본값은 **2026-08-01 Grafana `
 
 `MOCK_EMBED_MEDIAN_MS`/`SIGMA`는 미보정이다: 유일한 후보 메트릭 `search_query_embedding_seconds`가 캐시 히트(즉시 반환)와 실제 Clova 호출을 함께 집계해 평균이 실제 API 레이턴시보다 낮게 나온다 — 캐시 미스만 분리하는 라벨/메트릭이 추가되면 재보정할 것.
 
-재캘리브레이션 절차: Grafana(`GRAFANA_URL`/service account 토큰으로 MCP 연결 가능)의 Prometheus datasource에서 `sum(<metric>_sum) / sum(<metric>_count)`로 평균을, `<metric>_bucket`으로 누적분포를 읽어 median/sigma를 역산한다(`median × exp(sigma²/2) = mean`). 기본값 합이 Bedrock async 타임아웃 예산(80s)을 넘으면 mock이 기동 시 fail-fast 한다.
+> ⚠️ **재캘리브레이션은 반드시 `source="real"`로 필터할 것 — 안 그러면 mock을 mock 자기 값으로 보정하게 된다.**
+> mock 부하테스트가 만든 표본이 같은 시계열에 쌓이기 때문이다. 2026-08-28 실측(30일 창):
+> 실경로 `/api/rag/answer` **54건** vs mock 경로 `/api/rag/answer/loadtest` **11,024건** —
+> **표본의 99.5%가 mock**이었다. 그래서 `rag_answer_llm_*` 네 지표에 `source=real|loadtest|admin`
+> 라벨을 붙였다(`RagAnswerService.llmMeters`). 라벨 도입 이전 구간은 분리 불가이므로 버릴 것.
+>
+> 실경로 트래픽이 **하루 약 1.8건**이라 의미 있는 표본이 쌓이는 데 시간이 걸린다. 재캘리브레이션은
+> 노력이 아니라 **트래픽 축적에 막혀 있는 항목**이고, 그래서 다른 작업의 선행조건으로 두면 안 된다.
+
+**지금 확인 가능한 것 — 전체 스트림 길이.** `http_server_requests_seconds`는 `uri` 라벨로 두 경로가
+이미 갈리므로 라벨 도입 전에도 비교가 된다 (2026-08-28, 30일 창, status=200):
+
+| | 평균 | p50 | 표본 |
+|---|---|---|---|
+| 실경로 `/api/rag/answer` | **15.95s** | 11.93s | 54건 |
+| mock 경로 `/api/rag/answer/loadtest` | **23.27s** | — | 11,024건 |
+
+**mock이 실제보다 약 1.46배 느리다.** 방향이 중요한데, `λ = L/W`에서 W를 과대평가하는 것이므로
+mock 기반 용량 수치는 **보수적인 쪽으로 틀린다** — 실제로는 같은 상한에서 처리량이 더 나오고,
+같은 도착률에서 동시 스트림 수와 힙 점유가 더 적다. 상한 45의 안전성을 흔들지 않는다.
+단 46%가 어느 단계(전처리/TTFT/토큰 페이싱)에서 오는지는 `source` 라벨 표본이 쌓여야 갈리므로,
+**개별 상수는 아직 바꾸지 않았다.** 총합만 알고 배분을 모르는 채 상수를 손대면 더 나빠진다.
+(p95는 실경로 표본이 3건 수준이라 히스토그램 최상단 버킷에 걸린다 — 인용하지 말 것.)
+
+재캘리브레이션 절차: Grafana(`GRAFANA_URL`/service account 토큰으로 MCP 연결 가능)의 Prometheus datasource에서 `sum(<metric>_sum{source="real"}) / sum(<metric>_count{source="real"})`로 평균을, `<metric>_bucket{source="real"}`으로 누적분포를 읽어 median/sigma를 역산한다(`median × exp(sigma²/2) = mean`). 기본값 합이 Bedrock async 타임아웃 예산(80s)을 넘으면 mock이 기동 시 fail-fast 한다.
 
 ### mock 수정 시 검증
 

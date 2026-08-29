@@ -346,4 +346,16 @@ public class ArticleSearchControllerTest extends IntegrationTestBase {
             }
         }
     }
+
+    @Test
+    public void 부하테스트_경로는_비활성일_때_404다() throws Exception {
+        // 이 컨트롤러는 게이트/상한 거절을 ResponseStatusException으로 던지는데, RestApiExceptionHandler에
+        // ResponseStatusException 핸들러가 없으면 @ExceptionHandler(Exception.class)가 먼저 잡아 500이 된다
+        // (ExceptionHandlerExceptionResolver가 ResponseStatusExceptionResolver보다 앞서 도는 MVC 기본 순서).
+        // 기존 테스트는 "던져진 예외의 타입"만 봐서 이걸 놓쳤다 — 여기서는 실제로 나가는 상태코드를 본다.
+        mockMvc.perform(get("/api/search/articles/loadtest")
+                        .param("keyword", "kafka")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound());
+    }
 }

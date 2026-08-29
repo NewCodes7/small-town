@@ -87,6 +87,15 @@ class RagAnswerServiceTest {
                 "Kafka 도입", "Kafka를 도입한 사례", 100, 30, 130);
     }
 
+    /**
+     * LLM 지연 미터는 경로별로(source=real|loadtest|admin) 나뉘어 등록된다 — 라벨 없이 조회하면
+     * 어느 시계열이 잡힐지 알 수 없다. mock 부하테스트 표본이 실경로 캘리브레이션을 오염시키는 것을
+     * 막으려고 나눈 것이라(RagAnswerService.llmMeters), 테스트도 경로를 명시해서 본다.
+     */
+    private io.micrometer.core.instrument.Timer llmTimer(String name, String source) {
+        return meterRegistry.get(name).tag("source", source).timer();
+    }
+
     private RagQueryLog capturedLog() {
         ArgumentCaptor<RagQueryLog> captor = ArgumentCaptor.forClass(RagQueryLog.class);
         verify(ragQueryLogRepository).save(captor.capture());
@@ -281,10 +290,15 @@ class RagAnswerServiceTest {
         // 신규 메트릭 기록 확인 (모의 스트림 2개 청크 → chunk size 2건, gap 1건)
         assertThat(meterRegistry.get("rag_answer_requests_total").tag("status", "success").counter().count()).isEqualTo(1.0);
         assertThat(meterRegistry.get("rag_answer_latency_seconds").tag("status", "success").timer().count()).isEqualTo(1L);
-        assertThat(meterRegistry.get("rag_answer_llm_ttfb_seconds").timer().count()).isEqualTo(1L);
-        assertThat(meterRegistry.get("rag_answer_llm_duration_seconds").timer().count()).isEqualTo(1L);
-        assertThat(meterRegistry.get("rag_answer_llm_chunk_size_bytes").summary().count()).isEqualTo(2L);
-        assertThat(meterRegistry.get("rag_answer_llm_chunk_gap_seconds").timer().count()).isEqualTo(1L);
+        // 이 테스트는 6-arg(관리자) 오버로드를 쓰므로 source=admin으로 기록된다
+        assertThat(llmTimer("rag_answer_llm_ttfb_seconds", "admin").count()).isEqualTo(1L);
+        assertThat(llmTimer("rag_answer_llm_duration_seconds", "admin").count()).isEqualTo(1L);
+        assertThat(meterRegistry.get("rag_answer_llm_chunk_size_bytes")
+                .tag("source", "admin").summary().count()).isEqualTo(2L);
+        assertThat(llmTimer("rag_answer_llm_chunk_gap_seconds", "admin").count()).isEqualTo(1L);
+        // 다른 경로 시계열은 등록만 돼 있고 0이어야 한다 — 라벨이 실제로 경로를 가르는지 확인
+        assertThat(llmTimer("rag_answer_llm_ttfb_seconds", "real").count()).isZero();
+        assertThat(llmTimer("rag_answer_llm_ttfb_seconds", "loadtest").count()).isZero();
     }
 
     @Test
@@ -366,7 +380,7 @@ class RagAnswerServiceTest {
         // 캐시 히트는 LLM을 호출하지 않으므로 LLM 전용 메트릭은 기록되지 않아야 함 (미리 등록만 돼 있어 count=0)
         assertThat(meterRegistry.get("rag_answer_requests_total").tag("status", "cached").counter().count()).isEqualTo(1.0);
         assertThat(meterRegistry.get("rag_answer_latency_seconds").tag("status", "cached").timer().count()).isEqualTo(1L);
-        assertThat(meterRegistry.get("rag_answer_llm_ttfb_seconds").timer().count()).isZero();
+        assertThat(llmTimer("rag_answer_llm_ttfb_seconds", "real").count()).isZero();
     }
 
     @Test
@@ -529,5 +543,11 @@ class RagAnswerServiceTest {
                 anyString(), anyString(), anyList(), anyInt(), anyDouble(), eq(true));
         verify(vectorSearchService).getChunksForRagCached(anyString(), anyList(), any(), anyInt(), eq(true));
         verify(emitter).complete();
+
+        // 부하테스트 표본은 source=loadtest로만 쌓여야 한다 — 이게 섞이면 mock 지연 상수를
+        // mock 자기 값으로 보정하는 순환이 된다(2026-08-28 실측: 30일 표본의 99.5%가 mock이었다).
+        assertThat(llmTimer("rag_answer_llm_ttfb_seconds", "loadtest").count()).isEqualTo(1L);
+        assertThat(llmTimer("rag_answer_llm_ttfb_seconds", "real").count()).isZero();
+        assertThat(llmTimer("rag_answer_llm_ttfb_seconds", "admin").count()).isZero();
     }
 }

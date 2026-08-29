@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
@@ -86,6 +87,46 @@ public class RestApiExceptionHandler {
     public void handleAsyncRequestNotUsable(AsyncRequestNotUsableException e, WebRequest request) {
         String path = ((ServletWebRequest) request).getRequest().getRequestURI();
         log.debug("클라이언트 연결 종료로 응답 중단: {} at {}", e.getMessage(), path);
+    }
+
+    /**
+     * 컨트롤러가 상태코드를 직접 지정해 던진 예외는 그 상태코드로 내보낸다.
+     *
+     * <p>이게 없으면 아래 {@code handleGeneralException(Exception)}이 먼저 잡는다 —
+     * {@code ExceptionHandlerExceptionResolver}가 {@code ResponseStatusExceptionResolver}보다
+     * 앞서 도는 Spring MVC 기본 순서 때문이고, 그 결과 {@code /api/*}에서 던진 429·404·503이
+     * <b>전부 500 + 스택트레이스 ERROR 로그</b>가 됐다(예: /api/rag/answer 시간당 한도,
+     * /api/search/articles/loadtest 동시성 상한, /api/rag/answer/loadtest의 게이트들).
+     *
+     * <p><b>4xx는 로그를 남기지 않는다.</b> 클라이언트 잘못이거나 의도된 거절이라 운영자가 볼 것이
+     * 없고, 특히 429는 과부하 때 쏟아지므로 로깅이 그 자체로 부하가 된다
+     * (load-test/results/2026-08-27-rag-ladder.md 5.3 — 붕괴 12분간 37,338줄).
+     * 5xx만 남기되 스택트레이스는 붙이지 않는다 — 던진 쪽이 이미 원인을 메시지로 갖고 있다.
+     */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ErrorResponse> handleResponseStatusException(
+            ResponseStatusException e, WebRequest request) throws ResponseStatusException {
+        String path = ((ServletWebRequest) request).getRequest().getRequestURI();
+
+        if (!isApiRequest(path, request)) {
+            throw e; // 뷰 요청은 GlobalExceptionHandler / 기본 처리로 넘긴다
+        }
+
+        HttpStatus status = HttpStatus.resolve(e.getStatusCode().value());
+        if (status == null) {
+            status = HttpStatus.INTERNAL_SERVER_ERROR;
+        }
+        if (status.is5xxServerError()) {
+            log.warn("{} 응답: {} at {}", status.value(), e.getReason(), path);
+        }
+
+        ErrorResponse errorResponse = ErrorResponse.of(
+            status.name(),
+            e.getReason() != null ? e.getReason() : status.getReasonPhrase(),
+            path
+        );
+
+        return ResponseEntity.status(status).body(errorResponse);
     }
 
     @ExceptionHandler(Exception.class)

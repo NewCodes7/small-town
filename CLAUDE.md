@@ -69,7 +69,7 @@ com.newcodes7.small_town/
 
 - **운영**: PostgreSQL + pgvector + ParadeDB(pg_search)
 - **테스트**: PostgreSQL `small_town_test` (H2 미사용, `create-drop`)
-- **마이그레이션**: Flyway (`src/main/resources/db/migration/`), 현재 최신 버전 V1_38
+- **마이그레이션**: Flyway (`src/main/resources/db/migration/`), 현재 최신 버전 V1_40
 
 > **V1_13 주의**: `V1_13__create_hacker_news_tables.sql`과 `V1_13_1__drop_article_legacy_embedding_columns.sql` — Flyway가 어느 쪽을 적용했는지 확인 필요할 때는 DB `flyway_schema_history` 조회.
 > `article_search_view` Materialized View는 V1_15에서 삭제됨 — 구 코드에서 참조하면 오류, `article_analyzed_content` 테이블로 교체.
@@ -120,6 +120,38 @@ Clova Embedding v2 (1024차원), 2단계 검색:
 - 거절은 **로그를 남기지 않는다** (과부하 시 appender 락 경합을 유발). 관측은 메트릭으로:
   `search_concurrency_requests_total{result=accepted|rejected}`, `search_concurrency_in_use`,
   `search_concurrency_limit`, `search_concurrency_acquire_wait`
+
+### 3-2. RAG 유입 제어 (admission control)
+
+`RagConcurrencyLimiter` — RAG 답변 스트림의 동시 실행 수를 세마포어로 상한 짓고 초과분은 **429**로 거절.
+`SearchConcurrencyLimiter`와 본체를 공유한다 (`global/concurrency/ConcurrencyLimiter`).
+
+- 적용 지점: `RagChatController`(`/api/rag/answer`) / `RagChatLoadTestController`(`/api/rag/answer/loadtest`)
+  **둘 다** — 부하테스트가 실제 경로를 재현해야 하기 때문
+- 한도: `search_concurrency_config` 테이블의 `scope_name='RAG'` 행 (V1_40, admin `/admin/search/weights` 하단),
+  DB 로드 실패 시 기본값(45 / 300ms)으로 폴백
+- **왜 45인가**: (1) 실측으로 SLA를 지킨 최고 동시성이 VU45다(런2/런3/런5/10.5에서 2.05/2.04/2.02/2.04 RPS로
+  4회 재현, 붕괴는 VU70). (2) Bedrock async 풀(`bedrock.async-max-concurrency=50`)보다 낮아야
+  초과분이 "풀 앞의 조용한 대기"가 아니라 429가 된다. permit이 컨트롤러 진입부터 스트림 종료까지
+  유지되므로 `rag_concurrency_in_use ≥ rag_answer_in_flight ≥ rag_answer_llm_stream_in_flight`이고,
+  따라서 상한 L을 걸면 `llm_stream ≤ L`이 보장된다. 힙은 `166 + 45×1.87 = 250MB`(heap max 512)
+- ⚠️ **`bedrock.async-max-concurrency`를 올린다면 이 상한도 함께 올릴 것** — 뒤집히면 보장이 깨진다
+- **permit 반납은 `CompletableFuture.whenComplete`에서** 한다. 컨트롤러가 `SseEmitter`를 반환한 뒤에도
+  작업은 `searchExecutor`에서 계속 돌기 때문에, 검색의 `try/finally` 모양을 그대로 쓰면
+  정작 힙과 풀을 물고 있는 구간에 상한이 없어진다
+- **거절은 예외를 던지지 않는다.** SSE라 `SseEmitter` 생성 **전에** 상태코드를 확정해야 하고,
+  과부하 시 거절 로깅은 그 자체가 부하다. `RagBusyResponse`가 응답에 직접 쓰고 핸들러는 `null`을 반환한다
+  (`ResponseBodyEmitterReturnValueHandler`가 `requestHandled=true`로 처리)
+- 거절은 **로그를 남기지 않는다**. 관측은 메트릭으로:
+  `rag_concurrency_requests_total{result=accepted|rejected}`, `rag_concurrency_in_use`,
+  `rag_concurrency_limit`, `rag_concurrency_acquire_wait` (Grafana `small-town-rag-answer` 패널 17)
+- 근거 전문: `load-test/results/2026-08-27-rag-ladder.md` 5 · 10 · 11장
+
+> `/api/*`에서 던진 `ResponseStatusException`은 `RestApiExceptionHandler`의
+> `@ExceptionHandler(ResponseStatusException.class)`가 받는다. 이게 없으면 같은 클래스의
+> `@ExceptionHandler(Exception.class)`가 먼저 잡아 **500 + 스택트레이스**가 된다
+> (`ExceptionHandlerExceptionResolver`가 `ResponseStatusExceptionResolver`보다 앞서 도는 MVC 기본 순서).
+> 4xx는 로그를 남기지 않는다.
 
 ### 4. AI 요약(레거시) vs RAG 채팅(신규) — 두 개의 SSE 스트리밍 답변 시스템이 공존
 
@@ -361,4 +393,5 @@ GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_REDIRECT_URI
 | pgvector 오류 | `CREATE EXTENSION IF NOT EXISTS vector;` 실행 |
 | 임베딩이 계속 실패 | 차단기가 OPEN인지 먼저 확인 (`embedding_circuit_state`=1 또는 admin 화면). 복구 확인 후 "즉시 닫기"로 수동 리셋 가능. 4xx(키 만료)는 차단기를 열지 않으므로 로그의 실제 상태 코드를 볼 것 |
 | 검색이 429를 반환 | 정상 동작(동시 실행 상한 도달). 한도는 admin `/admin/search/weights` 하단에서 조정 — `search_concurrency_requests_total{result="rejected"}` 확인 |
+| RAG가 429를 반환 | 두 종류다 — 시간당 IP 한도(`rag.chat.hourly-limit-per-ip`)와 동시 실행 상한(`RagConcurrencyLimiter`, 기본 45). 구분은 `rag_concurrency_requests_total{result="rejected"}`로. 한도는 admin `/admin/search/weights` 하단 RAG 섹션에서 조정 |
 | 외부 API 호출이 오래 매달림 | `RestTemplate`에 `connectionRequestTimeout`을 반드시 명시할 것 — 미설정 시 HttpClient5 기본값이 **3분**이다 (`setReadTimeout`만으로는 적용 안 됨) |

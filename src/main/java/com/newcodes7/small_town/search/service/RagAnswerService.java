@@ -136,10 +136,24 @@ public class RagAnswerService {
     private Timer failureLatencyTimer;
     private Timer cachedLatencyTimer;
     private Timer notFoundLatencyTimer;
-    private Timer llmTtfbTimer;
-    private Timer llmDurationTimer;
-    private Timer llmChunkGapTimer;
-    private DistributionSummary llmChunkSizeSummary;
+    /**
+     * LLM 지연 미터는 <b>경로별로 분리해</b> 등록한다 ({@code source=real|loadtest|admin}).
+     *
+     * <p><b>왜.</b> 이 네 지표는 mock의 지연 상수를 실측에 맞추는 캘리브레이션 입력이다
+     * (load-test/README.md). 그런데 라벨이 없으면 mock 부하테스트가 만든 표본이 같은 시계열에
+     * 섞여, <b>mock을 mock 자기 값으로 보정하는 순환</b>이 된다. 실제로 2026-08-28 시점
+     * 30일 표본은 실경로 54건 / mock 경로 11,024건으로 <b>99.5%가 mock</b>이었다.
+     *
+     * <p>기록 시점 조회 비용을 없애려고 경로별로 미리 등록해 두고 스트림 시작 때 한 번만 고른다 —
+     * chunk gap·size는 청크마다(요청당 수백 회) 기록되므로 매번 미터를 조회하면 안 된다.
+     */
+    private Map<String, LlmMeters> llmMeters;
+
+    private record LlmMeters(Timer ttfb, Timer duration, Timer chunkGap, DistributionSummary chunkSize) {}
+
+    private static final String SOURCE_REAL = "real";
+    private static final String SOURCE_LOADTEST = "loadtest";
+    private static final String SOURCE_ADMIN = "admin";
 
     @PostConstruct
     public void init() {
@@ -179,18 +193,12 @@ public class RagAnswerService {
                 .description("RAG answer end-to-end latency")
                 .publishPercentileHistogram()
                 .register(meterRegistry);
-        llmTtfbTimer = Timer.builder("rag_answer_llm_ttfb_seconds")
-                .description("Time from LLM call start to first streamed chunk")
-                .publishPercentileHistogram()
-                .register(meterRegistry);
-        llmDurationTimer = Timer.builder("rag_answer_llm_duration_seconds")
-                .description("LLM call wall time from request start to stream fully consumed or errored")
-                .publishPercentileHistogram()
-                .register(meterRegistry);
-        llmChunkGapTimer = Timer.builder("rag_answer_llm_chunk_gap_seconds")
-                .description("Inter-arrival gap between consecutive LLM stream chunks (second chunk onward)")
-                .publishPercentileHistogram()
-                .register(meterRegistry);
+        // 경로별로 미리 등록한다 — 트래픽이 0인 경로도 시계열이 존재해야 "실경로 표본이 없는 것"과
+        // "지표가 없는 것"이 대시보드에서 구분된다.
+        llmMeters = Map.of(
+                SOURCE_REAL, buildLlmMeters(SOURCE_REAL),
+                SOURCE_LOADTEST, buildLlmMeters(SOURCE_LOADTEST),
+                SOURCE_ADMIN, buildLlmMeters(SOURCE_ADMIN));
         Gauge.builder("rag_answer_in_flight", inFlight, AtomicInteger::get)
                 .description("RAG answer requests currently in flight (whole handler)")
                 .register(meterRegistry);
@@ -198,11 +206,31 @@ public class RagAnswerService {
                 .description("RAG answer requests currently streaming from the LLM "
                         + "(this is what consumes the Bedrock async client maxConcurrency)")
                 .register(meterRegistry);
-        llmChunkSizeSummary = DistributionSummary.builder("rag_answer_llm_chunk_size_bytes")
-                .description("Size in bytes of each streamed LLM chunk")
-                .baseUnit("bytes")
-                .publishPercentileHistogram()
-                .register(meterRegistry);
+    }
+
+    private LlmMeters buildLlmMeters(String source) {
+        return new LlmMeters(
+                Timer.builder("rag_answer_llm_ttfb_seconds")
+                        .tag("source", source)
+                        .description("Time from LLM call start to first streamed chunk")
+                        .publishPercentileHistogram()
+                        .register(meterRegistry),
+                Timer.builder("rag_answer_llm_duration_seconds")
+                        .tag("source", source)
+                        .description("LLM call wall time from request start to stream fully consumed or errored")
+                        .publishPercentileHistogram()
+                        .register(meterRegistry),
+                Timer.builder("rag_answer_llm_chunk_gap_seconds")
+                        .tag("source", source)
+                        .description("Inter-arrival gap between consecutive LLM stream chunks (second chunk onward)")
+                        .publishPercentileHistogram()
+                        .register(meterRegistry),
+                DistributionSummary.builder("rag_answer_llm_chunk_size_bytes")
+                        .tag("source", source)
+                        .description("Size in bytes of each streamed LLM chunk")
+                        .baseUnit("bytes")
+                        .publishPercentileHistogram()
+                        .register(meterRegistry));
     }
 
     public void streamAnswer(
@@ -262,6 +290,11 @@ public class RagAnswerService {
             completeEmitter(emitter);
             return;
         }
+        // 부하테스트/관리자 테스트/실사용자를 지표에서 가른다 — 캘리브레이션이 mock 표본에
+        // 오염되지 않게 하는 것이 목적이다(위 llmMeters Javadoc). admin 6-arg 오버로드만
+        // cacheAllowed=false로 들어오므로 이 조합으로 세 경로가 정확히 구분된다.
+        String source = loadTest ? SOURCE_LOADTEST : (cacheAllowed ? SOURCE_REAL : SOURCE_ADMIN);
+        LlmMeters meters = llmMeters.get(source);
         String historyContext = buildHistoryContext(loadHistory(conversationId));
         boolean cacheEligible = cacheAllowed && historyContext.isBlank();
         // 부하테스트 캐시 키는 분리 — mock 답변이 실사용자 캐시에 섞이면 안 됨
@@ -298,6 +331,7 @@ public class RagAnswerService {
             Observation preprocessObservation = Observation
                     .createNotStarted("rag.preprocess", observationRegistry)
                     .contextualName("rag-preprocess")
+                    .lowCardinalityKeyValue("source", source)
                     .start();
             try {
                 // cacheEligible(공개 경로 첫 턴)이면 전처리 결과를 로컬 캐시 경유로 재사용.
@@ -396,13 +430,14 @@ public class RagAnswerService {
                             answerOptions, text -> {
                                 if (!firstTokenSeen[0]) {
                                     firstTokenSeen[0] = true;
-                                    llmTtfbTimer.record(System.nanoTime() - llmStartNanos, TimeUnit.NANOSECONDS);
+                                    meters.ttfb().record(System.nanoTime() - llmStartNanos, TimeUnit.NANOSECONDS);
                                     llmObservation.event(Observation.Event.of("first-token"));
                                 } else {
-                                    llmChunkGapTimer.record(System.nanoTime() - lastChunkNanos[0], TimeUnit.NANOSECONDS);
+                                    meters.chunkGap().record(
+                                            System.nanoTime() - lastChunkNanos[0], TimeUnit.NANOSECONDS);
                                 }
                                 lastChunkNanos[0] = System.nanoTime();
-                                llmChunkSizeSummary.record(text.getBytes(StandardCharsets.UTF_8).length);
+                                meters.chunkSize().record(text.getBytes(StandardCharsets.UTF_8).length);
                                 answerBuilder.append(text);
                                 if (queriesDetected[0]) {
                                     return;
@@ -427,7 +462,7 @@ public class RagAnswerService {
                 throw e;
             } finally {
                 llmStreamInFlight.decrementAndGet();
-                llmDurationTimer.record(System.nanoTime() - llmStartNanos, TimeUnit.NANOSECONDS);
+                meters.duration().record(System.nanoTime() - llmStartNanos, TimeUnit.NANOSECONDS);
                 llmObservation.stop();
             }
             if (!queriesDetected[0] && pendingBuf.length() > 0) {

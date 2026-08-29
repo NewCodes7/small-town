@@ -264,8 +264,8 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "429 (시간당 한도 초과) 수",
-      "description": "RagChatController의 IP당 시간당 30회 제한 초과 응답 수",
+      "title": "429 전체 (시간당 한도 + 유입 제어)",
+      "description": "HTTP 상태만 보므로 두 종류의 429가 합산된다 — 시간당 IP 한도(RagChatController)와 동시 실행 상한(RagConcurrencyLimiter). 내역 분리는 아래 '유입 제어 — 통과 / 거절' 패널에서 본다.",
       "gridPos": {
         "h": 5,
         "w": 6,
@@ -926,7 +926,7 @@
       "id": 16,
       "type": "timeseries",
       "title": "동시 진행 수 — 스트리밍 중 / 대기 중",
-      "description": "RAG처럼 요청 하나가 수십 초를 점유하는 경로에서는 용량의 단위가 RPS가 아니라 동시 진행 수다 — Little's Law로 L=λ·W인데 W(스트림 길이)가 LLM 손에 있어 λ는 우리 용량이 아니라 LLM 속도를 잰다. 실제로 2026-08-27 사다리의 천장은 2.05 RPS가 아니라 동시 스트림 50개였다.\n\n■ 스트리밍 중 / ■ 대기 중 — 풀 정의상 유도한 값이다. rag_answer_llm_stream_in_flight는 generateStream() 호출 직전에 증가하는데 커넥션 획득은 그 호출 안에서 일어나므로 대기 중인 요청도 포함한다(2026-08-27 실측: VU70에서 게이지가 50이 아니라 70까지 갔다). 따라서 상한 초과분이 곧 대기 수다.\n\n**대기 중이 0보다 크면 이미 지연이 붙고 있다.** 초과분은 커넥션 획득을 최대 10초 기다리고, 그 안에 못 잡으면 실패한다 — VU70에서 first_token p95가 +8,108ms, 에러 9.5%였다.\n\n전체 진행 중(회색)과의 간격 = 전처리·retrieval 단계 요청 수(약 3초). 전처리는 sync 클라이언트라 이 풀을 안 쓴다.\n\n⚠️ 상한을 올리기 전 선행조건은 RAG 유입 제어와 힙 증설이다. 300으로 올렸다가 백엔드가 12분간 세 번 OOM으로 죽었다 (동시 스트림당 힙 ≈2.5MB, VU45에서 이미 힙 최대 511/512MB). 근거: load-test/results/2026-08-27-rag-ladder.md 5·8장",
+      "description": "RAG처럼 요청 하나가 수십 초를 점유하는 경로에서는 용량의 단위가 RPS가 아니라 동시 진행 수다 — Little's Law로 L=λ·W인데 W(스트림 길이)가 LLM 손에 있어 λ는 우리 용량이 아니라 LLM 속도를 잰다. 실제로 2026-08-27 사다리의 천장은 2.05 RPS가 아니라 동시 스트림 50개였다.\n\n■ 스트리밍 중 / ■ 대기 중 — 풀 정의상 유도한 값이다. rag_answer_llm_stream_in_flight는 generateStream() 호출 직전에 증가하는데 커넥션 획득은 그 호출 안에서 일어나므로 대기 중인 요청도 포함한다(2026-08-27 실측: VU70에서 게이지가 50이 아니라 70까지 갔다). 따라서 상한 초과분이 곧 대기 수다.\n\n**대기 중이 0보다 크면 이미 지연이 붙고 있다.** 초과분은 커넥션 획득을 최대 10초 기다리고, 그 안에 못 잡으면 실패한다 — VU70에서 first_token p95가 +8,108ms, 에러 9.5%였다.\n\n전체 진행 중(회색)과의 간격 = 전처리·retrieval 단계 요청 수(약 3초). 전처리는 sync 클라이언트라 이 풀을 안 쓴다.\n\n⚠️ maxConcurrency를 300으로 올렸다가 백엔드가 12분간 세 번 OOM으로 죽었다(5장). 이후 두 가지가 바뀌었다 — eventstream 버퍼 축소로 스트림당 힙이 3.60 → 1.87MB가 됐고(10장, OOM 임계 동시 90 → 약 180), 유입 제어(RagConcurrencyLimiter, 상한 45)가 생겼다(11장). 유입 제어 상한이 maxConcurrency보다 낮은 한 '대기 중'은 0이어야 한다 — 0이 아니면 상한이 풀을 넘겼거나 리미터를 안 타는 경로(관리자 RAG 테스트 페이지)가 돌고 있는 것이다. 근거: load-test/results/2026-08-27-rag-ladder.md 5·8·10·11장",
       "gridPos": { "h": 9, "w": 24, "x": 0, "y": 50 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": {
@@ -1023,6 +1023,80 @@
           "range": true,
           "legendFormat": "상한 (maxConcurrency)",
           "refId": "D"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rag_concurrency_limit)",
+          "range": true,
+          "legendFormat": "유입 제어 상한 (RagConcurrencyLimiter)",
+          "refId": "E"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "유입 제어 — 통과 / 거절 (RPS)",
+      "description": "거절은 로그를 남기지 않으므로(과부하 시 appender 락 경합을 유발한다 — 결과 문서 5.3에서 붕괴 12분간 37,338줄이 쌓였다) 이 패널이 유일한 관측 경로다.\n\n**거절이 0보다 크면 상한에 닿았다는 뜻이다.** 그때 봐야 할 것은 바로 위 '동시 진행 수' 패널 — 유입 제어 상한(45) 선에 붙어 있는지 확인한다. 붙어 있으면 정상 동작(셰딩)이고, 안 붙었는데 거절이 나면 permit 누수를 의심한다.\n\n유입 제어 상한이 maxConcurrency(50)보다 낮게 유지되는 한 초과분은 Bedrock async 풀 앞의 조용한 대기가 아니라 429로 나간다. 근거: load-test/results/2026-08-27-rag-ladder.md 11장",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 59 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": { "mode": "multi" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "req/s",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": { "group": "A", "mode": "none" }
+          },
+          "unit": "reqps",
+          "min": 0,
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "거절 (429)" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "통과" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#73BF69" } }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(rag_concurrency_requests_total{result=\"accepted\"}[$__rate_interval]))",
+          "range": true,
+          "legendFormat": "통과",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(rag_concurrency_requests_total{result=\"rejected\"}[$__rate_interval]))",
+          "range": true,
+          "legendFormat": "거절 (429)",
+          "refId": "B"
         }
       ]
     },
@@ -1031,7 +1105,7 @@
       "type": "table",
       "title": "최근 트레이스 (POST /api/rag/answer 전체)",
       "description": "선택된 기간 내 /api/rag/answer 요청 전체 트레이스. 클릭하면 워터폴(전처리 → 하이브리드 검색 → LLM 스트리밍) 상세 확인 가능.",
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 59 },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 68 },
       "datasource": { "type": "tempo", "uid": "tempo" },
       "options": {},
       "targets": [
@@ -1051,7 +1125,7 @@
       "type": "table",
       "title": "느린 트레이스 ($slow_threshold 초과)",
       "description": "duration이 임계값을 넘는 /api/rag/answer 트레이스만 필터링. 전처리·검색·LLM 중 어느 구간이 느린지는 워터폴에서 확인.",
-      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 69 },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 78 },
       "datasource": { "type": "tempo", "uid": "tempo" },
       "options": {},
       "targets": [
@@ -1071,7 +1145,7 @@
       "type": "table",
       "title": "에러 트레이스",
       "description": "status=error span이 포함된 /api/rag/answer 트레이스. RagLlmException, 인터럽트 등 예외 발생 구간 즉시 확인용.",
-      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 69 },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 78 },
       "datasource": { "type": "tempo", "uid": "tempo" },
       "options": {},
       "targets": [
@@ -1091,7 +1165,7 @@
       "type": "table",
       "title": "RAG 답변 생성 구간 (rag-answer-stream)",
       "description": "RagAnswerService.streamAnswer — @Observed(name=rag-answer, contextualName=rag-answer-stream). searchExecutor 비동기 스레드에서 실행되지만 trace context가 전파되어 위 루트 트레이스와 같은 trace로 이어진다.",
-      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 79 },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 88 },
       "datasource": { "type": "tempo", "uid": "tempo" },
       "options": {},
       "targets": [
@@ -1111,7 +1185,7 @@
       "type": "table",
       "title": "RAG 벡터 검색 (vector-search-rag)",
       "description": "VectorSearchService.searchForRag — RAG용 기업 프리필터 hybrid retrieval의 vector 단계 (search.vector, contextualName=vector-search-rag)",
-      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 79 },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 88 },
       "datasource": { "type": "tempo", "uid": "tempo" },
       "options": {},
       "targets": [

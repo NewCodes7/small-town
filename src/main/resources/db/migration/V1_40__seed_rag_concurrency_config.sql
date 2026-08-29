@@ -1,0 +1,36 @@
+-- RAG 채팅 경로(/api/rag/answer)의 동시 실행 수 상한(admission control) 초기값.
+--
+-- V1_37이 만든 search_concurrency_config를 그대로 쓴다 — 그 마이그레이션 주석이
+-- "scope 컬럼은 이후 자동완성/RAG 등 다른 경로에 별도 한도를 줄 여지를 남긴 것이다"라고
+-- 예고한 그 자리다. 새 테이블/엔티티 없이 행 하나만 추가한다.
+--
+-- 배경: RAG에는 유입 제어가 없었고, 동시 스트림을 막고 있던 것은 Bedrock async 클라이언트의
+-- maxConcurrency=50(SDK 기본값)이었다 — 설계된 벌크헤드가 아니라 우연히 맞은 값이다.
+-- 그걸 300으로 올리자 VU90부터 백엔드가 12분간 세 번 OOM으로 죽었고(힙 506/512MB,
+-- -XX:+ExitOnOutOfMemoryError), DB CPU는 오히려 0.60 -> 0.28로 떨어졌다.
+-- 일이 실행된 게 아니라 HikariCP(5) 앞에 큐가 쌓인 congestion collapse다(pending 34 -> 129).
+-- 근거 전문: load-test/results/2026-08-27-rag-ladder.md 5장 · 11장.
+--
+-- max_concurrent=45 — 두 가지가 같은 값을 가리킨다.
+--   1) 실측으로 SLA를 지킨 최고 동시성이 VU45다. 런2/런3/런5/10.5에서 각각
+--      2.05 / 2.04 / 2.02 / 2.04 RPS로 네 번 재현됐고, 붕괴는 VU70에서 났다
+--      (first_token p95 7,176 -> 15,284, +113%). 검색이 상한 15를 "실측 무릎의 상단"으로
+--      잡은 것과 같은 방식이다.
+--   2) Bedrock async 풀(50)보다 낮아야 리미터가 실제로 셰딩을 한다. permit은 컨트롤러 진입부터
+--      스트림 종료까지 유지되므로 rag_concurrency_in_use >= rag_answer_in_flight >=
+--      rag_answer_llm_stream_in_flight 가 구조적으로 성립하고, 따라서 상한 L을 걸면
+--      llm_stream <= L 이 항상 보장된다. 45 < 50이면 async 풀이 큐를 만들 일이 없다 —
+--      거절은 429로 즉시·관측 가능하게 일어나고 SDK 풀의 조용한 큐잉으로 새지 않는다.
+--      남는 5칸은 리미터를 타지 않는 관리자 RAG 테스트 페이지가 같은 풀을 쓰기 때문에 남긴 여유다.
+--   힙으로도 확인된다: 166 + 45 * 1.87 = 250 MB (10.5 실측 250 MB), heap max 512 대비 2.05배 여유.
+--
+--   이 값은 mock 지연(스트림 21.4초)에서 측정됐지만, 결과 문서 7장의 결론대로 불변량은 동시성이고
+--   RPS가 아니다 — LLM 속도가 바뀌어도 동시 45의 힙/풀 점유는 그대로다. 실 Bedrock 경로로
+--   옮겨지지 않는 것은 "45 ~= 2.05 RPS"라는 파생값 쪽이다.
+--
+-- acquire_timeout_ms=300 — 상한 45 / 스트림 약 21초면 이탈률이 45/21 ~= 2.1건/초라 300ms 창에
+--   약 0.6건이 빠져나간다. 도착 지터를 흡수하되 큐를 만들지 않는 길이고, Tomcat이 virtual thread라
+--   대기 자체는 거의 공짜다. 검색과 같은 값.
+INSERT INTO search_concurrency_config (scope_name, max_concurrent, acquire_timeout_ms)
+VALUES ('RAG', 45, 300)
+ON CONFLICT (scope_name) DO NOTHING;
