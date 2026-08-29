@@ -327,6 +327,14 @@ cp load-test/fargate/env.example load-test/fargate/env
 `RagConcurrencyLimiter`(상한 45)가 실제로 셰딩하는지 확인한다. **배포 후 가장 먼저 돌릴 런이다** —
 이게 통과해야 그 위의 용량 작업이 의미를 갖는다.
 
+> 🔴 **시나리오를 고쳤으면 k6 이미지를 먼저 다시 빌드해 push할 것.**
+> `docker/Dockerfile`이 `scenarios/`·`lib/`·`data/`를 이미지에 굽기 때문에, 로컬 파일만 고치고
+> 실행하면 Fargate는 **ECR의 옛 코드를 조용히 그대로 돌린다.** 절차는
+> [`../README.md`](../README.md)의 "실행" 절 참고.
+> **2026-08-29에 실제로 이걸 밟았다** — 429 백오프를 넣고 이미지를 안 굽고 돌려서 거절이
+> 초당 5건 대신 78건으로 나왔다(재시도 폭풍). 서버측 판정은 무사했지만 `shed` 건수는 못 썼다.
+> (2026-08-08에도 같은 함정에 걸린 기록이 README에 있다 — 두 번째다.)
+
 ```bash
 cd load-test/fargate
 ./run-prod-test.sh -s ramp-limit-finder-rag -e MODE=cache-miss -e VU_LEVELS=45,70,140
@@ -381,6 +389,14 @@ VU_LEVELS=45,70,140 python3 ../scripts/collect-rag-results.py <testid>
 nopacing은 L≈20(힙 203MB)이면 된다. 그래서 **동시성이 아니라 처리량 축을 탐색할 수 있다.**
 
 ### 실행 절차
+
+> 🔴 **시나리오를 고쳤으면 k6 이미지를 먼저 다시 빌드해 push할 것.**
+> `docker/Dockerfile`이 `scenarios/`·`lib/`·`data/`를 이미지에 굽기 때문에, 로컬 파일만 고치고
+> 실행하면 Fargate는 **ECR의 옛 코드를 조용히 그대로 돌린다.** 절차는
+> [`../README.md`](../README.md)의 "실행" 절 참고.
+> **2026-08-29에 실제로 이걸 밟았다** — 429 백오프를 넣고 이미지를 안 굽고 돌려서 거절이
+> 초당 5건 대신 78건으로 나왔다(재시도 폭풍). 서버측 판정은 무사했지만 `shed` 건수는 못 썼다.
+> (2026-08-08에도 같은 함정에 걸린 기록이 README에 있다 — 두 번째다.)
 
 ```bash
 cd load-test/fargate
