@@ -118,9 +118,14 @@ def collect(testid):
         term = terminals(testid, lv, end + 60)
         done = term.get("done", 0.0)
         notfound = term.get("notfound", 0.0)
-        # done/notfound 외는 전부 비정상 종료로 묶는다 (error/aborted/http_4xx/http_5xx/
+        # 429는 실패가 아니라 설계된 거절이다 (RagConcurrencyLimiter, 2026-08-27 문서 11장).
+        # bad에 섞으면 "리미터가 제대로 셰딩한 런"과 "붕괴한 런"이 같은 숫자로 보인다 —
+        # 런 3의 http_502 38,543과 정상 셰딩을 구분 못 하게 되므로 반드시 따로 센다.
+        shed = term.get("http_429", 0.0)
+        # done/notfound/http_429 외는 전부 비정상 종료로 묶는다 (error/aborted/http_4xx/http_5xx/
         # closed_without_terminal/transport_error)
-        bad = sum(v for k, v in term.items() if k not in ("done", "notfound"))
+        bad = sum(v for k, v in term.items()
+                  if k not in ("done", "notfound", "http_429"))
 
         # 정상상태 RPS — 앞 TRANSIENT초를 버린 구간의 done 증가분 / 초.
         # increase()는 카운터 리셋에 강하고, 창 끝 시각에서 평가해야 그 구간만 잡힌다.
@@ -167,8 +172,19 @@ def collect(testid):
         # 전처리가 요청마다 돌았는지 — 완료 대비 비율이 1.0에 가까워야 한다
         pre = g(f"sum(increase(rag_preprocess_seconds_count[{win}]))")
 
+        # --- 유입 제어 (11장) ---
+        # 핵심 보장: permit이 컨트롤러 진입~스트림 종료를 덮으므로 상한 L에서 llm_stream <= L 이어야 한다.
+        # 이게 깨지면 permit 누수이거나, 리미터를 안 타는 경로(관리자 RAG 테스트 페이지)가 같이 돈 것이다.
+        rej = g(f'sum(increase(rag_concurrency_requests_total{{result="rejected"}}[{win}]))')
+        acc = g(f'sum(increase(rag_concurrency_requests_total{{result="accepted"}}[{win}]))')
+        lim = g(f"max(max_over_time(rag_concurrency_limit[{win}]))")
+        inuse = g(f"max(max_over_time(rag_concurrency_in_use[{win}]))")
+        strm = g(f"max(max_over_time(rag_answer_llm_stream_in_flight[{win}]))")
+        pool = g(f"max(max_over_time(rag_answer_llm_max_concurrency[{win}]))")
+
         rows.append(dict(
-            level=lv, done=done, notfound=notfound, bad=bad, rps=rps,
+            level=lv, done=done, notfound=notfound, bad=bad, shed=shed, rps=rps,
+            rej=rej, acc=acc, lim=lim, inuse=inuse, strm=strm, pool=pool,
             ft50=ft50, ft95=ft95, sd50=sd50, sd95=sd95, ttfb95=ttfb95,
             dbcpu=dbcpu, dbus=dbus, iowait=iow, appcpu=appcpu,
             csr=(dbcpu * LEVEL_DURATION / done if dbcpu and done else None),
@@ -191,21 +207,25 @@ for testid in sys.argv[1:]:
     print(f"\n===== testid = {testid} =====")
     print(f"      사다리 {LEVELS}  레벨 {LEVEL_DURATION}s / 간격 {LEVEL_GAP}s / 과도구간 {TRANSIENT}s")
 
-    hdr = ("lvl", "done", "RPS", "bad", "ttfb95", "ft50", "ft95", "sd50", "sd95",
+    hdr = ("lvl", "done", "RPS", "bad", "shed", "ttfb95", "ft50", "ft95", "sd50", "sd95",
            "DBcpu", "usr+sys", "iowait", "appCPU", "core-s/req", "blks/req",
            "segs", "mut", "hold_s", "acq_s", "pend", "act")
-    fmt = ("{:<4}{:>7}{:>7}{:>5}{:>8}{:>8}{:>8}{:>8}{:>8}{:>8}{:>9}{:>8}{:>8}"
+    fmt = ("{:<4}{:>7}{:>7}{:>5}{:>7}{:>8}{:>8}{:>8}{:>8}{:>8}{:>8}{:>9}{:>8}{:>8}"
            "{:>12}{:>10}{:>6}{:>5}{:>8}{:>8}{:>6}{:>5}")
     print(fmt.format(*hdr))
 
     for r in collect(testid):
         print(fmt.format(
             r["level"], f"{r['done']:.0f}", f(r["rps"], 2), f"{r['bad']:.0f}",
+            f"{r['shed']:.0f}",
             f(r["ttfb95"], 0), f(r["ft50"], 0), f(r["ft95"], 0), f(r["sd50"], 0), f(r["sd95"], 0),
             f(r["dbcpu"]), f(r["dbus"]), f(r["iowait"]), f(r["appcpu"]),
             f(r["csr"]), f(r["blks_req"], 0), f(r["segs"], 0), f(r["segmut"], 0),
             f(r["hold"]), f(r["acq"], 4), f(r["pend"], 0), f(r["active"], 0)))
         print(f"      창 {utc(r['start'])}~{utc(r['end'])} UTC   종료사유 {r['term']}")
+        print(f"      유입제어  통과 {f(r['acc'], 0)} / 거절 {f(r['rej'], 0)}"
+              f"   상한 {f(r['lim'], 0)}   in_use max {f(r['inuse'], 0)}"
+              f"   llm_stream max {f(r['strm'], 0)}   풀 {f(r['pool'], 0)}")
 
         # 검증 항목 — 통과 못 하면 그 레벨 수치는 쓰지 않는다
         warn = []
@@ -218,5 +238,18 @@ for testid in sys.argv[1:]:
                         f"(벡터 임계값·mock 기동 확인)")
         if r["ft50"] is not None and r["ft50"] == r["ft95"]:
             warn.append("first_token p50==p95 — 분위수 산출식 붕괴 의심")
+        # --- 유입 제어의 핵심 보장 (11.1의 (2)번) ---
+        if r["strm"] is not None and r["lim"] and r["strm"] > r["lim"]:
+            warn.append(f"llm_stream max {r['strm']:.0f} > 상한 {r['lim']:.0f} — 보장이 깨졌다. "
+                        f"permit 누수이거나 리미터를 안 타는 경로(관리자 RAG 테스트 페이지)가 같이 돈 것")
+        if r["lim"] and r["pool"] and r["lim"] >= r["pool"]:
+            warn.append(f"상한 {r['lim']:.0f} >= 풀 {r['pool']:.0f} — 초과분이 429가 아니라 "
+                        f"풀 앞의 조용한 대기가 된다 (11.1의 (2)번 전제 위반)")
+        if r["lim"] and r["level"] > r["lim"] and not r["shed"]:
+            warn.append(f"VU {r['level']} > 상한 {r['lim']:.0f}인데 429가 0건 — 리미터가 안 걸렸다 "
+                        f"(bypass 토큰 경로/배포 확인)")
+        if r["bad"] and r["shed"]:
+            warn.append(f"429 {r['shed']:.0f}건과 별개로 실패 {r['bad']:.0f}건 — 셰딩이 붕괴를 "
+                        f"다 막지는 못했다. 종료사유 분포를 볼 것")
         for w in warn:
             print(f"      ⚠ {w}")

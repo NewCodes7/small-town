@@ -24,6 +24,7 @@
 //   (RAG_PATH는 run-prod-test.sh가 mock 엔드포인트로 자동 지정 — README "LLM Mock 모드" 참고)
 
 import exec from 'k6/execution';
+import { sleep } from 'k6';
 import { SharedArray } from 'k6/data';
 import { CONFIG, COMMON_TAGS, uuid, bypassHeaders } from '../lib/config.js';
 import { sseRequest } from '../lib/sse.js';
@@ -51,6 +52,11 @@ const LEVEL_VALUES = (__ENV.VU_LEVELS || '')
   .map((v) => parseInt(v.trim(), 10))
   .filter((v) => Number.isFinite(v) && v > 0);
 const VUS_LADDER = LEVEL_VALUES.length > 0 ? LEVEL_VALUES : DEFAULT_LEVELS;
+
+// 429를 받은 VU가 다음 발사까지 쉬는 시간. 기본 5000ms = 서버 Retry-After 헤더 값.
+const REJECT_BACKOFF_MS = __ENV.REJECT_BACKOFF_MS !== undefined
+  ? parseInt(__ENV.REJECT_BACKOFF_MS, 10)
+  : 5000;
 
 const LEVEL_DURATION = __ENV.LEVEL_DURATION || '7m';
 const LEVEL_GAP = parseInt(__ENV.LEVEL_GAP, 10) > 0 ? parseInt(__ENV.LEVEL_GAP, 10) : 480;
@@ -108,10 +114,22 @@ export function hit() {
     ? questions[Math.floor(Math.random() * CACHE_HIT_SET_SIZE)]
     : withNonce(randomQuestion());
 
-  sseRequest(`${CONFIG.baseUrl}${CONFIG.ragPath}`, {
+  const res = sseRequest(`${CONFIG.baseUrl}${CONFIG.ragPath}`, {
     method: 'POST',
     body: JSON.stringify({ question, conversationId: uuid() }),
     headers: bypassHeaders({ 'Content-Type': 'application/json' }),
     tags: { endpoint: 'rag', cache: isCacheHit ? 'hit' : 'miss', level },
   });
+
+  // 429(RagConcurrencyLimiter 거절)는 즉시 반환된다. 백오프 없이 두면 거절된 VU가 초당 수십 번
+  // 재발사해 (a) VU가 더 이상 "동시 사용자 수"를 뜻하지 않게 되고 — 상한 위 레벨의 x축이 깨진다 —
+  // (b) 재시도 폭풍 자체가 부하가 된다. 런 3의 "http_502 38,543건"이 정확히 그 모양이었다
+  // (즉시 실패 → VU가 초당 여러 번 재시도, 결과 문서 5.2).
+  //
+  // 서버가 Retry-After: 5를 보내므로 그걸 그대로 지킨다 — 올바른 클라이언트 동작이고,
+  // 상한 45/VU70이면 거절된 25 VU가 5초 주기로 돌아 초당 약 5건이 된다(읽을 수 있는 수치).
+  // 의도적으로 "때리는" 변형이 필요하면 REJECT_BACKOFF_MS=0으로 끈다.
+  if (res.httpStatus === 429 && REJECT_BACKOFF_MS > 0) {
+    sleep(REJECT_BACKOFF_MS / 1000);
+  }
 }

@@ -322,6 +322,120 @@ cp load-test/fargate/env.example load-test/fargate/env
 
 여기까지 끝나면 `./load-test/fargate/run-prod-test.sh -s rag-answer -v 1 -d 30s`로 스모크 테스트할 수 있다.
 
+## 유입 제어 검증 런 (11장 조치의 실측)
+
+`RagConcurrencyLimiter`(상한 45)가 실제로 셰딩하는지 확인한다. **배포 후 가장 먼저 돌릴 런이다** —
+이게 통과해야 그 위의 용량 작업이 의미를 갖는다.
+
+```bash
+cd load-test/fargate
+./run-prod-test.sh -s ramp-limit-finder-rag -e MODE=cache-miss -e VU_LEVELS=45,70,140
+
+VU_LEVELS=45,70,140 python3 ../scripts/collect-rag-results.py <testid>
+```
+
+기본 mock(페이싱 유지)으로 돈다 — 여기서 보려는 건 코어 비용이 아니라 거절 동작이다.
+
+| 레벨 | 기대 |
+|---|---|
+| 45 | 상한과 같음. `shed` 소수, `done` 정상, RPS 약 2.0 |
+| 70 | **`shed`가 꾸준히 나오고 `bad`는 0**. `llm_stream max ≤ 45` |
+| 140 | 같음. 붕괴(5xx/OOM/재기동) 없음 |
+
+수집 스크립트가 자동으로 검증한다 — `bad`와 `shed`를 분리해 세고(429는 실패가 아니다),
+다음이 깨지면 경고를 찍는다:
+
+- `llm_stream max > 상한` → permit 누수이거나 리미터를 안 타는 경로(관리자 RAG 테스트 페이지)가 같이 돈 것
+- `상한 >= 풀` → 초과분이 429가 아니라 풀 앞의 조용한 대기가 된다
+- `VU > 상한인데 429가 0건` → 리미터가 안 걸렸다(배포/bypass 경로 확인)
+
+동시에 볼 것: `process_uptime_seconds`가 **리셋되지 않아야 한다**(런 3에서는 12분간 세 번 재기동했다).
+힙 committed는 310MB 부근에서 평평해야 한다.
+
+> 시나리오는 429를 받으면 `Retry-After`만큼(기본 5초) 쉰다. 없으면 거절된 VU가 즉시 재발사해
+> VU가 더 이상 "동시 사용자 수"를 뜻하지 않게 되고, 재시도 폭풍 자체가 부하가 된다
+> (런 3의 http_502 38,543건이 그 모양이었다). 의도적으로 때리는 변형은 `-e REJECT_BACKOFF_MS=0`.
+
+---
+
+## 런 4 — 토큰 페이싱 제거 모드 (서버 코어 한계 측정)
+
+기본 mock은 실제 LLM 지연을 재현하도록 인위적 대기를 넣는다(전처리 2,075ms / TTFT 1,650ms /
+토큰 간 44ms). 이 상태로는 **서버가 실제로 일하는 비용을 볼 수 없다** — iteration 21초의 대부분이
+유휴라, 처리량을 올리려면 동시 스트림을 늘려야 하고 그러면 힙이 먼저 터진다(결과 문서 5장).
+
+`mock-task-definition-nopacing.json`은 유휴만 걷어낸 변형이다:
+
+| | 기본 | nopacing |
+|---|---|---|
+| `MOCK_TOKEN_INTERVAL_MS` / `JITTER` | 44 / 14 | **0 / 0** |
+| `MOCK_PREPROCESS_MEDIAN_MS` / `SIGMA` | 2075 / 0.4 | **50 / 0.1** |
+| `MOCK_TTFT_MEDIAN_MS` / `SIGMA` | 1650 / 0.5 | **50 / 0.1** |
+| `MOCK_ANSWER_TOKENS` | 410 | **410 (그대로)** |
+
+**청크 수를 그대로 두는 게 핵심이다.** 없애야 하는 건 *기다림*이지 *일*이 아니다 —
+요청당 SSE 릴레이 410회와 retrieval의 DB 비용은 유지된 채 유휴만 빠진다.
+
+**왜 이게 힙 붕괴 없이 한계를 보나.** `L = λ × W`에서 W가 21초 → 약 1초가 되므로, 같은 처리량 λ를
+**1/20의 동시성 L**로 낼 수 있다. 20 RPS를 보려면 기본 mock은 L≈420(불가능, 힙 502MB 초과)이지만
+nopacing은 L≈20(힙 203MB)이면 된다. 그래서 **동시성이 아니라 처리량 축을 탐색할 수 있다.**
+
+### 실행 절차
+
+```bash
+cd load-test/fargate
+set -a; . ./env; set +a
+
+# 1) nopacing task definition 등록 (최초 1회, 또는 파일 수정 후)
+aws ecs register-task-definition   --cli-input-json file://mock-task-definition-nopacing.json --region ap-northeast-2
+
+# 2) mock 서비스를 nopacing으로 전환 (서비스는 그대로, task def만 교체)
+aws ecs update-service --cluster "${LT_MOCK_CLUSTER:-$LT_CLUSTER}"   --service "${LT_MOCK_SERVICE:-llm-mock}"   --task-definition newcodes-llm-mock-nopacing --region ap-northeast-2
+
+# 3) 사다리 실행 — VU 레벨과 창 길이를 반드시 같이 내린다 (아래 주의 참고)
+# (-v/-d는 이 시나리오가 안 읽는다 — 사다리는 VU_LEVELS/LEVEL_DURATION만 본다)
+./run-prod-test.sh -s ramp-limit-finder-rag -e MODE=cache-miss \
+  -e VU_LEVELS=5,10,20,35 -e LEVEL_DURATION=3m30s -e LEVEL_GAP=240
+
+# 4) 수집 (시나리오에 넘긴 값과 같아야 한다)
+VU_LEVELS=5,10,20,35 LEVEL_GAP=240 LEVEL_DURATION=210 TRANSIENT_SEC=60 \
+  python3 ../scripts/collect-rag-results.py <testid>
+
+# 5) 되돌리기 — 잊으면 이후 모든 런이 nopacing으로 돈다
+aws ecs update-service --cluster "${LT_MOCK_CLUSTER:-$LT_CLUSTER}" \
+  --service "${LT_MOCK_SERVICE:-llm-mock}" \
+  --task-definition newcodes-llm-mock --region ap-northeast-2
+```
+
+> ⚠️ **5번을 잊는 것이 이 절차의 가장 큰 위험이다.** `run-prod-test.sh`는 desired-count만
+> 되돌리고 task definition은 안 건드린다. 되돌리지 않으면 다음 용량 사다리가 조용히 nopacing으로
+> 돌아 "용량이 10배 늘었다"는 가짜 결과가 나온다. 런 직후 반드시 확인:
+> ```bash
+> aws ecs describe-services --cluster "${LT_MOCK_CLUSTER:-$LT_CLUSTER}" \
+>   --services "${LT_MOCK_SERVICE:-llm-mock}" --query 'services[0].taskDefinition' --output text
+> ```
+
+### 사다리·창 길이 주의
+
+기본값(VU 10/20/35/55, 레벨 7분, 간격 480초)은 **iteration 21초 기준**이다. nopacing에서는
+iteration이 약 1초라 그대로 쓰면 레벨당 완료가 수만 건이 되어 과잉이고 창도 낭비다.
+검색과 같은 210초/240초로 내리고, 과도구간도 `TRANSIENT_SEC=60`으로 줄인다
+(RAG의 120초는 전 VU가 21초에 첫 완료를 한꺼번에 쏟는 물결 때문인데, 1초면 그 물결이 없다).
+
+VU 상한을 35로 잡은 이유: 유입 제어 상한이 45라 그 위로 가면 429가 섞여 코어 한계 측정이 흐려진다.
+**35까지에서 무릎이 안 보이면** admin(`/admin/search/weights` 하단 RAG 섹션)에서 상한을 올린 뒤
+VU를 더 밀어야 한다 — nopacing은 W가 짧아 힙 여유가 크므로(L=100이어도 353MB) 안전하다.
+올린 상한은 런이 끝나면 45로 되돌릴 것.
+
+### 무엇을 보나
+
+기본 mock 런과 나란히 놓고 **`core-s/req`와 `blks/req`가 일치하는지**부터 본다 — 이 둘은
+시간 불변량이라(결과 문서 7.2) 두 모드에서 같아야 한다. 다르면 nopacing이 일까지 줄인 것이다.
+그 다음이 본론: DB CPU / appCPU가 어느 RPS에서 포화하는가. 결과 문서 10.7의 병목 순위표가
+3순위로 적어 둔 **"DB CPU (9.2 RPS)"는 유도 과정이 어디에도 없는 추정치**다 — 이 런이 그걸 실측한다.
+
+---
+
 ## mock 이미지 갱신(코드 수정 후)
 
 ```bash
