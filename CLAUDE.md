@@ -145,7 +145,12 @@ Clova Embedding v2 (1024차원), 2단계 검색:
 - 거절은 **로그를 남기지 않는다**. 관측은 메트릭으로:
   `rag_concurrency_requests_total{result=accepted|rejected}`, `rag_concurrency_in_use`,
   `rag_concurrency_limit`, `rag_concurrency_acquire_wait` (Grafana `small-town-rag-answer` 패널 17)
-- 근거 전문: `load-test/results/2026-08-27-rag-ladder.md` 5 · 10 · 11장
+- ⚠️ **이 상한은 DB를 지켜주지 않는다** — 동시성 상한이지 RPS 상한이 아니기 때문이다.
+  힙·Bedrock 풀은 동시성에 비례해 45가 지켜주지만, DB CPU는 RPS에 비례한다.
+  운영(스트림 약 21초)에서 동시 45 = 2.1 RPS라 DB 천장 10.3 RPS 대비 안전하지만,
+  **LLM이 빨라지면 같은 45가 DB를 넘긴다.** 런 4에서 리미터가 한 번도 안 걸린 채
+  동시 23에서 붕괴했다(RPS 10.34 → 0.60, DB CPU 1.94 → 0.62). 근거: 13.3
+- 근거 전문: `load-test/results/2026-08-27-rag-ladder.md` 5 · 10 · 11 · 13장
 
 > `/api/*`에서 던진 `ResponseStatusException`은 `RestApiExceptionHandler`의
 > `@ExceptionHandler(ResponseStatusException.class)`가 받는다. 이게 없으면 같은 클래스의
