@@ -2,20 +2,18 @@ package com.newcodes7.small_town.crawler.crawler;
 
 import static org.assertj.core.api.Assertions.*;
 
+import com.newcodes7.small_town.crawler.entity.ParsingSelector;
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.Corporation;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-
-import com.newcodes7.small_town.crawler.entity.ParsingSelector;
-import com.newcodes7.small_town.global.entity.Article;
-import com.newcodes7.small_town.global.entity.Corporation;
 
 /**
  * DefaultBlogArticleParser 단위 테스트
@@ -24,7 +22,7 @@ import com.newcodes7.small_town.global.entity.Corporation;
  * - parseArticlesFromPage: toss_blog.html 픽스처 + 인라인 HTML
  * - 날짜 포맷: yyyy.M.dd / yy.MM.dd / yyyy년 MM월 dd일 / ISO8601 / 영문(MMM d yyyy 등)
  * - 링크 파싱: 절대URL / 상대URL(baseUrl 결합) / devocean onclick 패턴
- * - 썸네일: toss 특수로직 / ktcloud CSS / nhncloud CSS / gangnamunni srcset / 기본 src
+ * - 썸네일: toss 특수로직 / ktcloud CSS / nhncloud CSS / gangnamunni srcset / 기본 src / CSS background-image 폴백
  * - 엣지 케이스: title/link 없음, publish=NONE, 잘못된 날짜 텍스트, 혼합 유효/무효 항목
  */
 public class DefaultBlogArticleParserTest {
@@ -647,6 +645,62 @@ public class DefaultBlogArticleParserTest {
             List<Article> articles = parser.parseArticlesFromPage(html, corporation("https://blog.gangnamunni.com"), sel);
 
             assertThat(articles.get(0).getThumbnailImage()).isEqualTo("https://gangnamunni.com/img.jpg 2x");
+        }
+
+        @Test
+        @DisplayName("img 없이 style background-image만 있는 a 태그 - URL 추출 후 절대경로로 해석")
+        void parseThumbnail_anchorBackgroundImage() {
+            String html = "<html><body><div class='post'>" +
+                    "<a class='thumb_img' href='/news/view?seq=453' " +
+                    "style=\"background-image: url(&quot;/data/upload/image/blog/V2-1_cf19cbaf1.png&quot;);\"><!----></a>" +
+                    "<a class='post-link' href='/news/view?seq=453'><span class='title'>제목</span></a>" +
+                    "<span class='date'>2024.01.01</span>" +
+                    "</div></body></html>";
+            ParsingSelector sel = selector("https://blog.example.com",
+                    "div.post", "span.title", "a.post-link", "a.thumb_img", "span.date", "yyyy.MM.dd");
+
+            List<Article> articles = parser.parseArticlesFromPage(html, corporation("https://blog.example.com"), sel);
+
+            assertThat(articles).hasSize(1);
+            assertThat(articles.get(0).getThumbnailImage())
+                    .isEqualTo("https://blog.example.com/data/upload/image/blog/V2-1_cf19cbaf1.png");
+        }
+
+        @Test
+        @DisplayName("background-image 절대 URL - 그대로 사용")
+        void parseThumbnail_backgroundImage_absoluteUrl() {
+            String html = thumbHtml("<div class='thumb' style=\"background-image:url('https://cdn.example.com/bg.png')\"></div>");
+            ParsingSelector sel = selector("https://blog.example.com",
+                    "div.post", "span.title", "a.post-link", "div.thumb", "span.date", "yyyy.MM.dd");
+
+            List<Article> articles = parser.parseArticlesFromPage(html, corporation("https://blog.example.com"), sel);
+
+            assertThat(articles.get(0).getThumbnailImage()).isEqualTo("https://cdn.example.com/bg.png");
+        }
+
+        @Test
+        @DisplayName("셀렉터가 감싼 요소를 가리켜도 자손의 background-image를 찾아냄")
+        void parseThumbnail_backgroundImage_onDescendant() {
+            String html = thumbHtml("<div class='thumb'><span style='background-image: url(https://cdn.example.com/inner.png)'></span></div>");
+            ParsingSelector sel = selector("https://blog.example.com",
+                    "div.post", "span.title", "a.post-link", "div.thumb", "span.date", "yyyy.MM.dd");
+
+            List<Article> articles = parser.parseArticlesFromPage(html, corporation("https://blog.example.com"), sel);
+
+            assertThat(articles.get(0).getThumbnailImage()).isEqualTo("https://cdn.example.com/inner.png");
+        }
+
+        @Test
+        @DisplayName("src가 있으면 background-image보다 src 우선")
+        void parseThumbnail_srcTakesPrecedenceOverBackground() {
+            String html = thumbHtml("<img class='thumb' src='https://example.com/real.jpg' "
+                    + "style=\"background-image:url('https://example.com/placeholder.png')\">");
+            ParsingSelector sel = selector("https://blog.example.com",
+                    "div.post", "span.title", "a.post-link", "img.thumb", "span.date", "yyyy.MM.dd");
+
+            List<Article> articles = parser.parseArticlesFromPage(html, corporation("https://blog.example.com"), sel);
+
+            assertThat(articles.get(0).getThumbnailImage()).isEqualTo("https://example.com/real.jpg");
         }
 
         @Test

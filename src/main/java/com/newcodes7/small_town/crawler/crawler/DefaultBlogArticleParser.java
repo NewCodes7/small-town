@@ -1,12 +1,16 @@
 package com.newcodes7.small_town.crawler.crawler;
 
+import com.newcodes7.small_town.crawler.entity.ParsingSelector;
+import com.newcodes7.small_town.global.entity.Article;
+import com.newcodes7.small_town.global.entity.Corporation;
+import com.newcodes7.small_town.global.util.TimeUtil;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
-import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
@@ -15,24 +19,22 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
+import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.jsoup.parser.Parser;
 import org.jsoup.select.Elements;
 import org.openqa.selenium.WebDriver;
 import org.springframework.stereotype.Component;
 
-import com.newcodes7.small_town.crawler.entity.ParsingSelector;
-import com.newcodes7.small_town.global.entity.Article;
-import com.newcodes7.small_town.global.entity.Corporation;
-import com.newcodes7.small_town.global.util.TimeUtil;
-
-import lombok.extern.slf4j.Slf4j;
-
 @Component
 @Slf4j
 public class DefaultBlogArticleParser {
+
+    /** CSS background-image의 url(...)에서 URL만 뽑는다. 따옴표(작은/큰)와 공백은 있어도 되고 없어도 된다. */
+    private static final Pattern CSS_URL_PATTERN =
+        Pattern.compile("url\\(\\s*['\"]?\\s*([^'\"()\\s]+)\\s*['\"]?\\s*\\)", Pattern.CASE_INSENSITIVE);
 
     public List<Article> parseArticlesFromPage(String pageSource, Corporation corporation, ParsingSelector selector) {
         return parseArticlesFromPage(pageSource, corporation, selector, null);
@@ -241,7 +243,32 @@ public class DefaultBlogArticleParser {
             return imgElement.attr("srcset");
         }
 
-        return imgElement.attr("src");
+        String src = imgElement.attr("src");
+        if (!src.isEmpty()) {
+            return src;
+        }
+
+        // src가 없으면 CSS 배경 이미지로 폴백한다.
+        // <a class="thumb_img" style="background-image: url(&quot;/data/x.png&quot;)"> 처럼
+        // img 태그 없이 배경으로만 썸네일을 넣는 블로그가 있다.
+        return extractBackgroundImageUrl(imgElement);
+    }
+
+    /** 셀렉터가 가리킨 요소 자신의 style을 먼저 보고, 없으면 자손 중 첫 배경 이미지를 쓴다. */
+    private String extractBackgroundImageUrl(Element element) {
+        String ownUrl = extractCssImgUrl(element.attr("style"));
+        if (ownUrl != null && !ownUrl.isEmpty()) {
+            return ownUrl;
+        }
+
+        for (Element descendant : element.select("[style]")) {
+            String url = extractCssImgUrl(descendant.attr("style"));
+            if (url != null && !url.isEmpty()) {
+                return url;
+            }
+        }
+
+        return null;
     }
 
     private LocalDateTime parsePublishedDateFromInnerPage(String articleUrl, WebDriver driver, ParsingSelector selector) {
@@ -593,9 +620,12 @@ public class DefaultBlogArticleParser {
     }
 
     private static String extractCssImgUrl(String cssBackgroundImage) {
-        Pattern pattern = Pattern.compile("url\\(['\"]?([^'\"\\)]+)['\"]?\\)");
-        Matcher matcher = pattern.matcher(cssBackgroundImage);
+        if (cssBackgroundImage == null || cssBackgroundImage.isEmpty()) {
+            return null;
+        }
 
+        // Jsoup이 파싱 단계에서 속성값을 디코딩하지만, 이중 인코딩된 &quot;가 남아 있는 소스도 있어 한 번 더 푼다
+        Matcher matcher = CSS_URL_PATTERN.matcher(Parser.unescapeEntities(cssBackgroundImage, true));
         if (matcher.find()) {
             return matcher.group(1);
         }
