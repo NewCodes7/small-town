@@ -675,7 +675,7 @@ arm C의 정확한 임계는 135~180 사이이며 **이분 탐색은 안 했다.
 | **retrieval 전체** | 399ms | 444 | 524 | **624ms** | **+56%** |
 | BM25 | 51ms | 60 | 68 | 75ms | +47% |
 | Vector | 271ms | 289 | 330 | 381ms | +41% |
-| 임베딩 | 8ms | 6 | 6 | **131ms** | 16× |
+| 임베딩 | (계측 안 됨 — 아래 (4)) | | | | |
 | NSF 리랭킹 | 0ms | 0 | 0 | 0ms | — |
 | 전처리(mock 상수) | 2,260ms | 2,212 | 2,273 | 2,274ms | +0.6% |
 
@@ -691,10 +691,39 @@ arm C의 정확한 임계는 135~180 사이이며 **이분 탐색은 안 했다.
 DB 열화가 사용자 체감에 잘 안 드러난다.** 반대로 말하면 이 여유는 LLM이 빨라지는 순간 사라진다
 (13.3이 지적한 것과 같은 구조).
 
-**(4) 임베딩 16배는 서버 열화로 귀속하면 안 된다.** mock이 Bedrock과 Clova를 한 Fargate
-태스크에서 같이 서빙하므로 동시 180 스트림 릴레이 중에는 mock 자체가 밀린다. 게다가
-`search_query_embedding_seconds`는 캐시 히트와 실제 호출을 함께 집계해(README 명시)
-분리가 안 된다. **미해결로 남긴다.**
+**(4) 🔴 임베딩 단계는 이 부하테스트에서 한 번도 계측된 적이 없다.**
+초판에서 "임베딩 8 → 131ms(16배)"라고 적었는데 **틀렸다.** 호출 수를 세어 보면:
+
+| VU180 창(420초) 증가분 | 값 |
+|---|---|
+| `rag_answer_seconds_count` | **3,392** |
+| `search_vector_seconds_count` | 3,274 |
+| `search_query_embedding_seconds_count` | **2.07** |
+
+**3,392건 중 2건**(0.06%)만 기록됐다. 그 2건은 실사용자 트래픽이거나 프리워밍 스케줄러가
+남긴 것이고, 부하테스트 요청은 하나도 안 잡혔다. 표본 2개짜리 평균을 16배 열화로 읽은 것이다.
+
+원인은 **`@Observed`가 붙은 오버로드를 부하테스트 경로가 타지 않는 것**이다:
+
+```java
+@Observed(name = "search.query-embedding")                       // ← 2-arg에만 붙어 있다
+public CachedEmbeddingResult getEmbeddingWithCacheInfo(String keyword, SearchLog searchLog) {
+    return getEmbeddingWithCacheInfo(keyword, searchLog, false);
+}
+
+public CachedEmbeddingResult getEmbeddingWithCacheInfo(          // ← 부하테스트는 이걸 직접 호출
+        String keyword, SearchLog searchLog, boolean useMockEmbedding) { ... }
+```
+
+`ArticleSearchService`가 `useMockEmbedding`을 넘기려고 3-arg를 직접 부르므로 2-arg를
+거치지 않는다. **CLAUDE.md가 서킷 브레이커에 대해 이미 경고한 것과 같은 함정이다**
+("2-arg → 3-arg self-invocation 구조라 프록시 AOP는 어느 쪽에 달아도 한쪽 경로가 뚫린다").
+브레이커는 메서드 본문에서 감싸 고쳤는데 `@Observed`는 같은 수정이 안 됐다.
+
+**영향 범위**: 임베딩 지연은 `search_vector_seconds`(271 → 381ms)와 `rag_retrieval_seconds`
+안에 **포함되어는 있다** — 분리만 안 될 뿐이다. 따라서 (1)~(3)의 결론은 유효하고,
+"임베딩이 얼마나 기여했는가"만 답할 수 없다. 고치려면 `@Observed`를 떼고 3-arg 본문에서
+Timer로 감싸면 된다(브레이커와 같은 처방).
 
 **(5) 🔴 사용자 검색 API는 이번 런에서 측정되지 않았다.**
 `search_concurrency_requests_total`이 전 레벨 **0건** — 테스트 창에 실사용자 검색 트래픽이
