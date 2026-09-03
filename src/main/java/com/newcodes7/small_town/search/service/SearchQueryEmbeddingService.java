@@ -6,7 +6,8 @@ import com.newcodes7.small_town.search.entity.SearchLog;
 import com.newcodes7.small_town.search.entity.SearchQueryEmbedding;
 import com.newcodes7.small_town.search.repository.SearchLogRepository;
 import com.newcodes7.small_town.search.repository.SearchQueryEmbeddingRepository;
-import io.micrometer.observation.annotation.Observed;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -27,6 +28,7 @@ public class SearchQueryEmbeddingService {
     @Qualifier("searchExecutor")
     private final ExecutorService searchExecutor;
     private final SearchLogRepository searchLogRepository;
+    private final ObservationRegistry observationRegistry;
 
     @Transactional(readOnly = true)
     public Optional<SearchQueryEmbedding> findByKeyword(String keyword) {
@@ -47,7 +49,6 @@ public class SearchQueryEmbeddingService {
         return getEmbeddingWithCacheInfo(keyword, searchLog).embedding;
     }
 
-    @Observed(name = "search.query-embedding", contextualName = "query-embedding")
     public CachedEmbeddingResult getEmbeddingWithCacheInfo(String keyword, SearchLog searchLog) {
         return getEmbeddingWithCacheInfo(keyword, searchLog, false);
     }
@@ -67,6 +68,26 @@ public class SearchQueryEmbeddingService {
      * cached.get().getSearchLog()의 지연로딩 접근도 세션이 살아있어 안전하다.
      */
     public CachedEmbeddingResult getEmbeddingWithCacheInfo(String keyword, SearchLog searchLog, boolean useMockEmbedding) {
+        Observation observation = Observation
+                .createNotStarted("search.query-embedding", observationRegistry)
+                .contextualName("query-embedding")
+                .lowCardinalityKeyValue("source", useMockEmbedding ? "loadtest" : "real");
+        observation.start();
+        try (Observation.Scope ignored = observation.openScope()) {
+            CachedEmbeddingResult result = doGetEmbeddingWithCacheInfo(keyword, searchLog, useMockEmbedding);
+            observation.lowCardinalityKeyValue("cache", result.getEmbedding() == null ? "empty"
+                    : (result.isCacheHit() ? "hit" : "miss"));
+            return result;
+        } catch (RuntimeException e) {
+            observation.error(e);
+            throw e;
+        } finally {
+            observation.stop();
+        }
+    }
+
+    private CachedEmbeddingResult doGetEmbeddingWithCacheInfo(
+            String keyword, SearchLog searchLog, boolean useMockEmbedding) {
         String normalized = normalizeKeyword(keyword);
         if (normalized.isEmpty()) {
             return CachedEmbeddingResult.empty();

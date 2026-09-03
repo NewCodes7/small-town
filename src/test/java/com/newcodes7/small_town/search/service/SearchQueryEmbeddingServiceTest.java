@@ -10,6 +10,7 @@ import com.newcodes7.small_town.search.entity.SearchQueryEmbedding;
 import com.newcodes7.small_town.search.repository.SearchLogRepository;
 import com.newcodes7.small_town.search.repository.SearchQueryEmbeddingRepository;
 import com.newcodes7.small_town.search.service.SearchQueryEmbeddingService.CachedEmbeddingResult;
+import io.micrometer.observation.ObservationRegistry;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -39,7 +40,8 @@ public class SearchQueryEmbeddingServiceTest {
     @BeforeEach
     void setUp() {
         searchExecutor = Executors.newSingleThreadExecutor();
-        service = new SearchQueryEmbeddingService(repository, embeddingApiService, searchExecutor, searchLogRepository);
+        service = new SearchQueryEmbeddingService(repository, embeddingApiService, searchExecutor, searchLogRepository,
+                ObservationRegistry.NOOP);
     }
 
     @AfterEach
