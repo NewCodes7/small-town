@@ -321,7 +321,8 @@ public class VectorSearchService {
             TwoStageRows parsed = parseTwoStageRows(results);
             return new VectorSearchResult(parsed.scores(), queryEmbedding,
                     cachedEmbedding.getEmbeddingMs(), queryMs, cachedEmbedding.isCacheHit(),
-                    cachedEmbedding.getCacheLookupMs(), parsed.candidateScores());
+                    cachedEmbedding.getCacheLookupMs(), parsed.candidateScores(),
+                    parsed.candidateArticles());
 
         } catch (Exception e) {
             log.error("RAG 벡터 검색 실패: {}", e.getMessage(), e);
@@ -355,7 +356,7 @@ public class VectorSearchService {
             long queryMs = System.currentTimeMillis() - queryStart;
 
             return new VectorSearchResult(parsed.scores(), queryEmbedding, embeddingMs, queryMs, cacheHit, cacheLookupMs,
-                    parsed.candidateScores());
+                    parsed.candidateScores(), parsed.candidateArticles());
 
         } catch (Exception e) {
             log.error("벡터 검색 실패: {}", e.getMessage(), e);
@@ -434,7 +435,9 @@ public class VectorSearchService {
             }
         }
 
-        return new TwoStageRows(scores, candidateScores);
+        // rows.size()는 threshold/topK로 걸러지기 전, Stage 1 후보 청크에 등장한 고유 아티클 수다
+        // (SQL이 article_id로 GROUP BY 하므로 행 수 = 고유 아티클 수).
+        return new TwoStageRows(scores, candidateScores, rows.size());
     }
 
     private Double toNullableDouble(Object value) {
@@ -465,8 +468,12 @@ public class VectorSearchService {
      * candidateScores는 threshold/limit로 잘려나간 아티클까지 포함한다 —
      * cross-scoring 보충 대상과 겹치는 만큼 DB 왕복을 없앨 수 있다
      * (docs/operations/PGSS_SEARCH_COST.md 항목 A).
+     *
+     * candidateArticles는 그보다 한 단계 더 앞이다 — 후보 청크가 topK 미만이라
+     * candidateScores에서도 빠진 아티클까지 포함한 <b>Stage 1 후보의 전체 폭</b>이다.
      */
-    private record TwoStageRows(Map<Long, Double> scores, Map<Long, Double> candidateScores) {
+    private record TwoStageRows(
+            Map<Long, Double> scores, Map<Long, Double> candidateScores, int candidateArticles) {
     }
 
     /**
@@ -480,10 +487,11 @@ public class VectorSearchService {
         private final boolean cacheHit;
         private final long cacheLookupMs;
         private final Map<Long, Double> candidateScores;
+        private final int candidateArticles;
 
         public VectorSearchResult(Map<Long, Double> scores, float[] queryEmbedding,
                                    long embeddingMs, long queryMs, boolean cacheHit, long cacheLookupMs,
-                                   Map<Long, Double> candidateScores) {
+                                   Map<Long, Double> candidateScores, int candidateArticles) {
             this.scores = scores;
             this.queryEmbedding = queryEmbedding;
             this.embeddingMs = embeddingMs;
@@ -492,15 +500,22 @@ public class VectorSearchService {
             this.cacheLookupMs = cacheLookupMs;
             // 결과 캐시(vectorSearchResults)에 담겨 스레드 간 공유되므로 불변으로 굳힌다
             this.candidateScores = candidateScores != null ? Map.copyOf(candidateScores) : Map.of();
+            this.candidateArticles = candidateArticles;
+        }
+
+        public VectorSearchResult(Map<Long, Double> scores, float[] queryEmbedding,
+                                   long embeddingMs, long queryMs, boolean cacheHit, long cacheLookupMs,
+                                   Map<Long, Double> candidateScores) {
+            this(scores, queryEmbedding, embeddingMs, queryMs, cacheHit, cacheLookupMs, candidateScores, 0);
         }
 
         public VectorSearchResult(Map<Long, Double> scores, float[] queryEmbedding,
                                    long embeddingMs, long queryMs, boolean cacheHit, long cacheLookupMs) {
-            this(scores, queryEmbedding, embeddingMs, queryMs, cacheHit, cacheLookupMs, Map.of());
+            this(scores, queryEmbedding, embeddingMs, queryMs, cacheHit, cacheLookupMs, Map.of(), 0);
         }
 
         public VectorSearchResult(Map<Long, Double> scores, float[] queryEmbedding) {
-            this(scores, queryEmbedding, 0, 0, false, 0, Map.of());
+            this(scores, queryEmbedding, 0, 0, false, 0, Map.of(), 0);
         }
 
         public Map<Long, Double> getScores() {
@@ -518,6 +533,20 @@ public class VectorSearchService {
          */
         public Map<Long, Double> getCandidateScores() {
             return candidateScores;
+        }
+
+        /**
+         * Stage 1 후보 청크에 등장한 <b>고유 아티클 수</b> (threshold/topK/limit 적용 전).
+         *
+         * <p>왜 별도로 노출하는가: {@code scores}가 적을 때 원인이 두 가지인데
+         * 이 값 없이는 구분이 안 된다 — (a) 후보는 넉넉했는데 임계값이 걸러냈다,
+         * (b) <b>후보 자체가 굶었다.</b> (b)는 기업 프리필터가 HNSW 후보 추출
+         * ({@code ORDER BY ... LIMIT candidateLimit}) <b>위에</b> 놓여 생긴다 —
+         * 필터가 걸러낸 만큼 후보를 못 채우는데, 그건 임계값을 낮춰도 회복되지 않는다.
+         * 두 원인은 대응이 정반대라(임계값 조정 vs {@code hnsw.iterative_scan}) 반드시 갈라야 한다.
+         */
+        public int getCandidateArticles() {
+            return candidateArticles;
         }
 
         public float[] getQueryEmbedding() {

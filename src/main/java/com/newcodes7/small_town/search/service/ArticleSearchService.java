@@ -1117,9 +1117,11 @@ public class ArticleSearchService {
         float[] queryEmbedding = null;
         String embeddingInfo = "n/a";
         long vectorQueryMs = -1;
+        int vectorCandidateArticles = -1;
         try {
             VectorSearchService.VectorSearchResult vsr = vectorFuture.get(5, TimeUnit.SECONDS);
             vectorResults.putAll(vsr.getScores());
+            vectorCandidateArticles = vsr.getCandidateArticles();
             queryEmbedding = vsr.getQueryEmbedding();
             embeddingInfo = vsr.isCacheHit()
                     ? String.format("hit(%dms)", vsr.getCacheLookupMs())
@@ -1193,11 +1195,22 @@ public class ArticleSearchService {
         // 검색은 이 로그가 있었는데도 안 봐서 벡터가 꺼진 채 5회를 측정했고(9.7 교훈 2항),
         // RAG는 아예 이 줄이 없었다. Vector가 (0개)면 임계값·mock 기동을 먼저 의심할 것.
         // 프리픽스를 [RAG검색]으로 둬 Grafana의 [검색] Loki 파서와 섞이지 않게 한다.
-        log.info("[RAG검색] keywords='{}' | mock={} threshold={} | BM25: {}개, Vector: {}개 "
-                        + "(embedding: {}, query: {}ms), 보충: BM25-only {}건/Vector-only {}건, "
-                        + "NSF: {}개 | 총: {}ms",
+        //
+        // corp / 후보 두 항목은 "기업 지목 질의에서 벡터 후보가 굶는가"를 운영에서 가르기 위한 축이다.
+        // 이게 없던 동안은 로그만으로 필터 걸린 요청과 안 걸린 요청을 구분할 수 없었고,
+        // Vector가 적을 때 임계값 탓인지 후보 고갈 탓인지도 갈리지 않았다.
+        // 필터가 HNSW 후보 추출(ORDER BY ... LIMIT candidateLimit) 위에 놓여 있어,
+        // 기업 청크가 코퍼스의 몇 %인지에 따라 후보가 굶는다 — 그래서 corp id를 그대로 찍는다
+        // (사후에 그 기업의 코퍼스 점유율과 대조해야 띠 안인지 밖인지 판정할 수 있다).
+        // 후보 < Vector 로 보이면 임계값이 아니라 후보 쪽을 의심할 것.
+        log.info("[RAG검색] keywords='{}' | mock={} threshold={} corp={}{} | BM25: {}개, "
+                        + "Vector: {}개 (후보 {}개, embedding: {}, query: {}ms), "
+                        + "보충: BM25-only {}건/Vector-only {}건, NSF: {}개 | 총: {}ms",
                 bm25Keywords, useMockEmbedding, vectorThreshold,
-                originalBm25Count, originalVectorCount, embeddingInfo, vectorQueryMs,
+                hasCorpFilter ? corporationIds.size() : 0,
+                hasCorpFilter ? corporationIds : "",
+                originalBm25Count, originalVectorCount, vectorCandidateArticles,
+                embeddingInfo, vectorQueryMs,
                 bm25OnlyIds.size(), vectorOnlyIds.size(),
                 nsfScores.size(), System.currentTimeMillis() - totalStartTime);
 
