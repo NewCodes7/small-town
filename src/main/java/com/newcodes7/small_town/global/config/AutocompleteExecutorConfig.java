@@ -12,20 +12,21 @@ import io.micrometer.context.ContextSnapshotFactory;
 /**
  * 자동완성 API를 위한 전용 ExecutorService 설정
  *
- * Virtual thread per task 방식 사용 (JDK 26):
- * - 스레드 생성 비용이 거의 없어 warm-up/풀링 불필요
- * - 실질 동시성 상한은 HikariCP 커넥션 풀에서 결정됨
- *
- * ContextExecutorService 래핑: 비동기 작업이 호출 스레드의 trace context를
- * 이어받아 같은 trace에 span이 연결되게 한다
+ * <p><b>⚠️ 가상 스레드 효과 측정용 대조군(arm C).</b> 태스크당 스레드 하나·상한 없음으로
+ * 가상 스레드 executor와 의미를 맞춘 플랫폼 스레드 구성. 측정 후 되돌린다.
+ * 근거: {@code load-test/results/2026-08-29-rag-virtual-thread-ab.md}
  */
 @Configuration
 public class AutocompleteExecutorConfig {
 
     @Bean(name = "autocompleteExecutor", destroyMethod = "close")
     public ExecutorService autocompleteExecutor() {
+        ExecutorService executor = Executors.newCachedThreadPool(r -> {
+            Thread t = new Thread(r, "autocomplete-worker-" + System.nanoTime());
+            t.setDaemon(true);
+            return t;
+        });
         ContextSnapshotFactory snapshotFactory = ContextSnapshotFactory.builder().build();
-        return ContextExecutorService.wrap(
-                Executors.newVirtualThreadPerTaskExecutor(), snapshotFactory::captureAll);
+        return ContextExecutorService.wrap(executor, snapshotFactory::captureAll);
     }
 }
