@@ -722,8 +722,22 @@ public CachedEmbeddingResult getEmbeddingWithCacheInfo(          // ← 부하�
 
 **영향 범위**: 임베딩 지연은 `search_vector_seconds`(271 → 381ms)와 `rag_retrieval_seconds`
 안에 **포함되어는 있다** — 분리만 안 될 뿐이다. 따라서 (1)~(3)의 결론은 유효하고,
-"임베딩이 얼마나 기여했는가"만 답할 수 없다. 고치려면 `@Observed`를 떼고 3-arg 본문에서
-Timer로 감싸면 된다(브레이커와 같은 처방).
+"임베딩이 얼마나 기여했는가"만 답할 수 없다. **조치 완료** (커밋 `cea0fe41`, 2026-09-04). `@Observed`를 떼고 3-arg 본문에서 `Observation`으로
+감쌌다 — `contextualName`을 유지해 Tempo 트레이스 패널(`search-api-trace.json`이 쓰는
+`query-embedding` span)이 그대로 동작한다. 라벨 두 개를 덧붙였다:
+`source=real|loadtest`, `cache=hit|miss|empty`.
+
+검증 스모크(VU2 × 3분) 결과 — 수정 전 `loadtest` 시계열은 **존재하지 않았다**:
+
+| 라벨 | count | 평균 |
+|---|---|---|
+| `source=loadtest, cache=miss` | **18** | **173.3 ms** |
+| `source=real, cache=hit` | 54 | — |
+| `source=real, cache=miss` | 2 | — |
+
+173.3ms는 mock 설정값(150 × exp(0.3²/2) ≈ 157ms)에 HTTP 오버헤드를 더한 값과 일치한다.
+덤으로 README가 "캐시 미스만 분리하는 라벨이 추가되면 재보정할 것"이라 적어 둔 항목의
+**차단 요인이 해소됐다**(남은 것은 실경로 표본 축적뿐).
 
 **(5) 🔴 사용자 검색 API는 이번 런에서 측정되지 않았다.**
 `search_concurrency_requests_total`이 전 레벨 **0건** — 테스트 창에 실사용자 검색 트래픽이

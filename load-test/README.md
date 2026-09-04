@@ -75,7 +75,18 @@ mock 경로(`/api/rag/answer/loadtest`)는 앱 시간당 rate limit이 없으므
 
 PREPROCESS/TTFT/TOKEN_INTERVAL/ANSWER_TOKENS 기본값은 **2026-08-01 Grafana `small-town-rag-answer` 대시보드**(Prometheus `rag_preprocess_seconds`, `rag_answer_llm_ttfb_seconds`, `rag_answer_llm_chunk_gap_seconds`, `rag_answer_llm_chunk_gap_seconds_count`)의 실측치로 캘리브레이션했다. 단 트래픽이 적어 표본이 요청 12건(청크 4921~4933개)뿐이라 신뢰구간이 넓다 — 트래픽이 쌓이면 같은 방식으로 재캘리브레이션할 것. `BedrockHandlers`의 청크 크기(`CHUNK_BYTES_MEDIAN`/`CHUNK_BYTES_SIGMA`)도 `rag_answer_llm_chunk_size_bytes` 실측(median 5.7B / mean 7.86B)에 맞춰 가변 크기로 바꿨다 — 실제 스트리밍처럼 청크마다 크기가 들쭉날쭉하다.
 
-`MOCK_EMBED_MEDIAN_MS`/`SIGMA`는 미보정이다: 유일한 후보 메트릭 `search_query_embedding_seconds`가 캐시 히트(즉시 반환)와 실제 Clova 호출을 함께 집계해 평균이 실제 API 레이턴시보다 낮게 나온다 — 캐시 미스만 분리하는 라벨/메트릭이 추가되면 재보정할 것.
+`MOCK_EMBED_MEDIAN_MS`/`SIGMA`는 **아직 미보정이지만, 막혀 있던 이유는 2026-09-04에 해소됐다.**
+
+원래 문제는 `search_query_embedding_seconds`가 캐시 히트(즉시 반환)와 실제 Clova 호출을 함께 집계해 평균이 실제 API 레이턴시보다 낮게 나온다는 것이었다. 커밋 `cea0fe41`에서 이 지표에 **`cache=hit|miss|empty`와 `source=real|loadtest` 라벨을 붙였다.** 이제 다음 쿼리로 실제 Clova 호출만 뽑을 수 있다:
+
+```promql
+sum(rate(search_query_embedding_seconds_sum{source="real",cache="miss"}[30d]))
+  / sum(rate(search_query_embedding_seconds_count{source="real",cache="miss"}[30d]))
+```
+
+같은 커밋에서 **부하테스트 경로의 계측 공백도 함께 고쳤다** — `@Observed`가 2-arg 오버로드에만 붙어 있었고 부하테스트는 3-arg를 직접 호출해서, 이 지표에 부하테스트 요청이 **한 건도 안 잡히고 있었다**(2026-09-03 실측: 요청 3,392건 중 2건). 검증 스모크에서 `source="loadtest",cache="miss"` 평균 **173.3ms**가 나왔고, 이는 mock 설정값(150 × exp(0.3²/2) ≈ 157ms)에 HTTP 오버헤드를 더한 값과 일치한다.
+
+**남은 것은 트래픽 축적뿐이다** — 실경로 캐시 미스 표본이 아직 2건이다(실경로 RAG 트래픽 하루 1~2건). 12장이 지적한 대로 이건 노력이 아니라 시간에 막힌 항목이므로 다른 작업의 선행조건으로 두지 말 것.
 
 > ⚠️ **재캘리브레이션은 반드시 `source="real"`로 필터할 것 — 안 그러면 mock을 mock 자기 값으로 보정하게 된다.**
 > mock 부하테스트가 만든 표본이 같은 시계열에 쌓이기 때문이다. 2026-08-28 실측(30일 창):
