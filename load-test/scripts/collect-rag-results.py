@@ -135,6 +135,14 @@ def collect(testid):
             end))
         rps = (steady_done / steady_win) if steady_done else None
 
+        # 정상상태 실패 — RPS와 같은 창에서 잡는다. 레벨 전체 카운트를 쓰면 분자(실패)는 전환
+        # 버스트를 포함하고 분모(RPS)는 안 포함해 오류율이 일관되지 않는다. 실제로 20260905-013253에서
+        # VU90의 실패 6건이 전부 레벨 시작 47초 안에 났고 그 뒤 6분간 0이었다 — 레벨 전체로 재면
+        # 0.35%(게이트 탈락)지만 정상상태로 재면 0%다. 판정이 뒤집히므로 창을 맞춰야 한다.
+        steady_bad = val(instant(
+            f'sum(increase(k6_sse_terminal_total_total{sel[:-1]},'
+            f'terminal!~"done|http_429"}}[{steady_win}s]))', end), 0.0)
+
         # --- 지연 (k6가 누적 계산해 보낸 분위수의 레벨 종료 시점 값) ---
         # last_over_time을 쓰는 근거는 검색과 동일: k6 PRW의 trend sink는 시계열별로 레벨 시작부터
         # 누적이라 종료 시점 값이 곧 그 레벨 전체의 분위수다. avg_over_time은 수렴 전 구간을 섞어
@@ -151,6 +159,10 @@ def collect(testid):
         ft99 = q("k6_sse_first_token", "p99")
         sd50, sd95 = q("k6_sse_stream_duration", "p50"), q("k6_sse_stream_duration", "p95")
         ttfb95 = q("k6_sse_ttfb", "p95")
+        # TTFB p99도 뽑는다. TTFB는 유입 제어 + 전처리 + retrieval, 즉 **우리가 통제하는 구간**만
+        # 담고 LLM을 안 담는다. 14.9 실측에서 TTFT p99가 VU105에서 1.27배로 깨질 때 TTFB p99는
+        # 1.03배로 평평했다 — 판정 지표(TTFT) 하나만 보면 "무엇이 밀렸는지"를 못 가른다.
+        ttfb99 = q("k6_sse_ttfb", "p99")
 
         # --- 서버측 (collect-results.py와 같은 쿼리) ---
         at = end
@@ -202,8 +214,10 @@ def collect(testid):
 
         rows.append(dict(
             level=lv, done=done, notfound=notfound, bad=bad, shed=shed, rps=rps,
+            steady_done=steady_done, steady_bad=steady_bad,
             rej=rej, acc=acc, lim=lim, inuse=inuse, strm=strm, pool=pool,
-            ft50=ft50, ft95=ft95, ft99=ft99, sd50=sd50, sd95=sd95, ttfb95=ttfb95,
+            ft50=ft50, ft95=ft95, ft99=ft99, sd50=sd50, sd95=sd95,
+            ttfb95=ttfb95, ttfb99=ttfb99,
             dbcpu=dbcpu, dbus=dbus, iowait=iow, appcpu=appcpu,
             csr=(dbcpu * LEVEL_DURATION / done if dbcpu and done else None),
             blks_req=(blks * LEVEL_DURATION / done if blks and done else None),
@@ -290,12 +304,13 @@ for testid in sys.argv[1:]:
     base = all_rows[0] if all_rows else None
     if base and base["ft95"] and base["ft99"]:
         print(f"\n      판정 — 기준선 VU{base['level']} 대비 (p95·p99 모두 ≤120%, 오류율 ≤0.1%)")
-        print("      {:<5}{:>9}{:>9}{:>10}{:>9}  {}".format(
-            "lvl", "p95배", "p99배", "오류율", "connTO", "판정"))
+        print("      {:<5}{:>9}{:>9}{:>10}{:>12}{:>9}  {}".format(
+            "lvl", "p95배", "p99배", "TTFB99배", "오류율(정상)", "전환실패", "판정"))
         for r in all_rows:
-            done = r["done"] or 0
-            fails = (r["bad"] or 0) + (r["notfound"] or 0)
-            err = (fails / (done + fails)) if (done + fails) else None
+            sd, sb = r["steady_done"] or 0, r["steady_bad"] or 0
+            err = (sb / (sd + sb)) if (sd + sb) else None
+            # 전환 버스트분 = 레벨 전체 실패 - 정상상태 실패. 게이트에는 안 넣지만 표에 보여준다.
+            burst = ((r["bad"] or 0) + (r["notfound"] or 0)) - sb
             r95 = r["ft95"] / base["ft95"] if r["ft95"] else None
             r99 = r["ft99"] / base["ft99"] if r["ft99"] else None
             gates = []
@@ -309,21 +324,35 @@ for testid in sys.argv[1:]:
                 if err is not None and err > 0.001:
                     gates.append("오류율")
                 verdict = "✓ 통과" if not gates else "✗ " + "·".join(gates)
-            print("      {:<5}{:>9}{:>9}{:>10}{:>9}  {}".format(
+            rb99 = (r["ttfb99"] / base["ttfb99"]
+                    if r["ttfb99"] and base["ttfb99"] else None)
+            print("      {:<5}{:>9}{:>9}{:>10}{:>12}{:>9}  {}".format(
                 r["level"],
                 f(r95, 2) if r95 else "-",
                 f(r99, 2) if r99 else "-",
+                f(rb99, 2) if rb99 else "-",
                 f"{err*100:.2f}%" if err is not None else "-",
-                f(r["conn_to"], 0),
+                f"{burst:.0f}",
                 verdict))
         ok = [r["level"] for r in all_rows
               if r["ft95"] and r["ft99"]
               and r["ft95"] / base["ft95"] <= 1.20 and r["ft99"] / base["ft99"] <= 1.20
-              and ((r["bad"] or 0) + (r["notfound"] or 0))
-              / max(1, (r["done"] or 0) + (r["bad"] or 0) + (r["notfound"] or 0)) <= 0.001]
+              and (r["steady_bad"] or 0)
+              / max(1, (r["steady_done"] or 0) + (r["steady_bad"] or 0)) <= 0.001]
         if ok:
-            print(f"      → 전 게이트 통과 최고 레벨 = VU{max(ok)}")
-            print("      → 상한은 min(이 값, 108). 108은 blue/green 전환 중 두 JVM이 동시에 떠")
-            print("        DB·Bedrock 풀이 2L을 받는 제약(2L/W ≤ DB 천장 10.3 RPS)에서 나온다.")
+            top = max(ok)
+            print(f"      → 전 게이트 통과 최고 레벨 = VU{top}")
+            # DB 여유는 그 레벨 자신의 수치로 외삽한다. 천장을 10.3 RPS로 고정 인용하면 안 된다 —
+            # 그건 2026-08-29 런 4 시점의 인덱스 상태(mut 34) 기준이고, 요청당 DB 비용은
+            # bm25_index_docs_mutable에 따라 움직인다(2026-08-19 문서: mutable 15행 = +12% DB CPU/req).
+            tr = next(r for r in all_rows if r["level"] == top)
+            if tr["dbcpu"] and tr["rps"]:
+                ceil_rps = tr["rps"] * 2.0 / tr["dbcpu"]
+                print(f"      → 이 레벨 DB CPU {tr['dbcpu']:.2f}/2.0 @ {tr['rps']:.2f} RPS "
+                      f"→ 오늘 인덱스 상태(mut {tr['segmut']:.0f})에서 DB 천장 외삽 "
+                      f"{ceil_rps:.1f} RPS (여유 {tr['dbcpu']/2.0*100:.0f}% 사용 중)")
+            print("      → blue/green 전환은 DB를 2배로 만들지 않는다: DB 작업(retrieval 약 0.4초)은")
+            print("        요청 앞쪽에서 끝나고 드레인 중인 스트림은 DB를 거의 안 쓴다. 전환 시 2배가")
+            print("        되는 건 호스트 메모리(JVM 2개)이고 힙·Bedrock 풀은 JVM별이라 무관하다.")
         else:
             print("      → 전 게이트를 통과한 레벨 없음")
