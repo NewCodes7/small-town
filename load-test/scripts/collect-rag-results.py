@@ -145,6 +145,10 @@ def collect(testid):
                 f"max(last_over_time({metric}_{stat}{sel}[300s]))*1000", end + 40))
 
         ft50, ft95 = q("k6_sse_first_token", "p50"), q("k6_sse_first_token", "p95")
+        # p99도 뽑는다. 2026-08-29 문서 9.3-1이 "p95만 인용하면 체리피킹"이라고 지적했고,
+        # 13장에서 실제로 p95는 전 레벨 평평(0.94~1.09배)한데 p99가 VU135에서 1.29배로
+        # 120%선을 넘는 것이 확인됐다 — 무릎은 p95가 아니라 p99에만 보인다.
+        ft99 = q("k6_sse_first_token", "p99")
         sd50, sd95 = q("k6_sse_stream_duration", "p50"), q("k6_sse_stream_duration", "p95")
         ttfb95 = q("k6_sse_ttfb", "p95")
 
@@ -161,6 +165,20 @@ def collect(testid):
                 f"/sum(rate(hikaricp_connections_acquire_seconds_count[{win}]))")
         pend = g(f"max(max_over_time(hikaricp_connections_pending[{win}]))")
         act = g(f"max(max_over_time(hikaricp_connections_active[{win}]))")
+        # 획득 *대기*(acq)와 달리 이건 3초(connection-timeout) 안에 커넥션을 못 받아 **실패한** 요청이다.
+        # 어느 문서에도 기록된 적이 없었다 — acq만 보면 "느려졌다"로 읽히지만 실제로는 요청이 죽는다.
+        #
+        # ⚠ 이 지표만 창을 LEVEL_GAP으로 잡는다. 다른 지표와 달리 타임아웃은 정상상태가 아니라
+        # **레벨 전환 순간에 몰린다** — constant-vus가 위상을 맞춰 한꺼번에 올라오면서 풀 5개를
+        # 순간적으로 고갈시키기 때문이다. 20260903-125758 실측에서 0→3 점프가 15초 안에 끝나고
+        # 그 뒤 7분간 증가가 0이었다. LEVEL_DURATION 창을 레벨 끝에서 평가하면(find_t0가 SSE 특성상
+        # 최대 한 iteration 늦게 앵커를 잡으므로) 이 점프가 창 밖으로 밀려 **0으로 보인다.**
+        # LEVEL_GAP 창은 [start-드레인, end]를 덮어 전환 버스트를 그 전환을 일으킨 레벨에 귀속시킨다.
+        cto = g(f"sum(increase(hikaricp_connections_timeout_total[{LEVEL_GAP}s]))")
+        # 정상상태분 — 전환 버스트를 뺀 나머지. cto와 이 값이 같으면 부하에 비례한 고갈이고,
+        # 이 값이 0인데 cto가 크면 전환 전용 전이현상이다 (해석이 완전히 다르다).
+        cto_steady = g(
+            f"sum(increase(hikaricp_connections_timeout_total[{LEVEL_DURATION - TRANSIENT}s]))")
         blks = g(f"rate(pg_stat_database_blks_hit{{{DBN}}}[{win}])"
                  f"+rate(pg_stat_database_blks_read{{{DBN}}}[{win}])")
         segs = g("max(last_over_time(bm25_index_segments[30m]))")
@@ -185,11 +203,12 @@ def collect(testid):
         rows.append(dict(
             level=lv, done=done, notfound=notfound, bad=bad, shed=shed, rps=rps,
             rej=rej, acc=acc, lim=lim, inuse=inuse, strm=strm, pool=pool,
-            ft50=ft50, ft95=ft95, sd50=sd50, sd95=sd95, ttfb95=ttfb95,
+            ft50=ft50, ft95=ft95, ft99=ft99, sd50=sd50, sd95=sd95, ttfb95=ttfb95,
             dbcpu=dbcpu, dbus=dbus, iowait=iow, appcpu=appcpu,
             csr=(dbcpu * LEVEL_DURATION / done if dbcpu and done else None),
             blks_req=(blks * LEVEL_DURATION / done if blks and done else None),
-            hold=hold, acq=acq, pend=pend, active=act, segs=segs, segmut=segmut,
+            hold=hold, acq=acq, pend=pend, active=act, conn_to=cto, conn_to_steady=cto_steady,
+            segs=segs, segmut=segmut,
             cached=cached, pre_ratio=(pre / done if pre and done else None),
             term=term, start=start, end=end))
     return rows
@@ -207,21 +226,24 @@ for testid in sys.argv[1:]:
     print(f"\n===== testid = {testid} =====")
     print(f"      사다리 {LEVELS}  레벨 {LEVEL_DURATION}s / 간격 {LEVEL_GAP}s / 과도구간 {TRANSIENT}s")
 
-    hdr = ("lvl", "done", "RPS", "bad", "shed", "ttfb95", "ft50", "ft95", "sd50", "sd95",
+    hdr = ("lvl", "done", "RPS", "bad", "shed", "ttfb95", "ft50", "ft95", "ft99", "sd50", "sd95",
            "DBcpu", "usr+sys", "iowait", "appCPU", "core-s/req", "blks/req",
-           "segs", "mut", "hold_s", "acq_s", "pend", "act")
-    fmt = ("{:<4}{:>7}{:>7}{:>5}{:>7}{:>8}{:>8}{:>8}{:>8}{:>8}{:>8}{:>9}{:>8}{:>8}"
-           "{:>12}{:>10}{:>6}{:>5}{:>8}{:>8}{:>6}{:>5}")
+           "segs", "mut", "hold_s", "acq_s", "pend", "act", "connTO")
+    fmt = ("{:<4}{:>7}{:>7}{:>5}{:>7}{:>8}{:>8}{:>8}{:>8}{:>8}{:>8}{:>8}{:>9}{:>8}{:>8}"
+           "{:>12}{:>10}{:>6}{:>5}{:>8}{:>8}{:>6}{:>5}{:>8}")
     print(fmt.format(*hdr))
 
-    for r in collect(testid):
+    all_rows = collect(testid)
+    for r in all_rows:
         print(fmt.format(
             r["level"], f"{r['done']:.0f}", f(r["rps"], 2), f"{r['bad']:.0f}",
             f"{r['shed']:.0f}",
-            f(r["ttfb95"], 0), f(r["ft50"], 0), f(r["ft95"], 0), f(r["sd50"], 0), f(r["sd95"], 0),
+            f(r["ttfb95"], 0), f(r["ft50"], 0), f(r["ft95"], 0), f(r["ft99"], 0),
+            f(r["sd50"], 0), f(r["sd95"], 0),
             f(r["dbcpu"]), f(r["dbus"]), f(r["iowait"]), f(r["appcpu"]),
             f(r["csr"]), f(r["blks_req"], 0), f(r["segs"], 0), f(r["segmut"], 0),
-            f(r["hold"]), f(r["acq"], 4), f(r["pend"], 0), f(r["active"], 0)))
+            f(r["hold"]), f(r["acq"], 4), f(r["pend"], 0), f(r["active"], 0),
+            f(r["conn_to"], 0)))
         print(f"      창 {utc(r['start'])}~{utc(r['end'])} UTC   종료사유 {r['term']}")
         print(f"      유입제어  통과 {f(r['acc'], 0)} / 거절 {f(r['rej'], 0)}"
               f"   상한 {f(r['lim'], 0)}   in_use max {f(r['inuse'], 0)}"
@@ -248,8 +270,60 @@ for testid in sys.argv[1:]:
         if r["lim"] and r["level"] > r["lim"] and not r["shed"]:
             warn.append(f"VU {r['level']} > 상한 {r['lim']:.0f}인데 429가 0건 — 리미터가 안 걸렸다 "
                         f"(bypass 토큰 경로/배포 확인)")
+        if r["conn_to"]:
+            st = r["conn_to_steady"] or 0
+            kind = ("정상상태에서도 발생 — 부하에 비례한 풀 고갈"
+                    if st > 0.5 else "전부 레벨 전환 버스트 — 정상상태 증가는 0")
+            warn.append(f"HikariCP 획득 타임아웃 {r['conn_to']:.0f}건"
+                        f"(정상상태 {st:.0f}건) — {kind}. 커넥션을 못 받아 실패한 요청이다"
+                        f"(풀 5개 경합). acq(대기)만 보면 안 보인다")
         if r["bad"] and r["shed"]:
             warn.append(f"429 {r['shed']:.0f}건과 별개로 실패 {r['bad']:.0f}건 — 셰딩이 붕괴를 "
                         f"다 막지는 못했다. 종료사유 분포를 볼 것")
         for w in warn:
             print(f"      ⚠ {w}")
+
+    # ---- 사전 등록 판정 (2026-08-29 문서 13장) ----
+    # SLA는 "무부하 대비 120%"이고 분모는 **같은 런의 최저 레벨**이다 (2026-08-27 3.1장 —
+    # 20.3시간 전 값은 배경 조건이 다르다). 그래서 사다리에 기준선 레벨이 없으면 판정 자체가
+    # 불가능하다 — 10장 이분 탐색(VU150/165)이 정확히 그래서 배수를 못 냈다.
+    base = all_rows[0] if all_rows else None
+    if base and base["ft95"] and base["ft99"]:
+        print(f"\n      판정 — 기준선 VU{base['level']} 대비 (p95·p99 모두 ≤120%, 오류율 ≤0.1%)")
+        print("      {:<5}{:>9}{:>9}{:>10}{:>9}  {}".format(
+            "lvl", "p95배", "p99배", "오류율", "connTO", "판정"))
+        for r in all_rows:
+            done = r["done"] or 0
+            fails = (r["bad"] or 0) + (r["notfound"] or 0)
+            err = (fails / (done + fails)) if (done + fails) else None
+            r95 = r["ft95"] / base["ft95"] if r["ft95"] else None
+            r99 = r["ft99"] / base["ft99"] if r["ft99"] else None
+            gates = []
+            if r95 is None or r99 is None:
+                verdict = "판정불가(지연 결측)"
+            else:
+                if r95 > 1.20:
+                    gates.append("p95")
+                if r99 > 1.20:
+                    gates.append("p99")
+                if err is not None and err > 0.001:
+                    gates.append("오류율")
+                verdict = "✓ 통과" if not gates else "✗ " + "·".join(gates)
+            print("      {:<5}{:>9}{:>9}{:>10}{:>9}  {}".format(
+                r["level"],
+                f(r95, 2) if r95 else "-",
+                f(r99, 2) if r99 else "-",
+                f"{err*100:.2f}%" if err is not None else "-",
+                f(r["conn_to"], 0),
+                verdict))
+        ok = [r["level"] for r in all_rows
+              if r["ft95"] and r["ft99"]
+              and r["ft95"] / base["ft95"] <= 1.20 and r["ft99"] / base["ft99"] <= 1.20
+              and ((r["bad"] or 0) + (r["notfound"] or 0))
+              / max(1, (r["done"] or 0) + (r["bad"] or 0) + (r["notfound"] or 0)) <= 0.001]
+        if ok:
+            print(f"      → 전 게이트 통과 최고 레벨 = VU{max(ok)}")
+            print("      → 상한은 min(이 값, 108). 108은 blue/green 전환 중 두 JVM이 동시에 떠")
+            print("        DB·Bedrock 풀이 2L을 받는 제약(2L/W ≤ DB 천장 10.3 RPS)에서 나온다.")
+        else:
+            print("      → 전 게이트를 통과한 레벨 없음")
