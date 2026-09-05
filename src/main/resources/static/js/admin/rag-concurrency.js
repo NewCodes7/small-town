@@ -11,8 +11,8 @@
     const inUseLabel = document.getElementById('ragInUse');
     const saveBtn = document.getElementById('saveRagConcurrencyBtn');
 
-    // 이 값을 넘기면 Bedrock async 풀(50)이 큐잉을 시작한다 — 근거는 RagConcurrencyLimiter Javadoc.
-    const POOL_SAFE_MAX = 45;
+    // 이 값을 넘기면 Bedrock async 풀(120)이 큐잉을 시작한다 — 근거는 RagConcurrencyLimiter Javadoc.
+    const POOL_SAFE_MAX = 90;
 
     if (!maxConcurrentInput || !saveBtn) {
         return;
@@ -56,14 +56,16 @@
             showAlert('warning', 'permit 대기 상한은 0 이상의 정수여야 합니다.');
             return;
         }
-        // 45를 넘기면 Bedrock async 풀(bedrock.async-max-concurrency=50)에 닿기 시작한다.
-        // 막지는 않되(부하테스트에서 의도적으로 올릴 수 있어야 한다) 확인은 받는다 —
-        // 풀을 넘긴 초과분은 429가 아니라 조용한 대기가 되고, 힙도 스트림당 1.87MB씩 늘어난다.
+        // 90을 넘기면 first_token p99가 무부하 대비 120%(SLA)를 넘기 시작하고, 120을 넘기면
+        // Bedrock async 풀(bedrock.async-max-concurrency=120)에도 닿는다.
+        // 막지는 않되(부하테스트에서 의도적으로 올릴 수 있어야 한다) 확인은 받는다.
         if (payload.maxConcurrent > POOL_SAFE_MAX
             && !window.confirm(
-                `상한 ${payload.maxConcurrent}은(는) Bedrock async 풀 50에 근접하거나 넘습니다.\n`
-                + '풀을 넘긴 초과분은 429가 아니라 조용한 대기가 되고, 힙도 스트림당 1.87MB씩 늘어납니다.\n'
-                + '(힙 예산: 166MB + N x 1.87MB, heap max 512MB)\n\n계속할까요?')) {
+                `상한 ${payload.maxConcurrent}은(는) 실측 무릎 90을 넘습니다.\n`
+                + '실측: VU90에서 first_token p99가 무부하 대비 1.09배(통과), VU105에서 1.27배(SLA 초과).\n'
+                + 'p95는 VU120까지 평평(1.07배)하니 p95만 보고 판단하지 마세요.\n'
+                + '120을 넘기면 Bedrock async 풀에도 닿아 초과분이 429가 아니라 조용한 대기가 됩니다.\n'
+                + '(힙 예산: 166MB + N x 1.31MB, heap max 512MB)\n\n계속할까요?')) {
             return;
         }
 

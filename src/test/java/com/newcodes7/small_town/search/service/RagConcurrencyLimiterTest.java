@@ -20,7 +20,7 @@ import org.mockito.ArgumentCaptor;
  *
  * <p>세마포어·resize 같은 공통 본체는 {@code ConcurrencyLimiter}에 있고
  * {@link SearchConcurrencyLimiterTest}가 그쪽을 이미 덮는다. 여기서는 <b>RAG에만 있는 것</b>을 본다 —
- * 스코프 이름(SEARCH 행을 잘못 읽으면 상한 15로 돌게 된다), 메트릭 접두사, 기본값 45/300.
+ * 스코프 이름(SEARCH 행을 잘못 읽으면 상한 15로 돌게 된다), 메트릭 접두사, 기본값 90/300.
  */
 class RagConcurrencyLimiterTest {
 
@@ -58,11 +58,12 @@ class RagConcurrencyLimiterTest {
     }
 
     @Test
-    @DisplayName("DB에 설정이 없으면 기본값 45 / 300ms로 동작한다")
+    @DisplayName("DB에 설정이 없으면 기본값 90 / 300ms로 동작한다")
     void DB에_설정이_없으면_기본값으로_동작한다() {
         RagConcurrencyLimiter limiter = limiterWith(null, null);
 
-        assertThat(limiter.getLimits().maxConcurrent()).isEqualTo(45);
+        // 90의 근거는 RagConcurrencyLimiter Javadoc / 2026-08-29 문서 14장 (p99 무릎).
+        assertThat(limiter.getLimits().maxConcurrent()).isEqualTo(90);
         assertThat(limiter.getLimits().acquireTimeoutMs()).isEqualTo(300);
     }
 
@@ -76,7 +77,7 @@ class RagConcurrencyLimiterTest {
         RagConcurrencyLimiter limiter = new RagConcurrencyLimiter(repository, registry);
         limiter.init();
 
-        assertThat(limiter.getLimits().maxConcurrent()).isEqualTo(45);
+        assertThat(limiter.getLimits().maxConcurrent()).isEqualTo(90);
         assertThat(limiter.tryAcquire()).isTrue();
         limiter.release();
     }

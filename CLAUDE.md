@@ -69,7 +69,7 @@ com.newcodes7.small_town/
 
 - **운영**: PostgreSQL + pgvector + ParadeDB(pg_search)
 - **테스트**: PostgreSQL `small_town_test` (H2 미사용, `create-drop`)
-- **마이그레이션**: Flyway (`src/main/resources/db/migration/`), 현재 최신 버전 V1_40
+- **마이그레이션**: Flyway (`src/main/resources/db/migration/`), 현재 최신 버전 V1_41
 
 > **V1_13 주의**: `V1_13__create_hacker_news_tables.sql`과 `V1_13_1__drop_article_legacy_embedding_columns.sql` — Flyway가 어느 쪽을 적용했는지 확인 필요할 때는 DB `flyway_schema_history` 조회.
 > `article_search_view` Materialized View는 V1_15에서 삭제됨 — 구 코드에서 참조하면 오류, `article_analyzed_content` 테이블로 교체.
@@ -128,14 +128,32 @@ Clova Embedding v2 (1024차원), 2단계 검색:
 
 - 적용 지점: `RagChatController`(`/api/rag/answer`) / `RagChatLoadTestController`(`/api/rag/answer/loadtest`)
   **둘 다** — 부하테스트가 실제 경로를 재현해야 하기 때문
-- 한도: `search_concurrency_config` 테이블의 `scope_name='RAG'` 행 (V1_40, admin `/admin/search/weights` 하단),
-  DB 로드 실패 시 기본값(45 / 300ms)으로 폴백
-- **왜 45인가**: (1) 실측으로 SLA를 지킨 최고 동시성이 VU45다(런2/런3/런5/10.5에서 2.05/2.04/2.02/2.04 RPS로
-  4회 재현, 붕괴는 VU70). (2) Bedrock async 풀(`bedrock.async-max-concurrency=50`)보다 낮아야
-  초과분이 "풀 앞의 조용한 대기"가 아니라 429가 된다. permit이 컨트롤러 진입부터 스트림 종료까지
-  유지되므로 `rag_concurrency_in_use ≥ rag_answer_in_flight ≥ rag_answer_llm_stream_in_flight`이고,
-  따라서 상한 L을 걸면 `llm_stream ≤ L`이 보장된다. 힙은 `166 + 45×1.87 = 250MB`(heap max 512)
-- ⚠️ **`bedrock.async-max-concurrency`를 올린다면 이 상한도 함께 올릴 것** — 뒤집히면 보장이 깨진다
+- 한도: `search_concurrency_config` 테이블의 `scope_name='RAG'` 행 (V1_40 시드 45 → **V1_41에서 90**,
+  admin `/admin/search/weights` 하단), DB 로드 실패 시 기본값(90 / 300ms)으로 폴백
+- **왜 90인가**: **first_token p99가 무부하(VU45) 대비 120%를 넘는 지점**이 VU90과 VU105 사이이고
+  90이 그 아래 최고 레벨이다(p99 배수 1.09 / VU105는 1.27). 세 런에서 재현(1.01·0.97·1.09).
+  처리량 2.00 → 4.03 RPS. ⚠️ **p95로 보면 안 된다** — 같은 구간에서 p95는 1.00/1.02/1.02/1.07로
+  평평해 VU120까지 통과로 읽힌다. 동시성은 중앙값이 아니라 꼬리에 드러난다
+- **귀속**: 상한을 정한 런은 손잡이를 하나만 움직였다(Bedrock 풀 250·리미터 200 고정, VU만 변경).
+  VU105에서 풀은 안 닿았고(llm_stream 104/250) 힙·DB CPU(1.16/2.0)·앱 CPU·HikariCP 정상상태
+  타임아웃(0)이 전부 여유였다 — 남은 건 **꼬리 지연**뿐이다. mock도 아니다: 서버가 관측한
+  `rag_answer_llm_ttfb_seconds` p99(5.3~5.7초)와 `rag_answer_llm_chunk_gap_seconds` p99(0.061초)가
+  전 레벨 평평하다
+- **TTFB로 교차검토하면 서버 구간은 120까지 버틴다**: TTFB p99 배수가 1.02/1.03/1.19로 전부
+  120%선 안이다(TTFB = 유입 제어 + 전처리 + retrieval, LLM 미포함). **90은 TTFT·TTFB 두 지표
+  모두에서 여유를 갖고 통과하는 유일한 레벨**이라 해석 논쟁과 무관하게 안전하다.
+  상한을 90 위로 올릴 여지는 서버 코드가 아니라 DB 쪽(HikariCP 풀 5, mutable 세그먼트)에 있다
+- ⚠️ **p99 무릎은 레벨 전환 버스트에 일부 오염돼 있다.** k6 트렌드는 레벨 전체 누적이라 창을
+  못 좁힌다. 전환 순간 retrieval이 8초대로 튀고(정상상태는 0.7~1.8초) 커넥션 획득이 실패한다.
+  "정상상태 용량 한계"와 "계단 전환의 전이현상"이 섞여 있어 이 사다리로는 못 가른다 — 14.10
+- **이전 값 45는 순환이었다**: "실측 무릎 VU45"를 잰 사다리는 리미터가 없던 상태에서 돌았고
+  동시성을 막던 건 풀 50뿐이었다(스트림 21.4초·풀 50에서 VU70이면 예상 대기 8.6초 ≈ 실측 8.1초).
+  45는 AWS SDK 기본값의 그림자였지 우리가 정한 값이 아니었다
+- ⚠️ **`bedrock.async-max-concurrency`(현재 120 = 90+30)는 항상 이 상한보다 커야 한다.**
+  permit이 컨트롤러 진입부터 스트림 종료까지 유지되므로
+  `rag_concurrency_in_use ≥ rag_answer_in_flight ≥ rag_answer_llm_stream_in_flight`이고,
+  상한 L이면 `llm_stream ≤ L`이 보장된다. 뒤집히면 초과분이 429가 아니라 풀 앞의 조용한 대기가 된다.
+  힙은 `166 + 90×1.31 = 284MB`(heap max 512, 스트림당 계수는 가상 스레드 기준 재측정치)
 - **permit 반납은 `CompletableFuture.whenComplete`에서** 한다. 컨트롤러가 `SseEmitter`를 반환한 뒤에도
   작업은 `searchExecutor`에서 계속 돌기 때문에, 검색의 `try/finally` 모양을 그대로 쓰면
   정작 힙과 풀을 물고 있는 구간에 상한이 없어진다
@@ -147,10 +165,16 @@ Clova Embedding v2 (1024차원), 2단계 검색:
   `rag_concurrency_limit`, `rag_concurrency_acquire_wait` (Grafana `small-town-rag-answer` 패널 17)
 - ⚠️ **이 상한은 DB를 지켜주지 않는다** — 동시성 상한이지 RPS 상한이 아니기 때문이다.
   힙·Bedrock 풀은 동시성에 비례해 45가 지켜주지만, DB CPU는 RPS에 비례한다.
-  운영(스트림 약 21초)에서 동시 45 = 2.1 RPS라 DB 천장 10.3 RPS 대비 안전하지만,
-  **LLM이 빨라지면 같은 45가 DB를 넘긴다.** 런 4에서 리미터가 한 번도 안 걸린 채
+  운영(스트림 약 21초)에서 동시 90 = 4.0 RPS다. ⚠️ **DB 천장을 10.3 RPS로 고정 인용하지 말 것** —
+  요청당 DB 비용은 `bm25_index_docs_mutable`에 따라 움직인다(2026-08-19 문서: mutable 15행 = +12%).
+  2026-09-05 실측(mut 46) 기준 천장 외삽치는 약 7.8 RPS고 동시 90은 그 51%다.
+  **LLM이 빨라지면 같은 90이 DB를 넘긴다.** 런 4에서 리미터가 한 번도 안 걸린 채
   동시 23에서 붕괴했다(RPS 10.34 → 0.60, DB CPU 1.94 → 0.62). 근거: 13.3
-- 근거 전문: `load-test/results/2026-08-27-rag-ladder.md` 5 · 10 · 11 · 13장
+- ⚠️ **미측정: 램프 속도.** 사다리에서 VU가 계단처럼 뛰는 전환 순간마다 HikariCP 풀(5)이 순간
+  고갈돼 요청 몇 건이 실패했다(정상상태는 전 레벨 0). "동시 90까지 얼마나 빨리 올라가도 되는가"는
+  별개 축이고 300ms 획득 창이 이걸 얼마나 흡수하는지는 아직 안 쟀다
+- 근거 전문: `load-test/results/2026-08-27-rag-ladder.md` 5 · 10 · 11 · 13장,
+  `load-test/results/2026-08-29-rag-virtual-thread-ab.md` 13 · 14장
 
 > `/api/*`에서 던진 `ResponseStatusException`은 `RestApiExceptionHandler`의
 > `@ExceptionHandler(ResponseStatusException.class)`가 받는다. 이게 없으면 같은 클래스의
@@ -398,5 +422,5 @@ GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_REDIRECT_URI
 | pgvector 오류 | `CREATE EXTENSION IF NOT EXISTS vector;` 실행 |
 | 임베딩이 계속 실패 | 차단기가 OPEN인지 먼저 확인 (`embedding_circuit_state`=1 또는 admin 화면). 복구 확인 후 "즉시 닫기"로 수동 리셋 가능. 4xx(키 만료)는 차단기를 열지 않으므로 로그의 실제 상태 코드를 볼 것 |
 | 검색이 429를 반환 | 정상 동작(동시 실행 상한 도달). 한도는 admin `/admin/search/weights` 하단에서 조정 — `search_concurrency_requests_total{result="rejected"}` 확인 |
-| RAG가 429를 반환 | 두 종류다 — 시간당 IP 한도(`rag.chat.hourly-limit-per-ip`)와 동시 실행 상한(`RagConcurrencyLimiter`, 기본 45). 구분은 `rag_concurrency_requests_total{result="rejected"}`로. 한도는 admin `/admin/search/weights` 하단 RAG 섹션에서 조정 |
+| RAG가 429를 반환 | 두 종류다 — 시간당 IP 한도(`rag.chat.hourly-limit-per-ip`)와 동시 실행 상한(`RagConcurrencyLimiter`, 기본 90). 구분은 `rag_concurrency_requests_total{result="rejected"}`로. 한도는 admin `/admin/search/weights` 하단 RAG 섹션에서 조정 |
 | 외부 API 호출이 오래 매달림 | `RestTemplate`에 `connectionRequestTimeout`을 반드시 명시할 것 — 미설정 시 HttpClient5 기본값이 **3분**이다 (`setReadTimeout`만으로는 적용 안 됨) |

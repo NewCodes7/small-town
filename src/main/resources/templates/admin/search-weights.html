@@ -226,9 +226,11 @@
                         <p class="text-muted small mb-3">
                             동시에 처리할 RAG 스트림 수의 상한입니다. 초과분은 대기하지 않고 즉시 429로 거절합니다
                             (<code>/api/rag/answer</code>와 부하테스트 경로 모두).
-                            실측으로 SLA를 지킨 최고 동시성은 45이고, 붕괴는 70에서 났습니다.
-                            45는 Bedrock async 풀(50)보다 낮게 잡은 값이라 초과분이 풀 앞에서 조용히 대기하지 않고
-                            반드시 429로 나갑니다. 힙은 <code>166MB + N × 1.87MB</code>(heap max 512MB)입니다.
+                            실측으로 SLA(무부하 대비 120%)를 지킨 최고 동시성은 <strong>90</strong>입니다 —
+                            VU90에서 first_token p99가 1.09배(통과), VU105에서 1.27배(초과).
+                            p95는 VU120까지 1.07배로 평평하니 p95만 보고 판단하면 안 됩니다.
+                            90은 Bedrock async 풀(120)보다 낮게 잡은 값이라 초과분이 풀 앞에서 조용히 대기하지 않고
+                            반드시 429로 나갑니다. 힙은 <code>166MB + N × 1.31MB</code>(heap max 512MB)입니다.
                             변경은 재배포 없이 즉시 반영됩니다.
                         </p>
                         <div class="row g-3 align-items-end">
