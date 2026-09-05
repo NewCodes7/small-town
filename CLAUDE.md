@@ -170,11 +170,15 @@ Clova Embedding v2 (1024차원), 2단계 검색:
   2026-09-05 실측(mut 46) 기준 천장 외삽치는 약 7.8 RPS고 동시 90은 그 51%다.
   **LLM이 빨라지면 같은 90이 DB를 넘긴다.** 런 4에서 리미터가 한 번도 안 걸린 채
   동시 23에서 붕괴했다(RPS 10.34 → 0.60, DB CPU 1.94 → 0.62). 근거: 13.3
+- **셰딩 검증됨** (15장, VU 90/135/270 = L·1.5L·3L): 부하 3배에도 처리량 평평(4.00/4.02/4.04 RPS),
+  `llm_stream max` 90/89/89로 **상한을 한 번도 안 넘었고**, `in_use max`는 세 레벨 모두 정확히 90,
+  백엔드 재기동 0회. 과부하에서 통과 요청의 지연은 오히려 **좋아진다**(p99 배수 1.00 → 0.77 → 0.80)
+  — 대기가 될 요청이 즉시 429로 빠지기 때문이다
 - ⚠️ **미측정: 램프 속도.** 사다리에서 VU가 계단처럼 뛰는 전환 순간마다 HikariCP 풀(5)이 순간
   고갈돼 요청 몇 건이 실패했다(정상상태는 전 레벨 0). "동시 90까지 얼마나 빨리 올라가도 되는가"는
   별개 축이고 300ms 획득 창이 이걸 얼마나 흡수하는지는 아직 안 쟀다
 - 근거 전문: `load-test/results/2026-08-27-rag-ladder.md` 5 · 10 · 11 · 13장,
-  `load-test/results/2026-08-29-rag-virtual-thread-ab.md` 13 · 14장
+  `load-test/results/2026-08-29-rag-virtual-thread-ab.md` 13 · 14 · 15장
 
 > `/api/*`에서 던진 `ResponseStatusException`은 `RestApiExceptionHandler`의
 > `@ExceptionHandler(ResponseStatusException.class)`가 받는다. 이게 없으면 같은 클래스의
