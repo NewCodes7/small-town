@@ -4,6 +4,7 @@ import com.newcodes7.small_town.crawler.entity.ParsingSelector;
 import com.newcodes7.small_town.global.entity.Article;
 import com.newcodes7.small_town.global.entity.Corporation;
 import com.newcodes7.small_town.global.util.TimeUtil;
+import java.net.URI;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -152,12 +153,9 @@ public class DefaultBlogArticleParser {
         }
 
         if (!link.startsWith("http")) {
-            if (link.startsWith("/")) {
-                String normalizedBaseUrl = baseUrl;
-                if (normalizedBaseUrl.endsWith("/")) {
-                    normalizedBaseUrl = normalizedBaseUrl.substring(0, normalizedBaseUrl.length() - 1);
-                }
-                link = normalizedBaseUrl + link;
+            if (link.startsWith("/") && baseUrl != null && !baseUrl.isBlank()) {
+                // /로 시작하는 href는 baseUrl의 경로가 아닌 호스트 루트를 기준으로 해석한다.
+                link = URI.create(baseUrl).resolve(link).toString();
             } else {
                 return null;
             }

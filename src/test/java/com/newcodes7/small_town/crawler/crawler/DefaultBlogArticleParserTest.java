@@ -14,6 +14,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * DefaultBlogArticleParser 단위 테스트
@@ -439,6 +443,64 @@ public class DefaultBlogArticleParserTest {
     @Nested
     @DisplayName("링크 파싱")
     class LinkParsing {
+
+        @ParameterizedTest
+        @ValueSource(strings = {
+                "https://aws.amazon.com/ko/blogs/tech",
+                "https://aws.amazon.com/ko/blogs/tech/"
+        })
+        @DisplayName("AWS 루트 상대 링크는 baseUrl의 /ko/blogs/tech 경로를 중복하지 않음")
+        void parseLink_awsRootRelativeUrl_doesNotDuplicateBlogPath(String baseUrl) {
+            String path = "/ko/blogs/tech/claude-enterprise-inference-hooks-dlp-with-bedrock-guardrails/";
+
+            List<Article> articles = parseLinkArticles(baseUrl, path);
+
+            assertThat(articles).extracting(Article::getLink)
+                    .containsExactly("https://aws.amazon.com" + path);
+        }
+
+        @ParameterizedTest
+        @CsvSource({
+                "https://blog.example.com/tech, /posts/1, https://blog.example.com/posts/1",
+                "https://blog.example.com/tech/, /tech/posts/1, https://blog.example.com/tech/posts/1",
+                "https://blog.example.com:8443/tech/?page=2, /posts/1?lang=ko#intro, https://blog.example.com:8443/posts/1?lang=ko#intro",
+                "https://blog.example.com/tech, /posts/%ED%95%9C%EA%B8%80?ref=a%2Fb#intro, https://blog.example.com/posts/%ED%95%9C%EA%B8%80?ref=a%2Fb#intro",
+                "https://blog.example.com/tech, //other.example.com/posts/1, https://other.example.com/posts/1",
+                "http://blog.example.com/tech, //other.example.com/posts/1, http://other.example.com/posts/1",
+                "https://blog.example.com/tech, https://other.example.com/posts/1, https://other.example.com/posts/1",
+                "https://blog.example.com/tech, http://other.example.com/posts/1, http://other.example.com/posts/1"
+        })
+        @DisplayName("공용 링크 파싱은 루트 경로, 호스트, 포트, 쿼리, fragment와 인코딩을 보존")
+        void parseLink_sharedUrlResolution(String baseUrl, String href, String expectedLink) {
+            assertThat(parseLinkArticles(baseUrl, href)).extracting(Article::getLink)
+                    .containsExactly(expectedLink);
+        }
+
+        @ParameterizedTest
+        @NullAndEmptySource
+        @ValueSource(strings = " ")
+        @DisplayName("baseUrl이 없어도 절대 링크는 유지하고 루트 상대 링크는 건너뜀")
+        void parseLink_missingBaseUrl(String baseUrl) {
+            assertThat(parseLinkArticles(baseUrl, "https://blog.example.com/posts/1"))
+                    .extracting(Article::getLink).containsExactly("https://blog.example.com/posts/1");
+            assertThat(parseLinkArticles(baseUrl, "/posts/1")).isEmpty();
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"posts/1", "javascript:void(0)", "mailto:author@example.com", "#"})
+        @DisplayName("기존에 지원하지 않는 href는 계속 건너뜀")
+        void parseLink_unsupportedHref_skipsArticle(String href) {
+            assertThat(parseLinkArticles("https://blog.example.com/tech", href)).isEmpty();
+        }
+
+        private List<Article> parseLinkArticles(String baseUrl, String href) {
+            String html = "<div class='post'><a class='post-link' href='" + href + "'>"
+                    + "<span class='title'>제목</span><span class='date'>2024.01.01</span>"
+                    + "</a></div>";
+            ParsingSelector sel = selector(baseUrl,
+                    "div.post", "span.title", "a.post-link", null, "span.date", "yyyy.MM.dd");
+            return parser.parseArticlesFromPage(html, corporation("https://blog.example.com"), sel);
+        }
 
         @Test
         @DisplayName("절대 URL(http) 그대로 사용")
